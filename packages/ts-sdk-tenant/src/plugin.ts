@@ -61,7 +61,13 @@ function tenantPluginImpl(
       );
 
     const tenantId =
-      headerTenantId ?? ((user?.iq_tenant_id as string) || undefined);
+      headerTenantId ??
+      (typeof user?.tenantId === "string" && user.tenantId.length > 0
+        ? user.tenantId
+        : undefined) ??
+      (typeof user?.iq_tenant_id === "string" && user.iq_tenant_id.length > 0
+        ? user.iq_tenant_id
+        : undefined);
 
     if (!tenantId) {
       return reply.code(400).send({

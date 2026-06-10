@@ -23,6 +23,7 @@ import {
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
+import { TenantAdminApiKeyRevealDialog } from '@/features/configurator/components/tenant-admin-api-key-reveal-dialog';
 import { ConfiguratorPageShell } from '@/features/configurator/components/configurator-page-shell';
 import { useScopedOrganizationId } from '@/features/configurator/hooks/use-scoped-organization-id';
 import {
@@ -83,6 +84,11 @@ function ConfiguratorTenantListPage() {
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [branchWizardParent, setBranchWizardParent] = useState<ConfiguratorTenant | null>(null);
+  const [revealedAdminApiKey, setRevealedAdminApiKey] = useState<string | null>(null);
+  const [postProvisionNavigate, setPostProvisionNavigate] = useState<{
+    organizationId: string;
+    tenantId: string;
+  } | null>(null);
   const canCreateTenant = useCatalogModuleAction('tenants', 'create');
   const accessToken = useAuthStore((s) => s.accessToken);
   const authRoles = useAuthStore((s) => s.roles);
@@ -305,6 +311,15 @@ function ConfiguratorTenantListPage() {
       const result = await provisionMutation.mutateAsync(input);
       toast.success('Tenant and administrator created successfully');
       setIsCreateOpen(false);
+      const apiKeySecret = result.admin_user.api_key_secret?.trim();
+      if (apiKeySecret) {
+        setRevealedAdminApiKey(apiKeySecret);
+        setPostProvisionNavigate({
+          organizationId: result.organization.id,
+          tenantId: result.tenant.iq_tenant_id,
+        });
+        return;
+      }
       void navigate({
         to: '/configurator/tenant/$organizationId',
         params: { organizationId: result.organization.id },
@@ -402,6 +417,22 @@ function ConfiguratorTenantListPage() {
         isSubmitting={provisionMutation.isPending}
         onComplete={onCreateWizardComplete}
         defaultOrganizationId={organizationId}
+      />
+
+      <TenantAdminApiKeyRevealDialog
+        apiKeySecret={revealedAdminApiKey}
+        onDismiss={() => {
+          const target = postProvisionNavigate;
+          setRevealedAdminApiKey(null);
+          setPostProvisionNavigate(null);
+          if (target) {
+            void navigate({
+              to: '/configurator/tenant/$organizationId',
+              params: { organizationId: target.organizationId },
+              search: { tenantId: target.tenantId, tab: 'sequence' },
+            });
+          }
+        }}
       />
 
       {branchWizardParent && organizationId ? (

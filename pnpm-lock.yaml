@@ -860,15 +860,9 @@ importers:
       '@fastify/sensible':
         specifier: ^6.0.4
         version: 6.0.4
-      '@hims/configurator':
-        specifier: workspace:*
-        version: link:../../modules/configurator
       '@hims/dev-bootstrap':
         specifier: workspace:*
         version: link:../../packages/dev-bootstrap
-      '@hims/ts-sdk-api-key':
-        specifier: workspace:*
-        version: link:../../packages/ts-sdk-api-key
       '@hims/ts-sdk-authz':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-authz

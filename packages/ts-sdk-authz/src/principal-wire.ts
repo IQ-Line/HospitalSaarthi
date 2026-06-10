@@ -66,6 +66,16 @@ export function buildCerbosPrincipalWire(request: FastifyRequest): {
 } {
   const identity = request.user;
   const snapshot = readCerbosPrincipalSnapshot(request);
+  if (identity == null) {
+    if (snapshot) {
+      return {
+        id: snapshot.id,
+        roles: snapshot.roles.length > 0 ? snapshot.roles : [CERBOS_ROLELESS_FALLBACK_ROLE],
+        attr: snapshot.attributes as Record<string, Value>,
+      };
+    }
+    throw new Error("Cannot build Cerbos principal: request.user is not set");
+  }
   const mergedRoleCodes = mergeRoleCodes(identity.roles ?? [], snapshot?.roles ?? []);
   return {
     id: snapshot?.id ?? identity.userId,

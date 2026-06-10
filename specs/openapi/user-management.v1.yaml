@@ -53,6 +53,65 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/api-key/validate:
+    get:
+      tags:
+        - Auth
+      summary: Validate user API key (header only)
+      description: >
+        Same as POST but accepts only the `X-API-Key` header (no JSON body).
+        Prefer this for simple integrations that send the key in a header.
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyValidationSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
+    post:
+      tags:
+        - Auth
+      summary: Validate user API key and issue access + refresh tokens
+      description: >
+        Exchanges a tenant-admin user API key (`hs_user_{live|test}_…`, stored on
+        `user_management.users` at provisioning) for user profile, effective principal,
+        enabled tenant module slugs, a short-lived Bearer JWT (`access_token`, 5 minutes),
+        and a better-auth session token (`refresh_token`, 7 days).
+
+        When `access_token` expires, mint a new JWT without re-sending the API key:
+
+        `GET /api/auth/token` with `Authorization: Bearer <refresh_token>` → `{ "token": "…" }`
+        Use that `token` value as the Bearer JWT on downstream APIs (e.g. registration OPD slip PDF).
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                api_key:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyValidationSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
   /auth/principal:
     get:
       tags:
@@ -1235,6 +1294,50 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorMessage"
+    ApiKeyValidationSuccess:
+      description: API key valid — user context and access token.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - user
+              - iq_tenant_id
+              - principal
+              - enabled_module_slugs
+              - access_token
+              - token_type
+              - expires_in
+              - refresh_token
+              - refresh_expires_in
+            properties:
+              user:
+                $ref: "#/components/schemas/User"
+              iq_tenant_id:
+                type: string
+                format: uuid
+              principal:
+                $ref: "#/components/schemas/Principal"
+              enabled_module_slugs:
+                type: array
+                items:
+                  type: string
+              access_token:
+                type: string
+              token_type:
+                type: string
+                enum: [Bearer]
+              expires_in:
+                type: integer
+                description: access_token lifetime in seconds (300).
+              refresh_token:
+                type: string
+                description: >
+                  better-auth session token. Pass as Authorization Bearer refresh_token
+                  to GET /api/auth/token to obtain a new access JWT.
+              refresh_expires_in:
+                type: integer
+                description: refresh_token lifetime in seconds (604800, 7 days).
   securitySchemes:
     bearerAuth:
       type: http
@@ -1560,6 +1663,12 @@ components:
           description: >
             Minimum principal clearance tier (from Cerbos `um_clearance_effective_tier`) required for
             user.read / user.update / user.deactivate on this record. 0 = standard.
+        api_key_secret:
+          type: string
+          writeOnly: true
+          description: >
+            Plaintext integration API key (`hs_user_{live|test}_…`). Returned once when the user is
+            created with the tenant-admin role; stored hashed on the user row.
         status:
           type: string
           enum: [active, inactive, suspended]

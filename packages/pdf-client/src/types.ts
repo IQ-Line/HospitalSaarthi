@@ -69,7 +69,7 @@ export interface OpdSlipSmartParchaPage {
   content: string;
 }
 
-/** Body for pdf-platform `POST /v1/pdf/reports/opd-slip`. */
+/** Partner OPD slip request body (`POST /documents/opd-slip.pdf`). */
 export interface OpdSlipReportRequest {
   patientId: string;
   visitId: string;

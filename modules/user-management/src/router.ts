@@ -3,6 +3,7 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type {
+  AccessTokenIssuerPort,
   AuthAccountProvisioner,
   CapabilityRepository,
   MasterDataModuleCatalogPort,
@@ -10,6 +11,7 @@ import type {
   RoleCapabilityRepository,
   RoleRepository,
   PrincipalAuthorizationRepository,
+  PrincipalService,
   TenantEntitlementResolverPort,
   TenantModuleEntitlementPort,
   UserAccessRepository,
@@ -19,6 +21,7 @@ import type { CachedTenantEntitlementResolver } from "./services/cached-tenant-e
 import { registerInternalEntitlementCacheHandlers } from "./rest-handlers/internal-entitlement-cache-handlers.js";
 import { TenantMismatchError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
+import { resolveRouteAuthMode } from "./http/route-auth-mode.js";
 import {
   assertTenantHeaderAllowedForPrincipal,
   resolveEffectiveTenantId,
@@ -77,6 +80,8 @@ export interface UserManagementPluginOptions {
   runtimeEntitlementIntersection?: boolean;
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
   internalEntitlementCacheApiKey?: string;
+  principalService: PrincipalService;
+  accessTokenIssuer: AccessTokenIssuerPort;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -101,6 +106,8 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
+    principalService,
+    accessTokenIssuer,
   } = options;
 
   const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
@@ -108,6 +115,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
+    if (resolveRouteAuthMode(request.routeOptions?.config) === "public") {
+      return;
+    }
+
     const headerCheck = assertTenantHeaderAllowedForPrincipal(request);
     if (!headerCheck.ok) {
       return replyWithUserManagementError(
@@ -199,6 +210,13 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
+    validateUserApiKeyDeps: {
+      userRepository,
+      principalService,
+      tenantModuleEntitlementPort,
+      masterDataModuleCatalogPort,
+      accessTokenIssuer,
+    },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

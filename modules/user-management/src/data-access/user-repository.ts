@@ -262,4 +262,45 @@ export class DrizzleUserRepository implements UserRepository {
 
     return row ? rowToUser(row) : null;
   }
+
+  async findActiveUserByApiKeyPrefix(prefix: string) {
+    const [row] = await this.db
+      .select({
+        id: users.id,
+        full_name: users.full_name,
+        email: users.email,
+        phone: users.phone,
+        auth_user_id: users.auth_user_id,
+        status: users.status,
+        username: users.username,
+        org_id: users.org_id,
+        department: users.department,
+        clearance_tier_required: users.clearance_tier_required,
+        iq_tenant_id: users.iq_tenant_id,
+        api_key_hash: users.api_key_hash,
+      })
+      .from(users)
+      .where(and(eq(users.api_key_prefix, prefix), eq(users.status, "active")))
+      .limit(1);
+
+    if (!row?.api_key_hash) return null;
+    const { iq_tenant_id, api_key_hash, ...u } = row;
+    return { ...rowToUser(u), iq_tenant_id, api_key_hash };
+  }
+
+  async saveUserApiKey(
+    tenantId: string,
+    userId: string,
+    prefix: string,
+    keyHash: string,
+  ): Promise<void> {
+    await this.db
+      .update(users)
+      .set({
+        api_key_prefix: prefix,
+        api_key_hash: keyHash,
+        updated_at: new Date(),
+      })
+      .where(and(eq(users.iq_tenant_id, tenantId), eq(users.id, userId)));
+  }
 }

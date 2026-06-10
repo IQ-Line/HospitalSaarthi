@@ -165,15 +165,20 @@ export function registerDocumentsHandler(app: FastifyInstance, deps: DocumentsHa
       schema: { body: partnerOpdSlipRequestSchema },
     },
     async (request, reply) => {
-      if (!request.authViaApiKey) {
+      const user = (request as { user?: unknown }).user;
+      if (!request.authViaApiKey && (user === null || user === undefined)) {
         return reply.code(401).send({
-          error: "API_KEY_REQUIRED",
-          message: "X-API-Key header is required",
+          error: "UNAUTHORIZED",
+          message: "Bearer JWT or X-API-Key (tenant opd_slip key) is required",
         });
       }
 
       const result = await renderPartnerOpdSlipPdf(
-        { pdfRenderer: deps.pdfRenderer },
+        {
+          pdfRenderer: deps.pdfRenderer,
+          defaultReportWebOrigin: deps.defaultReportWebOrigin,
+          defaultReportLogoUrl: deps.defaultReportLogoUrl,
+        },
         request.body,
         readRequestId(request.headers["x-request-id"]),
       );

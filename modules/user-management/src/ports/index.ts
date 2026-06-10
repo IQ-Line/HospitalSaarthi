@@ -71,6 +71,8 @@ export type CreatePasswordAuthAccountResult = {
   authUserId: string;
 };
 
+export type UserApiKeyRecord = UserWithTenant & { api_key_hash: string };
+
 export interface UserRepository {
   createUser(tenantId: string, input: CreateUserInput): Promise<User>;
   getUserById(tenantId: string, userId: string): Promise<User | null>;
@@ -79,8 +81,26 @@ export interface UserRepository {
    * Prefer tenant-scoped {@link getUserById} when tenant and platform user id are both known.
    */
   findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null>;
+  findActiveUserByApiKeyPrefix(prefix: string): Promise<UserApiKeyRecord | null>;
+  saveUserApiKey(
+    tenantId: string,
+    userId: string,
+    prefix: string,
+    keyHash: string,
+  ): Promise<void>;
   listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]>;
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
+}
+
+export interface AccessTokenIssuerPort {
+  issueForPlatformUser(platformUserId: string): Promise<{
+    access_token: string;
+    token_type: "Bearer";
+    expires_in: number;
+    /** better-auth session token — use with `GET /api/auth/token` to mint a new access JWT. */
+    refresh_token: string;
+    refresh_expires_in: number;
+  }>;
 }
 
 export interface AuthAccountProvisioner {

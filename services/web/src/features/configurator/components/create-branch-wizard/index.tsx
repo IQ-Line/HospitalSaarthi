@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { useTenantModules } from '@/features/configurator/api';
 import { useProvisionTenant } from '@/features/configurator/api/tenant-onboarding';
+import { TenantAdminApiKeyRevealDialog } from '@/features/configurator/components/tenant-admin-api-key-reveal-dialog';
 import { branchTenantSlug } from '@/features/configurator/branch-helpers';
 import {
   BRANCH_WIZARD_DEFAULT_VALUES,
@@ -61,6 +62,7 @@ export function CreateBranchWizard({
 }: CreateBranchWizardProps) {
   const [activeStep, setActiveStep] = useState(1);
   const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(() => new Set());
+  const [revealedAdminApiKey, setRevealedAdminApiKey] = useState<string | null>(null);
   const modulesDefaultsApplied = useRef(false);
 
   const provisionTenant = useProvisionTenant();
@@ -239,8 +241,14 @@ export function CreateBranchWizard({
     };
 
     try {
-      await provisionTenant.mutateAsync(payload);
+      const result = await provisionTenant.mutateAsync(payload);
       toast.success('Branch and administrator created successfully');
+      const apiKeySecret = result.admin_user.api_key_secret?.trim();
+      if (apiKeySecret) {
+        setRevealedAdminApiKey(apiKeySecret);
+        onOpenChange(false);
+        return;
+      }
       onOpenChange(false);
     } catch (err) {
       toast.error(mutationErrorMessage(err));
@@ -248,6 +256,7 @@ export function CreateBranchWizard({
   });
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton
@@ -366,5 +375,11 @@ export function CreateBranchWizard({
         </div>
       </DialogContent>
     </Dialog>
+
+    <TenantAdminApiKeyRevealDialog
+      apiKeySecret={revealedAdminApiKey}
+      onDismiss={() => setRevealedAdminApiKey(null)}
+    />
+    </>
   );
 }

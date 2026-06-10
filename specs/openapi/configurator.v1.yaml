@@ -1990,6 +1990,12 @@ components:
               format: email
             full_name:
               type: string
+            api_key_secret:
+              type: string
+              writeOnly: true
+              description: >
+                Tenant-admin user API key (hs_user_*). Returned once from POST /tenant-onboarding
+                when user-management issues the key; not included on GET /tenants.
         provisioning_status:
           type: string
           enum:

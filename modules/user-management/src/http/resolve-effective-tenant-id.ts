@@ -7,7 +7,11 @@ function pickNonEmptyString(value: unknown): string | undefined {
 }
 
 function resolveJwtTenantId(user: unknown): string {
-  return (user as { tenantId: string }).tenantId;
+  if (user == null || typeof user !== "object") {
+    return "";
+  }
+  const tenantId = (user as { tenantId?: unknown }).tenantId;
+  return typeof tenantId === "string" ? tenantId : "";
 }
 
 function resolveJwtRoles(user: unknown): string[] {
@@ -125,8 +129,12 @@ export function assertTenantHeaderAllowedForPrincipal(
     return { ok: true };
   }
 
-  const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
+  if (headerTenant === undefined) {
+    return { ok: true };
+  }
+
+  const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const requestUser = (request as FastifyRequest & { user?: unknown }).user;
   if (headerTenant === undefined || headerTenant === jwtTenant) {
     return { ok: true };

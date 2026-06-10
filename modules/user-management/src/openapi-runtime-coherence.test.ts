@@ -24,8 +24,10 @@ import type {
   UserWithTenant,
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
+import { createAccessTokenIssuerStub } from "./test-support/access-token-issuer-stub.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
+import { createPrincipalServiceStub } from "./test-support/principal-service-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
@@ -418,6 +420,8 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          principalService: createPrincipalServiceStub(),
+          accessTokenIssuer: createAccessTokenIssuerStub(),
         });
       },
       { prefix: "/api/user-management" },
@@ -462,6 +466,8 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          principalService: createPrincipalServiceStub(),
+          accessTokenIssuer: createAccessTokenIssuerStub(),
         });
       },
       { prefix: "/api/user-management" },
@@ -527,6 +533,8 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          principalService: createPrincipalServiceStub(),
+          accessTokenIssuer: createAccessTokenIssuerStub(),
         });
       },
       { prefix: "/api/user-management" },

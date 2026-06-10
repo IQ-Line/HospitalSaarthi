@@ -77,6 +77,8 @@ export interface TenantOnboardingResult {
     id: string;
     email: string;
     full_name: string;
+    /** Plaintext hs_user_* key — only present on successful provision. */
+    api_key_secret?: string;
   };
   provisioning_status: 'completed';
   correlation_id: string;

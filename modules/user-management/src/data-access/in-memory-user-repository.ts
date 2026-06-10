@@ -22,6 +22,8 @@ type StoredUser = {
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
+  api_key_prefix?: string | null;
+  api_key_hash?: string | null;
 };
 
 function rowKey(tenantId: string, userId: string): string {
@@ -183,5 +185,31 @@ export class InMemoryUserRepository implements UserRepository {
     }
     this.users.set(key, next);
     return this.toUser(next);
+  }
+
+  async findActiveUserByApiKeyPrefix(prefix: string) {
+    for (const [key, row] of this.users) {
+      if (row.api_key_prefix !== prefix || row.status !== "active" || !row.api_key_hash) {
+        continue;
+      }
+      return {
+        ...this.toUser(row),
+        iq_tenant_id: tenantFromRowKey(key),
+        api_key_hash: row.api_key_hash,
+      };
+    }
+    return null;
+  }
+
+  async saveUserApiKey(
+    tenantId: string,
+    userId: string,
+    prefix: string,
+    keyHash: string,
+  ): Promise<void> {
+    const key = rowKey(tenantId, userId);
+    const row = this.users.get(key);
+    if (!row) return;
+    this.users.set(key, { ...row, api_key_prefix: prefix, api_key_hash: keyHash });
   }
 }

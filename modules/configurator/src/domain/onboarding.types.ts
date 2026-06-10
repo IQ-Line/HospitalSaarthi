@@ -60,6 +60,8 @@ export interface ProvisionedUser {
   id: string;
   email: string;
   full_name: string;
+  /** Plaintext user API key — returned once when tenant-admin is provisioned. */
+  api_key_secret?: string;
 }
 
 export interface ProvisionedTenant {

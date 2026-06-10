@@ -185,6 +185,18 @@ describe("Phase 1A.12 smoke", () => {
             },
           },
           masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+          principalService,
+          accessTokenIssuer: {
+            async issueForPlatformUser() {
+              return {
+                access_token: "smoke-token",
+                token_type: "Bearer",
+                expires_in: 300,
+                refresh_token: "smoke-refresh",
+                refresh_expires_in: 604_800,
+              };
+            },
+          },
         });
       },
       { prefix: "/api/user-management" },

@@ -185,10 +185,14 @@ paths:
         External integrations (e.g. Smart Report) send visit/patient/doctor/facility details in the
         request body and receive a PDF. No registration row lookup is performed.
 
-        Requires `X-API-Key` (tenant-scoped key with purpose `opd_slip` from Configurator).
+        Authenticate with either:
+        - `Authorization: Bearer <access_token>` from `POST /api/user-management/auth/api-key/validate`, or
+        - `X-API-Key` (tenant-scoped key with purpose `opd_slip` from Configurator).
+
         Include `smartParchaPages` when Smart Parcha canvas images are available.
       tags: [EncounterRegistrations]
       security:
+        - bearerAuth: []
         - opdSlipApiKey: []
       requestBody:
         required: true

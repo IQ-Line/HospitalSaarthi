@@ -13,6 +13,8 @@ import { InMemoryUserRepository } from "../data-access/in-memory-user-repository
 import { InMemoryUserProvisioningRepository } from "../data-access/in-memory-user-provisioning-repository.js";
 import type { Capability, Role } from "../ports/index.js";
 import { userManagementPlugin } from "../router.js";
+import { createDefaultPrincipalService } from "../services/default-principal-service.js";
+import { createAccessTokenIssuerStub } from "../test-support/access-token-issuer-stub.js";
 import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
@@ -186,6 +188,15 @@ async function createTestApp() {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        principalService: createDefaultPrincipalService({
+          userRepository,
+          principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
+            userAccessRepository,
+            roleRepository,
+          ),
+          principalAuthorizationRepository: new InMemoryPrincipalAuthorizationRepository(),
+        }),
+        accessTokenIssuer: createAccessTokenIssuerStub(),
       });
     },
     { prefix: "/api/user-management" },

@@ -15,6 +15,7 @@ import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { resolveRoleTemplateGrantPlans } from "./resolve-role-template-grant-plans.js";
+import { TENANT_ADMIN_ROLE_CODE } from "../domain/tenant-admin.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -27,6 +28,7 @@ import type {
   User,
   UserRepository,
 } from "../ports/index.js";
+import { issueUserApiKey } from "./issue-user-api-key.js";
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
@@ -53,6 +55,11 @@ export type CreateUserContext = {
   correlationId: string;
 };
 
+export type CreateUserResult = User & {
+  /** Issued once when the user is provisioned as tenant-admin. */
+  api_key_secret?: string;
+};
+
 /**
  * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
  * User row and initial grants persist in one DB transaction; events publish only after commit.
@@ -62,7 +69,7 @@ export async function createUser(
   ctx: CreateUserContext,
   input: CreateUserInput,
   entitlementContext?: ModuleEntitlementRequestContext,
-): Promise<User> {
+): Promise<CreateUserResult> {
   if (typeof input.full_name !== "string") {
     throw new ValidationError("full_name_invalid_type");
   }
@@ -217,5 +224,16 @@ export async function createUser(
     ctx,
     ensureUserEventPayload(linkedUser),
   );
-  return linkedUser;
+
+  const isTenantAdmin =
+    roleIds.length > 0 &&
+    (await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds)).some(
+      (role) => role.code === TENANT_ADMIN_ROLE_CODE,
+    );
+  if (!isTenantAdmin) {
+    return linkedUser;
+  }
+
+  const issued = await issueUserApiKey(deps.userRepository, ctx.tenantId, linkedUser.id);
+  return { ...linkedUser, api_key_secret: issued.api_key_secret };
 }

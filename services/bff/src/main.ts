@@ -70,6 +70,17 @@ const productionCorsOrigins = (process.env['CORS_ORIGINS'] ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+function isUpstreamUnavailableError(error: unknown): boolean {
+  if (error == null || typeof error !== 'object') return false;
+  const code = (error as { code?: string }).code;
+  return (
+    code === 'ECONNREFUSED' ||
+    code === 'ECONNRESET' ||
+    code === 'ENOTFOUND' ||
+    code === 'UND_ERR_CONNECT_TIMEOUT'
+  );
+}
+
 function isDevBrowserOrigin(origin: string | undefined): boolean {
   if (!origin) return true;
   try {
@@ -166,6 +177,26 @@ async function main() {
   }
 
   app.get('/healthz', async () => ({ status: 'ok' }));
+
+  app.setErrorHandler((error, request, reply) => {
+    if (isUpstreamUnavailableError(error)) {
+      request.log.warn({ err: error, url: request.url }, 'BFF upstream unavailable');
+      return reply.status(502).send({
+        statusCode: 502,
+        error: 'Bad Gateway',
+        code: 'BFF_UPSTREAM_UNAVAILABLE',
+        message:
+          'Upstream service is not reachable. Ensure the target microservice is running (e.g. registration-svc on port 3006).',
+      });
+    }
+    request.log.error({ err: error, url: request.url }, 'BFF request failed');
+    return reply.status(500).send({
+      statusCode: 500,
+      error: 'Internal Server Error',
+      code: 'BFF_INTERNAL_ERROR',
+      message: error instanceof Error ? error.message : 'Unexpected error',
+    });
+  });
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
   app.log.info(`BFF listening on http://localhost:${PORT}`);

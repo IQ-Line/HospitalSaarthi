@@ -119,7 +119,7 @@ export async function provisionTenant(
   // --- F. Post-commit: role + capabilities + user via HTTP -----------------
   // These run against committed data so entitlement checks can see modules.
   let adminRole: { id: string; code: string; display_name: string; is_system: boolean };
-  let adminUser: { id: string; email: string; full_name: string };
+  let adminUser: { id: string; email: string; full_name: string; api_key_secret?: string };
   try {
     adminRole = await deps.adminProvisioner.createSystemRole(
       coreData.tenant.iq_tenant_id,
@@ -193,6 +193,7 @@ export async function provisionTenant(
       id: adminUser.id,
       email: adminUser.email,
       full_name: adminUser.full_name,
+      ...(adminUser.api_key_secret ? { api_key_secret: adminUser.api_key_secret } : {}),
     },
     provisioning_status: "completed",
     correlation_id: ctx.correlationId,

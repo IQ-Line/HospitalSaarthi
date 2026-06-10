@@ -50,9 +50,7 @@ const apiKeyAuthPluginImpl: FastifyPluginAsync<ApiKeyAuthPluginOptions> = async 
 
     const secret = readApiKeyHeader(request.headers["x-api-key"]);
     if (!secret) {
-      if (partnerRequest) {
-        unauthorized(reply, request, "API_KEY_REQUIRED", "X-API-Key header is required");
-      }
+      // Partner payload route also accepts Bearer JWT (tenant-admin API key exchange).
       return;
     }
 

@@ -44,6 +44,9 @@ export const users = userManagementSchema.table(
     department: text("department"),
     /** Minimum effective clearance tier required for sensitive user resources. */
     clearance_tier_required: integer("clearance_tier_required").notNull().default(0),
+    /** Lookup prefix for user integration API keys (secret stored hashed). */
+    api_key_prefix: text("api_key_prefix"),
+    api_key_hash: text("api_key_hash"),
     ...auditColumns(),
   },
   (t) => [
@@ -54,6 +57,7 @@ export const users = userManagementSchema.table(
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+    unique("idx_users_api_key_prefix").on(t.api_key_prefix),
   ],
 );
 

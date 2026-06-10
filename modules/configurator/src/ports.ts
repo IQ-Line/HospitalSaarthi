@@ -195,5 +195,5 @@ export interface TenantAdminProvisioningPort {
       roleCapabilityIds: string[];
       actorId: string | null;
     },
-  ): Promise<{ id: string; email: string; full_name: string }>;
+  ): Promise<{ id: string; email: string; full_name: string; api_key_secret?: string }>;
 }

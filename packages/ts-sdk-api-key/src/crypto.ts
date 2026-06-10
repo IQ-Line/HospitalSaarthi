@@ -12,6 +12,10 @@ const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 32;
 
 const SECRET_PATTERN = /^hs_opd_(live|test)_[A-Za-z0-9_-]{32}$/;
+const USER_SECRET_PATTERN = /^hs_user_(live|test)_[A-Za-z0-9_-]{32}$/;
+
+/** Visible prefix for user API keys (`hs_user_{env}_` + lookup segment). */
+export const USER_API_KEY_PREFIX_LENGTH = 20;
 
 export function isTenantApiKeySecret(value: string): boolean {
   return SECRET_PATTERN.test(value);
@@ -44,6 +48,23 @@ export function hashTenantApiKeySecret(secret: string): string {
     p: SCRYPT_P,
   });
   return `${salt.toString("hex")}:${hash.toString("hex")}`;
+}
+
+export function isUserApiKeySecret(value: string): boolean {
+  return USER_SECRET_PATTERN.test(value);
+}
+
+export function extractUserApiKeyPrefix(secret: string): string | null {
+  if (!isUserApiKeySecret(secret)) return null;
+  return secret.slice(0, USER_API_KEY_PREFIX_LENGTH);
+}
+
+export function generateUserApiKeySecret(
+  environment: TenantApiKeyEnvironment,
+): { secret: string; prefix: string } {
+  const random = randomBytes(24).toString("base64url").slice(0, SECRET_BODY_LENGTH);
+  const secret = `hs_user_${environment}_${random}`;
+  return { secret, prefix: secret.slice(0, USER_API_KEY_PREFIX_LENGTH) };
 }
 
 export function verifyTenantApiKeySecret(secret: string, storedHash: string): boolean {

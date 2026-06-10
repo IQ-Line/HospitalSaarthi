@@ -156,6 +156,12 @@ export class ValidationError extends UserManagementError {
   }
 }
 
+export class ApiKeyInvalidError extends UserManagementError {
+  constructor() {
+    super("API_KEY_INVALID", "Invalid API key.");
+  }
+}
+
 export class UserNotFoundError extends UserManagementError {
   constructor(public readonly userId?: string) {
     super("USER_NOT_FOUND", "User not found for this tenant.");

@@ -11,6 +11,8 @@ import { InMemoryUserAccessRepository } from "./data-access/in-memory-user-acces
 import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.js";
 import { userManagementPlugin } from "./router.js";
 import { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
+import { createDefaultPrincipalService } from "./services/default-principal-service.js";
+import { createAccessTokenIssuerStub } from "./test-support/access-token-issuer-stub.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
@@ -169,6 +171,12 @@ async function createTestApp() {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        principalService: createDefaultPrincipalService({
+          userRepository,
+          principalRoleProjectionRepository,
+          principalAuthorizationRepository,
+        }),
+        accessTokenIssuer: createAccessTokenIssuerStub(),
       });
     },
     { prefix: "/api/user-management" },
