@@ -13,6 +13,7 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import {
+  CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
   createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
@@ -157,6 +158,15 @@ async function main() {
     );
   }
 
+  if (identityAuth) {
+    const { identityPlugin } = await import("@hims/ts-sdk-identity");
+    // Register at app root so skipPathPrefixes match full request URLs (integration-hub S2S).
+    await app.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: [...CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    });
+  }
+
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
     await api.register(multipart, {
       limits: {
@@ -165,17 +175,6 @@ async function main() {
       },
     });
 
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, {
-        ...identityAuth,
-        skipPathPrefixes: [
-          "/api/configurator/v1/integration-profiles/by-",
-          "/api/configurator/v1/internal/",
-          "/api/configurator/v1/branding-logos/ready",
-        ],
-      });
-    }
     await api.register(
       createRouter({
         db,
