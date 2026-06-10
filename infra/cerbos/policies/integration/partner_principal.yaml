@@ -1,0 +1,43 @@
+---
+# User Management partner principal orchestration (called by Integration Hub on activate/disable).
+# Gated on integration admin capabilities — UM owns grants; IH orchestrates only.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "partner_principal"
+  version: default
+  rules:
+    - actions: ["partner_principal.provision", "partner_principal.reactivate"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:activate" in request.principal.attr.capabilities ||
+              "integration:integration:activate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["partner_principal.deactivate"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:disable" in request.principal.attr.capabilities ||
+              "integration:integration:disable" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["partner_principal.read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:read" in request.principal.attr.capabilities ||
+              "integration:integration:read" in request.principal.attr.delegated_capabilities
+            )

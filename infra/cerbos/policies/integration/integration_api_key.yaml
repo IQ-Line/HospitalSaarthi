@@ -1,0 +1,43 @@
+---
+# Integration Hub control plane — API key administration.
+# Capabilities: integration:api-key:{read,issue,revoke}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "integration_api_key"
+  version: default
+  rules:
+    - actions: ["api_key.read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:read" in request.principal.attr.capabilities ||
+              "integration:api-key:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["api_key.issue"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:issue" in request.principal.attr.capabilities ||
+              "integration:api-key:issue" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["api_key.revoke"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:api-key:revoke" in request.principal.attr.capabilities ||
+              "integration:api-key:revoke" in request.principal.attr.delegated_capabilities
+            )

@@ -1,0 +1,91 @@
+---
+# Integration Hub control plane — integration registry.
+# Capabilities: integration:integration:{read,create,update,delete,activate,disable,reactivate}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "integration"
+  version: default
+  rules:
+    - actions: ["integration.read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:read" in request.principal.attr.capabilities ||
+              "integration:integration:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:create" in request.principal.attr.capabilities ||
+              "integration:integration:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:update" in request.principal.attr.capabilities ||
+              "integration:integration:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:delete" in request.principal.attr.capabilities ||
+              "integration:integration:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.activate"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:activate" in request.principal.attr.capabilities ||
+              "integration:integration:activate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.reactivate"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:reactivate" in request.principal.attr.capabilities ||
+              "integration:integration:reactivate" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["integration.disable"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "integration:integration:disable" in request.principal.attr.capabilities ||
+              "integration:integration:disable" in request.principal.attr.delegated_capabilities
+            )

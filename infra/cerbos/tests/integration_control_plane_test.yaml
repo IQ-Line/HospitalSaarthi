@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: integration_control_plane_test
+description: >-
+  Integration Hub control plane — integration registry and API key administration
+  require runtime capability keys and tenant alignment.
+
+principals:
+  integration_reader:
+    id: admin-user
+    roles:
+      - "tenant-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "integration:integration:read"
+      delegated_capabilities: []
+
+  integration_admin:
+    id: admin-user
+    roles:
+      - "tenant-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "integration:integration:create"
+        - "integration:integration:activate"
+        - "integration:api-key:issue"
+      delegated_capabilities: []
+
+  api_key_revoker:
+    id: admin-user
+    roles:
+      - "tenant-admin"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "integration:api-key:revoke"
+      delegated_capabilities: []
+
+resources:
+  integration_list_ok:
+    id: list
+    kind: integration
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  integration_list_wrong_tenant:
+    id: list
+    kind: integration
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+  api_key_issue_ok:
+    id: issue
+    kind: integration_api_key
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+tests:
+  - name: integration.read — allowed with read capability and matching tenant
+    input:
+      principals: [integration_reader]
+      resources: [integration_list_ok]
+      actions: [integration.read]
+    expected:
+      - principal: integration_reader
+        resource: integration_list_ok
+        actions:
+          integration.read: EFFECT_ALLOW
+
+  - name: integration.read — denied when tenant mismatches
+    input:
+      principals: [integration_reader]
+      resources: [integration_list_wrong_tenant]
+      actions: [integration.read]
+    expected:
+      - principal: integration_reader
+        resource: integration_list_wrong_tenant
+        actions:
+          integration.read: EFFECT_DENY
+
+  - name: integration.create — allowed for integration admin
+    input:
+      principals: [integration_admin]
+      resources: [integration_list_ok]
+      actions: [integration.create]
+    expected:
+      - principal: integration_admin
+        resource: integration_list_ok
+        actions:
+          integration.create: EFFECT_ALLOW
+
+  - name: integration.activate — allowed for integration admin
+    input:
+      principals: [integration_admin]
+      resources: [integration_list_ok]
+      actions: [integration.activate]
+    expected:
+      - principal: integration_admin
+        resource: integration_list_ok
+        actions:
+          integration.activate: EFFECT_ALLOW
+
+  - name: api_key.issue — allowed for integration admin
+    input:
+      principals: [integration_admin]
+      resources: [api_key_issue_ok]
+      actions: [api_key.issue]
+    expected:
+      - principal: integration_admin
+        resource: api_key_issue_ok
+        actions:
+          api_key.issue: EFFECT_ALLOW
+
+  - name: api_key.revoke — denied without revoke capability
+    input:
+      principals: [integration_reader]
+      resources: [api_key_issue_ok]
+      actions: [api_key.revoke]
+    expected:
+      - principal: integration_reader
+        resource: api_key_issue_ok
+        actions:
+          api_key.revoke: EFFECT_DENY
+
+  - name: api_key.revoke — allowed with revoke capability
+    input:
+      principals: [api_key_revoker]
+      resources: [api_key_issue_ok]
+      actions: [api_key.revoke]
+    expected:
+      - principal: api_key_revoker
+        resource: api_key_issue_ok
+        actions:
+          api_key.revoke: EFFECT_ALLOW

@@ -95,6 +95,29 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
     expect(mapped.capability_key).toBe("user-roles:role:assign");
   });
 
+  it("maps Integration Hub control-plane product permissions", () => {
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "integration.read",
+      }).capability_key,
+    ).toBe("integration:integration:read");
+
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "integration.activate",
+      }).capability_key,
+    ).toBe("integration:integration:activate");
+
+    expect(
+      mapMasterDataPermissionToRuntimeCapability({
+        moduleSlug: "integration",
+        permissionSlug: "api-key.issue",
+      }).capability_key,
+    ).toBe("integration:api-key:issue");
+  });
+
   it("suggests MD permission slug from runtime key", () => {
     expect(suggestMasterDataPermissionSlug("users:users:read")).toBe("users.read");
     expect(suggestMasterDataPermissionSlug("user-roles:role:assign")).toBe(
