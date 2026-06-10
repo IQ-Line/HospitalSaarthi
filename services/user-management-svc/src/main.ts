@@ -41,7 +41,9 @@ import {
   HttpConfiguratorTenantModuleEntitlementAdapter,
   HttpMasterDataModuleCatalogAdapter,
 } from "@hims/user-management";
+import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 
 function requireUpstreamBaseUrl(envKey: string): string {
   const raw = process.env[envKey]?.trim();
@@ -253,6 +255,9 @@ async function createApp(): Promise<FastifyInstance> {
   }
 
   await registerBetterAuth(app, auth, { trustedOrigins });
+
+  const tenantApiKeyValidator = new DrizzleTenantApiKeyValidator(pgDb);
+  await app.register(tenantApiKeyAuthPlugin, { validator: tenantApiKeyValidator });
 
   await app.register(identityPlugin, {
     ...identityAuth,

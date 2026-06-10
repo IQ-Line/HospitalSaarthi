@@ -95,7 +95,16 @@ function cerbosPrincipalFromRequest(request: FastifyRequest): CerbosPrincipalRol
   return raw;
 }
 
+function isApiKeyAuthenticatedRequest(request: FastifyRequest): boolean {
+  const req = request as FastifyRequest & { authViaApiKey?: boolean; tenantId?: string };
+  return req.authViaApiKey === true && typeof req.tenantId === "string" && req.tenantId.length > 0;
+}
+
 export function resolveEffectiveTenantId(request: FastifyRequest): string {
+  if (isApiKeyAuthenticatedRequest(request)) {
+    return (request as FastifyRequest & { tenantId: string }).tenantId;
+  }
+
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
   const requestUser = (request as FastifyRequest & { user?: unknown }).user;
@@ -112,6 +121,10 @@ export function resolveEffectiveTenantId(request: FastifyRequest): string {
 export function assertTenantHeaderAllowedForPrincipal(
   request: FastifyRequest,
 ): { ok: true } | { ok: false; jwtTenant: string; headerTenant: string } {
+  if (isApiKeyAuthenticatedRequest(request)) {
+    return { ok: true };
+  }
+
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
   const requestUser = (request as FastifyRequest & { user?: unknown }).user;
