@@ -44,6 +44,8 @@ export const users = userManagementSchema.table(
     department: text("department"),
     /** Minimum effective clearance tier required for sensitive user resources. */
     clearance_tier_required: integer("clearance_tier_required").notNull().default(0),
+    api_key_prefix: text("api_key_prefix"),
+    api_key_hash: text("api_key_hash"),
     ...auditColumns(),
   },
   (t) => [

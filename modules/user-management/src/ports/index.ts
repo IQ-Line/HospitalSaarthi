@@ -71,6 +71,18 @@ export type CreatePasswordAuthAccountResult = {
   authUserId: string;
 };
 
+export type UserApiKeyRecord = User & { iq_tenant_id: string; api_key_hash: string };
+
+export type AccessTokenIssuerPort = {
+  issueForPlatformUser(platformUserId: string): Promise<{
+    access_token: string;
+    token_type: "Bearer";
+    expires_in: number;
+    refresh_token: string;
+    refresh_expires_in: number;
+  }>;
+};
+
 export interface UserRepository {
   createUser(tenantId: string, input: CreateUserInput): Promise<User>;
   getUserById(tenantId: string, userId: string): Promise<User | null>;
@@ -79,6 +91,7 @@ export interface UserRepository {
    * Prefer tenant-scoped {@link getUserById} when tenant and platform user id are both known.
    */
   findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null>;
+  findActiveUserByApiKeyPrefix(prefix: string): Promise<UserApiKeyRecord | null>;
   listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]>;
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
 }

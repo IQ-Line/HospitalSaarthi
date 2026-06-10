@@ -50,6 +50,7 @@ export type {
   UserCapabilityGrant,
   UserEffectiveCapabilities,
   UserWithTenant,
+  AccessTokenIssuerPort,
 } from "./ports/index.js";
 export {
   loadIdentityJwtClaims,

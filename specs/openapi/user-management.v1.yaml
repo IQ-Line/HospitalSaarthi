@@ -53,6 +53,54 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/api-key/validate:
+    get:
+      tags: [Auth]
+      summary: Validate user API key (X-API-Key header)
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyTokenSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
+    post:
+      tags: [Auth]
+      summary: Validate user API key and issue tokens
+      description: >
+        Validates `hs_user_{live|test}_…` stored on `user_management.users`.
+        Returns short-lived `access_token` (5 min) and `refresh_token` (7 days).
+        Refresh via `GET /api/auth/token` with `Authorization: Bearer <refresh_token>`.
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                api_key:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyTokenSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
   /auth/principal:
     get:
       tags:
@@ -1235,6 +1283,33 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorMessage"
+    ApiKeyTokenSuccess:
+      description: API key valid — access and refresh tokens issued.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - access_token
+              - token_type
+              - expires_in
+              - refresh_token
+              - refresh_expires_in
+            properties:
+              access_token:
+                type: string
+              token_type:
+                type: string
+                enum: [Bearer]
+              expires_in:
+                type: integer
+                description: access_token lifetime in seconds (300).
+              refresh_token:
+                type: string
+                description: Pass as Bearer to GET /api/auth/token for a new access JWT.
+              refresh_expires_in:
+                type: integer
+                description: refresh_token lifetime in seconds (604800).
   securitySchemes:
     bearerAuth:
       type: http

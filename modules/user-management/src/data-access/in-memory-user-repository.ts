@@ -6,6 +6,7 @@ import type {
   ListUsersOptions,
   UpdateUserInput,
   User,
+  UserApiKeyRecord,
   UserRepository,
   UserStatus,
   UserWithTenant,
@@ -110,6 +111,10 @@ export class InMemoryUserRepository implements UserRepository {
         return { ...this.toUser(row), iq_tenant_id: tenantFromRowKey(key) };
       }
     }
+    return null;
+  }
+
+  async findActiveUserByApiKeyPrefix(_prefix: string): Promise<UserApiKeyRecord | null> {
     return null;
   }
 
