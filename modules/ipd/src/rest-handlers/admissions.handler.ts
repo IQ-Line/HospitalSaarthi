@@ -1,10 +1,12 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance, FastifyReply } from "fastify";
-import type { EpisodeRepo } from "../domain/episode.js";
+import type { EventBus } from "@hims/ts-sdk-events";
 import { toApi } from "../domain/episode.js";
 import type { CreateAdmissionInput } from "../use-cases/create-admission.js";
 import { createAdmission } from "../use-cases/create-admission.js";
+import { confirmAdmission } from "../use-cases/confirm-admission.js";
 import { updateAdmission } from "../use-cases/update-admission.js";
+import type { IpdRepos } from "../create-repos.js";
 import {
   createAdmissionBodySchema,
   listAdmissionsQuerySchema,
@@ -24,8 +26,11 @@ const conflict = (reply: FastifyReply, message: string) =>
 
 export function registerAdmissionsHandler(
   app: FastifyInstance,
-  repo: EpisodeRepo,
+  repos: IpdRepos,
+  eventBus: EventBus,
 ): void {
+  const { episodeRepo } = repos;
+
   app.get<{ Querystring: Record<string, string | undefined> }>(
     "/admissions",
     { ...PUBLIC, schema: { querystring: listAdmissionsQuerySchema } },
@@ -36,7 +41,7 @@ export function registerAdmissionsHandler(
         : DEFAULT_QUEUE_STATUSES;
       const page = Math.max(1, Number.parseInt(q.page ?? "1", 10) || 1);
       const limit = Math.min(100, Math.max(1, Number.parseInt(q.limit ?? "20", 10) || 20));
-      const result = await repo.list(req.tenantId, {
+      const result = await episodeRepo.list(req.tenantId, {
         status,
         admission_source: q.admission_source,
         admission_type: q.admission_type,
@@ -55,16 +60,21 @@ export function registerAdmissionsHandler(
     async (req, reply) => {
       const key = (req.headers["idempotency-key"] as string | undefined)?.trim() || null;
       if (key) {
-        const existing = await repo.getByIdempotencyKey(req.tenantId, key);
+        const existing = await episodeRepo.getByIdempotencyKey(req.tenantId, key);
         if (existing) return reply.code(201).send(toApi(existing));
       }
-      const created = await createAdmission(
-        { episodeRepo: repo },
-        req.tenantId,
-        req.body,
-        key,
-      );
-      return reply.code(201).send(toApi(created));
+      try {
+        const created = await createAdmission(
+          repos,
+          req.tenantId,
+          req.body,
+          key,
+        );
+        return reply.code(201).send(toApi(created));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Conflict";
+        return conflict(reply, message);
+      }
     },
   );
 
@@ -72,7 +82,7 @@ export function registerAdmissionsHandler(
     "/admissions/:admissionId",
     { ...PUBLIC, schema: { params: paramsAdmissionIdSchema } },
     async (req, reply) => {
-      const row = await repo.getById(req.tenantId, req.params.admissionId);
+      const row = await episodeRepo.getById(req.tenantId, req.params.admissionId);
       return row ? reply.send(toApi(row)) : notFound(reply);
     },
   );
@@ -86,10 +96,30 @@ export function registerAdmissionsHandler(
     async (req, reply) => {
       try {
         const updated = await updateAdmission(
-          { episodeRepo: repo },
+          repos,
           req.tenantId,
           req.params.admissionId,
           req.body ?? {},
+        );
+        if (!updated) return notFound(reply);
+        return reply.send(toApi(updated));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Conflict";
+        return conflict(reply, message);
+      }
+    },
+  );
+
+  app.post<{ Params: { admissionId: string } }>(
+    "/admissions/:admissionId/confirm",
+    { ...PUBLIC, schema: { params: paramsAdmissionIdSchema } },
+    async (req, reply) => {
+      try {
+        const updated = await confirmAdmission(
+          { ...repos, eventBus },
+          req.tenantId,
+          req.params.admissionId,
+          req.user?.id ?? null,
         );
         if (!updated) return notFound(reply);
         return reply.send(toApi(updated));

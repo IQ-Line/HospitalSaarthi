@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import { parseAccessJwtClaims } from '@/lib/jwt-claims';
 import { isPlatformSuperAdminFromAccessToken } from '@/lib/platform-admin';
+import { resolveTenantDisplayName } from '@/lib/tenant-display-name';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -30,8 +31,8 @@ async function fetchTenantRow(tenantId: string): Promise<ConfiguratorTenantRow> 
     return {
       iq_tenant_id: tenantId,
       org_id: parseAccessJwtClaims(useAuthStore.getState().accessToken).org_id ?? '',
-      name: tenantId,
-      slug: tenantId,
+      name: '',
+      slug: '',
       provisioning_status: 'active',
     };
   }
@@ -66,7 +67,10 @@ export async function applyTenantSessionFromAuth(input: ApplyTenantSessionInput)
     isSuperAdmin && preferred && preferred.length > 0 ? preferred : homeTenantId;
 
   const tenantRow = await fetchTenantRow(activeTenantId);
-  const tenantName = tenantRow.name?.trim() || tenantRow.slug || activeTenantId;
+  const tenantName = resolveTenantDisplayName(
+    tenantRow.name?.trim() || tenantRow.slug,
+    import.meta.env.DEV ? 'Dev Hospital' : 'HIMS',
+  );
 
   useTenantStore.getState().setTenantContext({
     homeTenantId,

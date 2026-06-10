@@ -84,6 +84,7 @@ const ALL_ADMISSIONS: AdmissionDetail[] = [
       status: 'pending_clearance',
       specialty: 'general_medicine',
       requestedAt: '2026-06-06T08:19:11Z',
+      admittedAt: null,
     },
     { provisionalDiagnosis: 'Acute febrile illness', bedId: 'GW1A-007', flags: ['High Risk'] },
   ),
@@ -97,6 +98,7 @@ const ALL_ADMISSIONS: AdmissionDetail[] = [
       status: 'admitted',
       specialty: 'obstetrics_gynecology',
       requestedAt: '2026-06-06T08:18:45Z',
+      admittedAt: '2026-06-06T09:00:00Z',
     },
     { admissionSource: 'direct', bedId: 'PW2A-003', expectedLosDays: 5, financialClass: 'insurance' },
   ),
@@ -110,6 +112,7 @@ const ALL_ADMISSIONS: AdmissionDetail[] = [
       status: 'scheduled',
       specialty: 'oncology',
       requestedAt: '2026-06-06T08:15:30Z',
+      admittedAt: null,
     },
     { admissionSource: 'er', mlc: true, bedId: 'HOW-HO-02', flags: ['Isolation', 'Allergy Alert'] },
   ),
@@ -123,6 +126,7 @@ const ALL_ADMISSIONS: AdmissionDetail[] = [
       status: 'scheduled',
       specialty: 'cardiology',
       requestedAt: '2026-06-05T14:22:00Z',
+      admittedAt: null,
     },
     { admissionSource: 'transfer', bedId: 'GW1B-012' },
   ),
@@ -136,6 +140,7 @@ const ALL_ADMISSIONS: AdmissionDetail[] = [
       status: 'scheduled',
       specialty: 'general_medicine',
       requestedAt: '2026-06-05T09:10:00Z',
+      admittedAt: null,
     },
     { dayCare: true, bedId: 'GW1A-001' },
   ),
@@ -151,6 +156,7 @@ function toListRow(detail: AdmissionDetail): AdmissionRow {
     status: detail.status,
     specialty: detail.specialty,
     requestedAt: detail.requestedAt,
+    admittedAt: detail.admittedAt,
   };
 }
 
@@ -214,6 +220,7 @@ export async function createMockAdmission(
       status: 'scheduled',
       specialty: input.specialty || 'general_medicine',
       requestedAt: new Date().toISOString(),
+      admittedAt: null,
     },
     input,
   );
@@ -231,4 +238,26 @@ export async function updateMockAdmission(
   const updated = applyFormToDetail(ALL_ADMISSIONS[index]!, input);
   ALL_ADMISSIONS[index] = updated;
   return { id: updated.id, episodeNumber: updated.episodeNumber };
+}
+
+export async function confirmMockAdmission(
+  id: string,
+): Promise<{ id: string; episodeNumber: string; status: 'admitted' }> {
+  await new Promise((r) => setTimeout(r, 300));
+  const index = ALL_ADMISSIONS.findIndex((a) => a.id === id);
+  if (index < 0) throw new Error('Admission not found');
+  const row = ALL_ADMISSIONS[index]!;
+  if (row.status !== 'scheduled') {
+    throw new Error('Only scheduled admissions can be confirmed');
+  }
+  if (!row.bedId) {
+    throw new Error('Assign a bed before confirming admission');
+  }
+  const admittedAt = new Date().toISOString();
+  ALL_ADMISSIONS[index] = {
+    ...row,
+    status: 'admitted',
+    admittedAt,
+  };
+  return { id: row.id, episodeNumber: row.episodeNumber, status: 'admitted' };
 }
