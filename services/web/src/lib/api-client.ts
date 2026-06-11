@@ -19,6 +19,7 @@ const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
 const OPD_API_PREFIX = '/api/v1/opd/';
+const PHARMACY_API_PREFIX = '/api/pharmacy/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -72,7 +73,8 @@ function pathRequiresTenantHeader(path: string): boolean {
     path.startsWith(EMPI_API_PREFIX) ||
     isRegistrationApiPath(path) ||
     path.startsWith(CONFIGURATOR_API_PREFIX) ||
-    path.startsWith(OPD_API_PREFIX)
+    path.startsWith(OPD_API_PREFIX) ||
+    path.startsWith(PHARMACY_API_PREFIX)
   );
 }
 

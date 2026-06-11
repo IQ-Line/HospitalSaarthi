@@ -53,7 +53,6 @@ export const findPatientByAbhaQuerySchema = {
 
 export const findPatientByDemographicsBodySchema = {
   type: "object" as const,
-  required: ["identifiers"],
   additionalProperties: false,
   properties: {
     identifiers: {
@@ -69,6 +68,16 @@ export const findPatientByDemographicsBodySchema = {
         },
       },
     },
+    first_name: { type: "string", minLength: 1 },
+    middle_name: { type: "string" },
+    last_name: { type: "string" },
+    gender: { type: "string", enum: [...genderEnum] },
+    phone_number: { type: "string", minLength: 1 },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+    age_years: { type: "integer" },
+    age_months: { type: "integer" },
+    age_days: { type: "integer" },
   },
 };
 

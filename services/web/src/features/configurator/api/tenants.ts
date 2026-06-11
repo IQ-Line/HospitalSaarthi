@@ -97,6 +97,25 @@ export function useCreateTenant() {
   });
 }
 
+export interface UpdateConfiguratorTenantInput {
+  free_follow_up_days?: number;
+  free_follow_up_visits?: number;
+}
+
+export function useUpdateTenant(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateConfiguratorTenantInput) =>
+      apiClient<ConfiguratorTenant>(`${BASE}/${tenantId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (row) => {
+      qc.setQueryData(configuratorKeys.tenantDetail(tenantId), row);
+    },
+  });
+}
+
 export type SetTenantModuleActiveInput = {
   tenantId: string;
   moduleId: string;

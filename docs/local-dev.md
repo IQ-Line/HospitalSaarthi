@@ -55,6 +55,13 @@ make db-reset
 pnpm dev:web-stack
 ```
 
+Pharmacy counter (includes OPD for the dispense queue):
+
+```bash
+pnpm dev:pharmacy-stack
+# or: make dev-pharmacy
+```
+
 | Service | Port | URL |
 |---------|------|-----|
 | Web (Vite) | 5173 | http://localhost:5173 |
@@ -62,6 +69,8 @@ pnpm dev:web-stack
 | User Management | 3005 | (proxied via BFF) |
 | Configurator | 3001 | (proxied via BFF) |
 | Master Data | 8010 | (proxied via BFF `/api/v1/master-data`) |
+| OPD | 8020 | (proxied via BFF `/api/v1/opd`) |
+| Pharmacy | 3004 | (proxied via BFF `/api/pharmacy/v1`) |
 | Cerbos HTTP | 3592 | Playground / `@cerbos/http` |
 | Cerbos gRPC | 3593 | Node PDP |
 

@@ -21,8 +21,9 @@ export {
   useTenantUsers,
   useCreateTenant,
   useSetTenantModuleActive,
+  useUpdateTenant,
 } from './tenants';
-export type { TenantModuleRow, TenantModuleListResponse } from './tenants';
+export type { TenantModuleRow, TenantModuleListResponse, UpdateConfiguratorTenantInput } from './tenants';
 export { useProvisionTenant } from './tenant-onboarding';
 export type { TenantOnboardingInput, TenantOnboardingResult } from './tenant-onboarding';
 export {

@@ -86,6 +86,8 @@ export interface ConfiguratorTenant {
   pin_code: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  free_follow_up_days: number;
+  free_follow_up_visits: number;
   created_at: string;
   updated_at: string;
   created_by: string | null;

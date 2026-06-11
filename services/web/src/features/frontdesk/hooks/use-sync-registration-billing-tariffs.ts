@@ -18,6 +18,7 @@ export function useSyncRegistrationBillingTariffs(
   registrationFeeLine: FeeLine,
   consultationFeeLine: FeeLine,
   hasProvider: boolean,
+  waiveConsultationFee = false,
 ) {
   const currentRegDiscount = watch('billing.registration_fee.discount') ?? 0;
   const currentRegDiscountPct = watch('billing.registration_fee.discount_percent') ?? 0;
@@ -38,7 +39,7 @@ export function useSyncRegistrationBillingTariffs(
   }, [registrationFeeLine, currentRegDiscount, currentRegDiscountPct, setValue]);
 
   useEffect(() => {
-    if (!hasProvider) {
+    if (!hasProvider || waiveConsultationFee) {
       setValue(
         'billing.consultation_fee',
         {
@@ -63,5 +64,5 @@ export function useSyncRegistrationBillingTariffs(
       },
       { shouldDirty: true },
     );
-  }, [consultationFeeLine, hasProvider, currentConsultDiscount, currentConsultDiscountPct, setValue]);
+  }, [consultationFeeLine, hasProvider, waiveConsultationFee, currentConsultDiscount, currentConsultDiscountPct, setValue]);
 }

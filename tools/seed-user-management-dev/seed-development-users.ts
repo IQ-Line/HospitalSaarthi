@@ -14,6 +14,11 @@ import { DEV_ORG_ID, DEV_TENANT_ID, filterCapabilityKeysForPersona } from "./con
 import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
 
+export type TenantSeedContext = {
+  tenantId: string;
+  orgId: string;
+};
+
 type BetterAuthServerApi = {
   api: {
     signUpEmail(args: {
@@ -30,12 +35,13 @@ type BetterAuthServerApi = {
 
 async function ensureRole(
   db: DbInstance,
+  context: TenantSeedContext,
   seedUser: DevelopmentSeedUser,
 ): Promise<string> {
   const [existing] = await db
     .select({ id: roles.id })
     .from(roles)
-    .where(and(eq(roles.iq_tenant_id, DEV_TENANT_ID), eq(roles.code, seedUser.roleCode)))
+    .where(and(eq(roles.iq_tenant_id, context.tenantId), eq(roles.code, seedUser.roleCode)))
     .limit(1);
 
   if (existing) {
@@ -43,7 +49,7 @@ async function ensureRole(
   }
 
   await db.insert(roles).values({
-    iq_tenant_id: DEV_TENANT_ID,
+    iq_tenant_id: context.tenantId,
     id: seedUser.roleId,
     code: seedUser.roleCode,
     role_type: seedUser.roleCode,
@@ -56,11 +62,15 @@ async function ensureRole(
   return seedUser.roleId;
 }
 
-async function ensurePlatformUser(db: DbInstance, seedUser: DevelopmentSeedUser): Promise<string> {
+async function ensurePlatformUser(
+  db: DbInstance,
+  context: TenantSeedContext,
+  seedUser: DevelopmentSeedUser,
+): Promise<string> {
   const [existing] = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.email, seedUser.email)))
+    .where(and(eq(users.iq_tenant_id, context.tenantId), eq(users.email, seedUser.email)))
     .limit(1);
 
   if (existing) {
@@ -69,21 +79,21 @@ async function ensurePlatformUser(db: DbInstance, seedUser: DevelopmentSeedUser)
       .set({
         full_name: seedUser.name,
         username: seedUser.username,
-        org_id: DEV_ORG_ID,
+        org_id: context.orgId,
         status: "active",
         updated_at: new Date(),
       })
-      .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.id, existing.id)));
+      .where(and(eq(users.iq_tenant_id, context.tenantId), eq(users.id, existing.id)));
     return existing.id;
   }
 
   await db.insert(users).values({
-    iq_tenant_id: DEV_TENANT_ID,
+    iq_tenant_id: context.tenantId,
     id: seedUser.userId,
     full_name: seedUser.name,
     email: seedUser.email,
     username: seedUser.username,
-    org_id: DEV_ORG_ID,
+    org_id: context.orgId,
     status: "active",
   });
 
@@ -93,6 +103,7 @@ async function ensurePlatformUser(db: DbInstance, seedUser: DevelopmentSeedUser)
 async function ensureAuthUser(
   db: DbInstance,
   auth: BetterAuthServerApi,
+  context: TenantSeedContext,
   seedUser: DevelopmentSeedUser,
   platformUserId: string,
 ): Promise<string> {
@@ -111,7 +122,7 @@ async function ensureAuthUser(
       name: seedUser.name,
       email: seedUser.email,
       password: seedUser.password,
-      iq_tenant_id: DEV_TENANT_ID,
+      iq_tenant_id: context.tenantId,
       platform_user_id: platformUserId,
     },
   });
@@ -128,19 +139,20 @@ async function ensureAuthUser(
   return created.id;
 }
 
-export async function seedDevelopmentUser(
+export async function seedTenantUser(
   db: DbInstance,
   auth: BetterAuthServerApi,
+  context: TenantSeedContext,
   seedUser: DevelopmentSeedUser,
   capabilityRows: Array<{ id: string; capability_key: string }>,
 ): Promise<void> {
-  const roleId = await ensureRole(db, seedUser);
-  const platformUserId = await ensurePlatformUser(db, seedUser);
+  const roleId = await ensureRole(db, context, seedUser);
+  const platformUserId = await ensurePlatformUser(db, context, seedUser);
 
   await db
     .insert(user_roles)
     .values({
-      iq_tenant_id: DEV_TENANT_ID,
+      iq_tenant_id: context.tenantId,
       user_id: platformUserId,
       role_id: roleId,
     })
@@ -151,7 +163,7 @@ export async function seedDevelopmentUser(
   let grantedCount: number;
   if (seedUser.persona === "platformOperator") {
     const synced = await syncSuperAdminCapabilitySnapshots(db, {
-      tenantId: DEV_TENANT_ID,
+      tenantId: context.tenantId,
       userId: platformUserId,
       roleId,
     });
@@ -173,7 +185,7 @@ export async function seedDevelopmentUser(
       .insert(role_capabilities)
       .values(
         granted.map((row) => ({
-          iq_tenant_id: DEV_TENANT_ID,
+          iq_tenant_id: context.tenantId,
           role_id: roleId,
           capability_id: row.id,
         })),
@@ -191,7 +203,7 @@ export async function seedDevelopmentUser(
       .insert(user_capabilities)
       .values(
         granted.map((row) => ({
-          iq_tenant_id: DEV_TENANT_ID,
+          iq_tenant_id: context.tenantId,
           user_id: platformUserId,
           capability_id: row.id,
           grant_source: "role_template" as const,
@@ -219,17 +231,42 @@ export async function seedDevelopmentUser(
     grantedCount = granted.length;
   }
 
-  const authUserId = await ensureAuthUser(db, auth, seedUser, platformUserId);
+  const authUserId = await ensureAuthUser(db, auth, context, seedUser, platformUserId);
   await db
     .update(users)
     .set({ auth_user_id: authUserId, updated_at: new Date() })
-    .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.id, platformUserId)));
+    .where(and(eq(users.iq_tenant_id, context.tenantId), eq(users.id, platformUserId)));
 
-  seedLog("user-management", `seeded dev user ${seedUser.persona}`, {
+  seedLog("user-management", `seeded tenant user ${seedUser.persona}`, {
+    tenantId: context.tenantId,
     email: seedUser.email,
     capabilities: grantedCount,
     role: seedUser.roleCode,
   });
+}
+
+export async function seedDevelopmentUser(
+  db: DbInstance,
+  auth: BetterAuthServerApi,
+  seedUser: DevelopmentSeedUser,
+  capabilityRows: Array<{ id: string; capability_key: string }>,
+): Promise<void> {
+  return seedTenantUser(
+    db,
+    auth,
+    { tenantId: DEV_TENANT_ID, orgId: DEV_ORG_ID },
+    seedUser,
+    capabilityRows,
+  );
+}
+
+export async function loadActiveCapabilityRows(
+  db: DbInstance,
+): Promise<Array<{ id: string; capability_key: string }>> {
+  return db
+    .select({ id: capabilities.id, capability_key: capabilities.capability_key })
+    .from(capabilities)
+    .where(eq(capabilities.is_active, true));
 }
 
 export async function resolveCapabilityRows(
