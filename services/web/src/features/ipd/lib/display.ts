@@ -43,6 +43,28 @@ export function formatAdmissionRequestedAt(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString('en-IN');
 }
 
+export function formatEnumLabel(value: string): string {
+  if (!value) return '—';
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function admissionSourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    opd_referral: 'OPD',
+    er: 'ER',
+    direct: 'Direct',
+    transfer: 'Transfer',
+  };
+  return labels[source] ?? formatEnumLabel(source);
+}
+
+export function financialClassLabel(value: string): string {
+  return formatEnumLabel(value);
+}
+
 /** Phase 0 mock — backend LLD also has direct, transfer_in, daycare. */
 export const ADMISSION_TYPES = ['planned', 'emergency'] as const;
 // TODO(Phase 1): add daycare, direct, transfer_in to form selects when wired to API.

@@ -1,6 +1,7 @@
 import {
   boolean,
   index,
+  jsonb,
   numeric,
   pgSchema,
   primaryKey,
@@ -104,5 +105,97 @@ export const episodes = ipdSchema.table(
     index("idx_episodes_status").on(t.iq_tenant_id, t.status),
     index("idx_episodes_patient").on(t.iq_tenant_id, t.patient_id),
     index("idx_episodes_ward_status").on(t.iq_tenant_id, t.ward_id, t.status),
+  ],
+);
+
+/** Doctor/nurse documentation — Notes tab (LLD §4). */
+export const clinicalNotes = ipdSchema.table(
+  "clinical_notes",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    episode_id: uuid("episode_id").notNull(),
+    note_type: text("note_type").notNull(),
+    author_id: uuid("author_id").notNull(),
+    author_role: text("author_role").notNull(),
+    author_specialty_code: text("author_specialty_code"),
+    content: jsonb("content").notNull().default({}),
+    status: text("status").notNull().default("draft"),
+    finalized_at: timestamp("finalized_at", { withTimezone: true }),
+    finalized_by: uuid("finalized_by"),
+    signed_at: timestamp("signed_at", { withTimezone: true }),
+    signed_by: uuid("signed_by"),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_clinical_notes_episode").on(t.iq_tenant_id, t.episode_id),
+    index("idx_clinical_notes_author_status").on(t.iq_tenant_id, t.author_id, t.status),
+  ],
+);
+
+/** Parameterized vital observations — Vitals tab (LLD §5). */
+export const vitalSigns = ipdSchema.table(
+  "vital_signs",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    episode_id: uuid("episode_id").notNull(),
+    check_in_id: uuid("check_in_id").notNull(),
+    recorded_at: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+    vital_code: text("vital_code").notNull(),
+    vital_name: text("vital_name").notNull(),
+    data_type: text("data_type").notNull(),
+    value_numeric: numeric("value_numeric", { precision: 18, scale: 4 }),
+    value_text: text("value_text"),
+    unit: text("unit"),
+    recorded_by: uuid("recorded_by").notNull(),
+    notes: text("notes"),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_vital_signs_episode_check_in").on(t.iq_tenant_id, t.episode_id, t.check_in_id),
+    index("idx_vital_signs_episode_recorded").on(t.iq_tenant_id, t.episode_id, t.recorded_at),
+    index("idx_vital_signs_check_in").on(t.iq_tenant_id, t.check_in_id),
+  ],
+);
+
+/** Inpatient orders — Order Tracker (LLD §6). */
+export const inpatientOrders = ipdSchema.table(
+  "inpatient_orders",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    episode_id: uuid("episode_id").notNull(),
+    order_number: text("order_number").notNull(),
+    order_category: text("order_category").notNull(),
+    item_code: text("item_code").notNull(),
+    item_name: text("item_name").notNull(),
+    quantity: numeric("quantity", { precision: 10, scale: 2 }).notNull().default("1"),
+    dosage_instruction: text("dosage_instruction"),
+    frequency: text("frequency"),
+    duration_days: smallint("duration_days"),
+    priority: text("priority").notNull().default("routine"),
+    status: text("status").notNull().default("placed"),
+    completed_at: timestamp("completed_at", { withTimezone: true }),
+    cancelled_reason: text("cancelled_reason"),
+    billing_status: text("billing_status").notNull().default("pending"),
+    notes: text("notes"),
+    idempotency_key: text("idempotency_key"),
+    ...auditColumns(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    uniqueIndex("uq_inpatient_orders_number").on(t.iq_tenant_id, t.order_number),
+    uniqueIndex("uq_inpatient_orders_idempotency")
+      .on(t.iq_tenant_id, t.idempotency_key)
+      .where(sql`${t.idempotency_key} is not null`),
+    index("idx_inpatient_orders_episode_status").on(t.iq_tenant_id, t.episode_id, t.status),
+    index("idx_inpatient_orders_category_status").on(
+      t.iq_tenant_id,
+      t.order_category,
+      t.status,
+    ),
   ],
 );

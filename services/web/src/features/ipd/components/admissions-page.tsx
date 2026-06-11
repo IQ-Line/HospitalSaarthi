@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Pencil, Plus, Search } from 'lucide-react';
@@ -33,6 +33,7 @@ const NONE = '__all__';
 const defaultFilters = (): AdmissionsFilters => ({ search: '', status: '', type: '' });
 
 export function AdmissionsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState(defaultFilters);
   const [page, setPage] = useState(1);
@@ -143,7 +144,7 @@ export function AdmissionsPage() {
                 asChild
               >
                 <Link
-                  to="/ipd/admissions/$admissionId"
+                  to="/ipd/admissions/$admissionId/edit"
                   params={{ admissionId: row.original.id }}
                 >
                   <Pencil className="size-3.5" />
@@ -225,6 +226,12 @@ export function AdmissionsPage() {
           showColumnMenu
           emptyTitle="No admissions"
           emptyDescription="No admission requests match the current filters."
+          onRowClick={(row) =>
+            void navigate({
+              to: '/ipd/admissions/$admissionId',
+              params: { admissionId: row.id },
+            })
+          }
           manualPagination={{
             pageIndex: page - 1,
             pageSize,

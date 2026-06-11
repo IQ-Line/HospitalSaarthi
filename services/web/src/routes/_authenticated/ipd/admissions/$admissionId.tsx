@@ -1,11 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { AdmissionFormPage } from '@/features/ipd/components/admission-form-page';
+import { AdmissionDetailPage } from '@/features/ipd/components/admission-detail-page';
 
 export const Route = createFileRoute('/_authenticated/ipd/admissions/$admissionId')({
-  component: EditAdmissionRoute,
+  component: AdmissionDetailRoute,
 });
 
-function EditAdmissionRoute() {
+function AdmissionDetailRoute() {
   const { admissionId } = Route.useParams();
-  return <AdmissionFormPage admissionId={admissionId} />;
+  return <AdmissionDetailPage admissionId={admissionId} />;
 }

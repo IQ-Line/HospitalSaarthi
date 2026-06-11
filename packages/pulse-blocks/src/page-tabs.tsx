@@ -39,7 +39,7 @@ export function PageTabs({ tabs, defaultValue, value, onValueChange }: PageTabsP
               key={tab.value}
               value={tab.value}
               disabled={tab.disabled}
-              className="gap-2 px-4 first:pl-0 last:pr-0"
+              className="gap-2 px-4 after:hidden first:pl-0 last:pr-0"
             >
               {tab.label}
               {tab.badge !== undefined && (

@@ -52,7 +52,7 @@ env-init: ## Copy every .env.example to .env (skips files that already exist)
 
 .PHONY: dev
 dev: ## Start all services via Nx
-	$(NX) run-many -t serve --parallel=10
+	$(NX) run-many -t serve --parallel=12
 
 .PHONY: dev-module
 dev-module: ## Start a single module service (usage: make dev-module m=empi-svc)

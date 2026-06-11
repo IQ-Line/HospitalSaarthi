@@ -9,6 +9,12 @@ info:
 tags:
   - name: Admissions
     description: Admission queue and CRUD (episode row)
+  - name: ClinicalNotes
+    description: Doctor/nurse documentation for an admission episode
+  - name: VitalSigns
+    description: Bedside vital sign recordings grouped by check-in
+  - name: Orders
+    description: Inpatient orders (medication, procedure, lab, radiology, consumables)
 
 servers:
   - url: http://localhost:3008/api/ipd/v1
@@ -168,6 +174,271 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /admissions/{admissionId}/clinical-notes:
+    get:
+      operationId: listClinicalNotes
+      summary: List clinical notes for an episode
+      tags: [ClinicalNotes]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/ClinicalNoteStatus" }
+        - name: note_type
+          in: query
+          schema: { $ref: "#/components/schemas/ClinicalNoteType" }
+      responses:
+        "200":
+          description: Notes for the episode (newest first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalNoteListResponse"
+        "404":
+          description: Episode not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    post:
+      operationId: createClinicalNote
+      summary: Create a draft clinical note
+      tags: [ClinicalNotes]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateClinicalNoteRequest"
+      responses:
+        "201":
+          description: Draft note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalNote"
+        "404":
+          description: Episode not found
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admissions/{admissionId}/clinical-notes/{noteId}:
+    get:
+      operationId: getClinicalNote
+      summary: Get a clinical note
+      tags: [ClinicalNotes]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - $ref: "#/components/parameters/ClinicalNoteId"
+      responses:
+        "200":
+          description: Note detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalNote"
+        "404":
+          description: Not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+    patch:
+      operationId: updateClinicalNote
+      summary: Update a draft clinical note (author only)
+      tags: [ClinicalNotes]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - $ref: "#/components/parameters/ClinicalNoteId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateClinicalNoteRequest"
+      responses:
+        "200":
+          description: Updated note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalNote"
+        "403":
+          description: Not author or note not draft
+        "404":
+          description: Not found
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admissions/{admissionId}/clinical-notes/{noteId}/finalize:
+    post:
+      operationId: finalizeClinicalNote
+      summary: Finalize a draft clinical note (author only)
+      tags: [ClinicalNotes]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - $ref: "#/components/parameters/ClinicalNoteId"
+      responses:
+        "200":
+          description: Finalized note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClinicalNote"
+        "403":
+          description: Not author or note not draft
+        "404":
+          description: Not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admissions/{admissionId}/vital-check-ins:
+    get:
+      operationId: listVitalCheckIns
+      summary: List vital sign check-ins for an episode
+      description: Returns grouped bedside rounds (newest first). Each POST creates a new check-in.
+      tags: [VitalSigns]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - name: recorder_role
+          in: query
+          schema: { $ref: "#/components/schemas/RecorderRole" }
+      responses:
+        "200":
+          description: Grouped vital check-ins
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalCheckInListResponse"
+        "404":
+          description: Episode not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: recordVitalCheckIn
+      summary: Record a new vital sign check-in
+      description: |
+        Writes one or more EAV rows sharing a `check_in_id`.
+        At least one measurement is required. Repeat POST to record additional rounds.
+      tags: [VitalSigns]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordVitalCheckInRequest"
+      responses:
+        "201":
+          description: Check-in recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VitalCheckIn"
+        "400":
+          description: No measurements provided
+        "404":
+          description: Episode not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admissions/{admissionId}/orders:
+    get:
+      operationId: listInpatientOrders
+      summary: List orders for an episode
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: order_category
+          in: query
+          schema: { $ref: "#/components/schemas/OrderCategory" }
+        - name: priority
+          in: query
+          schema: { $ref: "#/components/schemas/OrderPriority" }
+        - name: status
+          in: query
+          description: Use `pending` as alias for `placed`
+          schema: { $ref: "#/components/schemas/OrderStatusFilter" }
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InpatientOrderListPage"
+        "404":
+          description: Episode not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createInpatientOrder
+      summary: Place a new order
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInpatientOrderRequest"
+      responses:
+        "201":
+          description: Order placed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InpatientOrder"
+        "404":
+          description: Episode not found
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /admissions/{admissionId}/orders/{orderId}:
+    get:
+      operationId: getInpatientOrder
+      summary: Get order by id
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/AdmissionId"
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InpatientOrder"
+        "404":
+          description: Not found
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
 components:
   parameters:
     AdmissionId:
@@ -175,6 +446,18 @@ components:
       in: path
       required: true
       description: Episode UUID (`ipd.episodes.id`)
+      schema: { type: string, format: uuid }
+    ClinicalNoteId:
+      name: noteId
+      in: path
+      required: true
+      description: Clinical note UUID (`ipd.clinical_notes.id`)
+      schema: { type: string, format: uuid }
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      description: Inpatient order UUID (`ipd.inpatient_orders.id`)
       schema: { type: string, format: uuid }
     IdempotencyKey:
       name: Idempotency-Key
@@ -215,6 +498,393 @@ components:
     FinancialClass:
       type: string
       enum: [general, private, insurance, sponsored]
+
+    FinancialClass:
+      type: string
+      enum: [general, private, insurance, sponsored]
+
+    ClinicalNoteType:
+      type: string
+      enum:
+        - admission_note
+        - progress_note
+        - procedure_note
+        - consultation_note
+        - discharge_summary_note
+        - operation_note
+        - transfer_note
+        - handover_note
+        - nursing_note
+
+    ClinicalNoteStatus:
+      type: string
+      enum: [draft, finalized, signed]
+
+    AuthorRole:
+      type: string
+      enum: [consultant, resident, registrar, nurse, specialist, intern]
+
+    ClinicalNoteContent:
+      type: object
+      additionalProperties: false
+      properties:
+        structured:
+          type: string
+        narrative:
+          type: string
+        sections:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateClinicalNoteRequest:
+      type: object
+      required: [note_type, author_role, content]
+      additionalProperties: false
+      properties:
+        note_type:
+          $ref: "#/components/schemas/ClinicalNoteType"
+        author_role:
+          $ref: "#/components/schemas/AuthorRole"
+        author_specialty_code:
+          type: string
+          nullable: true
+        content:
+          $ref: "#/components/schemas/ClinicalNoteContent"
+
+    UpdateClinicalNoteRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        note_type:
+          $ref: "#/components/schemas/ClinicalNoteType"
+        author_role:
+          $ref: "#/components/schemas/AuthorRole"
+        author_specialty_code:
+          type: string
+          nullable: true
+        content:
+          $ref: "#/components/schemas/ClinicalNoteContent"
+
+    ClinicalNote:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - episode_id
+        - note_type
+        - author_id
+        - author_role
+        - content
+        - status
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        episode_id:
+          type: string
+          format: uuid
+        note_type:
+          $ref: "#/components/schemas/ClinicalNoteType"
+        author_id:
+          type: string
+          format: uuid
+        author_role:
+          $ref: "#/components/schemas/AuthorRole"
+        author_specialty_code:
+          type: string
+          nullable: true
+        content:
+          $ref: "#/components/schemas/ClinicalNoteContent"
+        status:
+          $ref: "#/components/schemas/ClinicalNoteStatus"
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
+        finalized_by:
+          type: string
+          format: uuid
+          nullable: true
+        signed_at:
+          type: string
+          format: date-time
+          nullable: true
+        signed_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ClinicalNoteListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClinicalNote"
+
+    RecorderRole:
+      type: string
+      enum: [nurse, doctor, resident, consultant]
+
+    RecordVitalCheckInRequest:
+      type: object
+      required: [recorder_role]
+      additionalProperties: false
+      properties:
+        recorded_at:
+          type: string
+          format: date-time
+        recorder_role:
+          $ref: "#/components/schemas/RecorderRole"
+        notes:
+          type: string
+          nullable: true
+        heart_rate:
+          type: number
+          nullable: true
+        systolic_bp:
+          type: number
+          nullable: true
+        diastolic_bp:
+          type: number
+          nullable: true
+        temperature:
+          type: number
+          nullable: true
+        spo2:
+          type: number
+          nullable: true
+        respiratory_rate:
+          type: number
+          nullable: true
+
+    VitalCheckIn:
+      type: object
+      required:
+        - check_in_id
+        - episode_id
+        - recorded_at
+        - recorded_by
+      additionalProperties: false
+      properties:
+        check_in_id:
+          type: string
+          format: uuid
+        episode_id:
+          type: string
+          format: uuid
+        recorded_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: string
+          format: uuid
+        recorder_role:
+          allOf:
+            - $ref: "#/components/schemas/RecorderRole"
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        heart_rate:
+          type: number
+          nullable: true
+        systolic_bp:
+          type: number
+          nullable: true
+        diastolic_bp:
+          type: number
+          nullable: true
+        temperature:
+          type: number
+          nullable: true
+        spo2:
+          type: number
+          nullable: true
+        respiratory_rate:
+          type: number
+          nullable: true
+
+    VitalCheckInListResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/VitalCheckIn"
+
+    OrderCategory:
+      type: string
+      enum: [medication, procedure, laboratory, radiology, consumable]
+
+    OrderPriority:
+      type: string
+      enum: [routine, urgent, stat]
+
+    OrderStatus:
+      type: string
+      enum: [placed, acknowledged, in_progress, completed, cancelled, on_hold]
+
+    OrderStatusFilter:
+      type: string
+      enum: [placed, pending, acknowledged, in_progress, completed, cancelled, on_hold]
+
+    CreateInpatientOrderRequest:
+      type: object
+      required: [order_category, item_name]
+      additionalProperties: false
+      properties:
+        order_category:
+          $ref: "#/components/schemas/OrderCategory"
+        item_name:
+          type: string
+        item_code:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        priority:
+          $ref: "#/components/schemas/OrderPriority"
+        dosage_instruction:
+          type: string
+          nullable: true
+        frequency:
+          type: string
+          nullable: true
+        duration_days:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        special_instructions:
+          type: string
+          nullable: true
+
+    InpatientOrder:
+      type: object
+      required:
+        - id
+        - iq_tenant_id
+        - episode_id
+        - order_number
+        - order_category
+        - item_code
+        - item_name
+        - quantity
+        - priority
+        - status
+        - billing_status
+        - department
+        - sla
+        - description
+        - pending_ack
+        - is_overdue
+        - created_at
+        - updated_at
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+        episode_id:
+          type: string
+          format: uuid
+        order_number:
+          type: string
+        order_category:
+          $ref: "#/components/schemas/OrderCategory"
+        item_code:
+          type: string
+        item_name:
+          type: string
+        quantity:
+          type: number
+        dosage_instruction:
+          type: string
+          nullable: true
+        frequency:
+          type: string
+          nullable: true
+        duration_days:
+          type: integer
+          nullable: true
+        priority:
+          $ref: "#/components/schemas/OrderPriority"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        cancelled_reason:
+          type: string
+          nullable: true
+        billing_status:
+          type: string
+          enum: [pending, billed, waived]
+        notes:
+          type: string
+          nullable: true
+        department:
+          type: string
+        sla:
+          type: string
+        description:
+          type: string
+        pending_ack:
+          type: boolean
+        is_overdue:
+          type: boolean
+        ack_by:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    InpatientOrderListPage:
+      type: object
+      required: [data, total, page, limit, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/InpatientOrder"
+        total:
+          type: integer
+          minimum: 0
+        page:
+          type: integer
+          minimum: 1
+        limit:
+          type: integer
+          minimum: 1
+        total_pages:
+          type: integer
+          minimum: 0
 
     CreateAdmissionRequest:
       type: object
