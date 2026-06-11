@@ -4,6 +4,7 @@ import {
   mapVisitRegistrationToAppointmentBody,
   mapVisitRegistrationToExistingPatientIntakeBody,
   mapVisitRegistrationToNewPatientIntakeBody,
+  resolveRegistrationPatientId,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
@@ -121,6 +122,34 @@ export async function createExistingPatientRegistration(
   );
 }
 
+import type { VisitTypeDecisionPatientPayload } from '@/features/frontdesk/utils/visit-registration-helpers';
+
+export type VisitTypeDecisionResult = {
+  consultation_type: 'new' | 'followup' | 'free-followup';
+  visit_type_code: string;
+  fee: 0 | 1;
+  is_locked: boolean;
+  resolved_patient_id: string | null;
+  valid_till: string | null;
+  free_follow_up_visit_count: number;
+  free_follow_up_visits_allowed: number;
+  free_follow_up_visits_remaining: number;
+};
+
+export async function fetchVisitTypeDecision(input: {
+  department_id: string;
+  patient?: VisitTypeDecisionPatientPayload;
+}): Promise<VisitTypeDecisionResult> {
+  const res = await apiClient<{ success: true; data: VisitTypeDecisionResult }>(
+    `${registrationApiBase()}/visit-type-decision`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+  return res.data;
+}
+
 const PATIENT_ID_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -138,27 +167,34 @@ function patientIdFromAlreadyExistsError(err: ApiError): string | undefined {
 
 async function registerVisitIntake(
   form: CreateVisitRequestBody,
-  options: { idempotencyKey: string; existingPatientId?: string },
+  options: {
+    idempotencyKey: string;
+    existingPatientId?: string;
+    resolvedPatientId?: string | null;
+  },
 ): Promise<CreateNewPatientRegistrationResponse> {
-  const { idempotencyKey, existingPatientId } = options;
-  if (existingPatientId) {
+  const patientId = resolveRegistrationPatientId(
+    options.resolvedPatientId,
+    options.existingPatientId,
+  );
+  if (patientId) {
     return createExistingPatientRegistration(
-      mapVisitRegistrationToExistingPatientIntakeBody(form, existingPatientId),
-      { idempotencyKey },
+      mapVisitRegistrationToExistingPatientIntakeBody(form, patientId),
+      { idempotencyKey: options.idempotencyKey },
     );
   }
   try {
     return await createNewPatientRegistration(
       mapVisitRegistrationToNewPatientIntakeBody(form),
-      { idempotencyKey },
+      { idempotencyKey: options.idempotencyKey },
     );
   } catch (err) {
     if (!(err instanceof ApiError)) throw err;
-    const patientId = patientIdFromAlreadyExistsError(err);
-    if (!patientId) throw err;
+    const duplicateId = patientIdFromAlreadyExistsError(err);
+    if (!duplicateId) throw err;
     return createExistingPatientRegistration(
-      mapVisitRegistrationToExistingPatientIntakeBody(form, patientId),
-      { idempotencyKey },
+      mapVisitRegistrationToExistingPatientIntakeBody(form, duplicateId),
+      { idempotencyKey: options.idempotencyKey },
     );
   }
 }
@@ -226,11 +262,13 @@ export async function executeCreateVisitFlow(
     idempotencyKey: string;
     reportMeta?: RegistrationReportMeta;
     existingPatientId?: string;
+    resolvedPatientId?: string | null;
   },
 ): Promise<CreateVisitFlowResult> {
   const registration = await registerVisitIntake(form, {
     idempotencyKey: options.idempotencyKey,
     existingPatientId: options.existingPatientId,
+    resolvedPatientId: options.resolvedPatientId,
   });
 
   await createAppointmentStub(form, registration);

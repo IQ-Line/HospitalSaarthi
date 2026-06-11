@@ -14,6 +14,9 @@ interface UpstreamRoute {
 function buildUpstreams(): UpstreamRoute[] {
   const userManagementUrl =
     process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005';
+  const integrationHubUrl =
+    process.env['INTEGRATION_HUB_URL'] ??
+    'http://localhost:3007';
 
   return [
     {
@@ -47,6 +50,18 @@ function buildUpstreams(): UpstreamRoute[] {
     {
       prefix: '/api/v1/opd',
       upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
+    },
+    {
+      prefix: '/api/pharmacy/v1',
+      upstream: process.env['PHARMACY_URL'] ?? 'http://localhost:3004',
+    },
+    {
+      prefix: '/api/abdm/v1',
+      upstream: integrationHubUrl,
+    },
+    {
+      prefix: '/api/v3',
+      upstream: integrationHubUrl,
     },
   ];
 }
@@ -89,6 +104,8 @@ async function main() {
       'x-tenant-id',
       'x-user-id',
       'Idempotency-Key',
+      'x-bypass-entitlement-cache',
+      'x-api-key',
     ],
     origin: (origin, cb) => {
       if (!isProduction) {
@@ -159,7 +176,11 @@ async function main() {
   const opdUpstream =
     upstreams.find((r) => r.prefix === '/api/v1/opd')?.upstream ??
     'http://localhost:8020';
+  const integrationHubUpstream =
+    upstreams.find((r) => r.prefix === '/api/abdm/v1')?.upstream ??
+    'http://localhost:3007';
   app.log.info(`OPD upstream: ${opdUpstream}`);
+  app.log.info(`Integration hub upstream: ${integrationHubUpstream}`);
 }
 
 main().catch((err) => {

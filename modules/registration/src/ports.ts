@@ -15,6 +15,9 @@ import type {
   VisitRecord,
 } from "./domain/visit.types.js";
 import type { VisitStatus } from "./lib/visit-helpers.js";
+import type { TenantFollowUpConfig } from "./lib/follow-up.js";
+
+export type { TenantFollowUpConfig };
 
 export interface RegistrationRepo {
   findByIdempotencyKey(
@@ -80,6 +83,16 @@ export interface VisitRepo {
     tenantId: string,
     patientIds: readonly string[],
   ): Promise<Map<string, VisitRecord>>;
+  findLatestByPatientAndDepartment(
+    tenantId: string,
+    patientId: string,
+    departmentId: string,
+  ): Promise<VisitRecord | undefined>;
+  countFreeFollowUpVisits(
+    tenantId: string,
+    patientId: string,
+    departmentId: string,
+  ): Promise<number>;
   getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics>;
 }
 
@@ -108,6 +121,29 @@ export interface EmpiHttpPort {
     body: Record<string, unknown>,
     bearerToken?: string,
   ): Promise<EmpiRegisterPatientResult>;
+  resolvePatientId(
+    tenantId: string,
+    query: {
+      patient_id?: string;
+      uhid?: string;
+      abha_number?: string;
+      abha_address?: string;
+      phone_number?: string;
+      first_name?: string;
+      middle_name?: string;
+      last_name?: string;
+      gender?: string;
+      date_of_birth?: string;
+      age_years?: number;
+      age_months?: number;
+      age_days?: number;
+    },
+    bearerToken?: string,
+  ): Promise<string | null>;
+}
+
+export interface ConfiguratorHttpPort {
+  getTenantFollowUpConfig(tenantId: string): Promise<TenantFollowUpConfig>;
 }
 
 export interface OpdHttpPort {
@@ -167,6 +203,19 @@ export interface BillingReadPort {
     billId: string,
     options?: { bearerToken?: string },
   ): Promise<BillingBillDetail | null>;
+}
+
+export interface ApiKeyValidationResult {
+  tenantId: string;
+  apiKeyId: string;
+  purpose: "opd_slip";
+}
+
+export interface ApiKeyValidatorPort {
+  validateOpdSlipKey(
+    prefix: string,
+    secret: string,
+  ): Promise<ApiKeyValidationResult | null>;
 }
 
 export type { DbInstance };

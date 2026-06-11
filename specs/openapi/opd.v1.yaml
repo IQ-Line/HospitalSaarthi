@@ -131,6 +131,7 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/OpdVisitSummary'
+
   /visits/{visitId}/encounter:
     put:
       operationId: ensureRegistrationEncounter
@@ -730,6 +731,7 @@ components:
         updated_at:
           type: string
           format: date-time
+
     OpdPatientEncounterSummary:
       type: object
       required:
@@ -825,6 +827,14 @@ components:
           - cancelled
         is_read_only:
           type: boolean
+        doctor_id:
+          type: string
+          format: uuid
+          nullable: true
+        finalized_at:
+          type: string
+          format: date-time
+          nullable: true
         form_data:
           type: object
           additionalProperties: true

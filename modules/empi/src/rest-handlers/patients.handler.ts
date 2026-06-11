@@ -15,7 +15,8 @@ import type {
   UpdateAddressRequestBody,
   UpdatePatientRequestBody,
 } from "../domain/api.types.js";
-import { registerPatient } from "../use-cases/register-patient.js";
+import { findPatientByDedupDemographics, registerPatient } from "../use-cases/register-patient.js";
+import { normalizeIndianPhoneForEmpi } from "../lib/indian-phone.js";
 import { isDuplicateRegistrationResult } from "../use-cases/register-patient.types.js";
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
@@ -142,14 +143,62 @@ export function registerPatientsHandler(
     },
   );
 
-  app.post<{ Body: { identifiers: Array<{ type: string; value: string }> } }>(
+  app.post<{
+    Body: {
+      identifiers?: Array<{ type: string; value: string }>;
+      first_name?: string;
+      middle_name?: string;
+      last_name?: string;
+      gender?: import("../domain/patient.types.js").Gender;
+      phone_number?: string;
+      date_of_birth?: string;
+      year_of_birth?: number;
+      age_years?: number;
+      age_months?: number;
+      age_days?: number;
+    };
+  }>(
     "/patients/find-by-demographics",
     {
       schema: {
         body: findPatientByDemographicsBodySchema,
       },
     },
-    async (_request, reply) => {
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const body = request.body;
+
+      if (body.first_name?.trim() && body.gender && body.phone_number?.trim()) {
+        const phone = normalizeIndianPhoneForEmpi(body.phone_number);
+        if (!phone) return reply.code(404).send({ error: "Patient not found" });
+
+        const dob = body.date_of_birth?.trim();
+        let yearOfBirth = body.year_of_birth ?? null;
+        if (!yearOfBirth && dob) {
+          const y = new Date(dob).getFullYear();
+          if (!Number.isNaN(y) && y > 1900) yearOfBirth = y;
+        }
+
+        const match = await findPatientByDedupDemographics(
+          { patientRepo: deps.patientRepo },
+          tenantId,
+          {
+            first_name: body.first_name.trim(),
+            middle_name: body.middle_name?.trim() || null,
+            last_name: body.last_name?.trim() || null,
+            gender: body.gender,
+            phone_number: phone,
+            date_of_birth: dob || null,
+            year_of_birth: yearOfBirth,
+            age_years: body.age_years ?? null,
+            age_months: body.age_months ?? null,
+            age_days: body.age_days ?? null,
+          },
+        );
+        if (!match) return reply.code(404).send({ error: "Patient not found" });
+        return reply.send({ patientId: match.id, id: match.id, score: 1 });
+      }
+
       return reply.code(404).send({ error: "Patient not found" });
     },
   );

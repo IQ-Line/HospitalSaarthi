@@ -55,6 +55,8 @@ class OpdPrescriptionResponse(BaseModel):
     visit_status: str
     prescription_status: str
     is_read_only: bool
+    doctor_id: UUID | None = None
+    finalized_at: datetime | None = None
     form_data: dict[str, Any]
 
 

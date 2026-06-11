@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
-import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { executeCreateVisitFlow, fetchVisitTypeDecision, listRegistrations, type VisitTypeDecisionResult } from '@/features/frontdesk/api/registrations';
 import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
@@ -43,13 +43,16 @@ import type { CreateVisitRequestBody, RegistrationListItemResponse } from '@/fea
 import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
+  buildVisitTypeDecisionPatientPayload,
   computeBillingGrandTotal,
+  FIRST_VISIT_TYPE_CODE,
   FOLLOW_UP_VISIT_TYPE_CODE,
   hasEnteredAgeYmd,
   isFollowUpVisitType,
   isVisitRegistrationFormComplete,
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
+  visitTypeDecisionRequestKey,
   defaultVisitRegistrationAddress,
   parseDateOnly,
   startOfLocalDay,
@@ -99,6 +102,8 @@ function VisitRegistrationRoute() {
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
+  const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
+  const [isVisitTypeLocked, setIsVisitTypeLocked] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [reportsModal, setReportsModal] = useState<ReportsModalConfig | null>(null);
@@ -274,7 +279,11 @@ function VisitRegistrationRoute() {
     billingAmountPaid,
     patientPhone,
     patientFirstName,
+    patientMiddleName,
+    patientLastName,
     patientGender,
+    patientAbhaNumber,
+    patientAbhaAddress,
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
@@ -293,7 +302,11 @@ function VisitRegistrationRoute() {
       'billing.amount_paid',
       'patient.phone',
       'patient.first_name',
+      'patient.middle_name',
+      'patient.last_name',
       'patient.gender',
+      'patient.abha_number',
+      'patient.abha_address',
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
@@ -318,7 +331,92 @@ function VisitRegistrationRoute() {
     tariffs.registrationFeeLine,
     tariffs.consultationFeeLine,
     hasProvider,
+    visitDecisionMeta?.fee === 0,
   );
+
+  const visitTypeDecisionPatient = useMemo(
+    () =>
+      buildVisitTypeDecisionPatientPayload({
+        phone: patientPhone,
+        firstName: patientFirstName,
+        middleName: patientMiddleName,
+        lastName: patientLastName,
+        gender: patientGender,
+        dateOfBirth,
+        ageYears,
+        ageMonths,
+        ageDays,
+        abhaNumber: patientAbhaNumber,
+        abhaAddress: patientAbhaAddress,
+      }),
+    [
+      patientPhone,
+      patientFirstName,
+      patientMiddleName,
+      patientLastName,
+      patientGender,
+      dateOfBirth,
+      ageYears,
+      ageMonths,
+      ageDays,
+      patientAbhaNumber,
+      patientAbhaAddress,
+    ],
+  );
+
+  const visitTypeDecisionKey = useMemo(
+    () =>
+      visitTypeDecisionRequestKey(
+        (appointmentDepartmentId ?? '').trim(),
+        visitTypeDecisionPatient,
+      ),
+    [appointmentDepartmentId, visitTypeDecisionPatient],
+  );
+  const debouncedVisitTypeDecisionKey = useDebouncedValue(visitTypeDecisionKey, 300);
+
+  useEffect(() => {
+    if (phase !== 'form') return;
+
+    const departmentId = (appointmentDepartmentId ?? '').trim();
+    if (!departmentId) {
+      setVisitDecisionMeta(null);
+      setIsVisitTypeLocked(false);
+      form.setValue('appointment.visit_type_code', FIRST_VISIT_TYPE_CODE, { shouldValidate: true });
+      return;
+    }
+
+    const stableKey = visitTypeDecisionRequestKey(departmentId, visitTypeDecisionPatient);
+    if (debouncedVisitTypeDecisionKey !== stableKey) return;
+
+    let cancelled = false;
+    void fetchVisitTypeDecision({
+      department_id: departmentId,
+      patient: visitTypeDecisionPatient,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setVisitDecisionMeta(data);
+        setIsVisitTypeLocked(data.is_locked);
+        form.setValue('appointment.visit_type_code', data.visit_type_code, { shouldValidate: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setVisitDecisionMeta(null);
+        setIsVisitTypeLocked(false);
+        form.setValue('appointment.visit_type_code', FIRST_VISIT_TYPE_CODE, { shouldValidate: true });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, debouncedVisitTypeDecisionKey, appointmentDepartmentId, visitTypeDecisionPatient, form]);
+
+  const visitTypeHint =
+    visitDecisionMeta?.consultation_type === 'free-followup' && visitDecisionMeta.valid_till
+      ? `Free follow-up valid till ${new Date(visitDecisionMeta.valid_till).toLocaleDateString()} · fee ₹${visitDecisionMeta.fee}`
+      : visitDecisionMeta
+        ? `Consultation fee ₹${visitDecisionMeta.fee}`
+        : null;
 
   const formGate = {
     phone: patientPhone,
@@ -627,7 +725,7 @@ function VisitRegistrationRoute() {
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
       return;
     }
-    if (isFollowUpVisitType(data.appointment?.visit_type_code) && !existingPatientId) {
+    if (isFollowUpVisitType(data.appointment?.visit_type_code) && !visitDecisionMeta?.resolved_patient_id && !existingPatientId) {
       toast.error('Use Follow-up on the registrations list for an existing patient.');
       return;
     }
@@ -650,7 +748,7 @@ function VisitRegistrationRoute() {
     };
     mutation.mutate({
       ...payload,
-      existingPatientId: existingPatientId ?? undefined,
+      existingPatientId: visitDecisionMeta?.resolved_patient_id ?? existingPatientId ?? undefined,
     });
   };
 
@@ -881,6 +979,8 @@ function VisitRegistrationRoute() {
                     setValue={form.setValue}
                     tariffsLoading={tariffs.isLoading}
                     tariffsError={tariffs.isError}
+                    isVisitTypeLocked={isVisitTypeLocked}
+                    visitTypeHint={visitTypeHint}
                   />
                 ) : null}
 

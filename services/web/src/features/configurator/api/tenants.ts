@@ -1,6 +1,7 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiClient, apiClientWithIqTenant, ApiError } from '@/lib/api-client';
-import { invalidateModuleRegistration } from '@/platform/modules/module-catalog';
+import { invalidateComposedNavigationCache } from '@/platform/modules/module-manifest-loader';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { fetchTenants, tenantsQueryOptions } from './catalog';
 import { refreshAccessToken } from '@/lib/auth-session';
 import type { UmUser } from '@/features/user-management/types';
@@ -96,6 +97,25 @@ export function useCreateTenant() {
   });
 }
 
+export interface UpdateConfiguratorTenantInput {
+  free_follow_up_days?: number;
+  free_follow_up_visits?: number;
+}
+
+export function useUpdateTenant(tenantId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateConfiguratorTenantInput) =>
+      apiClient<ConfiguratorTenant>(`${BASE}/${tenantId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (row) => {
+      qc.setQueryData(configuratorKeys.tenantDetail(tenantId), row);
+    },
+  });
+}
+
 export type SetTenantModuleActiveInput = {
   tenantId: string;
   moduleId: string;
@@ -104,9 +124,58 @@ export type SetTenantModuleActiveInput = {
   existingRow?: TenantModuleRow;
 };
 
+function patchTenantModulesCache(
+  qc: QueryClient,
+  tenantId: string,
+  moduleId: string,
+  isActive: boolean,
+  existingRow: TenantModuleRow | undefined,
+): TenantModuleListResponse | undefined {
+  const key = configuratorKeys.tenantModules(tenantId);
+  const previous = qc.getQueryData<TenantModuleListResponse>(key);
+  if (!previous) {
+    return undefined;
+  }
+
+  const now = new Date().toISOString();
+  if (existingRow) {
+    const data = previous.data.map((row) =>
+      row.module_id === moduleId ? { ...row, is_active: isActive, updated_at: now } : row,
+    );
+    qc.setQueryData<TenantModuleListResponse>(key, { ...previous, data });
+    return previous;
+  }
+
+  const data = [
+    ...previous.data,
+    {
+      iq_tenant_id: tenantId,
+      module_id: moduleId,
+      is_active: isActive,
+      is_core_override: false,
+      created_at: now,
+      updated_at: now,
+      created_by: null,
+      updated_by: null,
+    },
+  ];
+  qc.setQueryData<TenantModuleListResponse>(key, { ...previous, data, total: data.length });
+  return previous;
+}
+
 export function useSetTenantModuleActive() {
   const qc = useQueryClient();
   return useMutation({
+    onMutate: async ({ tenantId, moduleId, isActive, existingRow }) => {
+      await qc.cancelQueries({ queryKey: configuratorKeys.tenantModules(tenantId) });
+      const previous = patchTenantModulesCache(qc, tenantId, moduleId, isActive, existingRow);
+      return { previous, tenantId };
+    },
+    onError: (_err, { tenantId }, context) => {
+      if (context?.previous) {
+        qc.setQueryData(configuratorKeys.tenantModules(tenantId), context.previous);
+      }
+    },
     mutationFn: async ({ tenantId, moduleId, isActive, existingRow }: SetTenantModuleActiveInput) => {
       const ctx = { tenantIdOverride: tenantId };
       if (existingRow) {
@@ -142,8 +211,28 @@ export function useSetTenantModuleActive() {
         );
       }
     },
-    onSuccess: (_row, { tenantId }) => {
-      invalidateModuleRegistration(qc, tenantId);
+    onSuccess: (row, { tenantId, moduleId }) => {
+      qc.setQueryData<TenantModuleListResponse>(
+        configuratorKeys.tenantModules(tenantId),
+        (prev) => {
+          if (!prev) {
+            return { data: [row], total: 1 };
+          }
+          const index = prev.data.findIndex((entry) => entry.module_id === moduleId);
+          if (index < 0) {
+            return { data: [...prev.data, row], total: prev.data.length + 1 };
+          }
+          const data = [...prev.data];
+          data[index] = row;
+          return { ...prev, data };
+        },
+      );
+      invalidateComposedNavigationCache();
+      void refreshAuthorizationContext(qc, {
+        bypassEntitlementCache: true,
+        forcePrincipalRefresh: true,
+        light: true,
+      });
     },
   });
 }

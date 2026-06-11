@@ -15,6 +15,7 @@ from opd.data_access.prescription_repository import (
     PrescriptionNotFoundError,
 )
 from opd.http_handlers.deps import get_prescription_service, get_session
+from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_after_prescription_finalize
 from opd.schemas.prescription import (
     PrescriptionCancelRequest,
     PrescriptionCreate,
@@ -181,6 +182,7 @@ def finalize_prescription(
     except PrescriptionConflictError as exc:
         raise _conflict(exc) from exc
     session.commit()
+    notify_pharmacy_queue_after_prescription_finalize(session, tenant_id, prescription_id)
     background_tasks.add_task(
         trigger_m2_after_end_consultation,
         tenant_id=tenant_id,

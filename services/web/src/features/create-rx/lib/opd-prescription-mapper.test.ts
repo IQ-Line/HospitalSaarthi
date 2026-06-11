@@ -130,6 +130,141 @@ describe('medicine prescription mapping', () => {
       quantity: '10',
     });
   });
+
+  it('persists custom medicine names without a master catalog id', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: '',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [
+        {
+          id: '1',
+          medicineId: '',
+          medicine: 'Custom Compound X',
+          dosageForm: 'Tablet',
+          route: 'Oral',
+          strength: '250mg',
+          dosageMorning: '1',
+          dosageAfternoon: '0',
+          dosageNight: '0',
+          days: '3',
+          frequency: 'Once Daily',
+          toa: '',
+          quantity: '3',
+        },
+      ],
+      testsRequired: [],
+      imagingRequired: [],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medicines?.[0]).toMatchObject({
+      medicine_id: null,
+      name: 'Custom Compound X',
+    });
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicines[0]).toMatchObject({
+      medicineId: '',
+      medicine: 'Custom Compound X',
+    });
+  });
+});
+
+describe('custom visitpad catalog text (no master id)', () => {
+  const emptyShell: Omit<CreateRxFormData, 'chiefComplaints' | 'immunizations' | 'allergyDetails' | 'diagnosis'> = {
+    vitals: {},
+    physicalActivity: [],
+    medicalHistory: {
+      chronicIllness: '',
+      smokingStatus: '',
+      alcoholStatus: '',
+      dietType: '',
+      historyOfPresentIllness: '',
+    },
+    medicines: [],
+    testsRequired: [],
+    imagingRequired: [],
+    procedures: [],
+    carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+  };
+
+  it('persists free-text chief complaint, allergy, and diagnosis', () => {
+    const formData: CreateRxFormData = {
+      ...emptyShell,
+      chiefComplaints: [
+        {
+          id: '1',
+          complaint: 'Custom chest tightness',
+          severity: 'mild',
+          duration: '2',
+          durationUnit: 'days',
+          notes: '',
+        },
+      ],
+      immunizations: [],
+      allergyDetails: [
+        {
+          id: '1',
+          allergen: 'Custom pollen mix',
+          reaction: 'Custom rash',
+          severity: 'mild',
+        },
+      ],
+      diagnosis: [{ id: '1', notes: 'Custom provisional dx', certainty: 'presumed' }],
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.chief_complaints?.[0]?.complaint_text).toBe('Custom chest tightness');
+    expect(clinical.medical_history_allergies?.[0]?.allergen_text).toBe('Custom pollen mix');
+    expect(clinical.medical_history_allergies?.[0]?.reaction_text).toBe('Custom rash');
+    expect(clinical.diagnoses?.[0]?.notes).toBe('Custom provisional dx');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.chiefComplaints[0]?.complaint).toBe('Custom chest tightness');
+    expect(restored.allergyDetails[0]?.allergen).toBe('Custom pollen mix');
+    expect(restored.diagnosis[0]?.notes).toBe('Custom provisional dx');
+  });
+
+  it('persists free-text vaccine and manufacturer names', () => {
+    const formData: CreateRxFormData = {
+      ...emptyShell,
+      chiefComplaints: [],
+      immunizations: [
+        {
+          id: '1',
+          vaccineName: 'Custom booster X',
+          manufacturer: 'Local Pharma',
+          lotNumber: '',
+          dateOfDose: '',
+          doseNumber: '',
+          nextDueDate: '',
+          notes: '',
+        },
+      ],
+      allergyDetails: [],
+      diagnosis: [],
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.vaccines_required?.[0]?.name).toBe('Custom booster X');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.immunizations[0]?.vaccineName).toBe('Custom booster X');
+    expect(restored.immunizations[0]?.manufacturer).toBe('Local Pharma');
+  });
 });
 
 describe('createRxFormDataToClinical', () => {

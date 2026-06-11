@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pulse/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,7 @@ import { EntityFormDialog } from '@/components/entity-table/entity-form-dialog';
 import { EntityRowActions } from '@/components/entity-table/entity-row-actions';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { TableActiveToggle } from '@/components/entity-table/table-active-toggle';
-import { configuratorKeys, useTenantUsers } from '@/features/configurator/api';
+import { configuratorKeys, useTenantUsers, useTenant, useUpdateTenant } from '@/features/configurator/api';
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability, useAnyCapability } from '@/hooks/use-capability';
 import {
@@ -1349,6 +1350,111 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
           />
         ) : null}
       </EntityFormDialog>
+    </div>
+  );
+}
+
+export function TenantFollowUpPanel({ iqTenantId }: { iqTenantId: string }) {
+  const { data: tenant, isLoading } = useTenant(iqTenantId);
+  const updateMutation = useUpdateTenant(iqTenantId);
+  const [days, setDays] = useState('15');
+  const [visits, setVisits] = useState('1');
+
+  useEffect(() => {
+    if (!tenant) return;
+    setDays(String(tenant.free_follow_up_days ?? 15));
+    setVisits(String(tenant.free_follow_up_visits ?? 1));
+  }, [tenant]);
+
+  const handleSave = () => {
+    const free_follow_up_days = Number(days);
+    const free_follow_up_visits = Number(visits);
+    if (!Number.isFinite(free_follow_up_days) || free_follow_up_days < 0) {
+      toast.error('Free follow-up days must be a non-negative number');
+      return;
+    }
+    if (!Number.isFinite(free_follow_up_visits) || free_follow_up_visits < 0) {
+      toast.error('Free follow-up visits must be a non-negative number');
+      return;
+    }
+    updateMutation.mutate(
+      {
+        free_follow_up_days: Math.trunc(free_follow_up_days),
+        free_follow_up_visits: Math.trunc(free_follow_up_visits),
+      },
+      {
+        onSuccess: () => toast.success('Follow-up configuration saved'),
+        onError: () => toast.error('Failed to save follow-up configuration'),
+      },
+    );
+  };
+
+  if (isLoading && !tenant) {
+    return <p className="text-sm text-muted-foreground">Loading follow-up settings…</p>;
+  }
+
+  return (
+    <div className="w-full space-y-4">
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-base">OPD follow-up policy</CardTitle>
+            <CardDescription>
+              Applies to this tenant. Free follow-up is same department within the window; paid
+              follow-up is after the window.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            className="shrink-0 bg-[#008C9E] text-white hover:bg-[#00798a]"
+            onClick={handleSave}
+            disabled={updateMutation.isPending}
+          >
+            {updateMutation.isPending ? 'Saving…' : 'Save configuration'}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="follow-up-days">Free follow-up window (days)</Label>
+              <Input
+                id="follow-up-days"
+                type="number"
+                min={0}
+                value={days}
+                onChange={(e) => setDays(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Days after the first visit in a department when free follow-up still applies.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="follow-up-visits">Free follow-ups allowed (per department)</Label>
+              <Input
+                id="follow-up-visits"
+                type="number"
+                min={0}
+                value={visits}
+                onChange={(e) => setVisits(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Maximum number of free follow-up visits per patient in the same department.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">How visit types are decided</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>First visit in a department is registered as an OPD first visit.</li>
+              <li>
+                Within the window and under the free quota, same-department visits are free
+                follow-up.
+              </li>
+              <li>After the window or quota is used, same-department visits are paid follow-up.</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

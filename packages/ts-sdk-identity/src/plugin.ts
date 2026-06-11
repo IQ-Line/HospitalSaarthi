@@ -77,7 +77,19 @@ async function identityPluginFn(
       request.correlationId = correlationId;
       reply.header("x-correlation-id", correlationId);
 
-      if (shouldSkipIdentityVerification(request.url, options.skipPathPrefixes)) return;
+      const rawUrl =
+        typeof request.raw?.url === "string" && request.raw.url.length > 0
+          ? request.raw.url
+          : undefined;
+      if (
+        shouldSkipIdentityVerification(request.url, options.skipPathPrefixes) ||
+        (rawUrl !== undefined &&
+          rawUrl !== request.url &&
+          shouldSkipIdentityVerification(rawUrl, options.skipPathPrefixes))
+      ) {
+        return;
+      }
+      if (request.authViaApiKey === true) return;
 
       const header = request.headers.authorization;
       if (!header?.startsWith("Bearer ")) {

@@ -71,8 +71,8 @@ export function CurrentMedication() {
       {
         key: 'notes',
         label: 'Diagnosis',
-        type: 'select',
-        placeholder: 'Select diagnosis',
+        type: 'creatable-select',
+        placeholder: 'Search or type diagnosis',
         options: diagnosisOptions,
       },
       {
@@ -91,8 +91,8 @@ export function CurrentMedication() {
       {
         key: 'medicine',
         label: 'Medicine',
-        type: 'select',
-        placeholder: 'Search or type...',
+        type: 'creatable-select',
+        placeholder: 'Search or type medicine name',
         options: medicineOptions,
       },
       {

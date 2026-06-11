@@ -8,7 +8,9 @@ import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
-  createDefaultPrincipalService,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { createRouter, createBillingAuthzTargetResolver } from "@hims/billing";
@@ -51,10 +53,19 @@ async function main() {
   const userRepository = new DrizzleUserRepository(umDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(umDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(umDb);
-  const principalService = createDefaultPrincipalService({
+  const capabilityRepository = new DrizzleCapabilityRepository(umDb);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
   });
 
   await assertCerbosReachable(CERBOS_URL);

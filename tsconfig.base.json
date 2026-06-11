@@ -18,6 +18,7 @@
     "noImplicitOverride": true,
     "exactOptionalPropertyTypes": false,
     "paths": {
+      "@hims/ts-sdk-api-key": ["./packages/ts-sdk-api-key/src/index.ts"],
       "@hims/ts-sdk-identity": ["./packages/ts-sdk-identity/src/index.ts"],
       "@hims/ts-sdk-authz": ["./packages/ts-sdk-authz/src/index.ts"],
       "@hims/ts-sdk-events": ["./packages/ts-sdk-events/src/index.ts"],
@@ -39,6 +40,7 @@
       "@hims/billing": ["./modules/billing/src/index.ts"],
       "@hims/registration": ["./modules/registration/src/index.ts"],
       "@hims/record-foundation": ["./modules/record-foundation/src/index.ts"],
+      "@hims/pharmacy": ["./modules/pharmacy/src/index.ts"],
       "@hims/master-data": ["./modules/master-data/src/index.ts"]
     }
   },

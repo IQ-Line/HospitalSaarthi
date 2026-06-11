@@ -1,0 +1,31 @@
+---
+# Pharmacy queue — list and view dispense worklist rows.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "pharmacy_queue"
+  version: default
+  rules:
+    - actions:
+        - "pharmacy.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "dispense:dispense:read" in request.principal.attr.capabilities ||
+              "dispense:dispense:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "pharmacy.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "dispense:dispense:read" in request.principal.attr.capabilities ||
+              "dispense:dispense:read" in request.principal.attr.delegated_capabilities
+            )

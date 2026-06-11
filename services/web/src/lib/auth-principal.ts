@@ -10,8 +10,19 @@ export type AuthPrincipalResponse = {
 
 const AUTH_PRINCIPAL_PATH = '/api/user-management/auth/principal';
 
-export async function fetchAuthPrincipal(): Promise<AuthPrincipalResponse> {
-  return apiClient<AuthPrincipalResponse>(AUTH_PRINCIPAL_PATH, { method: 'GET' });
+export type FetchAuthPrincipalOptions = {
+  /** Skips UM entitlement TTL cache — use after tenant module toggle. */
+  bypassEntitlementCache?: boolean;
+};
+
+export async function fetchAuthPrincipal(
+  options?: FetchAuthPrincipalOptions,
+): Promise<AuthPrincipalResponse> {
+  const headers =
+    options?.bypassEntitlementCache === true
+      ? { 'x-bypass-entitlement-cache': 'true' }
+      : undefined;
+  return apiClient<AuthPrincipalResponse>(AUTH_PRINCIPAL_PATH, { method: 'GET', headers });
 }
 
 /** Maps the user-management auth principal to Cerbos `Principal` (`attributes` → `attr`). */

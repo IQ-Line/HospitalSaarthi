@@ -11,7 +11,7 @@ import {
 } from "@hims/record-foundation";
 
 const PORT = Number(
-  process.env["RECORD_FOUNDATION_PORT"] ?? process.env["RECORD_FOUNDATION_SVC_PORT"] ?? 3004,
+  process.env["RECORD_FOUNDATION_PORT"] ?? process.env["RECORD_FOUNDATION_SVC_PORT"] ?? 3009,
 );
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const SKIP_MIGRATE = process.env["RECORD_FOUNDATION_SKIP_MIGRATE"] === "true";

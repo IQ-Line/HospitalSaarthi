@@ -2,17 +2,67 @@
 
 from __future__ import annotations
 
+from datetime import date
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import TENANT_A, make_create_payload
+from opd.lib import http_pharmacy_gateway
+from opd.models.registration_patient_snapshot import RegistrationPatientSnapshot
+from tests.conftest import PATIENT_ID, TENANT_A, make_create_payload
 
 API_PREFIX = "/api/v1/opd/prescriptions"
 
 
 def _tenant_q() -> dict[str, str]:
     return {"tenant_id": str(TENANT_A)}
+
+
+def test_finalize_notifies_pharmacy_queue(
+    prescription_client: TestClient,
+    db_session,
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str, dict]] = []
+
+    class FakeGateway:
+        def upsert_queue_projection(self, tenant_id, visit_id, payload) -> None:
+            calls.append((str(tenant_id), str(visit_id), payload))
+
+    monkeypatch.setattr(http_pharmacy_gateway, "_gateway", FakeGateway())
+
+    db_session.add(
+        RegistrationPatientSnapshot(
+            tenant_id=TENANT_A,
+            registration_id=uuid4(),
+            patient_id=PATIENT_ID,
+            patient_uhid="UHID-FINALIZE",
+            patient_full_name="Finalize Patient",
+            patient_phone_number="9810100099",
+            patient_gender="male",
+            patient_date_of_birth=date(1988, 7, 20),
+            patient_year_of_birth=1988,
+        )
+    )
+    db_session.flush()
+
+    visit_id = str(uuid4())
+    create_body = make_create_payload(visit_id=visit_id)
+    created = prescription_client.post(API_PREFIX, json=create_body)
+    rx_id = created.json()["data"]["id"]
+
+    finalized = prescription_client.post(
+        f"{API_PREFIX}/{rx_id}/finalize",
+        params=_tenant_q(),
+        json={},
+    )
+    assert finalized.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][1] == visit_id
+    assert calls[0][2]["prescription_status"] == "final"
+    assert calls[0][2]["visit_status"] == "completed"
+    assert calls[0][2]["patient_name"] == "Finalize Patient"
+    assert calls[0][2]["uhid"] == "UHID-FINALIZE"
 
 
 def test_create_get_finalize_cancel_delete_flow(prescription_client: TestClient) -> None:

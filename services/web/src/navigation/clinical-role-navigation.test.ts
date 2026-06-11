@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { FD_SHELL_ACCESS } from '@/lib/runtime-capability-keys';
+import {
+  FD_SHELL_ACCESS,
+  PHARMACY_DISPENSE_READ,
+  PHARMACY_DISPENSE_UPDATE,
+} from '@/lib/runtime-capability-keys';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { filterNavigationTree } from './filter-navigation-tree';
 import { buildNavFilterContext } from './use-filtered-navigation';
@@ -63,5 +67,21 @@ describe('clinical role sidebar entries', () => {
     const frontdeskCaps = new Set([FD_SHELL_ACCESS, 'registration:registration:read']);
     expect(filterForRoles(['receptionist'], frontdeskCaps, enabled).find((n) => n.id === 'frontdesk')).toBeDefined();
     expect(filterForRoles(['frontdesk'], frontdeskCaps, enabled).find((n) => n.id === 'frontdesk')).toBeDefined();
+  });
+
+  it('shows Pharmacy only for pharmacist role with dispense access', () => {
+    const pharmacyCaps = new Set([PHARMACY_DISPENSE_READ, PHARMACY_DISPENSE_UPDATE]);
+    const enabledWithPharmacy = new Set(['pharmacy']);
+    expect(
+      filterForRoles(['pharmacist'], pharmacyCaps, enabledWithPharmacy).find((n) => n.id === 'pharmacy'),
+    ).toBeDefined();
+  });
+
+  it('hides Pharmacy for frontdesk even when pharmacy module is enabled', () => {
+    const frontdeskCaps = new Set([FD_SHELL_ACCESS, 'registration:registration:read']);
+    const enabledWithPharmacy = new Set(['frontdesk', 'pharmacy']);
+    expect(
+      filterForRoles(['frontdesk'], frontdeskCaps, enabledWithPharmacy).find((n) => n.id === 'pharmacy'),
+    ).toBeUndefined();
   });
 });

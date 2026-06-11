@@ -105,6 +105,9 @@ export async function validateRuntimeAuthorizationStartup(
   }
 
   for (const capability of capabilities) {
+    if (!capability.is_active) {
+      continue;
+    }
     const projected = projectCapabilityRowToCanonical(capability);
     try {
       assertValidRuntimeCapabilityRow(projected, `capabilities.id=${capability.id}`);
