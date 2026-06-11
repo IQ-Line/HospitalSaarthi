@@ -27,6 +27,7 @@ export {
   date,
   numeric,
   primaryKey,
+  foreignKey,
   smallint,
   timestamp,
   unique,
