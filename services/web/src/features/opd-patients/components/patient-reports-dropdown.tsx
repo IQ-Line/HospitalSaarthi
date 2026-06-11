@@ -7,10 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@pulse/ui/dropdown-menu';
+import { CLINICAL_REPORT_LABELS, type ClinicalReportType } from '../api/clinical-documents';
 import {
-  CLINICAL_REPORT_LABELS,
-  type ClinicalReportType,
-} from '../api/clinical-documents';
+  unavailableClinicalReportAvailability,
+  type OpdEncounterOverlay,
+} from '../api/opd-encounter-overlay';
 
 const REPORT_OPTIONS: ClinicalReportType[] = [
   'op-consultation',
@@ -19,6 +20,8 @@ const REPORT_OPTIONS: ClinicalReportType[] = [
 ];
 
 interface PatientReportsDropdownProps {
+  visitId: string;
+  encounterOverlaysByVisitId?: Record<string, OpdEncounterOverlay>;
   onSelectReport: (reportType: ClinicalReportType) => void;
   onClick?: (event: MouseEvent) => void;
 }
@@ -28,9 +31,14 @@ function stopRowClick(event: MouseEvent) {
 }
 
 export function PatientReportsDropdown({
+  visitId,
+  encounterOverlaysByVisitId,
   onSelectReport,
   onClick,
 }: PatientReportsDropdownProps) {
+  const availability =
+    encounterOverlaysByVisitId?.[visitId]?.reportAvailability ??
+    unavailableClinicalReportAvailability();
   const handleTriggerClick = (event: MouseEvent) => {
     stopRowClick(event);
     onClick?.(event);
@@ -47,18 +55,30 @@ export function PatientReportsDropdown({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {REPORT_OPTIONS.map((reportType) => (
-            <DropdownMenuItem
-              key={reportType}
-              onSelect={(event) => {
-                event.preventDefault();
-                onSelectReport(reportType);
-              }}
-            >
-            <FileText className="size-4" />
-            {CLINICAL_REPORT_LABELS[reportType]}
-          </DropdownMenuItem>
-          ))}
+          {REPORT_OPTIONS.map((reportType) => {
+            const item = availability[reportType];
+            const disabled = item?.available === false;
+            const disabledReason = item?.reason;
+
+            return (
+              <DropdownMenuItem
+                key={reportType}
+                disabled={disabled}
+                title={disabled ? disabledReason : undefined}
+                onSelect={(event) => {
+                  if (disabled) {
+                    event.preventDefault();
+                    return;
+                  }
+                  event.preventDefault();
+                  onSelectReport(reportType);
+                }}
+              >
+                <FileText className="size-4" />
+                {CLINICAL_REPORT_LABELS[reportType]}
+              </DropdownMenuItem>
+            );
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

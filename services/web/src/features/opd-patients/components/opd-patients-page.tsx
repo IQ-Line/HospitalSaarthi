@@ -118,6 +118,7 @@ export function OpdPatientsPage() {
       <div className="overflow-hidden rounded-lg bg-white shadow-md">
         <OpdPatientsTable
           rows={rows}
+          encounterOverlaysByVisitId={data?.encounterOverlaysByVisitId}
           isLoading={loading}
           total={total}
           page={page}

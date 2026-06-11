@@ -39,8 +39,10 @@ import {
 import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
 import {
   HttpConfiguratorTenantModuleEntitlementAdapter,
+} from "../../../modules/user-management/src/adapters/http-configurator-tenant-module-entitlement-adapter.js";
+import {
   HttpMasterDataModuleCatalogAdapter,
-} from "@hims/user-management";
+} from "../../../modules/user-management/src/adapters/http-master-data-module-catalog-adapter.js";
 import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";

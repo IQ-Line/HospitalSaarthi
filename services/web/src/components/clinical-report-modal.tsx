@@ -10,7 +10,9 @@ import {
   DialogTitle,
 } from '@pulse/ui/dialog';
 import { ApiError } from '@/lib/api-client';
+import { formatApiErrorBody } from '@/lib/api-error-format';
 import { printClinicalReportFromHtml } from '@/lib/clinical-report-print';
+import { ClinicalReportUnavailableState } from '@/components/clinical-report-unavailable-state';
 import { PrintableReportTemplate } from '@/components/printable-report-template';
 import {
   CLINICAL_REPORT_LABELS,
@@ -30,6 +32,16 @@ export interface ClinicalReportModalProps {
 
 const REPORT_HTML_STALE_MS = 5 * 60 * 1000;
 const REPORT_HTML_GC_MS = 30 * 60 * 1000;
+
+function resolveClinicalReportErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return formatApiErrorBody(error.status, error.body);
+  }
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message;
+  }
+  return 'This report could not be loaded. Please try again.';
+}
 
 export function ClinicalReportModal({
   open,
@@ -54,13 +66,6 @@ export function ClinicalReportModal({
     retry: 1,
   });
 
-  const errorMessage = (error: unknown) =>
-    error instanceof ApiError
-      ? error.body || error.message
-      : error instanceof Error
-        ? error.message
-        : 'Could not load report';
-
   const handlePrint = async () => {
     if (!htmlQuery.data) {
       toast.warning('Load report to print.');
@@ -80,6 +85,10 @@ export function ClinicalReportModal({
 
   const modalTitle =
     reportType != null ? CLINICAL_REPORT_LABELS[reportType] : 'Clinical Report';
+
+  const errorMessage = htmlQuery.error
+    ? resolveClinicalReportErrorMessage(htmlQuery.error)
+    : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -108,10 +117,8 @@ export function ClinicalReportModal({
               <Loader2 className="size-8 animate-spin text-muted-foreground" />
             </div>
           ) : null}
-          {htmlQuery.isError ? (
-            <p className="px-6 py-10 text-sm text-destructive" role="alert">
-              {errorMessage(htmlQuery.error)}
-            </p>
+          {htmlQuery.isError && errorMessage ? (
+            <ClinicalReportUnavailableState message={errorMessage} />
           ) : null}
           {htmlQuery.data ? (
             <PrintableReportTemplate

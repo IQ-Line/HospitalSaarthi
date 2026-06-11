@@ -272,9 +272,15 @@ class PrescriptionSingleResponse(BaseModel):
     data: PrescriptionDetailResponse
 
 
+class ClinicalReportAvailabilityItem(BaseModel):
+    available: bool
+    reason: str | None = None
+
+
 class PrescriptionEncounterOverlay(BaseModel):
     status: PrescriptionStatus
     visit_status: str
+    reports: dict[str, ClinicalReportAvailabilityItem] | None = None
 
 
 class PrescriptionEncounterOverlayBatchResponse(BaseModel):
