@@ -8,6 +8,7 @@ import { VitalsGrid } from '@/features/create-rx/components/vitals-grid';
 import { useVisitpadMasters } from '@/features/create-rx/hooks/use-visitpad-masters';
 import { useCreateRxStore } from '@/features/create-rx/create-rx.store';
 import type { ChiefComplaintRow, CreateRxFormData, ImmunizationRow } from '@/features/create-rx/types';
+import { prepareCreateRxFormDataForSession } from '@/features/create-rx/lib/form-data-session';
 import { saveNursePreConsult } from '../api/nurse-prescription';
 import { nursePatientsQueryKeys } from '../api/query-keys';
 
@@ -37,8 +38,10 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
     chiefComplaintOptions,
   } = useVisitpadMasters();
 
+  const context = useCreateRxStore((s) => s.context);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const formData = useCreateRxStore((s) => s.formData);
+  const resetForVisit = useCreateRxStore((s) => s.resetForVisit);
   const chiefComplaints = useCreateRxStore((s) => s.formData.chiefComplaints);
   const immunizations = useCreateRxStore((s) => s.formData.immunizations);
   const addComplaintRow = useCreateRxStore((s) => s.addComplaintRow);
@@ -111,8 +114,16 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
   const saveSection = (label: string) => {
     if (isReadOnly) return;
     saveMutation.mutate(formData, {
-      onSuccess: () => {
+      onSuccess: (saved) => {
         toast.success(`${label} saved`);
+        if (context) {
+          resetForVisit(
+            context,
+            saved.is_read_only,
+            prepareCreateRxFormDataForSession(saved.form_data, saved.is_read_only),
+            saved.prescription_id,
+          );
+        }
         void queryClient.invalidateQueries({ queryKey: nursePatientsQueryKeys.all });
       },
     });
