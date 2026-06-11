@@ -88,6 +88,8 @@ db-migrate: ## Run all pending migrations
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
 	$(NX) run master-data:migrate
+	# 010 joins global_master.modules (Citus reference table) — re-run after master-data.
+	$(NX) run configurator:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
 	$(NX) run opd:db-migrate

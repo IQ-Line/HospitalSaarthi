@@ -1404,6 +1404,14 @@ components:
           type: string
         contact_email:
           type: string
+        free_follow_up_days:
+          type: integer
+          minimum: 0
+          description: OPD free follow-up window in days (same department).
+        free_follow_up_visits:
+          type: integer
+          minimum: 0
+          description: Max free follow-up visits allowed within the window per department chain.
     Organization:
       type: object
       required:
@@ -1546,6 +1554,14 @@ components:
         contact_email:
           type: string
           nullable: true
+        free_follow_up_days:
+          type: integer
+          minimum: 0
+          description: OPD free follow-up window in days (same department).
+        free_follow_up_visits:
+          type: integer
+          minimum: 0
+          description: Max free follow-up visits allowed within the window per department chain.
         tenant_numeric_code:
           type: string
           nullable: true

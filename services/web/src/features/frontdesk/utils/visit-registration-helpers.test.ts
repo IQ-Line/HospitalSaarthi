@@ -4,15 +4,21 @@ import {
   billingLineNetPrice,
   billingLineTaxAmount,
   billingLineTotal,
+  buildRegistrationVisitTypeOptions,
+  buildVisitTypeDecisionPatientPayload,
   computeBillingGrandTotal,
   FOLLOW_UP_VISIT_TYPE_CODE,
+  FREE_FOLLOW_UP_VISIT_TYPE_CODE,
   formatBillingDeduction,
   formatBillingTaxLine,
   formatBillingTaxSummary,
   isFollowUpVisitType,
+  isFreeFollowUpVisitType,
   isVisitRegistrationAmountPaidValid,
   mapVisitRegistrationToExistingPatientIntakeBody,
   visitRegistrationFormBlockers,
+  resolveRegistrationPatientId,
+  visitTypeDecisionRequestKey,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 
@@ -64,6 +70,11 @@ describe('isVisitRegistrationAmountPaidValid', () => {
     expect(isVisitRegistrationAmountPaidValid(108, 109.5)).toBe(false);
     expect(isVisitRegistrationAmountPaidValid(NaN, 109.5)).toBe(false);
   });
+
+  it('accepts zero paid when grand total is zero', () => {
+    expect(isVisitRegistrationAmountPaidValid(0, 0)).toBe(true);
+    expect(isVisitRegistrationAmountPaidValid(1, 0)).toBe(false);
+  });
 });
 
 describe('formatBillingDeduction', () => {
@@ -92,12 +103,99 @@ describe('formatBillingTaxLine', () => {
   });
 });
 
+describe('resolveRegistrationPatientId', () => {
+  it('prefers explicit patient id then resolved id', () => {
+    expect(
+      resolveRegistrationPatientId(
+        'e704abf8-6eff-4b46-b431-fc8b05bef006',
+        '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
+      ),
+    ).toBe('6ba7b810-9dad-11d1-80b4-00c04fd430c8');
+    expect(
+      resolveRegistrationPatientId('e704abf8-6eff-4b46-b431-fc8b05bef006', undefined),
+    ).toBe('e704abf8-6eff-4b46-b431-fc8b05bef006');
+  });
+});
+
+describe('buildVisitTypeDecisionPatientPayload', () => {
+  it('includes dedup demographics and normalizes phone to last 10 digits', () => {
+    expect(
+      buildVisitTypeDecisionPatientPayload({
+        phone: '+91 9876543210',
+        firstName: 'Test',
+        lastName: 'Patient',
+        gender: 'male',
+        ageYears: 30,
+      }),
+    ).toEqual({
+      phone_number: '9876543210',
+      first_name: 'Test',
+      last_name: 'Patient',
+      gender: 'male',
+      age_years: 30,
+    });
+  });
+
+  it('omits gender when not a valid registration value', () => {
+    expect(
+      buildVisitTypeDecisionPatientPayload({
+        phone: '9876543210',
+        firstName: 'Test',
+        gender: '',
+      }),
+    ).toEqual({
+      phone_number: '9876543210',
+      first_name: 'Test',
+    });
+  });
+});
+
+describe('visitTypeDecisionRequestKey', () => {
+  it('changes when any dedup field changes', () => {
+    const base = buildVisitTypeDecisionPatientPayload({
+      phone: '9876543210',
+      firstName: 'A',
+      gender: 'male',
+    });
+    const otherPhone = buildVisitTypeDecisionPatientPayload({
+      phone: '9123456789',
+      firstName: 'A',
+      gender: 'male',
+    });
+    expect(visitTypeDecisionRequestKey('dept-1', base)).not.toBe(
+      visitTypeDecisionRequestKey('dept-1', otherPhone),
+    );
+  });
+});
+
+describe('buildRegistrationVisitTypeOptions', () => {
+  it('injects a fallback option when the selected code is missing from the picklist', () => {
+    const options = buildRegistrationVisitTypeOptions(
+      [{ value: 'opd_first', label: 'OPD — First visit' }],
+      FREE_FOLLOW_UP_VISIT_TYPE_CODE,
+    );
+    expect(options).toEqual([
+      { value: 'opd_first', label: 'OPD — First visit' },
+      { value: FREE_FOLLOW_UP_VISIT_TYPE_CODE, label: 'OPD — Free follow-up' },
+    ]);
+  });
+
+  it('does not duplicate options when the picklist already contains the selected code', () => {
+    const options = buildRegistrationVisitTypeOptions(
+      [{ value: FREE_FOLLOW_UP_VISIT_TYPE_CODE, label: 'OPD — Free follow-up' }],
+      FREE_FOLLOW_UP_VISIT_TYPE_CODE,
+    );
+    expect(options).toHaveLength(1);
+  });
+});
+
 describe('isFollowUpVisitType', () => {
   it('recognizes master-data follow-up code variants', () => {
     expect(isFollowUpVisitType(FOLLOW_UP_VISIT_TYPE_CODE)).toBe(true);
     expect(isFollowUpVisitType('opd_follow_up')).toBe(true);
     expect(isFollowUpVisitType('OPD-Follow Up')).toBe(true);
     expect(isFollowUpVisitType('opd_first')).toBe(false);
+    expect(isFreeFollowUpVisitType('opd_free_follow_up')).toBe(true);
   });
 });
 
@@ -120,6 +218,7 @@ describe('mapVisitRegistrationToExistingPatientIntakeBody', () => {
       patient_id: 'e704abf8-6eff-4b46-b431-fc8b05bef006',
       intake_completion: 'partial',
       visit_type: FOLLOW_UP_VISIT_TYPE_CODE,
+      consultation_type: 'followup',
       department_id: '550e8400-e29b-41d4-a716-446655440000',
       doctor_id: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
     });
@@ -148,6 +247,12 @@ describe('visitRegistrationFormBlockers', () => {
   it('passes when amount paid matches floor of total', () => {
     expect(
       visitRegistrationFormBlockers({ ...complete, grandTotal: 109.5, amountPaid: 109 }),
+    ).toEqual([]);
+  });
+
+  it('passes when grand total and amount paid are both zero', () => {
+    expect(
+      visitRegistrationFormBlockers({ ...complete, grandTotal: 0, amountPaid: 0 }),
     ).toEqual([]);
   });
 

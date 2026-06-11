@@ -129,6 +129,8 @@ export const patchTenantBodySchema = {
     pin_code: { type: "string" },
     contact_phone: { type: "string" },
     contact_email: { type: "string" },
+    free_follow_up_days: { type: "integer", minimum: 0 },
+    free_follow_up_visits: { type: "integer", minimum: 0 },
   },
 } as const;
 

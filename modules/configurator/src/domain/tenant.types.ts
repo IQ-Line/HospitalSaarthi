@@ -32,6 +32,8 @@ export interface Tenant {
   contact_phone: string | null;
   contact_email: string | null;
   tenant_numeric_code: string | null;
+  free_follow_up_days: number;
+  free_follow_up_visits: number;
   created_at: Date;
   updated_at: Date;
   created_by: string | null;
@@ -80,6 +82,8 @@ export interface UpdateTenantData {
   pin_code?: string | null;
   contact_phone?: string | null;
   contact_email?: string | null;
+  free_follow_up_days?: number;
+  free_follow_up_visits?: number;
   updated_by?: string | null;
 }
 

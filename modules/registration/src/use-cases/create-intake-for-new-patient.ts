@@ -1,5 +1,5 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo, ConfiguratorHttpPort } from "../ports.js";
 import type {
   NewPatientIntakeInput,
   PatientDemographicsSnapshot,
@@ -28,6 +28,7 @@ export async function createIntakeForNewPatient(
     eventBus: EventBus;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     opdGateway?: OpdHttpPort;
+    configuratorGateway?: ConfiguratorHttpPort;
   },
   tenantId: string,
   input: NewPatientIntakeInput,
@@ -127,6 +128,7 @@ export async function createIntakeForNewPatient(
       patient_id: empiResult.patientId,
       facility_id: input.facility_id,
       visit_type: input.visit_type,
+      consultation_type: input.consultation_type,
       department_id: input.department_id,
       doctor_id: input.doctor_id,
       appointment_id: input.appointment_id,
@@ -156,6 +158,7 @@ export async function createVisitForExistingPatient(
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     eventBus: EventBus;
     opdGateway?: OpdHttpPort;
+    configuratorGateway?: ConfiguratorHttpPort;
   },
   tenantId: string,
   input: import("../domain/registration.types.js").ExistingPatientVisitInput,
@@ -168,6 +171,7 @@ export async function createVisitForExistingPatient(
       patient_id: input.patient_id,
       facility_id: input.facility_id,
       visit_type: input.visit_type,
+      consultation_type: input.consultation_type,
       department_id: input.department_id,
       doctor_id: input.doctor_id,
       appointment_id: input.appointment_id,
