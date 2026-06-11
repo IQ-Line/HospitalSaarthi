@@ -7,15 +7,17 @@
     "dev": "tsx watch src/main.ts"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.32.0",
+    "@fastify/multipart": "^10.0.0",
     "@fastify/swagger": "^9.5.1",
     "@fastify/swagger-ui": "^5.2.3",
-    "@hims/dev-bootstrap": "workspace:*",
     "@hims/configurator": "workspace:*",
-    "@hims/ts-sdk-openapi": "workspace:*",
-    "@hims/ts-sdk-tenant": "workspace:*",
+    "@hims/dev-bootstrap": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
+    "@hims/ts-sdk-tenant": "workspace:*",
     "fastify": "^5.3.3"
   },
   "devDependencies": {

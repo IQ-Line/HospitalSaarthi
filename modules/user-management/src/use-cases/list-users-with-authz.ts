@@ -34,12 +34,20 @@ export type ListUsersFilter = {
   department?: string;
 };
 
+function isApiKeyAuthenticatedRequest(request: FastifyRequest): boolean {
+  return (request as FastifyRequest & { authViaApiKey?: boolean }).authViaApiKey === true;
+}
+
 export async function listUsersWithAuthz(
   request: FastifyRequest,
   deps: ListUsersWithAuthzDeps,
   tenantId: string,
   filter?: ListUsersFilter,
 ): Promise<User[]> {
+  if (isApiKeyAuthenticatedRequest(request)) {
+    return deps.userRepository.listUsers(tenantId, { department: filter?.department });
+  }
+
   const pep = request as PepRequest;
   const plan = await pep.planResources(
     "user",

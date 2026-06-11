@@ -11,6 +11,12 @@ export {
 export type {
   PrincipalRoleEnricherPluginOptions,
 } from "./principal-role-enricher-plugin.js";
+export { tenantApiKeyAuthPlugin } from "./http/tenant-api-key-auth-plugin.js";
+export type { TenantApiKeyAuthPluginOptions } from "./http/tenant-api-key-auth-plugin.js";
+export type {
+  TenantApiKeyValidationResult,
+  TenantApiKeyValidatorPort,
+} from "./ports/tenant-api-key-validator.js";
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
@@ -44,6 +50,7 @@ export type {
   UserCapabilityGrant,
   UserEffectiveCapabilities,
   UserWithTenant,
+  AccessTokenIssuerPort,
 } from "./ports/index.js";
 export {
   loadIdentityJwtClaims,

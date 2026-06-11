@@ -8,6 +8,7 @@ import type {
   TenantModuleRepo,
   TenantIntegrationProfilesRepo,
   SequenceConfigurationRepo,
+  TenantApiKeyRepo,
   RunConfiguratorTransaction,
   InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
@@ -21,6 +22,8 @@ import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.han
 import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
 import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
+import { registerBrandingLogosHandler } from "./rest-handlers/branding-logos.handler.js";
+import { registerTenantApiKeysHandler } from "./rest-handlers/tenant-api-keys.handler.js";
 
 export interface ConfiguratorRouterOptions {
   db: DbInstance;
@@ -29,6 +32,7 @@ export interface ConfiguratorRouterOptions {
   tenantModuleRepo: TenantModuleRepo;
   tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
   sequenceConfigurationRepo: SequenceConfigurationRepo;
+  tenantApiKeyRepo: TenantApiKeyRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
   createInfrastructureCatalog?: (
     authorization?: string,
@@ -94,6 +98,11 @@ async function configuratorRouter(
   registerSequenceConfigurationHandler(app, {
     tenantRepo: options.tenantRepo,
     sequenceConfigurationRepo: options.sequenceConfigurationRepo,
+  });
+  registerBrandingLogosHandler(app);
+  registerTenantApiKeysHandler(app, {
+    tenantApiKeyRepo: options.tenantApiKeyRepo,
+    tenantRepo: options.tenantRepo,
   });
 
   if (

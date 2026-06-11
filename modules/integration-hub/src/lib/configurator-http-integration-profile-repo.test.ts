@@ -21,6 +21,25 @@ describe("ConfiguratorHttpIntegrationProfileRepo", () => {
     vi.unstubAllGlobals();
   });
 
+  it("never sends Authorization bearer on internal profile routes", async () => {
+    const fetchMock = vi.fn(async () => Response.json(profileRow));
+    const repo = new ConfiguratorHttpIntegrationProfileRepo({
+      baseUrl: "http://localhost:3001",
+      internalApiKey: "secret-key",
+      fetchImpl: fetchMock,
+    });
+
+    await repo.findActiveByTenantId(tenantId);
+    await repo.findActiveByHipId("IN3610001625");
+
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      expect(headers.authorization).toBeUndefined();
+      expect(headers.Authorization).toBeUndefined();
+    }
+  });
+
   it("findActiveByTenantId uses internal by-tenant route", async () => {
     const fetchMock = vi.fn(async () => Response.json(profileRow));
     vi.stubGlobal("fetch", fetchMock);

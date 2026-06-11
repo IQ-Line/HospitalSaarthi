@@ -205,4 +205,17 @@ export interface BillingReadPort {
   ): Promise<BillingBillDetail | null>;
 }
 
+export interface ApiKeyValidationResult {
+  tenantId: string;
+  apiKeyId: string;
+  purpose: "opd_slip";
+}
+
+export interface ApiKeyValidatorPort {
+  validateOpdSlipKey(
+    prefix: string,
+    secret: string,
+  ): Promise<ApiKeyValidationResult | null>;
+}
+
 export type { DbInstance };

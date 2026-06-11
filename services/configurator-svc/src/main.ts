@@ -1,4 +1,8 @@
+import { loadWorkspaceEnv } from "./load-workspace-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
+import multipart from "@fastify/multipart";
+
+loadWorkspaceEnv();
 import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
@@ -9,13 +13,14 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import {
-  applyConfiguratorSchemaMigration,
+  CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
   createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
   DrizzleTenantIntegrationProfilesRepo,
   DrizzleSequenceConfigurationRepo,
+  DrizzleTenantApiKeyRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
@@ -79,7 +84,6 @@ async function main() {
     db,
     connectionString: databaseUrl,
   });
-  await applyConfiguratorSchemaMigration(databaseUrl);
 
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
@@ -101,6 +105,7 @@ async function main() {
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
   const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
   const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
+  const tenantApiKeyRepo = new DrizzleTenantApiKeyRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -153,14 +158,23 @@ async function main() {
     );
   }
 
+  if (identityAuth) {
+    const { identityPlugin } = await import("@hims/ts-sdk-identity");
+    // Register at app root so skipPathPrefixes match full request URLs (integration-hub S2S).
+    await app.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: [...CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    });
+  }
+
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, {
-        ...identityAuth,
-        skipPathPrefixes: ["/api/configurator/v1/integration-profiles/by-"],
-      });
-    }
+    await api.register(multipart, {
+      limits: {
+        fileSize: 2 * 1024 * 1024,
+        files: 1,
+      },
+    });
+
     await api.register(
       createRouter({
         db,
@@ -169,6 +183,7 @@ async function main() {
         tenantModuleRepo,
         tenantIntegrationProfilesRepo,
         sequenceConfigurationRepo,
+        tenantApiKeyRepo,
         runConfiguratorTransaction,
         eventBus,
         entitlementCacheInvalidator,

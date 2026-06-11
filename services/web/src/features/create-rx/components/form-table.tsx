@@ -2,6 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@pulse/utils';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
+import { FormTableCreatableSelect } from './form-table-creatable-select';
 import {
   Select,
   SelectContent,
@@ -18,7 +19,13 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 
-export type FormTableColumnType = 'text' | 'number' | 'select' | 'date' | 'dosage-man';
+export type FormTableColumnType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'creatable-select'
+  | 'date'
+  | 'dosage-man';
 
 export interface DosageManSubKeys<T> {
   morning: keyof T & string;
@@ -81,7 +88,7 @@ function formatReadOnlyCellValue<T extends { id: string }>(
   const raw = String(row[col.key] ?? '');
   const value = raw.trim();
   if (!value) return '—';
-  if (col.type === 'select' && col.options) {
+  if ((col.type === 'select' || col.type === 'creatable-select') && col.options) {
     return col.options.find((opt) => opt.value === value)?.label ?? value;
   }
   return value;
@@ -224,6 +231,17 @@ export function FormTable<T extends { id: string }>({
                             </div>
                           ))}
                         </div>
+                      ) : col.type === 'creatable-select' && col.options ? (
+                        <FormTableCreatableSelect
+                          value={(row[col.key] as string) ?? ''}
+                          onChange={(next) => onUpdate(index, col.key, next)}
+                          options={col.options}
+                          placeholder={
+                            catalogLoading ? 'Loading catalog…' : col.placeholder
+                          }
+                          disabled={catalogLoading}
+                          invalid={isCellInvalid(row.id, col.key)}
+                        />
                       ) : col.type === 'select' && col.options ? (
                         <Select
                           value={(row[col.key] as string) || '__none__'}

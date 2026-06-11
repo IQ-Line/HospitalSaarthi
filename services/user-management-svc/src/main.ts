@@ -41,7 +41,10 @@ import {
   HttpConfiguratorTenantModuleEntitlementAdapter,
   HttpMasterDataModuleCatalogAdapter,
 } from "@hims/user-management";
+import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
+import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
 
 function requireUpstreamBaseUrl(envKey: string): string {
   const raw = process.env[envKey]?.trim();
@@ -254,9 +257,17 @@ async function createApp(): Promise<FastifyInstance> {
 
   await registerBetterAuth(app, auth, { trustedOrigins });
 
+  const accessTokenIssuer = createAccessTokenIssuer(pgDb, authEnv, {
+    userRepository,
+    principalRoleProjectionRepository,
+  });
+
+  const tenantApiKeyValidator = new DrizzleTenantApiKeyValidator(pgDb);
+  await app.register(tenantApiKeyAuthPlugin, { validator: tenantApiKeyValidator });
+
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: ["/api/auth", "/docs"],
+    skipPathPrefixes: ["/api/auth", "/docs", "/api/user-management/auth/api-key"],
   });
 
   await assertCerbosReachable(cerbosUrl);
@@ -295,6 +306,7 @@ async function createApp(): Promise<FastifyInstance> {
     masterDataModuleCatalogPort,
     tenantEntitlementResolver,
     internalEntitlementCacheApiKey: umInternalApiKey,
+    accessTokenIssuer,
   });
 
   return app;

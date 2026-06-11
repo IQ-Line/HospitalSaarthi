@@ -51,7 +51,17 @@ export { VISIT_EVENT_VISIT_CREATED } from "./events/publish-visit-created.js";
 export { publishRegistrationCreated } from "./events/publish-registration-created.js";
 export { publishVisitCreated } from "./events/publish-visit-created.js";
 
-export type { RegistrationRepo, VisitRepo, EmpiHttpPort, ConfiguratorHttpPort, BillingReadPort, BillingBillSummary } from "./ports.js";
+export type {
+  RegistrationRepo,
+  VisitRepo,
+  EmpiHttpPort,
+  BillingReadPort,
+  BillingBillSummary,
+  ApiKeyValidatorPort,
+  ApiKeyValidationResult,
+} from "./ports.js";
+
+export { apiKeyAuthPlugin, type ApiKeyAuthPluginOptions } from "./http/api-key-auth-plugin.js";
 
 export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { DrizzleVisitRepo } from "./data-access/visit.repo.js";
