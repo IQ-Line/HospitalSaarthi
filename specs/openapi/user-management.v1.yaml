@@ -1284,7 +1284,7 @@ components:
           schema:
             $ref: "#/components/schemas/ErrorMessage"
     ApiKeyTokenSuccess:
-      description: API key valid — access and refresh tokens issued.
+      description: API key valid — tokens issued plus resolved tenant and user profile.
       content:
         application/json:
           schema:
@@ -1295,6 +1295,8 @@ components:
               - expires_in
               - refresh_token
               - refresh_expires_in
+              - tenant_id
+              - user
             properties:
               access_token:
                 type: string
@@ -1310,6 +1312,12 @@ components:
               refresh_expires_in:
                 type: integer
                 description: refresh_token lifetime in seconds (604800).
+              tenant_id:
+                type: string
+                format: uuid
+                description: Hospital tenant (`iq_tenant_id`) for the API key owner.
+              user:
+                $ref: "#/components/schemas/User"
   securitySchemes:
     bearerAuth:
       type: http
