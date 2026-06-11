@@ -34,6 +34,10 @@ async function listenWithPlugin(validator: TenantApiKeyValidatorPort) {
     authViaApiKey: request.authViaApiKey,
     tenantId: request.tenantId,
   }));
+  app.get("/api/user-management/users/:id/roles", async (request) => ({
+    authViaApiKey: request.authViaApiKey,
+    tenantId: request.tenantId,
+  }));
   app.post("/api/user-management/users", async () => ({ ok: true }));
   await app.ready();
   return app;
@@ -91,7 +95,7 @@ describe("tenantApiKeyAuthPlugin", () => {
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
   });
 
-  it("allows GET without X-API-Key to fall through to JWT layer", async () => {
+  it("requires tenant header on supported read routes when no X-API-Key", async () => {
     const validator = createValidator(null);
     const app = await listenWithPlugin(validator);
 
@@ -100,11 +104,8 @@ describe("tenantApiKeyAuthPlugin", () => {
       url: "/api/user-management/roles",
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      authViaApiKey: false,
-      tenantId: "",
-    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "TENANT_HEADER_REQUIRED" });
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
   });
 
@@ -125,6 +126,25 @@ describe("tenantApiKeyAuthPlugin", () => {
       tenantId,
     });
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
+  });
+
+  it("authenticates GET /users/:id/roles with x-tenant-id header only (no JWT)", async () => {
+    const validator = createValidator(null);
+    const app = await listenWithPlugin(validator);
+    const tenantId = "983934e8-f61c-4514-b8ec-df5ac7a6f02b";
+    const userId = "a1b2c3d4-e5f6-4789-a012-3456789abcde";
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/user-management/users/${userId}/roles`,
+      headers: { "x-tenant-id": tenantId },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      authViaApiKey: true,
+      tenantId,
+    });
   });
 
   it("rejects invalid tenant header on supported read routes", async () => {

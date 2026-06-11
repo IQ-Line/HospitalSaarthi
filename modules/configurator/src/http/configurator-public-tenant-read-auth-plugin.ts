@@ -30,8 +30,14 @@ export function isConfiguratorPublicTenantRead(method: string, url: string): boo
   if (!path.startsWith(prefix)) {
     return false;
   }
-  const id = path.slice(prefix.length);
-  return UUID_RE.test(id) && !id.includes("/");
+  const relative = path.slice(prefix.length);
+  if (UUID_RE.test(relative) && !relative.includes("/")) {
+    return true;
+  }
+  // GET /tenants/{tenantId}/modules — list enabled modules for a tenant.
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/modules$/i.test(
+    relative,
+  );
 }
 
 const configuratorPublicTenantReadAuthPluginImpl: FastifyPluginAsync = async (fastify) => {
