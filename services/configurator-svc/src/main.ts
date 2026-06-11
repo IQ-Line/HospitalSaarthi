@@ -15,6 +15,7 @@ import { createEventBus } from "@hims/ts-sdk-events";
 import { createRouter } from "@hims/configurator/router";
 import {
   CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
+  configuratorPublicTenantReadAuthPlugin,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
@@ -157,6 +158,8 @@ async function main() {
       "UM_INTERNAL_API_KEY unset — tenant entitlement cache will not be busted on module toggle",
     );
   }
+
+  await app.register(configuratorPublicTenantReadAuthPlugin);
 
   if (identityAuth) {
     const { identityPlugin } = await import("@hims/ts-sdk-identity");

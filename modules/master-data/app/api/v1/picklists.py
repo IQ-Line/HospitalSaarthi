@@ -1,7 +1,6 @@
 """HTTP routes for platform picklist catalog (`/picklists`)."""
 
 from typing import Annotated
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
@@ -15,9 +14,9 @@ from app.schemas.picklist import (
     PicklistValueResponse,
 )
 from app.services.picklist_service import (
-    get_picklist_by_id,
     list_picklist_values,
     list_picklists,
+    resolve_picklist,
 )
 
 router = APIRouter(prefix="/picklists", tags=["Picklists"])
@@ -33,22 +32,22 @@ def get_picklists(
 
 
 @router.get(
-    "/{picklist_id}/values",
+    "/{picklist_key}/values",
     response_model=PicklistValueListResponse,
     summary="List values for a picklist domain",
 )
 def get_picklist_values(
-    picklist_id: UUID,
+    picklist_key: str,
     repository: Annotated[PicklistRepository, Depends(get_picklist_repository)],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PicklistValueListResponse:
-    picklist = get_picklist_by_id(repository, picklist_id)
+    picklist = resolve_picklist(repository, picklist_key)
     if picklist is None:
         raise ResourceNotFoundError("No picklist with this id.")
     rows, total = list_picklist_values(
         repository,
-        picklist_id,
+        picklist.id,
         limit=limit,
         offset=offset,
     )

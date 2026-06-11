@@ -5,6 +5,10 @@ export {
   CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
   CONFIGURATOR_INTERNAL_INTEGRATION_PROFILE_PATHS,
 } from "./http/configurator-identity-skip-paths.js";
+export {
+  configuratorPublicTenantReadAuthPlugin,
+  isConfiguratorPublicTenantRead,
+} from "./http/configurator-public-tenant-read-auth-plugin.js";
 
 export { createOrganization } from "./use-cases/create-organization.js";
 export { createOrganizationWithDefaultTenant } from "./use-cases/create-organization-with-default-tenant.js";

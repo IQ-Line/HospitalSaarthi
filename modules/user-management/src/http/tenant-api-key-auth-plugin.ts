@@ -13,6 +13,9 @@ export interface TenantApiKeyAuthPluginOptions {
 
 const UM_API_PREFIX = "/api/user-management";
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function readApiKeyHeader(
   value: string | string[] | undefined,
 ): string | undefined {
@@ -30,7 +33,16 @@ function umRelativePath(url: string): string {
   return path;
 }
 
-function isUmApiKeyReadRoute(url: string, method: string): boolean {
+function readTenantIdHeader(
+  headers: Record<string, string | string[] | undefined>,
+): string | undefined {
+  return (
+    readApiKeyHeader(headers["iq_tenant_id"]) ?? readApiKeyHeader(headers["x-tenant-id"])
+  );
+}
+
+/** GET routes that accept tenant API key or `iq_tenant_id` / `x-tenant-id` without JWT. */
+export function isUmTenantScopedReadRoute(url: string, method: string): boolean {
   if (method !== "GET") return false;
   const path = umRelativePath(url);
   if (path === "/roles") return true;
@@ -51,25 +63,38 @@ const tenantApiKeyAuthPluginImpl: FastifyPluginAsync<TenantApiKeyAuthPluginOptio
   }
 
   fastify.addHook("onRequest", async (request, reply) => {
-    if (!isUmApiKeyReadRoute(request.url, request.method)) return;
+    if (!isUmTenantScopedReadRoute(request.url, request.method)) return;
 
     const secret = readApiKeyHeader(request.headers["x-api-key"]);
-    if (!secret) return;
+    if (secret) {
+      const prefix = extractTenantApiKeyPrefix(secret);
+      const validated = await (async () => {
+        if (!isTenantApiKeySecret(secret)) return null;
+        if (!prefix) return null;
+        return options.validator.validateOpdSlipKey(prefix, secret);
+      })();
 
-    const prefix = extractTenantApiKeyPrefix(secret);
-    const validated = await (async () => {
-      if (!isTenantApiKeySecret(secret)) return null;
-      if (!prefix) return null;
-      return options.validator.validateOpdSlipKey(prefix, secret);
-    })();
+      if (!validated) {
+        unauthorized(reply, request, "API_KEY_INVALID", "Invalid API key");
+        return;
+      }
 
-    if (!validated) {
-      unauthorized(reply, request, "API_KEY_INVALID", "Invalid API key");
+      request.authViaApiKey = true;
+      request.tenantId = validated.tenantId;
+      return;
+    }
+
+    const headerTenant = readTenantIdHeader(request.headers);
+    if (headerTenant === undefined) {
+      return;
+    }
+    if (!UUID_RE.test(headerTenant)) {
+      unauthorized(reply, request, "TENANT_ID_INVALID", "Invalid tenant id header");
       return;
     }
 
     request.authViaApiKey = true;
-    request.tenantId = validated.tenantId;
+    request.tenantId = headerTenant;
   });
 };
 

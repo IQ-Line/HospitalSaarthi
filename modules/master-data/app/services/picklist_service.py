@@ -16,6 +16,22 @@ def get_picklist_by_id(repository: PicklistRepository, picklist_id: UUID) -> Any
     return repository.get_picklist_by_id(picklist_id)
 
 
+def get_picklist_by_slug(repository: PicklistRepository, slug: str) -> Any | None:
+    return repository.get_picklist_by_slug(slug)
+
+
+def resolve_picklist(
+    repository: PicklistRepository,
+    picklist_key: str,
+) -> Any | None:
+    """Resolve a picklist by UUID id or by slug (e.g. ``role-types``)."""
+    try:
+        picklist_id = UUID(picklist_key)
+    except ValueError:
+        return repository.get_picklist_by_slug(picklist_key)
+    return repository.get_picklist_by_id(picklist_id)
+
+
 def list_picklist_values(
     repository: PicklistRepository,
     picklist_id: UUID,
