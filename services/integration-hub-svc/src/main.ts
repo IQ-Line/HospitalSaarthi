@@ -139,6 +139,13 @@ async function main() {
     );
   }
 
+  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
+  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
+    app.log.warn(
+      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
+    );
+  }
+
   const profiles = ConfiguratorHttpIntegrationProfileRepo.fromEnv();
   const eventBus = new InProcessEventBus();
   await eventBus.connect();

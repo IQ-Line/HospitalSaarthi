@@ -43,6 +43,7 @@ data:
   ABDM_GATEWAY_BASE_URL: "https://dev.abdm.gov.in"
   ABDM_ABHA_API_BASE_URL: "https://abhasbx.abdm.gov.in/abha/api"
   ABDM_X_CM_ID: "sbx"
+  CONFIGURATOR_INTERNAL_API_KEY: "ccbe8b361dd84fc160374d5a439d60adc564015ff2fd130fed8999a6b3d0252b"
 ---
 apiVersion: apps/v1
 kind: Deployment
