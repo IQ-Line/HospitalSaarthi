@@ -36,11 +36,22 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 
+<<<<<<< HEAD
+function isInteractiveTableRowTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest(
+      'button, a, input, select, textarea, label, [role="button"], [role="menuitem"], [role="menu"], [role="combobox"], [data-slot="dropdown-menu-trigger"], [data-slot="dropdown-menu-content"]',
+    ),
+  );
+}
+=======
 type DataTableColumnMeta = {
   label?: string;
   headerClassName?: string;
   cellClassName?: string;
 };
+>>>>>>> 9b293b62f27cd207d001196db91503286eef01e0
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
@@ -205,7 +216,14 @@ export function DataTable<TData>({
             <TableRow
               key={row.id}
               className={onRowClick ? 'cursor-pointer' : undefined}
-              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              onClick={
+                onRowClick
+                  ? (event) => {
+                      if (isInteractiveTableRowTarget(event.target)) return;
+                      onRowClick(row.original);
+                    }
+                  : undefined
+              }
             >
               {row.getVisibleCells().map((cell) => (
                 <TableCell

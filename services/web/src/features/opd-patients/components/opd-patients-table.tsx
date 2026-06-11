@@ -1,15 +1,10 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import { Link } from '@tanstack/react-router';
-import { ChevronDown, FileText, Printer } from 'lucide-react';
 import { useMemo, type MouseEvent } from 'react';
 import { Button } from '@pulse/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@pulse/ui/dropdown-menu';
 import { DataTable } from '@/components/data-table';
+import type { ClinicalReportType } from '../api/clinical-documents';
+import { PatientReportsDropdown } from './patient-reports-dropdown';
 import {
   formatOpdVisitCreated,
   formatPatientNameWithDemographics,
@@ -26,6 +21,7 @@ interface OpdPatientsTableProps {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPatientRowClick: (row: OpdPatientVisitRow) => void;
+  onOpenReport?: (row: OpdPatientVisitRow, reportType: ClinicalReportType) => void;
 }
 
 function stopRowClick(e: MouseEvent) {
@@ -40,6 +36,7 @@ export function OpdPatientsTable({
   pageSize,
   onPageChange,
   onPatientRowClick,
+  onOpenReport,
 }: OpdPatientsTableProps) {
   const columns = useMemo<ColumnDef<OpdPatientVisitRow, unknown>[]>(
     () => [
@@ -127,30 +124,18 @@ export function OpdPatientsTable({
       {
         id: 'report',
         header: () => <span className="text-xs font-semibold tracking-wide text-muted-foreground">REPORT</span>,
-        cell: () => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={stopRowClick}>
-              <Button type="button" variant="outline" size="sm" className="h-8 gap-1 text-xs">
-                <Printer className="size-3.5" />
-                Print
-                <ChevronDown className="size-3.5 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>
-                <FileText className="size-4" />
-                OPD slip
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <FileText className="size-4" />
-                Prescription
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ),
+        cell: ({ row }) =>
+          row.original.status === 'completed' && onOpenReport ? (
+            <PatientReportsDropdown
+              onClick={stopRowClick}
+              onSelectReport={(reportType) => onOpenReport(row.original, reportType)}
+            />
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
     ],
-    [onPatientRowClick],
+    [onPatientRowClick, onOpenReport],
   );
 
   return (

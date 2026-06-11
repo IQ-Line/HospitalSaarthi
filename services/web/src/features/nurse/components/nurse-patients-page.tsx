@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { ClinicalReportModal } from '@/components/clinical-report-modal';
 import { OpdPatientsFiltersBar } from '@/features/opd-patients/components/opd-patients-filters';
+import { usePatientReports } from '@/features/opd-patients/hooks/use-patient-reports';
 import type { OpdPatientsFilters } from '@/features/opd-patients/types';
 import { fetchNursePatientsList } from '../api/nurse-patients';
 import { nursePatientsQueryKeys } from '../api/query-keys';
@@ -45,6 +47,7 @@ function hasActiveFilters(filters: OpdPatientsFilters): boolean {
 export function NursePatientsPage() {
   const [filters, setFilters] = useState<OpdPatientsFilters>(defaultFilters);
   const [page, setPage] = useState(1);
+  const patientReports = usePatientReports();
   const debouncedSearch = useDebouncedValue(filters.search, 400);
 
   const listParams = useMemo(
@@ -99,8 +102,23 @@ export function NursePatientsPage() {
           page={page}
           pageSize={PAGE_SIZE}
           onPageChange={setPage}
+          onOpenReport={(row, reportType) =>
+            patientReports.openReport(row.id, reportType, {
+              doctor_name: row.doctorName !== '—' ? row.doctorName : undefined,
+            })
+          }
         />
       </div>
+
+      <ClinicalReportModal
+        open={patientReports.open}
+        onOpenChange={(open) => {
+          if (!open) patientReports.closeReport();
+        }}
+        visitId={patientReports.selection?.visitId ?? null}
+        reportType={patientReports.selection?.reportType ?? null}
+        reportContext={patientReports.selection?.reportContext}
+      />
     </div>
   );
 }
