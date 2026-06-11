@@ -11,6 +11,7 @@ const MIGRATION_FILES = [
   "0001_capability_catalog_provenance.sql",
   "0004_roles_role_type.sql",
   "0005_deactivate_noncanonical_capability_actions.sql",
+  "0006_user_api_key.sql",
 ] as const;
 
 /**
