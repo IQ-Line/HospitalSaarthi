@@ -81,10 +81,29 @@ def get_azure_blob_settings() -> AzureBlobSettings:
     return AzureBlobSettings()
 
 
+class ServiceIntegrationSettings(BaseSettings):
+    """Cross-service URLs and internal keys loaded from workspace root / package ``.env``."""
+
+    model_config = SettingsConfigDict(
+        env_file=_opd_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    pharmacy_url: str = Field(default="", validation_alias="PHARMACY_URL")
+    pharmacy_internal_api_key: str = Field(default="", validation_alias="PHARMACY_INTERNAL_API_KEY")
+
+
+@lru_cache
+def get_service_integration_settings() -> ServiceIntegrationSettings:
+    return ServiceIntegrationSettings()
+
+
 def reset_settings_cache_for_tests() -> None:
-    """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
+    """Clear cached settings (tests / after ``.env`` changes in long-lived shells)."""
     get_settings.cache_clear()
     get_azure_blob_settings.cache_clear()
+    get_service_integration_settings.cache_clear()
     from opd.core.database import reset_database_engine
     from opd.lib import azure_blob_storage
 

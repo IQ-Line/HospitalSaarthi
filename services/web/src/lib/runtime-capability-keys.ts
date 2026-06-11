@@ -38,6 +38,17 @@ export const CFG_SHELL_ACCESS = 'configurator:shell:access' as const;
 export const FD_SHELL_ACCESS = 'frontdesk:shell:access' as const;
 export const FD_REGISTRATION_READ = 'registration:registration:read' as const;
 
+export const PHARMACY_SHELL_ACCESS = 'pharmacy:shell:access' as const;
+export const PHARMACY_DISPENSE_READ = 'dispense:dispense:read' as const;
+export const PHARMACY_DISPENSE_UPDATE = 'dispense:dispense:update' as const;
+
+/** Pharmacy counter nav — dispense module access for pharmacist principals only. */
+export const PHARMACY_DISPENSE_ACCESS_ANY = [
+  PHARMACY_SHELL_ACCESS,
+  PHARMACY_DISPENSE_READ,
+  PHARMACY_DISPENSE_UPDATE,
+] as const;
+
 export const BILLING_SHELL_ACCESS = 'billing-and-finance:shell:access' as const;
 export const BILLING_INVOICE_READ = 'invoice:invoice:read' as const;
 export const BILLING_ACCOUNT_READ = 'billing-account:billing-account:read' as const;

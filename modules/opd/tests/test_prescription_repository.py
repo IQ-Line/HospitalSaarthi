@@ -69,6 +69,26 @@ def test_update_draft_replaces_clinical(prescription_repo: PrescriptionRepositor
     assert detail.clinical.symptoms[0].symptom_text == "Cough"
 
 
+def test_update_draft_replaces_chief_complaints_same_line_no(
+    prescription_repo: PrescriptionRepository,
+) -> None:
+    created = prescription_repo.create(_create_payload())
+    updated = prescription_repo.update(
+        TENANT_A,
+        created.id,
+        PrescriptionUpdate.model_validate(
+            {
+                "clinical": {
+                    "chief_complaints": [{"line_no": 1, "complaint_text": "Headache"}],
+                }
+            }
+        ),
+    )
+    detail = prescription_to_detail(updated)
+    assert len(detail.clinical.chief_complaints) == 1
+    assert detail.clinical.chief_complaints[0].complaint_text == "Headache"
+
+
 def test_finalize_and_cancel_append_status_history(
     prescription_repo: PrescriptionRepository,
 ) -> None:

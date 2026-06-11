@@ -33,13 +33,23 @@ export const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 
 import type { DevelopmentSeedUserPersona } from "../../packages/dev-bootstrap/src/development-seed-users.ts";
 
-/** Super-admin receives the full synced catalog (only persona in dev bootstrap). */
+const PHARMACIST_CAPABILITY_KEYS = [
+  "pharmacy:shell:access",
+  "dispense:dispense:read",
+  "dispense:dispense:update",
+] as const;
+
+/** Persona-scoped capability grants for non–super-admin dev users. */
 export function filterCapabilityKeysForPersona(
   persona: DevelopmentSeedUserPersona,
   activeCapabilityKeys: readonly string[],
 ): string[] {
   if (persona === "platformOperator") {
     return [...activeCapabilityKeys];
+  }
+  if (persona === "pharmacist") {
+    const active = new Set(activeCapabilityKeys);
+    return PHARMACIST_CAPABILITY_KEYS.filter((key) => active.has(key));
   }
   return [];
 }

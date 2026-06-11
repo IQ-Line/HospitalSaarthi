@@ -27,7 +27,12 @@ class PatientEncounterRow:
 
 
 class PrescriptionRepository:
-    def __init__(self, session: Session, tenant_id: UUID, doctor_id: UUID) -> None:
+    def __init__(
+        self,
+        session: Session,
+        tenant_id: UUID,
+        doctor_id: UUID | None = None,
+    ) -> None:
         self._session = session
         self._tenant_id = tenant_id
         self._doctor_id = doctor_id
@@ -40,6 +45,8 @@ class PrescriptionRepository:
         form_data: dict[str, Any] | None = None,
         status: str = "draft",
     ) -> Prescription:
+        if self._doctor_id is None:
+            raise ValueError("doctor_id is required to create prescriptions")
         now = datetime.now(UTC)
         return Prescription(
             tenant_id=self._tenant_id,
@@ -359,7 +366,12 @@ class PrescriptionRepository:
         patient_id: UUID,
         form_data: dict[str, Any],
     ) -> tuple[Visit, Prescription]:
-        return self.finalize_prescription_for_visit(visit_id, patient_id, form_data)
+        visit, rx = self.finalize_prescription_for_visit(visit_id, patient_id, form_data)
+        now = datetime.now(UTC)
+        visit.status = "completed"
+        visit.updated_at = now
+        self._session.flush()
+        return visit, rx
 
     def get_or_create_active_visit(self, patient_id: UUID) -> tuple[Visit, Prescription]:
         existing = self.get_latest_prescription(patient_id)
