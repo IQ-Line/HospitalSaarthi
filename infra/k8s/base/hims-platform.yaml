@@ -26,6 +26,7 @@ data:
   BILLING_URL: "http://billing-svc.himsv2.svc.cluster.local:3003"
   REGISTRATION_URL: "http://registration-svc.himsv2.svc.cluster.local:3006"
   OPD_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
+  PHARMACY_URL: "http://pharmacy-svc.himsv2.svc.cluster.local:3004"
   INTEGRATION_HUB_URL: "http://integration-hub-svc.himsv2.svc.cluster.local:3007"
   EMPI_BASE_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
   RECORD_FOUNDATION_BASE_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
@@ -444,6 +445,79 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: pharmacy-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pharmacy-svc
+  template:
+    metadata:
+      labels:
+        app: pharmacy-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: pharmacy-svc
+          image: acriqline.azurecr.io/pharmacy-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: PHARMACY_SVC_PORT
+              value: "3004"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+            - name: PHARMACY_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: PHARMACY_INTERNAL_API_KEY
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pharmacy-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: pharmacy-svc
+  ports:
+    - name: http
+      port: 3004
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: registration-svc
   namespace: himsv2
 spec:
@@ -785,7 +859,13 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
-                  key: AZURE_BLOB_CONTAINER_REPORT                  
+                  key: AZURE_BLOB_CONTAINER_REPORT
+            - name: PHARMACY_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: PHARMACY_INTERNAL_API_KEY
+                  optional: true
           livenessProbe:
             httpGet:
               path: /api/v1/opd/health

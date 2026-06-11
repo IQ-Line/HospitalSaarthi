@@ -291,13 +291,19 @@ export function useVisitpadRxColumns(search?: string, section?: string, page?: V
   });
 }
 
-export function useVisitpadMedicines(search?: string, schedule?: string, page?: VisitpadCatalogPageParams) {
+export function useVisitpadMedicines(
+  search?: string,
+  schedule?: string,
+  page?: VisitpadCatalogPageParams,
+  options?: { enabled?: boolean },
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
     queryKey: [...visitpadKeys.medicines(), scopeKey, search ?? '', schedule ?? '', ...pk],
     queryFn: () =>
       apiClient<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', { search, schedule }, page)),
+    enabled: options?.enabled ?? true,
   });
 }
 

@@ -266,7 +266,7 @@ def _load_normalized_clinical_impl(session: Session, prescription_id: UUID) -> d
     med_rows = session.execute(
         text(
             f"""
-            SELECT line_no, name, strength, dosage, duration, frequency, quantity, route
+            SELECT line_no, medicine_id, name, strength, dosage, duration, frequency, quantity, route
             FROM {medicines_table}
             WHERE prescription_id = :pid
             ORDER BY line_no
@@ -342,20 +342,58 @@ def _clinical_to_form_data(clinical: dict[str, Any]) -> dict[str, Any]:
         }
 
     for row in clinical.get("medicines") or []:
-        form["medicines"].append(
-            {
-                "id": str(uuid.uuid4()),
-                "medicine": row.get("name") or "",
-                "strength": row.get("strength") or "",
-                "dosage": row.get("dosage") or "",
-                "days": row.get("duration") or "",
-                "frequency": row.get("frequency") or "",
-                "quantity": row.get("quantity") or "",
-                "route": row.get("route") or "",
-            }
-        )
+        medicine_id = row.get("medicine_id")
+        catalog_id = str(medicine_id).strip() if medicine_id is not None else ""
+        medicine_row: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "medicine": row.get("name") or "",
+            "strength": row.get("strength") or "",
+            "dosage": row.get("dosage") or "",
+            "days": row.get("duration") or "",
+            "frequency": row.get("frequency") or "",
+            "quantity": row.get("quantity") or "",
+            "route": row.get("route") or "",
+        }
+        if catalog_id:
+            medicine_row["medicineId"] = catalog_id
+            medicine_row["medicine_id"] = catalog_id
+        form["medicines"].append(medicine_row)
 
     return form
+
+
+def _medicine_row_catalog_id(row: dict[str, Any]) -> str | None:
+    for key in ("medicineId", "medicine_id"):
+        raw = row.get(key)
+        if raw is not None and str(raw).strip():
+            return str(raw).strip()
+    return None
+
+
+def _enrich_medicines_with_catalog_ids(
+    medicines: list[Any],
+    catalog_source: list[Any],
+) -> list[Any]:
+    """Fill missing catalog ids on stored JSON rows from normalized prescription_medicines."""
+    if not isinstance(medicines, list) or not isinstance(catalog_source, list):
+        return medicines
+
+    enriched: list[Any] = []
+    for index, row in enumerate(medicines):
+        if not isinstance(row, dict):
+            enriched.append(row)
+            continue
+        if _medicine_row_catalog_id(row):
+            enriched.append(row)
+            continue
+        source = catalog_source[index] if index < len(catalog_source) else None
+        if isinstance(source, dict):
+            catalog_id = _medicine_row_catalog_id(source)
+            if catalog_id:
+                enriched.append({**row, "medicineId": catalog_id, "medicine_id": catalog_id})
+                continue
+        enriched.append(row)
+    return enriched
 
 
 def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, Any]:
@@ -393,6 +431,12 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
 
     if not _vitals_has_content(merged.get("vitals")) and _vitals_has_content(base.get("vitals")):
         merged["vitals"] = base["vitals"]
+
+    if _list_has_content(merged.get("medicines")):
+        merged["medicines"] = _enrich_medicines_with_catalog_ids(
+            merged.get("medicines") or [],
+            base.get("medicines") or [],
+        )
 
     return merged
 
