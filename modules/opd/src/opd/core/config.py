@@ -57,10 +57,12 @@ class Settings(BaseSettings):
     pdf_platform_url: str = Field(
         default="http://localhost:8091",
         description="pdf-platform worker origin (no trailing path).",
+        validation_alias="PDF_PLATFORM_URL",
     )
     pdf_platform_api_key: str = Field(
         default="",
         description="Optional bearer token for pdf-platform.",
+        validation_alias="PDF_PLATFORM_API_KEY",
     )
     pdf_platform_timeout_seconds: int = Field(
         default=125,
