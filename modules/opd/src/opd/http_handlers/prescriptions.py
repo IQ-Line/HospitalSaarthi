@@ -22,7 +22,7 @@ from opd.data_access.prescription_form_data import effective_form_data
 from opd.data_access.prescription_repo import PrescriptionRepository
 from opd.data_access.registration_visit_repo import RegistrationVisitRepository
 from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
-from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_projection
+from opd.lib.pharmacy_queue_notify import schedule_pharmacy_queue_notify_if_final
 from opd.models.prescription_row import Prescription
 from opd.models.registration_visit import RegistrationVisit
 from opd.models.visit import Visit
@@ -85,14 +85,12 @@ def _to_response(db: DbSession, bundle: PrescriptionBundle) -> OpdPrescriptionRe
 
 
 def _notify_pharmacy_queue_if_final(
-    db: DbSession,
+    background_tasks: BackgroundTasks,
     tenant_id: TenantId,
     visit: Visit,
     rx: Prescription,
 ) -> None:
-    if rx.status != "final":
-        return
-    notify_pharmacy_queue_projection(tenant_id, visit, rx, session=db)
+    schedule_pharmacy_queue_notify_if_final(background_tasks, tenant_id, visit, rx)
 
 
 @router.get("/patients", response_model=OpdPatientListResponse)
@@ -235,6 +233,7 @@ def upsert_visit_nurse_pre_consult(
 def upsert_visit_prescription(
     visit_id: UUID,
     body: OpdPrescriptionUpsertRequest,
+    background_tasks: BackgroundTasks,
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
@@ -257,7 +256,7 @@ def upsert_visit_prescription(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
-    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
+    _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
 
@@ -281,7 +280,7 @@ def end_visit_consultation(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
-    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
+    _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
     background_tasks.add_task(
         trigger_m2_after_end_consultation,
         tenant_id=tenant_id,
@@ -295,6 +294,7 @@ def end_visit_consultation(
 def upsert_patient_prescription(
     patient_id: UUID,
     body: OpdPrescriptionUpsertRequest,
+    background_tasks: BackgroundTasks,
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
@@ -310,7 +310,7 @@ def upsert_patient_prescription(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
-    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
+    _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
 
@@ -326,7 +326,7 @@ def end_patient_consultation(
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.end_consultation(patient_id, body.form_data)
     db.commit()
-    _notify_pharmacy_queue_if_final(db, tenant_id, visit, rx)
+    _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
     background_tasks.add_task(
         trigger_m2_after_end_consultation,
         tenant_id=tenant_id,

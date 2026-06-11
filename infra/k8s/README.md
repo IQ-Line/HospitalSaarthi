@@ -10,6 +10,7 @@ PDF platform sidecar. Apply directly, or use as input for Helm/Kustomize/ArgoCD.
 - `hims.azurecr.io/integration-hub-svc:<sha>`
 - `hims.azurecr.io/bff:<sha>`
 - `hims.azurecr.io/billing-svc:<sha>`
+- `hims.azurecr.io/pharmacy-svc:<sha>`
 - `hims.azurecr.io/cerbos:<sha>` from Nx project `cerbos-policies`
 - `hims.azurecr.io/configurator-svc:<sha>`
 - `hims.azurecr.io/empi-svc:<sha>`
@@ -102,6 +103,19 @@ NHA CM   → Ingress /api → BFF → integration-hub-svc:3007  (/api/v3/*)
 | `INTEGRATION_HUB_PUBLIC_BASE_URL` | `hims-config` ConfigMap | `https://dev.v2.hospitalsaarthi.com` (match public web host) |
 | `ABDM_TOKEN_ENCRYPTION_KEY` | `hims-secrets` | 32-byte key (hex or base64) — required in production |
 | `CONFIGURATOR_INTERNAL_API_KEY` | `hims-secrets` (optional in dev) | Same value as configurator-svc |
+| `PHARMACY_INTERNAL_API_KEY` | `hims-secrets` (required in prod) | Same value on `opd-svc` and `pharmacy-svc` for queue projection push |
+
+**Pharmacy stack** — BFF proxies `/api/pharmacy/v1`; OPD pushes queue updates to pharmacy internal routes:
+
+| Config key | Set on | Example (cluster) |
+| --- | --- | --- |
+| `PHARMACY_URL` | `hims-config` ConfigMap | `http://pharmacy-svc.himsv2.svc.cluster.local:3004` |
+
+After first deploy, restart BFF and OPD so they pick up `PHARMACY_URL`:
+
+```bash
+kubectl -n himsv2 rollout restart deployment/bff deployment/opd-svc deployment/pharmacy-svc
+```
 
 **Dev (`dev.v2.hospitalsaarthi.com`)** — also set in `hims-config`:
 
@@ -135,6 +149,7 @@ own runtime ports unless overridden. These manifests use the service defaults:
 | `configurator-svc` | `3001` |
 | `empi-svc` | `3002` |
 | `billing-svc` | `3003` |
+| `pharmacy-svc` | `3004` |
 | `user-management-svc` | `3005` |
 | `registration-svc` | `3006` |
 | `integration-hub-svc` | `3007` |

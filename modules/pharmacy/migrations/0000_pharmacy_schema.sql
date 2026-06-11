@@ -94,7 +94,11 @@ CREATE TABLE IF NOT EXISTS pharmacy.dispense_line_items (
   CONSTRAINT dispense_line_items_line_discount_nonneg_chk CHECK (line_discount >= 0),
   CONSTRAINT dispense_line_items_tax_percent_nonneg_chk CHECK (tax_percent >= 0),
   CONSTRAINT dispense_line_items_tax_amount_nonneg_chk CHECK (tax_amount >= 0),
-  CONSTRAINT dispense_line_items_line_total_nonneg_chk CHECK (line_total >= 0)
+  CONSTRAINT dispense_line_items_line_total_nonneg_chk CHECK (line_total >= 0),
+  CONSTRAINT dispense_line_items_dispense_record_fk
+    FOREIGN KEY (iq_tenant_id, dispense_record_id)
+    REFERENCES pharmacy.dispense_records (iq_tenant_id, id)
+    ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_record
@@ -134,6 +138,21 @@ CREATE INDEX IF NOT EXISTS ix_pharmacy_opd_queue_projection_tenant_status_queued
 
 CREATE INDEX IF NOT EXISTS ix_pharmacy_opd_queue_projection_tenant_queued
   ON pharmacy.opd_queue_projection (iq_tenant_id, queued_at DESC);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'dispense_line_items_dispense_record_fk'
+  ) THEN
+    ALTER TABLE pharmacy.dispense_line_items
+      ADD CONSTRAINT dispense_line_items_dispense_record_fk
+      FOREIGN KEY (iq_tenant_id, dispense_record_id)
+      REFERENCES pharmacy.dispense_records (iq_tenant_id, id)
+      ON DELETE CASCADE;
+  END IF;
+END $$;
 
 DO $$
 BEGIN

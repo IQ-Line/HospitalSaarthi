@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from opd.data_access.registration_patient_snapshot import load_pharmacy_queue_patient_fields
@@ -101,6 +102,66 @@ def notify_pharmacy_queue_projection(
         medicine_count=_medicine_count_from_form_data(rx.form_data),
         updated_at=updated_at,
         finalized_at=finalized_at,
+    )
+
+
+def notify_pharmacy_queue_projection_background(
+    tenant_id: UUID,
+    visit_id: UUID,
+    patient_id: UUID,
+    prescription_id: UUID,
+    doctor_id: UUID | None,
+    visit_status: str,
+    prescription_status: str,
+    medicine_count: int,
+    updated_at: datetime,
+    finalized_at: datetime | None,
+) -> None:
+    """FastAPI BackgroundTasks entry — opens its own DB session for denormalized fields."""
+    from opd.core.database import get_session_factory
+
+    session = get_session_factory()()
+    try:
+        _upsert_projection(
+            tenant_id,
+            visit_id,
+            session=session,
+            patient_id=patient_id,
+            prescription_id=prescription_id,
+            doctor_id=doctor_id,
+            visit_status=visit_status,
+            prescription_status=prescription_status,
+            medicine_count=medicine_count,
+            updated_at=updated_at,
+            finalized_at=finalized_at,
+        )
+    finally:
+        session.close()
+
+
+def schedule_pharmacy_queue_notify_if_final(
+    background_tasks: BackgroundTasks,
+    tenant_id: UUID,
+    visit: Visit,
+    rx: Prescription,
+) -> None:
+    """Enqueue pharmacy queue upsert after response (DB already committed)."""
+    if rx.status != "final":
+        return
+    finalized_at = rx.finalized_at
+    updated_at = rx.updated_at if rx.updated_at is not None else datetime.now(UTC)
+    background_tasks.add_task(
+        notify_pharmacy_queue_projection_background,
+        tenant_id,
+        visit.id,
+        visit.patient_id,
+        rx.id,
+        rx.doctor_id,
+        visit.status,
+        rx.status,
+        _medicine_count_from_form_data(rx.form_data),
+        updated_at,
+        finalized_at,
     )
 
 

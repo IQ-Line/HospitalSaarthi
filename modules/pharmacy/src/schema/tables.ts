@@ -1,6 +1,7 @@
 import {
   boolean,
   date,
+  foreignKey,
   numeric,
   pgSchema,
   primaryKey,
@@ -47,7 +48,16 @@ export const dispenseRecords = pharmacySchema.table(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "dispense_records_walk_in_patient_fk",
+      columns: [t.iq_tenant_id, t.walk_in_patient_id],
+      foreignColumns: [walkInPatients.iq_tenant_id, walkInPatients.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("no action"),
+  ],
 );
 
 export const dispenseLineItems = pharmacySchema.table(
@@ -69,7 +79,16 @@ export const dispenseLineItems = pharmacySchema.table(
     line_total: numeric("line_total", { precision: 18, scale: 4 }).notNull().default("0"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "dispense_line_items_dispense_record_fk",
+      columns: [t.iq_tenant_id, t.dispense_record_id],
+      foreignColumns: [dispenseRecords.iq_tenant_id, dispenseRecords.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("no action"),
+  ],
 );
 
 export const opdQueueProjection = pharmacySchema.table(

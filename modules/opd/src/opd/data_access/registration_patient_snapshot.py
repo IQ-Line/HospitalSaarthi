@@ -6,7 +6,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from opd.models.registration_patient_snapshot import RegistrationPatientSnapshot
@@ -73,6 +73,7 @@ def load_pharmacy_queue_patient_fields(
             RegistrationPatientSnapshot.tenant_id == tenant_id,
             RegistrationPatientSnapshot.patient_id == patient_id,
         )
+        .order_by(desc(RegistrationPatientSnapshot.created_at))
         .limit(1)
     )
     row = session.scalars(stmt).first()

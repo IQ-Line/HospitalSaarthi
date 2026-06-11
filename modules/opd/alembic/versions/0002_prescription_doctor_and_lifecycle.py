@@ -1,7 +1,7 @@
 """prescription doctor_id, vitals schema version, lifecycle timestamps
 
 Revision ID: 0002_rx_doctor_vitals
-Revises: 0001_opd_visits_prescriptions
+Revises: 001_prescription_schema
 Create Date: 2026-06-03
 """
 
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 from schema_names import SCHEMA
 
 revision: str = "0002_rx_doctor_vitals"
-down_revision: Union[str, None] = "0001_opd_visits_prescriptions"
+down_revision: Union[str, None] = "001_prescription_schema"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -88,6 +88,8 @@ def upgrade() -> None:
             """
         )
     )
+
+    op.execute(sa.text(f"LOCK TABLE {SCHEMA}.prescriptions IN ACCESS EXCLUSIVE MODE"))
 
     remaining_null = conn.execute(
         sa.text(f"SELECT COUNT(*) FROM {SCHEMA}.prescriptions WHERE doctor_id IS NULL")
