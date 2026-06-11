@@ -40,6 +40,22 @@ class PicklistRepository:
             return None
         return row
 
+    def get_picklist_by_slug(
+        self,
+        slug: str,
+        *,
+        include_deleted: bool = False,
+    ) -> Any | None:
+        statement: Select[tuple[Any]] = select(PicklistModel).where(
+            PicklistModel.slug == slug,
+        )
+        if not include_deleted:
+            statement = statement.where(
+                PicklistModel.is_deleted.is_(False),
+                PicklistModel.is_active.is_(True),
+            )
+        return self._session.scalar(statement)
+
     def list_values_for_picklist(
         self,
         picklist_id: UUID,

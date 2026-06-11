@@ -107,4 +107,36 @@ describe("tenantApiKeyAuthPlugin", () => {
     });
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
   });
+
+  it("authenticates GET /users with iq_tenant_id header only (no JWT)", async () => {
+    const validator = createValidator(null);
+    const app = await listenWithPlugin(validator);
+    const tenantId = "983934e8-f61c-4514-b8ec-df5ac7a6f02b";
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/user-management/users",
+      headers: { "iq_tenant_id": tenantId },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      authViaApiKey: true,
+      tenantId,
+    });
+    expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid tenant header on supported read routes", async () => {
+    const validator = createValidator(null);
+    const app = await listenWithPlugin(validator);
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/user-management/roles",
+      headers: { "x-tenant-id": "not-a-uuid" },
+    });
+
+    expect(response.statusCode).toBe(401);
+  });
 });
