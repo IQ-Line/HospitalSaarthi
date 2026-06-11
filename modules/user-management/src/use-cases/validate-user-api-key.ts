@@ -4,7 +4,8 @@ import {
   verifyTenantApiKeySecret,
 } from "@hims/ts-sdk-api-key";
 import { ApiKeyInvalidError } from "../domain/errors.js";
-import type { AccessTokenIssuerPort, UserRepository } from "../ports/index.js";
+import type { User } from "../domain/types.js";
+import type { AccessTokenIssuerPort, UserApiKeyRecord, UserRepository } from "../ports/index.js";
 
 export type ValidateUserApiKeyResult = {
   access_token: string;
@@ -12,7 +13,14 @@ export type ValidateUserApiKeyResult = {
   expires_in: number;
   refresh_token: string;
   refresh_expires_in: number;
+  tenant_id: string;
+  user: User;
 };
+
+function toPublicUser(row: UserApiKeyRecord): User {
+  const { iq_tenant_id: _tenantId, api_key_hash: _hash, ...user } = row;
+  return user;
+}
 
 export type ValidateUserApiKeyDeps = {
   userRepository: UserRepository;
@@ -44,5 +52,7 @@ export async function validateUserApiKey(
     expires_in: token.expires_in,
     refresh_token: token.refresh_token,
     refresh_expires_in: token.refresh_expires_in,
+    tenant_id: row.iq_tenant_id,
+    user: toPublicUser(row),
   };
 }
