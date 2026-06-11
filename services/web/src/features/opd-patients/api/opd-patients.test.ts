@@ -142,7 +142,7 @@ describe('fetchOpdPatientsList', () => {
     const result = await fetchOpdPatientsList(baseParams);
 
     expect(result.items[0]?.status).toBe('pre-consulted');
-    expect(result.items[0]?.actionLabel).toBe('Create Rx');
+    expect(result.items[0]?.actionLabel).toBe('Edit RX');
   });
 
   it('maps cancelled registration visits', async () => {

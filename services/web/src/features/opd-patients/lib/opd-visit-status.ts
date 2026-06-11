@@ -5,7 +5,7 @@ export function opdVisitStatusToActionLabel(
   status: OpdVisitStatus,
 ): OpdPatientVisitRow['actionLabel'] {
   if (status === 'completed') return 'View RX';
-  if (status === 'in-progress') return 'Edit RX';
+  if (status === 'in-progress' || status === 'pre-consulted') return 'Edit RX';
   return 'Create Rx';
 }
 

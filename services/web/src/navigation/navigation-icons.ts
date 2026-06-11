@@ -12,6 +12,7 @@ import {
   FileText,
   FlaskConical,
   HeartPulse,
+  History,
   Layers,
   LayoutGrid,
   Link2,
@@ -57,6 +58,7 @@ export const NAVIGATION_ICONS: Record<string, LucideIcon> = {
   'sliders-horizontal': SlidersHorizontal,
   'file-text': FileText,
   wallet: Wallet,
+  history: History,
 };
 
 export function resolveNavigationIcon(iconKey?: string): LucideIcon | undefined {
