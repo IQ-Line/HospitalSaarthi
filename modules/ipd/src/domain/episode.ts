@@ -55,23 +55,6 @@ export interface DashboardStats {
   active_episodes: number;
 }
 
-export interface EpisodeRepo {
-  list(tenantId: string, query: EpisodeListQuery): Promise<{
-    data: Episode[];
-    total: number;
-    page: number;
-    limit: number;
-    total_pages: number;
-  }>;
-  getById(tenantId: string, episodeId: string): Promise<Episode | null>;
-  getByIdempotencyKey(tenantId: string, key: string): Promise<Episode | null>;
-  getByVisitId(tenantId: string, visitId: string): Promise<Episode | null>;
-  insert(row: Episode): Promise<Episode>;
-  update(tenantId: string, episodeId: string, patch: Partial<Episode>): Promise<Episode | null>;
-  dashboardStats(tenantId: string): Promise<DashboardStats>;
-  nextEpisodeNumber(tenantId: string): Promise<string>;
-}
-
 /** Statuses allowed for PATCH /admissions/:id (pre-admission intake only). */
 export const EDITABLE_EPISODE_STATUSES: readonly EpisodeStatus[] = ["scheduled"];
 

@@ -6,6 +6,7 @@ import type {
   EpisodeRepo,
   FinancialClass,
 } from "../domain/episode.js";
+import type { BedRepo } from "../ports.js";
 
 export type CreateAdmissionInput = {
   admission_source: AdmissionSource;
@@ -25,6 +26,7 @@ export type CreateAdmissionInput = {
 
 type CreateAdmissionDeps = {
   episodeRepo: EpisodeRepo;
+  bedRepo: BedRepo;
 };
 
 export async function createAdmission(
@@ -33,9 +35,18 @@ export async function createAdmission(
   input: CreateAdmissionInput,
   idempotencyKey: string | null,
 ): Promise<Episode> {
+  const id = randomUUID();
   const ts = new Date().toISOString();
+
+  if (input.bed_id) {
+    const reserved = await deps.bedRepo.reserveForEpisode(tenantId, input.bed_id, id);
+    if (!reserved) {
+      throw new Error("Bed is not available");
+    }
+  }
+
   const row: Episode = {
-    id: randomUUID(),
+    id,
     iq_tenant_id: tenantId,
     episode_number: await deps.episodeRepo.nextEpisodeNumber(tenantId),
     visit_id: input.visit_id ?? null,

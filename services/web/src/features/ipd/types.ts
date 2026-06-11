@@ -18,6 +18,7 @@ export type AdmissionRow = {
   status: EpisodeStatus;
   specialty: string;
   requestedAt: string;
+  admittedAt: string | null;
 };
 
 export type AdmissionsFilters = {
