@@ -111,11 +111,46 @@ export function resolveUserManagementHttpError(
   return internalMaskedResponse(correlationId);
 }
 
+/**
+ * Logs server-side failures (HTTP >= 500) with the ORIGINAL error attached, so a
+ * masked `INTERNAL_ERROR` response stays debuggable: the public body hides the
+ * cause from the client, but this line preserves the real type/message/stack for
+ * operators. Client errors (4xx) are expected outcomes and are intentionally not
+ * logged here to avoid noise.
+ */
+function logUserManagementHttpError(
+  reply: FastifyReply,
+  err: unknown,
+  resolved: ResolvedUserManagementHttpError,
+  correlationId: string,
+): void {
+  if (resolved.status < 500) {
+    return;
+  }
+  const logger = reply.log;
+  if (logger === undefined || typeof logger.error !== "function") {
+    return;
+  }
+  logger.error(
+    {
+      err,
+      correlation_id: correlationId,
+      status: resolved.status,
+      code: resolved.body.code,
+      // `INTERNAL_ERROR` means the original error was unmapped/unexpected and is
+      // masked from the client — without this line its cause/stack is lost.
+      masked: resolved.body.code === "INTERNAL_ERROR",
+    },
+    "user-management request failed",
+  );
+}
+
 export function replyWithUserManagementError(
   reply: FastifyReply,
   err: unknown,
   correlationId: string,
 ): FastifyReply {
-  const { status, body } = resolveUserManagementHttpError(err, correlationId);
-  return reply.status(status).send(body);
+  const resolved = resolveUserManagementHttpError(err, correlationId);
+  logUserManagementHttpError(reply, err, resolved, correlationId);
+  return reply.status(resolved.status).send(resolved.body);
 }

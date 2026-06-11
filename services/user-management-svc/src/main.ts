@@ -213,10 +213,15 @@ async function createApp(): Promise<FastifyInstance> {
       process.env.BETTER_AUTH_DISABLE_JWT_KEY_ENCRYPTION === "true",
   };
   await repairJwksForDevelopment(pgDb, authEnv);
-  const auth = createHimsBetterAuth(pgDb, authEnv, {
-    userRepository,
-    principalRoleProjectionRepository,
-  });
+  const auth = createHimsBetterAuth(
+    pgDb,
+    authEnv,
+    {
+      userRepository,
+      principalRoleProjectionRepository,
+    },
+    app.log,
+  );
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
   if (process.env.NODE_ENV !== "production") {
