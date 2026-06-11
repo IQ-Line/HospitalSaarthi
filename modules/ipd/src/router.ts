@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
+import type { EventBus } from "@hims/ts-sdk-events";
 import type { DbInstance } from "@hims/ts-sdk-db";
+import { createIpdRepos } from "./create-repos.js";
 import { createClinicalNoteRepo } from "./data-access/clinical-note.repo.js";
-import { createEpisodeRepo } from "./data-access/episode.repo.js";
 import { createInpatientOrderRepo } from "./data-access/inpatient-order.repo.js";
 import { createVitalSignRepo } from "./data-access/vital-sign.repo.js";
 import { registerAdmissionsHandler } from "./rest-handlers/admissions.handler.js";
@@ -13,19 +14,20 @@ import { registerVitalSignsHandler } from "./rest-handlers/vital-signs.handler.j
 export interface IpdRouterOptions {
   db?: DbInstance;
   useMock?: boolean;
+  eventBus: EventBus;
 }
 
 export function createRouter(options: IpdRouterOptions) {
   return fp(
     async (app: FastifyInstance) => {
-      const episodeRepo = createEpisodeRepo(options.db, options.useMock === true);
+      const repos = createIpdRepos(options.db, options.useMock === true);
       const clinicalNoteRepo = createClinicalNoteRepo(options.db, options.useMock === true);
       const vitalSignRepo = createVitalSignRepo(options.db, options.useMock === true);
       const inpatientOrderRepo = createInpatientOrderRepo(options.db, options.useMock === true);
-      registerAdmissionsHandler(app, episodeRepo);
-      registerClinicalNotesHandler(app, { episodeRepo, clinicalNoteRepo });
-      registerVitalSignsHandler(app, { episodeRepo, vitalSignRepo });
-      registerInpatientOrdersHandler(app, { episodeRepo, inpatientOrderRepo });
+      registerAdmissionsHandler(app, repos, options.eventBus);
+      registerClinicalNotesHandler(app, { episodeRepo: repos.episodeRepo, clinicalNoteRepo });
+      registerVitalSignsHandler(app, { episodeRepo: repos.episodeRepo, vitalSignRepo });
+      registerInpatientOrdersHandler(app, { episodeRepo: repos.episodeRepo, inpatientOrderRepo });
     },
     { fastify: "5.x", name: "@hims/ipd" },
   );

@@ -6,6 +6,7 @@ import {
   APP_HEADER_BG_CLASS,
   APP_HEADER_HEIGHT_CLASS,
 } from '@/components/layout/layout-constants';
+import { resolveTenantDisplayName } from '@/lib/tenant-display-name';
 
 interface AppHeaderProps {
   displayName: string | null;
@@ -13,7 +14,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ displayName, tenantName }: AppHeaderProps) {
-  const title = tenantName?.trim() || 'HIMS';
+  const title = resolveTenantDisplayName(tenantName);
 
   return (
     <header className="shrink-0 border-b border-sky-200/80">

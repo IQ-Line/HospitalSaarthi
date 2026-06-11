@@ -1,4 +1,5 @@
 import {
+  confirmMockAdmission,
   createMockAdmission,
   getMockAdmissionById,
   getMockAdmissionsList,
@@ -12,6 +13,14 @@ import type {
   AdmissionsListResponse,
   WardBeds,
 } from '../types';
+import { apiClient } from '@/lib/api-client';
+
+type EpisodeApiRow = {
+  id: string;
+  episode_number: string;
+  status: string;
+  admitted_at: string | null;
+};
 
 /** UI-only until `specs/openapi/ipd.v1.yaml` backend is wired. */
 export function ipdUseMock(): boolean {
@@ -54,4 +63,14 @@ export async function updateAdmission(
 ): Promise<{ id: string; episodeNumber: string }> {
   if (ipdUseMock()) return updateMockAdmission(id, input);
   throw new Error('IPD update admission API not implemented');
+}
+
+export async function confirmAdmission(
+  id: string,
+): Promise<{ id: string; episodeNumber: string; status: 'admitted' }> {
+  if (ipdUseMock()) return confirmMockAdmission(id);
+  const row = await apiClient<EpisodeApiRow>(`/api/ipd/v1/admissions/${id}/confirm`, {
+    method: 'POST',
+  });
+  return { id: row.id, episodeNumber: row.episode_number, status: 'admitted' };
 }
