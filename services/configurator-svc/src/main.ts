@@ -12,9 +12,9 @@ import {
   type DbInstance,
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
+import { createRouter } from "@hims/configurator/router";
 import {
   CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
-  createRouter,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,

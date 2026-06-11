@@ -49,9 +49,11 @@ const emptyTariffRepo: TariffMasterRepo = {
 
 describe("captureCharge", () => {
   const prevDeskOverrides = process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+  const prevNodeEnv = process.env["NODE_ENV"];
 
   beforeEach(() => {
     process.env["BILLING_ALLOW_DESK_OVERRIDES"] = "true";
+    process.env["NODE_ENV"] = "development";
   });
 
   afterAll(() => {
@@ -59,6 +61,11 @@ describe("captureCharge", () => {
       delete process.env["BILLING_ALLOW_DESK_OVERRIDES"];
     } else {
       process.env["BILLING_ALLOW_DESK_OVERRIDES"] = prevDeskOverrides;
+    }
+    if (prevNodeEnv === undefined) {
+      delete process.env["NODE_ENV"];
+    } else {
+      process.env["NODE_ENV"] = prevNodeEnv;
     }
   });
 
@@ -94,8 +101,45 @@ describe("captureCharge", () => {
     expect(result.data.snapshotted_unit_price).toBe("88.0000");
   });
 
-  it("rejects desk overrides when env flag is off", async () => {
+  it("allows desk overrides in development when env is unset", async () => {
     delete process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+    process.env["NODE_ENV"] = "development";
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        line_discount_percentage: 10,
+      },
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects desk overrides when explicitly disabled in development", async () => {
+    process.env["BILLING_ALLOW_DESK_OVERRIDES"] = "false";
+    process.env["NODE_ENV"] = "development";
+    const { repo } = createInMemoryBillingRepo();
+    const result = await captureCharge(
+      { tariffRepo: tariffRepo(tariff), billingRepo: repo },
+      tenantId,
+      {
+        patient_id: patientId,
+        source_module: "registration",
+        item_code: "REG_FEE",
+        line_discount_percentage: 10,
+      },
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("desk_price_overrides_disabled");
+  });
+
+  it("rejects desk overrides when disabled in production", async () => {
+    delete process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+    process.env["NODE_ENV"] = "production";
     const { repo } = createInMemoryBillingRepo();
     const result = await captureCharge(
       { tariffRepo: tariffRepo(tariff), billingRepo: repo },
