@@ -57,12 +57,12 @@ Browser → BFF → registration-svc → pdf-worker → gotenberg
 
 | Config key | Set on | Example (cluster) |
 | --- | --- | --- |
-| `PDF_PLATFORM_URL` | `hims-config` ConfigMap | `http://pdf-worker.himsv2.svc.cluster.local:8091` |
+| `PDF_PLATFORM_URL` | `hims-config` ConfigMap | `http://pdf-worker.himsv2.svc.cluster.local:8091` (registration-svc + opd-svc) |
 | `REPORT_WEB_ORIGIN` | `hims-config` ConfigMap | `https://dev.v2.hospitalsaarthi.com` (match public web host) |
 | `REPORT_LOGO_URL` | `hims-config` ConfigMap | `/reportLogo.svg` |
 | `GOTENBERG_URL` | `pdf-worker` Deployment env | `http://gotenberg.himsv2.svc.cluster.local:3000` |
 
-`PDF_PLATFORM_URL` is **not** exposed via Ingress. Only `registration-svc` calls it inside the cluster.
+`PDF_PLATFORM_URL` is **not** exposed via Ingress. `registration-svc` and `opd-svc` call pdf-worker inside the cluster.
 
 **Dev (`dev.v2.hospitalsaarthi.com`)** — update in `hims-config`:
 
@@ -75,8 +75,9 @@ REPORT_WEB_ORIGIN: "https://dev.v2.hospitalsaarthi.com"
 Then restart:
 
 ```bash
-kubectl -n himsv2 rollout restart deployment/registration-svc
+kubectl -n himsv2 rollout restart deployment/registration-svc deployment/opd-svc
 kubectl -n himsv2 rollout status deployment/registration-svc
+kubectl -n himsv2 rollout status deployment/opd-svc
 ```
 
 **Verify from inside the cluster:**
@@ -231,5 +232,5 @@ Keep image builds environment-agnostic. Inject environment through Kubernetes:
 For production, use Key Vault CSI or External Secrets instead of committing real
 secret values to this file.
 
-Local dev: set `PDF_PLATFORM_URL` in the workspace root `.env` only (not
-`services/registration-svc/.env`). Run pdf-platform with `pnpm dev` on port 8091.
+Local dev: set `PDF_PLATFORM_URL` in the workspace root `.env` (registration + OPD both read it).
+Run pdf-platform with `pnpm dev` on port 8091.
