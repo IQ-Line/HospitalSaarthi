@@ -121,8 +121,11 @@ export function isVisitRegistrationAmountPaidValid(
   amountPaid: number | null | undefined,
   grandTotal: number,
 ): boolean {
+  if (!Number.isFinite(grandTotal) || grandTotal < 0) return false;
+  if (grandTotal === 0) {
+    return Number.isFinite(amountPaid) && (amountPaid ?? 0) === 0;
+  }
   if (!Number.isFinite(amountPaid) || (amountPaid ?? 0) <= 0) return false;
-  if (!Number.isFinite(grandTotal) || grandTotal <= 0) return false;
   const paid = amountPaid as number;
   const floor = Math.floor(grandTotal + AMOUNT_PAID_EPSILON);
   const ceil = Math.ceil(grandTotal - AMOUNT_PAID_EPSILON);
@@ -137,10 +140,6 @@ export function computeBillingGrandTotal(
 ): number {
   const subtotal = billingLineTotal(registrationFee) + billingLineTotal(consultationFee);
   return Math.max(0, subtotal - (invoiceDiscount ?? 0));
-}
-
-export function isVisitRegistrationGrandTotalPositive(grandTotal: number): boolean {
-  return Number.isFinite(grandTotal) && grandTotal > 0;
 }
 
 export function isVisitRegistrationPaymentModeSelected(paymentMode: string | undefined): boolean {
@@ -179,7 +178,6 @@ export function visitRegistrationFormBlockers(
   if (!args.departmentId?.trim()) missing.push('department');
   if (!args.providerId?.trim()) missing.push('doctor');
   if (!args.visitTypeCode?.trim()) missing.push('visit type');
-  if (!isVisitRegistrationGrandTotalPositive(args.grandTotal)) missing.push('billing total above ₹0');
   if (!isVisitRegistrationAmountPaidValid(args.amountPaid, args.grandTotal)) {
     missing.push('valid amount paid (exact, floor, or ceiling of total)');
   }
@@ -379,12 +377,177 @@ function optionalUuid(value: string | undefined): string | null {
   return v;
 }
 
-/** Master-data visit-types picklist code for OPD follow-up encounters. */
+/** Master-data visit-types picklist codes — keep aligned with picklist_values you maintain. */
+export const FIRST_VISIT_TYPE_CODE = 'opd_first';
 export const FOLLOW_UP_VISIT_TYPE_CODE = 'opd_follow_up';
+export const FREE_FOLLOW_UP_VISIT_TYPE_CODE = 'opd_free_follow_up';
+
+const REGISTRATION_VISIT_TYPE_CODES = new Set([
+  FIRST_VISIT_TYPE_CODE,
+  FOLLOW_UP_VISIT_TYPE_CODE,
+  FREE_FOLLOW_UP_VISIT_TYPE_CODE,
+  'ipd_admission',
+]);
+
+/** Fallback labels when master-data picklist is missing a registration visit-type code. */
+export const REGISTRATION_VISIT_TYPE_LABELS: Readonly<Record<string, string>> = {
+  [FIRST_VISIT_TYPE_CODE]: 'OPD — First visit',
+  [FREE_FOLLOW_UP_VISIT_TYPE_CODE]: 'OPD — Free follow-up',
+  [FOLLOW_UP_VISIT_TYPE_CODE]: 'OPD — Follow-up',
+  ipd_admission: 'IPD admission',
+};
+
+export type RegistrationVisitTypeOption = { value: string; label: string };
+
+/** Picklist rows filtered for registration, with a fallback row for the selected code when absent. */
+export function buildRegistrationVisitTypeOptions(
+  picklistRows: ReadonlyArray<{ value: string; label: string }> | undefined,
+  selectedCode?: string | null,
+): RegistrationVisitTypeOption[] {
+  const options = (picklistRows ?? [])
+    .filter((row) => isRegistrationVisitTypeCode(row.value))
+    .map((row) => ({ value: row.value, label: row.label }));
+
+  const normalizedSelected = (selectedCode ?? '').trim();
+  if (
+    normalizedSelected &&
+    isRegistrationVisitTypeCode(normalizedSelected) &&
+    !options.some((option) => option.value === normalizedSelected)
+  ) {
+    options.push({
+      value: normalizedSelected,
+      label:
+        REGISTRATION_VISIT_TYPE_LABELS[normalizedSelected] ?? normalizedSelected,
+    });
+  }
+
+  return options;
+}
+
+export function isRegistrationVisitTypeCode(code: string | undefined | null): boolean {
+  const normalized = (code ?? '').trim();
+  return REGISTRATION_VISIT_TYPE_CODES.has(normalized);
+}
+
+export function consultationTypeFromVisitTypeCode(code: string | undefined | null): string {
+  const normalized = (code ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (normalized === 'opdfirst') return 'new';
+  if (normalized === 'opdfreefollowup') return 'free-followup';
+  if (normalized === 'opdfollowup') return 'followup';
+  return 'new';
+}
 
 export function isFollowUpVisitType(code: string | undefined | null): boolean {
   const normalized = (code ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-  return normalized === 'opdfollowup';
+  return normalized === 'opdfollowup' || normalized === 'opdfreefollowup';
+}
+
+export function isFreeFollowUpVisitType(code: string | undefined | null): boolean {
+  const normalized = (code ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized === 'opdfreefollowup';
+}
+
+export type VisitTypeDecisionPatientPayload = {
+  patient_id?: string;
+  uhid?: string;
+  abha_number?: string;
+  abha_address?: string;
+  phone_number?: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  gender?: 'male' | 'female' | 'other';
+  date_of_birth?: string;
+  age_years?: number;
+  age_months?: number;
+  age_days?: number;
+};
+
+function normalizeVisitTypeDecisionPhone(raw: string | undefined | null): string | undefined {
+  const digits = (raw ?? '').replace(/\D/g, '');
+  if (digits.length < 10) return undefined;
+  return digits.slice(-10);
+}
+
+/** Patient slice for visit-type-decision — aligned with EMPI registration dedup fields. */
+export function buildVisitTypeDecisionPatientPayload(input: {
+  patientId?: string | null;
+  phone?: string | null;
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  gender?: string | null;
+  dateOfBirth?: string | null;
+  ageYears?: number | null;
+  ageMonths?: number | null;
+  ageDays?: number | null;
+  abhaNumber?: string | null;
+  abhaAddress?: string | null;
+  uhid?: string | null;
+}): VisitTypeDecisionPatientPayload | undefined {
+  const payload: VisitTypeDecisionPatientPayload = {};
+  const patientId = input.patientId?.trim();
+  if (patientId) payload.patient_id = patientId;
+
+  const uhid = input.uhid?.trim();
+  if (uhid) payload.uhid = uhid;
+
+  const abhaNumber = input.abhaNumber?.trim();
+  if (abhaNumber) payload.abha_number = abhaNumber;
+
+  const abhaAddress = input.abhaAddress?.trim();
+  if (abhaAddress) payload.abha_address = abhaAddress;
+
+  const phone = normalizeVisitTypeDecisionPhone(input.phone);
+  if (phone) payload.phone_number = phone;
+
+  const firstName = input.firstName?.trim();
+  if (firstName) payload.first_name = firstName;
+
+  const middleName = input.middleName?.trim();
+  if (middleName) payload.middle_name = middleName;
+
+  const lastName = input.lastName?.trim();
+  if (lastName) payload.last_name = lastName;
+
+  if (isValidRegistrationGender(input.gender)) payload.gender = input.gender;
+
+  const dob = input.dateOfBirth?.trim();
+  if (dob) payload.date_of_birth = dob;
+
+  if (typeof input.ageYears === 'number' && !Number.isNaN(input.ageYears)) {
+    payload.age_years = input.ageYears;
+  }
+  if (typeof input.ageMonths === 'number' && !Number.isNaN(input.ageMonths)) {
+    payload.age_months = input.ageMonths;
+  }
+  if (typeof input.ageDays === 'number' && !Number.isNaN(input.ageDays)) {
+    payload.age_days = input.ageDays;
+  }
+
+  return Object.keys(payload).length > 0 ? payload : undefined;
+}
+
+/** Stable key for visit-type-decision fetches — avoids duplicate calls on resolved patient id. */
+export function visitTypeDecisionRequestKey(
+  departmentId: string,
+  patient: VisitTypeDecisionPatientPayload | undefined,
+): string {
+  return JSON.stringify({
+    departmentId: departmentId.trim(),
+    patient: patient ?? null,
+  });
+}
+
+export function resolveRegistrationPatientId(
+  resolvedPatientId?: string | null,
+  explicitPatientId?: string | null,
+): string | undefined {
+  for (const raw of [explicitPatientId, resolvedPatientId]) {
+    const id = raw?.trim();
+    if (id && UUID_RE.test(id)) return id;
+  }
+  return undefined;
 }
 
 function mapVisitEncounterFields(
@@ -392,7 +555,10 @@ function mapVisitEncounterFields(
 ): Record<string, unknown> {
   const body: Record<string, unknown> = { intake_completion: 'partial' };
   const visitType = apt?.visit_type_code?.trim();
-  if (visitType) body.visit_type = visitType;
+  if (visitType) {
+    body.visit_type = visitType;
+    body.consultation_type = consultationTypeFromVisitTypeCode(visitType);
+  }
   const departmentId = optionalUuid(apt?.department_id);
   if (departmentId) body.department_id = departmentId;
   const doctorId = optionalUuid(apt?.provider_id);

@@ -41,6 +41,7 @@ import {
 import {
   TenantBillingPanel,
   TenantDepartmentsPanel,
+  TenantFollowUpPanel,
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
@@ -63,6 +64,7 @@ const TENANT_DETAIL_TABS = [
   'role-templates',
   'department-templates',
   'billing',
+  'follow-up',
   'modules',
   'sequence',
   'api-keys',
@@ -438,6 +440,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="billing" className="shrink-0 text-xs sm:text-sm">
               Billing
             </TabsTrigger>
+            <TabsTrigger value="follow-up" className="shrink-0 text-xs sm:text-sm">
+              Follow-up
+            </TabsTrigger>
             <TabsTrigger value="modules" className="shrink-0 text-xs sm:text-sm">
               Modules
             </TabsTrigger>
@@ -683,6 +688,10 @@ function TenantOrganizationDetailPage() {
 
         <TabsContent value="billing" className="mt-4">
           <TenantBillingPanel iqTenantId={contextTenant.iq_tenant_id} />
+        </TabsContent>
+
+        <TabsContent value="follow-up" className="mt-4">
+          <TenantFollowUpPanel iqTenantId={contextTenant.iq_tenant_id} />
         </TabsContent>
 
         <TabsContent value="modules" className="mt-4">

@@ -12,6 +12,8 @@ function genderLetter(gender: string): string {
 export function Header() {
   const context = useCreateRxStore((s) => s.context);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
+  const priorVisitSearch = useCreateRxStore((s) => s.priorVisitSearch);
+  const setPriorVisitSearch = useCreateRxStore((s) => s.setPriorVisitSearch);
 
   const patient = context?.patient;
   const visit = context?.visit;
@@ -40,7 +42,13 @@ export function Header() {
         </div>
         <div className="relative w-full max-w-md sm:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Search visit number" className="h-9 pl-9" disabled={!patient} />
+          <Input
+            placeholder="Search visit number"
+            className="h-9 pl-9"
+            disabled={!patient}
+            value={priorVisitSearch}
+            onChange={(e) => setPriorVisitSearch(e.target.value)}
+          />
         </div>
       </div>
     </div>

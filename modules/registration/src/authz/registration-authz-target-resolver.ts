@@ -79,6 +79,10 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
       return readTarget(req, id ?? "detail", "registration.read");
     }
 
+    if (method === "POST" && path === "/visit-type-decision") {
+      return readTarget(req, "visit-type-decision", "registration.read");
+    }
+
     if (method === "GET" && path === "/visits") {
       return readTarget(req, "visits-list", "registration.read");
     }

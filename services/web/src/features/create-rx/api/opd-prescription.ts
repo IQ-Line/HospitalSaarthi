@@ -118,7 +118,7 @@ export async function fetchPrescriptionStatusesByVisitIds(
   return map;
 }
 
-async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPrescriptionSession | null> {
+export async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPrescriptionSession | null> {
   const tenantId = requireTenantId();
   const visitKey = visitId.trim();
   if (!visitKey) return null;

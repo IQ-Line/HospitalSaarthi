@@ -1,5 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { useCreateRxStore } from '../create-rx.store';
+import { PriorMedicalHistoryPreview } from './prior-medical-history-preview';
 import type { CreateRxRightTab } from '../types';
 
 const RIGHT_TABS: { key: CreateRxRightTab; label: string }[] = [
@@ -50,8 +51,8 @@ export function RightPanel() {
             </div>
           </div>
         </TabsContent>
-        <TabsContent value="medical-history" className="mt-0 min-h-0 flex-1">
-          <EmptyPreview message="Medical history preview will load from the patient record." />
+        <TabsContent value="medical-history" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <PriorMedicalHistoryPreview />
         </TabsContent>
         <TabsContent value="abha-consent" className="mt-0 min-h-0 flex-1">
           <EmptyPreview message="ABHA consent status will appear here." />

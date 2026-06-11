@@ -1,7 +1,7 @@
 /// <reference path="../fastify.d.ts" />
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type { ConfiguratorHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type { CreateVisitInput, UpdateVisitInput } from "../domain/visit.types.js";
 import type { VisitStatus } from "../lib/visit-helpers.js";
 import { createVisit } from "../use-cases/create-visit.js";
@@ -24,6 +24,7 @@ import {
   resolveActorId,
 } from "../lib/registration-helpers.js";
 import { parseVisitStatus, visitStatusFromIntakeCompletion } from "../lib/visit-helpers.js";
+import { RegistrationValidationError } from "../lib/follow-up.js";
 
 interface ListQuery {
   page?: string;
@@ -41,6 +42,7 @@ export interface VisitsHandlerDeps {
   allocateOpVisitId: (tenantId: string) => Promise<string>;
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
+  configuratorGateway?: ConfiguratorHttpPort;
 }
 
 export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerDeps): void {
@@ -98,26 +100,38 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
       const authHeader = request.headers.authorization;
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
-      const result = await createVisit(
-        {
-          visitRepo: deps.visitRepo,
-          allocateOpVisitId: deps.allocateOpVisitId,
-          eventBus: deps.eventBus,
-          opdGateway: deps.opdGateway,
-        },
-        request.tenantId,
-        request.body,
-        {
-          idempotencyKey,
-          actorId: resolveActorId(request),
-          bearerToken,
-          initialStatus: visitStatusFromIntakeCompletion(
-            request.body.intake_completion ?? "partial",
-          ),
-        },
-      );
-      const status = result.created ? 201 : 200;
-      return reply.code(status).send(serializeVisit(result.record));
+      try {
+        const result = await createVisit(
+          {
+            visitRepo: deps.visitRepo,
+            allocateOpVisitId: deps.allocateOpVisitId,
+            eventBus: deps.eventBus,
+            opdGateway: deps.opdGateway,
+            configuratorGateway: deps.configuratorGateway,
+          },
+          request.tenantId,
+          request.body,
+          {
+            idempotencyKey,
+            actorId: resolveActorId(request),
+            bearerToken,
+            initialStatus: visitStatusFromIntakeCompletion(
+              request.body.intake_completion ?? "partial",
+            ),
+          },
+        );
+        const status = result.created ? 201 : 200;
+        return reply.code(status).send(serializeVisit(result.record));
+      } catch (err) {
+        if (err instanceof RegistrationValidationError) {
+          return reply.code(err.statusCode).send({
+            statusCode: err.statusCode,
+            error: "Bad Request",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
     },
   );
 

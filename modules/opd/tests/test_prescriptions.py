@@ -441,3 +441,4 @@ def test_get_patient_prescription_without_visit_row(client: TestClient) -> None:
     body = loaded.json()
     assert body["visit_status"] == "completed"
     assert body["form_data"]["chiefComplaints"][0]["complaint"] == "Legacy cough"
+

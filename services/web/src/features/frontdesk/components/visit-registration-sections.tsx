@@ -56,6 +56,7 @@ import {
   formatBillingTaxLine,
   formatBillingTaxSummary,
   formatInr,
+  buildRegistrationVisitTypeOptions,
   isVisitRegistrationAmountPaidValid,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 
@@ -133,7 +134,14 @@ export function VisitRegistrationAppointmentSection({
   setValue,
   tariffsLoading = false,
   tariffsError = false,
-}: FormProps & { tariffsLoading?: boolean; tariffsError?: boolean }) {
+  isVisitTypeLocked = false,
+  visitTypeHint,
+}: FormProps & {
+  tariffsLoading?: boolean;
+  tariffsError?: boolean;
+  isVisitTypeLocked?: boolean;
+  visitTypeHint?: string | null;
+}) {
   const departmentId = watch('appointment.department_id') ?? '';
   const providerId = watch('appointment.provider_id') ?? '';
   const visitTypeCode = watch('appointment.visit_type_code') ?? '';
@@ -186,12 +194,8 @@ export function VisitRegistrationAppointmentSection({
   });
 
   const visitTypeOptions = useMemo(
-    () =>
-      (visitTypesQuery.data ?? []).map((row) => ({
-        value: row.value,
-        label: row.label,
-      })),
-    [visitTypesQuery.data],
+    () => buildRegistrationVisitTypeOptions(visitTypesQuery.data, visitTypeCode),
+    [visitTypesQuery.data, visitTypeCode],
   );
 
   const visitTypePlaceholder = visitTypesQuery.isPending
@@ -264,6 +268,7 @@ export function VisitRegistrationAppointmentSection({
           onValueChange={(v) => setValue('appointment.visit_type_code', v === '__none__' ? '' : v)}
           placeholder={visitTypePlaceholder}
           disabled={
+            isVisitTypeLocked ||
             visitTypesQuery.isPending ||
             visitTypesQuery.isError ||
             visitTypeOptions.length === 0
@@ -271,6 +276,9 @@ export function VisitRegistrationAppointmentSection({
           options={visitTypeOptions}
         />
       </div>
+      {visitTypeHint ? (
+        <p className="text-xs text-muted-foreground">{visitTypeHint}</p>
+      ) : null}
     </RegistrationSection>
   );
 }

@@ -44,6 +44,11 @@ function isInteractiveTableRowTarget(target: EventTarget | null): boolean {
     ),
   );
 }
+type DataTableColumnMeta = {
+  label?: string;
+  headerClassName?: string;
+  cellClassName?: string;
+};
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
@@ -52,6 +57,10 @@ interface DataTableProps<TData> {
   emptyTitle?: string;
   emptyDescription?: string;
   onRowClick?: (row: TData) => void;
+  /** Applied to the root `<table>` element (e.g. `table-fixed`). */
+  tableClassName?: string;
+  /** Wrapper around table + pagination footer. */
+  className?: string;
   /** Show TanStack column visibility menu (reference UI “Columns”). */
   showColumnMenu?: boolean;
   /** Server-driven pagination; when set, table shows pager footer and does not slice rows client-side. */
@@ -65,6 +74,10 @@ interface DataTableProps<TData> {
   };
 }
 
+function readColumnMeta(meta: unknown): DataTableColumnMeta {
+  return (meta ?? {}) as DataTableColumnMeta;
+}
+
 export function DataTable<TData>({
   columns,
   data,
@@ -74,6 +87,8 @@ export function DataTable<TData>({
   onRowClick,
   showColumnMenu = false,
   manualPagination,
+  tableClassName,
+  className,
 }: DataTableProps<TData>) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const paginationState: PaginationState | undefined = manualPagination
@@ -142,7 +157,7 @@ export function DataTable<TData>({
   }
 
   return (
-    <div className="space-y-2">
+    <div className={className ? `space-y-2 ${className}` : 'space-y-2'}>
       {showColumnMenu ? (
         <div className="flex justify-end">
           <DropdownMenu>
@@ -160,8 +175,7 @@ export function DataTable<TData>({
                 const label =
                   typeof column.columnDef.header === 'string'
                     ? column.columnDef.header
-                    : (column.columnDef.meta as { label?: string } | undefined)?.label ??
-                      column.id;
+                    : readColumnMeta(column.columnDef.meta).label ?? column.id;
                 return (
                   <DropdownMenuCheckboxItem
                     key={column.id}
@@ -177,12 +191,15 @@ export function DataTable<TData>({
           </DropdownMenu>
         </div>
       ) : null}
-      <Table>
+      <Table className={tableClassName}>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
+                <TableHead
+                  key={header.id}
+                  className={readColumnMeta(header.column.columnDef.meta).headerClassName}
+                >
                   {header.isPlaceholder
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -206,7 +223,10 @@ export function DataTable<TData>({
               }
             >
               {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
+                <TableCell
+                  key={cell.id}
+                  className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
+                >
                   {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </TableCell>
               ))}
@@ -215,7 +235,7 @@ export function DataTable<TData>({
         </TableBody>
       </Table>
       {manualPagination ? (
-        <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 border-t px-4 pt-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             Showing{' '}
             {manualPagination.total === 0

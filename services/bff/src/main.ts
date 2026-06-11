@@ -52,6 +52,10 @@ function buildUpstreams(): UpstreamRoute[] {
       upstream: process.env['OPD_URL'] ?? 'http://localhost:8020',
     },
     {
+      prefix: '/api/pharmacy/v1',
+      upstream: process.env['PHARMACY_URL'] ?? 'http://localhost:3004',
+    },
+    {
       prefix: '/api/abdm/v1',
       upstream: integrationHubUrl,
     },

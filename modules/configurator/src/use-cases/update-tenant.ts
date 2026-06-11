@@ -69,6 +69,22 @@ export async function updateTenant(
     }
   }
 
+  if (data.free_follow_up_days !== undefined) {
+    const days = Number(data.free_follow_up_days);
+    if (!Number.isFinite(days) || days < 0) {
+      throw new ConfiguratorError(400, "free_follow_up_days must be a non-negative number");
+    }
+    data = { ...data, free_follow_up_days: Math.trunc(days) };
+  }
+
+  if (data.free_follow_up_visits !== undefined) {
+    const visits = Number(data.free_follow_up_visits);
+    if (!Number.isFinite(visits) || visits < 0) {
+      throw new ConfiguratorError(400, "free_follow_up_visits must be a non-negative number");
+    }
+    data = { ...data, free_follow_up_visits: Math.trunc(visits) };
+  }
+
   const updated = await tenantRepo.update(id, data);
   return updated ?? null;
 }

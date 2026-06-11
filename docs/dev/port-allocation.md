@@ -15,6 +15,7 @@ example file is a review smell.
 | 3003  | billing-svc                 | `services/billing-svc/.env.example`                      |
 | 3005  | user-management-svc         | `services/user-management-svc/.env.example`              |
 | 3006  | registration-svc            | `services/registration-svc/.env.example`                 |
+| 3004  | pharmacy-svc                | `services/pharmacy-svc/.env.example`                     |
 | 3007  | abdm-adapter-svc            | `services/abdm-adapter-svc/.env.example`                 |
 | 5173  | web (Vite dev server)       | Vite default                                             |
 | 8010  | master-data (Python FastAPI)| `modules/master-data/.env.example`                       |

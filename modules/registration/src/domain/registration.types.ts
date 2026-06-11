@@ -39,10 +39,13 @@ export interface CreateRegistrationInput {
   patient_snapshot: PatientDemographicsSnapshot;
 }
 
+import type { ConsultationType } from "../lib/follow-up.js";
+
 export interface NewPatientIntakeInput {
   patient: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
+  consultation_type?: ConsultationType | null;
   department_id?: string | null;
   doctor_id?: string | null;
   appointment_id?: string | null;
@@ -53,6 +56,7 @@ export interface ExistingPatientVisitInput {
   patient_id: string;
   facility_id?: string | null;
   visit_type?: string | null;
+  consultation_type?: ConsultationType | null;
   department_id?: string | null;
   doctor_id?: string | null;
   appointment_id?: string | null;
