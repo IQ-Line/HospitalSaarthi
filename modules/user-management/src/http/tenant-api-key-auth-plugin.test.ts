@@ -95,7 +95,7 @@ describe("tenantApiKeyAuthPlugin", () => {
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
   });
 
-  it("allows GET without X-API-Key to fall through to JWT layer", async () => {
+  it("requires tenant header on supported read routes when no X-API-Key", async () => {
     const validator = createValidator(null);
     const app = await listenWithPlugin(validator);
 
@@ -104,11 +104,8 @@ describe("tenantApiKeyAuthPlugin", () => {
       url: "/api/user-management/roles",
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      authViaApiKey: false,
-      tenantId: "",
-    });
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({ code: "TENANT_HEADER_REQUIRED" });
     expect(validator.validateOpdSlipKey).not.toHaveBeenCalled();
   });
 
