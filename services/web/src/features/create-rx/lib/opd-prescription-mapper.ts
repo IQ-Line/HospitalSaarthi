@@ -106,13 +106,32 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
   };
 }
 
+function vitalObservationsToFormVitals(
+  observations: Array<{ vital_code?: string; value_text?: string | null }> | undefined,
+): Record<string, string> {
+  if (!observations?.length) return {};
+  const out: Record<string, string> = {};
+  for (const row of observations) {
+    const code = row.vital_code?.trim();
+    const value = row.value_text?.trim();
+    if (code && value) out[code] = value;
+  }
+  return out;
+}
+
 export function clinicalToCreateRxFormData(
   clinical: OpdPrescriptionClinicalPayload | undefined,
 ): CreateRxFormData {
   const c = clinical ?? {};
+  const legacyVitals = legacyVitalsToFormVitals(
+    c.legacy_vitals as Record<string, unknown> | undefined,
+  );
+  const observationVitals = vitalObservationsToFormVitals(
+    c.vital_observations as Array<{ vital_code?: string; value_text?: string | null }> | undefined,
+  );
 
   return {
-    vitals: legacyVitalsToFormVitals(c.legacy_vitals as Record<string, unknown> | undefined),
+    vitals: { ...observationVitals, ...legacyVitals },
     chiefComplaints:
       c.chief_complaints?.map((row) => ({
         id: crypto.randomUUID(),
