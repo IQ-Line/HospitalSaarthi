@@ -11,6 +11,7 @@ import {
 } from '@/features/opd-patients/api/empi-patients';
 import { fetchPatientHealthDocuments } from '@/features/create-rx/api/health-documents';
 import type { OpdPrescriptionListItem } from '@/features/create-rx/api/opd-prescription-types';
+import { SEARCH_VISITS_PER_PATIENT_LIMIT } from './constants';
 import { fetchDoctorLookupMap, resolveDoctorName } from './doctor-lookup';
 import { isWithinDateRange } from '../lib/formatters';
 import type {
@@ -41,7 +42,8 @@ function requireTenantId(): string {
 function formatVisitNumber(visit: RegistrationVisitResponse): string {
   const formatted = visit.visit_id?.trim();
   if (formatted) return formatted;
-  return visit.id.replace(/-/g, '').slice(0, 12).toUpperCase();
+  const id = visit.id?.replace(/-/g, '') ?? '';
+  return id ? id.slice(0, 12).toUpperCase() : '—';
 }
 
 async function searchEmpiByField(
@@ -54,10 +56,12 @@ async function searchEmpiByField(
 
   if (field === 'abha_address') {
     try {
-      const match = await apiClient<{ patientId: string; id: string }>(
+      const match = await apiClient<{ patientId?: string; id?: string }>(
         `${EMPI_PATIENTS_BASE}/find?abha_address=${encodeURIComponent(trimmed)}`,
       );
-      const detail = await fetchEmpiPatientDetail(match.patientId);
+      const patientId = match?.patientId?.trim() || match?.id?.trim();
+      if (!patientId) return [];
+      const detail = await fetchEmpiPatientDetail(patientId);
       return [detail.patient];
     } catch {
       return [];
@@ -82,7 +86,11 @@ async function fetchVisitsForPatients(patientIds: string[]): Promise<Registratio
 
   const results = await Promise.all(
     patientIds.map(async (patientId) => {
-      const page = await listRegistrationVisits({ patient_id: patientId, page: 1, limit: 100 });
+      const page = await listRegistrationVisits({
+        patient_id: patientId,
+        page: 1,
+        limit: SEARCH_VISITS_PER_PATIENT_LIMIT,
+      });
       return page.data;
     }),
   );
@@ -121,7 +129,7 @@ export async function fetchHistoricalRecordsList(params: {
   const { page, limit, filters } = params;
   const search = filters.search.trim();
 
-  const [doctorLookup] = await Promise.all([fetchDoctorLookupMap()]);
+  const doctorLookup = await fetchDoctorLookupMap();
 
   let visits: RegistrationVisitResponse[];
 
@@ -191,7 +199,6 @@ export async function fetchHistoricalPatientDocuments(
     endDate?: string;
     search?: string;
     documentType?: string;
-    reportCategory?: string;
   },
 ): Promise<HistoricalDocumentItem[]> {
   const [response, doctorLookup, visitPage] = await Promise.all([
@@ -207,9 +214,6 @@ export async function fetchHistoricalPatientDocuments(
     .filter((doc) => {
       if (options?.documentType && options.documentType !== 'all') {
         if (doc.hi_type !== options.documentType) return false;
-      }
-      if (options?.reportCategory && options.reportCategory !== 'all') {
-        if (doc.hi_type !== options.reportCategory) return false;
       }
       if (!isWithinDateRange(doc.uploaded_at, options?.startDate ?? '', options?.endDate ?? '')) {
         return false;

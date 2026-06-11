@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientReports, REPORT_HI_TYPES } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
 import { defaultDateRange, formatHistoricalShortDate } from '../lib/formatters';
@@ -79,6 +80,7 @@ export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
     queryKey: historicalRecordsQueryKeys.patientReports(patientId, queryFilters),
     queryFn: () => fetchHistoricalPatientReports(patientId, queryFilters),
     enabled: Boolean(patientId),
+    staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
 
   return (

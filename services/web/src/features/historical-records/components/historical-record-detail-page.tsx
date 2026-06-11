@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@pulse/utils';
 import { fetchEmpiPatientDetail, empiPatientAgeYears } from '@/features/opd-patients/api/empi-patients';
+import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientProfile } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
 import { HistoricalDocumentsTab } from './historical-documents-tab';
@@ -37,6 +38,7 @@ export function HistoricalRecordDetailPage({
     queryKey: historicalRecordsQueryKeys.patientProfile(patientId),
     queryFn: () => fetchHistoricalPatientProfile(patientId),
     enabled: Boolean(patientId),
+    staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
 
   const isLoading = empiLoading || profileLoading;

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalRecordsList } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
 import { defaultDateRange } from '../lib/formatters';
@@ -38,6 +39,7 @@ export function HistoricalRecordsPage() {
     queryKey: historicalRecordsQueryKeys.list(listParams),
     queryFn: () => fetchHistoricalRecordsList(listParams),
     placeholderData: (prev) => prev,
+    staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
 
   const handleFilterChange = (patch: Partial<HistoricalRecordsFilters>) => {

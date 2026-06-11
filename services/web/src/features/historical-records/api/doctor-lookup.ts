@@ -12,7 +12,10 @@ function formatDoctorName(user: UmUser): string {
   return name.startsWith('Dr.') ? name : `Dr. ${name}`;
 }
 
-/** Resolve doctor_id → display name from user-management (cached per session). */
+/**
+ * Resolve doctor_id → display name from user-management (cached per session).
+ * Fetches all tenant users — acceptable for Phase 0; paginate or filter server-side at scale.
+ */
 export async function fetchDoctorLookupMap(): Promise<Map<string, string>> {
   if (doctorLookupCache) return doctorLookupCache;
   if (doctorLookupPromise) return doctorLookupPromise;

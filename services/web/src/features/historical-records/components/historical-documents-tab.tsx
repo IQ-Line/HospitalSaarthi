@@ -19,6 +19,7 @@ import {
 } from '@pulse/ui/select';
 import { downloadHealthDocument, HEALTH_DOCUMENT_HI_TYPES } from '@/features/create-rx/api/health-documents';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientDocuments } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
 import { defaultDateRange, formatHistoricalShortDate } from '../lib/formatters';
@@ -77,7 +78,6 @@ export function HistoricalDocumentsTab({ patientId }: HistoricalDocumentsTabProp
     endDate,
     search: '',
     documentType: 'all',
-    reportCategory: 'all',
   });
   const debouncedSearch = useDebouncedValue(filters.search, 300);
 
@@ -90,6 +90,7 @@ export function HistoricalDocumentsTab({ patientId }: HistoricalDocumentsTabProp
     queryKey: historicalRecordsQueryKeys.patientDocuments(patientId, queryFilters),
     queryFn: () => fetchHistoricalPatientDocuments(patientId, queryFilters),
     enabled: Boolean(patientId),
+    staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
 
   return (
@@ -127,22 +128,6 @@ export function HistoricalDocumentsTab({ patientId }: HistoricalDocumentsTabProp
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Document Types</SelectItem>
-            {HEALTH_DOCUMENT_HI_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {type}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select
-          value={filters.reportCategory}
-          onValueChange={(value) => setFilters((f) => ({ ...f, reportCategory: value }))}
-        >
-          <SelectTrigger className="h-10 w-[160px]">
-            <SelectValue placeholder="Reports" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Reports</SelectItem>
             {HEALTH_DOCUMENT_HI_TYPES.map((type) => (
               <SelectItem key={type} value={type}>
                 {type}
