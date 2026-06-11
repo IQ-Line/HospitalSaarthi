@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -12,6 +13,8 @@ import {
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { FormField, FormFieldLabel, FormSection } from '@/components/form-chrome';
+import { createInpatientOrder } from '../api/orders';
+import { ipdQueryKeys } from '../api/query-keys';
 import { formatEnumLabel } from '../lib/display';
 import {
   ORDER_PRIORITIES,
@@ -60,7 +63,22 @@ const DEFAULT_FORM = (): MedicationOrderFormState => ({
   specialInstructions: '',
 });
 
-export function MedicationOrderForm() {
+type MedicationOrderFormProps = {
+  admissionId: string;
+  onSuccess?: () => void;
+};
+
+function buildDosageInstruction(form: MedicationOrderFormState): string | null {
+  const parts = [
+    form.dose.trim(),
+    form.route.trim() ? formatEnumLabel(form.route) : '',
+    formatEnumLabel(form.orderPattern),
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+export function MedicationOrderForm({ admissionId, onSuccess }: MedicationOrderFormProps) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<MedicationOrderFormState>(DEFAULT_FORM);
   const [quantityOverridden, setQuantityOverridden] = useState(false);
 
@@ -79,14 +97,42 @@ export function MedicationOrderForm() {
     setForm((prev) => (prev.totalQuantity === suggested ? prev : { ...prev, totalQuantity: suggested }));
   }, [form.durationDays, form.frequency, quantityOverridden]);
 
+  const placeMutation = useMutation({
+    mutationFn: () => {
+      const duration = Number(form.durationDays);
+      const quantity = Number(form.totalQuantity);
+      return createInpatientOrder(admissionId, {
+        order_category: 'medication',
+        item_name: form.medicationName.trim(),
+        priority: form.priority,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        dosage_instruction: buildDosageInstruction(form),
+        frequency: form.frequency || null,
+        duration_days: Number.isFinite(duration) && duration > 0 ? duration : null,
+        description: form.description.trim() || null,
+        special_instructions: form.specialInstructions.trim() || null,
+      });
+    },
+    onSuccess: () => {
+      setForm(DEFAULT_FORM());
+      setQuantityOverridden(false);
+      void queryClient.invalidateQueries({
+        queryKey: [...ipdQueryKeys.admissions(), 'orders', admissionId],
+      });
+      toast.success('Medication order placed');
+      onSuccess?.();
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to place order');
+    },
+  });
+
   const handlePlaceOrder = () => {
     if (!form.medicationName.trim()) {
       toast.error('Medication name is required');
       return;
     }
-    toast.success('Medication order placed');
-    setForm(DEFAULT_FORM());
-    setQuantityOverridden(false);
+    placeMutation.mutate();
   };
 
   return (
@@ -232,7 +278,12 @@ export function MedicationOrderForm() {
         </FormField>
 
         <div className="flex justify-end border-t pt-4">
-          <Button type="button" className="gap-1.5" onClick={handlePlaceOrder}>
+          <Button
+            type="button"
+            className="gap-1.5"
+            disabled={placeMutation.isPending}
+            onClick={handlePlaceOrder}
+          >
             <Send className="size-4" />
             Place Order
           </Button>

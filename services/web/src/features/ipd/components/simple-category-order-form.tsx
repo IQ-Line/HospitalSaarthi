@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -12,7 +13,10 @@ import {
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { FormField, FormFieldLabel, FormSection } from '@/components/form-chrome';
+import { createInpatientOrder } from '../api/orders';
+import { ipdQueryKeys } from '../api/query-keys';
 import { formatEnumLabel } from '../lib/display';
+import type { OrderCategory } from '../lib/order-types';
 import {
   ORDER_PRIORITIES,
   ORDER_PRIORITY_SLA,
@@ -20,13 +24,16 @@ import {
 } from '../lib/order-form-constants';
 
 export type SimpleCategoryOrderFormConfig = {
+  orderCategory: OrderCategory;
   nameLabel: string;
   namePlaceholder: string;
   successMessage: string;
 };
 
 type SimpleCategoryOrderFormProps = {
+  admissionId: string;
   config: SimpleCategoryOrderFormConfig;
+  onSuccess?: () => void;
 };
 
 type FormState = {
@@ -43,20 +50,46 @@ const DEFAULT_FORM = (): FormState => ({
   specialInstructions: '',
 });
 
-export function SimpleCategoryOrderForm({ config }: SimpleCategoryOrderFormProps) {
+export function SimpleCategoryOrderForm({
+  admissionId,
+  config,
+  onSuccess,
+}: SimpleCategoryOrderFormProps) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
 
   const patch = (values: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...values }));
   };
 
+  const placeMutation = useMutation({
+    mutationFn: () =>
+      createInpatientOrder(admissionId, {
+        order_category: config.orderCategory,
+        item_name: form.name.trim(),
+        priority: form.priority,
+        description: form.description.trim() || null,
+        special_instructions: form.specialInstructions.trim() || null,
+      }),
+    onSuccess: () => {
+      setForm(DEFAULT_FORM());
+      void queryClient.invalidateQueries({
+        queryKey: [...ipdQueryKeys.admissions(), 'orders', admissionId],
+      });
+      toast.success(config.successMessage);
+      onSuccess?.();
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to place order');
+    },
+  });
+
   const handlePlaceOrder = () => {
     if (!form.name.trim()) {
       toast.error(`${config.nameLabel} is required`);
       return;
     }
-    toast.success(config.successMessage);
-    setForm(DEFAULT_FORM());
+    placeMutation.mutate();
   };
 
   return (
@@ -111,7 +144,12 @@ export function SimpleCategoryOrderForm({ config }: SimpleCategoryOrderFormProps
         </FormField>
 
         <div className="flex justify-end border-t pt-4">
-          <Button type="button" className="gap-1.5" onClick={handlePlaceOrder}>
+          <Button
+            type="button"
+            className="gap-1.5"
+            disabled={placeMutation.isPending}
+            onClick={handlePlaceOrder}
+          >
             <Send className="size-4" />
             Place Order
           </Button>
@@ -122,7 +160,22 @@ export function SimpleCategoryOrderForm({ config }: SimpleCategoryOrderFormProps
 }
 
 export const PROCEDURE_ORDER_FORM_CONFIG: SimpleCategoryOrderFormConfig = {
+  orderCategory: 'procedure',
   nameLabel: 'Procedure Name',
   namePlaceholder: 'e.g. Central line insertion',
   successMessage: 'Procedure order placed',
+};
+
+export const LABORATORY_ORDER_FORM_CONFIG: SimpleCategoryOrderFormConfig = {
+  orderCategory: 'laboratory',
+  nameLabel: 'Test Name',
+  namePlaceholder: 'e.g. Complete blood count',
+  successMessage: 'Laboratory order placed',
+};
+
+export const RADIOLOGY_ORDER_FORM_CONFIG: SimpleCategoryOrderFormConfig = {
+  orderCategory: 'radiology',
+  nameLabel: 'Study Name',
+  namePlaceholder: 'e.g. Chest X-ray PA view',
+  successMessage: 'Radiology order placed',
 };

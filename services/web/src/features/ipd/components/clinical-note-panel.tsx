@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Activity,
   ArrowLeft,
@@ -26,25 +27,28 @@ import { Textarea } from '@pulse/ui/textarea';
 import { cn } from '@pulse/utils';
 import { FormField, FormFieldLabel, FormSection } from '@/components/form-chrome';
 import {
+  createClinicalNote,
+  finalizeClinicalNote,
+  updateClinicalNote,
+} from '../api/clinical-notes';
+import { ipdQueryKeys } from '../api/query-keys';
+import {
   ADMISSION_SPECIALTIES,
   admissionStatusBadgeClass,
   admissionStatusLabel,
   formatEnumLabel,
 } from '../lib/display';
+import {
+  clinicalNoteStatusLabel,
+  type AuthorRole,
+  type ClinicalNoteStatus,
+  type ClinicalNoteUiType,
+  uiNoteTypeToApi,
+} from '../lib/clinical-note-types';
 import type { AdmissionDetail } from '../types';
 
-export type ClinicalNoteType =
-  | 'admission'
-  | 'progress'
-  | 'procedure'
-  | 'consultation'
-  | 'discharge_summary'
-  | 'operation'
-  | 'transfer'
-  | 'handover';
-
 const NOTE_TYPES: {
-  id: ClinicalNoteType;
+  id: ClinicalNoteUiType;
   label: string;
   icon: typeof FileText;
 }[] = [
@@ -58,41 +62,113 @@ const NOTE_TYPES: {
   { id: 'handover', label: 'Handover Note', icon: Users },
 ];
 
-const AUTHOR_ROLES = [
+const AUTHOR_ROLES: AuthorRole[] = [
   'consultant',
   'resident',
   'registrar',
   'nurse',
   'specialist',
   'intern',
-] as const;
+];
 
 type ClinicalNotePanelProps = {
   admission: AdmissionDetail;
   onBack: () => void;
 };
 
+function buildPayload(
+  noteType: ClinicalNoteUiType,
+  authorRole: AuthorRole,
+  clinicalSpecialty: string,
+  content: string,
+  narrative: string,
+) {
+  return {
+    note_type: uiNoteTypeToApi(noteType),
+    author_role: authorRole,
+    author_specialty_code: clinicalSpecialty || null,
+    content: {
+      structured: content.trim(),
+      narrative: narrative.trim() || undefined,
+    },
+  };
+}
+
 export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps) {
-  const [noteType, setNoteType] = useState<ClinicalNoteType | null>(null);
-  const [authorRole, setAuthorRole] = useState('');
+  const queryClient = useQueryClient();
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [noteStatus, setNoteStatus] = useState<ClinicalNoteStatus>('draft');
+  const [noteType, setNoteType] = useState<ClinicalNoteUiType | null>(null);
+  const [authorRole, setAuthorRole] = useState<AuthorRole | ''>('');
   const [clinicalSpecialty, setClinicalSpecialty] = useState('');
   const [content, setContent] = useState('');
   const [narrative, setNarrative] = useState('');
 
-  const canFinalize =
+  const isReadOnly = noteStatus !== 'draft';
+
+  const canSave =
     noteType != null &&
     authorRole.length > 0 &&
     clinicalSpecialty.length > 0 &&
     content.trim().length > 0;
 
-  const handleSaveDraft = () => {
-    toast.success('Clinical note saved as draft');
+  const invalidateNotes = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ipdQueryKeys.clinicalNotes(admission.id),
+    });
   };
 
-  const handleFinalize = () => {
-    if (!canFinalize) return;
-    toast.success('Clinical note finalized');
-  };
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!noteType || !authorRole) throw new Error('Missing required fields');
+      const payload = buildPayload(
+        noteType,
+        authorRole,
+        clinicalSpecialty,
+        content,
+        narrative,
+      );
+      if (noteId) {
+        return updateClinicalNote(admission.id, noteId, payload);
+      }
+      return createClinicalNote(admission.id, payload);
+    },
+    onSuccess: (note) => {
+      setNoteId(note.id);
+      setNoteStatus(note.status);
+      invalidateNotes();
+      toast.success('Clinical note saved as draft');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to save note');
+    },
+  });
+
+  const finalizeMutation = useMutation({
+    mutationFn: async () => {
+      if (!noteId) {
+        if (!noteType || !authorRole) throw new Error('Missing required fields');
+        const created = await createClinicalNote(
+          admission.id,
+          buildPayload(noteType, authorRole, clinicalSpecialty, content, narrative),
+        );
+        setNoteId(created.id);
+        return finalizeClinicalNote(admission.id, created.id);
+      }
+      return finalizeClinicalNote(admission.id, noteId);
+    },
+    onSuccess: (note) => {
+      setNoteId(note.id);
+      setNoteStatus(note.status);
+      invalidateNotes();
+      toast.success('Clinical note finalized');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to finalize note');
+    },
+  });
+
+  const isPending = saveMutation.isPending || finalizeMutation.isPending;
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -100,7 +176,7 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
         <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Clinical Note</h1>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="font-normal text-muted-foreground">
-            Draft
+            {clinicalNoteStatusLabel(noteStatus)}
           </Badge>
           <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onBack}>
             <ArrowLeft className="size-3.5" />
@@ -131,12 +207,14 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
                 <button
                   key={id}
                   type="button"
+                  disabled={isReadOnly}
                   onClick={() => setNoteType(id)}
                   className={cn(
                     'flex items-center gap-2 rounded-md border px-3 py-2.5 text-left text-sm transition-colors',
                     selected
                       ? 'border-primary bg-primary/5 text-primary'
                       : 'border-border bg-background hover:bg-muted/50',
+                    isReadOnly && 'pointer-events-none opacity-60',
                   )}
                 >
                   <Icon className="size-4 shrink-0" />
@@ -151,7 +229,11 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField>
               <FormFieldLabel>Author Role</FormFieldLabel>
-              <Select value={authorRole || undefined} onValueChange={setAuthorRole}>
+              <Select
+                value={authorRole || undefined}
+                onValueChange={(v) => setAuthorRole(v as AuthorRole)}
+                disabled={isReadOnly}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
@@ -167,7 +249,11 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
 
             <FormField>
               <FormFieldLabel>Clinical Specialty</FormFieldLabel>
-              <Select value={clinicalSpecialty || undefined} onValueChange={setClinicalSpecialty}>
+              <Select
+                value={clinicalSpecialty || undefined}
+                onValueChange={setClinicalSpecialty}
+                disabled={isReadOnly}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select specialty" />
                 </SelectTrigger>
@@ -192,6 +278,7 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
                 rows={6}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
+                disabled={isReadOnly}
                 className="min-h-[140px] resize-y"
               />
             </FormField>
@@ -203,25 +290,34 @@ export function ClinicalNotePanel({ admission, onBack }: ClinicalNotePanelProps)
                 rows={4}
                 value={narrative}
                 onChange={(e) => setNarrative(e.target.value)}
+                disabled={isReadOnly}
                 className="min-h-[100px] resize-y"
               />
             </FormField>
 
-            <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-              <Button type="button" variant="outline" className="gap-1.5" onClick={handleSaveDraft}>
-                <Save className="size-4" />
-                Save Draft
-              </Button>
-              <Button
-                type="button"
-                className="gap-1.5"
-                disabled={!canFinalize}
-                onClick={handleFinalize}
-              >
-                <CheckCircle2 className="size-4" />
-                Finalize
-              </Button>
-            </div>
+            {!isReadOnly ? (
+              <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-1.5"
+                  disabled={!canSave || isPending}
+                  onClick={() => saveMutation.mutate()}
+                >
+                  <Save className="size-4" />
+                  Save Draft
+                </Button>
+                <Button
+                  type="button"
+                  className="gap-1.5"
+                  disabled={!canSave || isPending}
+                  onClick={() => finalizeMutation.mutate()}
+                >
+                  <CheckCircle2 className="size-4" />
+                  Finalize
+                </Button>
+              </div>
+            ) : null}
           </div>
         </FormSection>
       </div>

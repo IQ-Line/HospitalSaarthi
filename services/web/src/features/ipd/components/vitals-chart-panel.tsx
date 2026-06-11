@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -23,25 +24,22 @@ import {
 import { Textarea } from '@pulse/ui/textarea';
 import { cn } from '@pulse/utils';
 import { FormField, FormFieldLabel, FormSection } from '@/components/form-chrome';
+import { fetchVitalCheckIns, recordVitalCheckIn } from '../api/vitals';
+import { ipdQueryKeys } from '../api/query-keys';
 import {
   admissionStatusBadgeClass,
   admissionStatusLabel,
   formatEnumLabel,
 } from '../lib/display';
+import {
+  formToRecordInput,
+  formatBloodPressure,
+  formatVitalRecordedAt,
+  formatVitalValue,
+  hasAnyVitalMeasurement,
+  type RecorderRole,
+} from '../lib/vital-types';
 import type { AdmissionDetail } from '../types';
-
-type VitalsRow = {
-  id: string;
-  time: string;
-  hr: string;
-  bp: string;
-  temp: string;
-  spo2: string;
-  rr: string;
-  recordedBy: string;
-  role: string;
-  notes: string;
-};
 
 type VitalsFormState = {
   heartRate: string;
@@ -50,19 +48,11 @@ type VitalsFormState = {
   temperature: string;
   spo2: string;
   respiratoryRate: string;
-  recordedBy: string;
+  recordedBy: RecorderRole;
   notes: string;
 };
 
-const RECORDER_ROLES = ['nurse', 'doctor', 'resident', 'consultant'] as const;
-
-const TREND_LEGEND = [
-  { key: 'HR', color: 'bg-emerald-500' },
-  { key: 'SBP', color: 'bg-blue-500' },
-  { key: 'SpO2', color: 'bg-orange-500' },
-  { key: 'Temp', color: 'bg-pink-500' },
-  { key: 'RR', color: 'bg-cyan-500' },
-] as const;
+const RECORDER_ROLES: RecorderRole[] = ['nurse', 'doctor', 'resident', 'consultant'];
 
 const EMPTY_FORM = (): VitalsFormState => ({
   heartRate: '',
@@ -81,15 +71,15 @@ type VitalsChartPanelProps = {
 };
 
 export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
+  const queryClient = useQueryClient();
   const [showRecordForm, setShowRecordForm] = useState(false);
-  const [recorderFilter, setRecorderFilter] = useState('all');
+  const [recorderFilter, setRecorderFilter] = useState<'all' | RecorderRole>('all');
   const [form, setForm] = useState<VitalsFormState>(EMPTY_FORM);
-  const [vitals, setVitals] = useState<VitalsRow[]>([]);
 
-  const filteredVitals =
-    recorderFilter === 'all'
-      ? vitals
-      : vitals.filter((row) => row.role === recorderFilter);
+  const { data: vitals = [], isLoading } = useQuery({
+    queryKey: ipdQueryKeys.vitalCheckIns(admission.id, recorderFilter),
+    queryFn: () => fetchVitalCheckIns(admission.id, recorderFilter),
+  });
 
   const patchForm = (patch: Partial<VitalsFormState>) => {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -99,51 +89,25 @@ export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
     setShowRecordForm((open) => !open);
   };
 
-  const handleSaveVitals = () => {
-    const hasValues = [
-      form.heartRate,
-      form.systolicBp,
-      form.diastolicBp,
-      form.temperature,
-      form.spo2,
-      form.respiratoryRate,
-    ].some((v) => v.trim().length > 0);
-
-    if (!hasValues) {
-      toast.error('Enter at least one vital sign');
-      return;
-    }
-
-    const bp =
-      form.systolicBp || form.diastolicBp
-        ? `${form.systolicBp || '—'}/${form.diastolicBp || '—'}`
-        : '—';
-
-    setVitals((prev) => [
-      {
-        id: crypto.randomUUID(),
-        time: new Date().toLocaleString('en-IN', {
-          day: '2-digit',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        hr: form.heartRate || '—',
-        bp,
-        temp: form.temperature || '—',
-        spo2: form.spo2 || '—',
-        rr: form.respiratoryRate || '—',
-        recordedBy: formatEnumLabel(form.recordedBy),
-        role: form.recordedBy,
-        notes: form.notes || '—',
-      },
-      ...prev,
-    ]);
-
-    setForm(EMPTY_FORM());
-    setShowRecordForm(false);
-    toast.success('Vitals recorded');
-  };
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const input = formToRecordInput(form);
+      if (!hasAnyVitalMeasurement(input)) {
+        throw new Error('Enter at least one vital sign');
+      }
+      return recordVitalCheckIn(admission.id, input);
+    },
+    onSuccess: () => {
+      setForm(EMPTY_FORM());
+      void queryClient.invalidateQueries({
+        queryKey: [...ipdQueryKeys.admissions(), 'vital-check-ins', admission.id],
+      });
+      toast.success('Vitals recorded');
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to record vitals');
+    },
+  });
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -244,7 +208,7 @@ export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
                 <FormFieldLabel>Recorded By</FormFieldLabel>
                 <Select
                   value={form.recordedBy}
-                  onValueChange={(v) => patchForm({ recordedBy: v })}
+                  onValueChange={(v) => patchForm({ recordedBy: v as RecorderRole })}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -269,14 +233,21 @@ export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
               </FormField>
             </div>
             <div className="flex justify-end border-t pt-4">
-              <Button type="button" onClick={handleSaveVitals}>
+              <Button
+                type="button"
+                disabled={saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+              >
                 Save Vitals
               </Button>
             </div>
           </FormSection>
         ) : null}
 
-        <Select value={recorderFilter} onValueChange={setRecorderFilter}>
+        <Select
+          value={recorderFilter}
+          onValueChange={(v) => setRecorderFilter(v as 'all' | RecorderRole)}
+        >
           <SelectTrigger className="w-[200px] bg-card">
             <SelectValue placeholder="All Recorders" />
           </SelectTrigger>
@@ -292,25 +263,6 @@ export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
 
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Vitals Trend</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex min-h-[220px] flex-col items-center justify-center rounded-md border border-dashed bg-muted/20 p-6">
-              <p className="text-sm text-muted-foreground">Trend chart will render here</p>
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
-                {TREND_LEGEND.map(({ key, color }) => (
-                  <span key={key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className={cn('size-2.5 rounded-full', color)} />
-                    {key}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
             <CardTitle className="text-base">Recent Vitals</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -323,30 +275,48 @@ export function VitalsChartPanel({ admission, onBack }: VitalsChartPanelProps) {
                   <TableHead>Temp</TableHead>
                   <TableHead>SpO2</TableHead>
                   <TableHead>RR</TableHead>
-                  <TableHead>Recorded By</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredVitals.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                      Loading vitals…
+                    </TableCell>
+                  </TableRow>
+                ) : vitals.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       No vitals recorded
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVitals.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="tabular-nums">{row.time}</TableCell>
-                      <TableCell className="tabular-nums">{row.hr}</TableCell>
-                      <TableCell className="tabular-nums">{row.bp}</TableCell>
-                      <TableCell className="tabular-nums">{row.temp}</TableCell>
-                      <TableCell className="tabular-nums">{row.spo2}</TableCell>
-                      <TableCell className="tabular-nums">{row.rr}</TableCell>
-                      <TableCell>{row.recordedBy}</TableCell>
-                      <TableCell>{formatEnumLabel(row.role)}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{row.notes}</TableCell>
+                  vitals.map((row) => (
+                    <TableRow key={row.check_in_id}>
+                      <TableCell className="tabular-nums">
+                        {formatVitalRecordedAt(row.recorded_at)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatVitalValue(row.heart_rate)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatBloodPressure(row.systolic_bp, row.diastolic_bp)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatVitalValue(row.temperature)}
+                      </TableCell>
+                      <TableCell className="tabular-nums">{formatVitalValue(row.spo2)}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {formatVitalValue(row.respiratory_rate)}
+                      </TableCell>
+                      <TableCell>
+                        {row.recorder_role ? formatEnumLabel(row.recorder_role) : '—'}
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">
+                        {row.notes?.trim() ? row.notes : '—'}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

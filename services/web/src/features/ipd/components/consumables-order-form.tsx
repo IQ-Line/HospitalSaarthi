@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -12,6 +13,8 @@ import {
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { FormField, FormFieldLabel, FormSection } from '@/components/form-chrome';
+import { createInpatientOrder } from '../api/orders';
+import { ipdQueryKeys } from '../api/query-keys';
 import { formatEnumLabel } from '../lib/display';
 import {
   ORDER_PRIORITIES,
@@ -35,20 +38,50 @@ const DEFAULT_FORM = (): FormState => ({
   specialInstructions: '',
 });
 
-export function ConsumablesOrderForm() {
+type ConsumablesOrderFormProps = {
+  admissionId: string;
+  onSuccess?: () => void;
+};
+
+export function ConsumablesOrderForm({ admissionId, onSuccess }: ConsumablesOrderFormProps) {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
 
   const patch = (values: Partial<FormState>) => {
     setForm((prev) => ({ ...prev, ...values }));
   };
 
+  const placeMutation = useMutation({
+    mutationFn: () => {
+      const quantity = Number(form.quantity);
+      return createInpatientOrder(admissionId, {
+        order_category: 'consumable',
+        item_name: form.itemName.trim(),
+        priority: form.priority,
+        quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+        description: form.description.trim() || null,
+        special_instructions: form.specialInstructions.trim() || null,
+      });
+    },
+    onSuccess: () => {
+      setForm(DEFAULT_FORM());
+      void queryClient.invalidateQueries({
+        queryKey: [...ipdQueryKeys.admissions(), 'orders', admissionId],
+      });
+      toast.success('Consumables order placed');
+      onSuccess?.();
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : 'Failed to place order');
+    },
+  });
+
   const handlePlaceOrder = () => {
     if (!form.itemName.trim()) {
       toast.error('Item name is required');
       return;
     }
-    toast.success('Consumables order placed');
-    setForm(DEFAULT_FORM());
+    placeMutation.mutate();
   };
 
   return (
@@ -115,7 +148,12 @@ export function ConsumablesOrderForm() {
         </FormField>
 
         <div className="flex justify-end border-t pt-4">
-          <Button type="button" className="gap-1.5" onClick={handlePlaceOrder}>
+          <Button
+            type="button"
+            className="gap-1.5"
+            disabled={placeMutation.isPending}
+            onClick={handlePlaceOrder}
+          >
             <Send className="size-4" />
             Place Order
           </Button>

@@ -7,4 +7,4 @@ if (!url) {
 }
 
 await applyIpdSchemaMigration(url);
-console.log("IPD admission schema applied.");
+console.log("IPD schema applied (0000 + 0001 + 0002 + 0003).");

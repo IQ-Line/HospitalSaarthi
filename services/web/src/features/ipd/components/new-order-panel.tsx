@@ -2,16 +2,11 @@ import { useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
-  ClipboardList,
-  Droplet,
-  Dumbbell,
   FlaskConical,
   Package,
   Pill,
   ScanLine,
   Scissors,
-  Stethoscope,
-  UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -25,20 +20,17 @@ import type { AdmissionDetail } from '../types';
 import { ConsumablesOrderForm } from './consumables-order-form';
 import { MedicationOrderForm } from './medication-order-form';
 import {
+  LABORATORY_ORDER_FORM_CONFIG,
   PROCEDURE_ORDER_FORM_CONFIG,
+  RADIOLOGY_ORDER_FORM_CONFIG,
   SimpleCategoryOrderForm,
 } from './simple-category-order-form';
 
 export type OrderCategoryId =
   | 'medication'
+  | 'procedure'
   | 'laboratory'
   | 'radiology'
-  | 'blood'
-  | 'procedure'
-  | 'consultation'
-  | 'diet'
-  | 'physiotherapy'
-  | 'nursing_task'
   | 'consumables';
 
 const ORDER_CATEGORIES: {
@@ -47,14 +39,9 @@ const ORDER_CATEGORIES: {
   icon: typeof Pill;
 }[] = [
   { id: 'medication', label: 'Medication', icon: Pill },
+  { id: 'procedure', label: 'Procedure', icon: Scissors },
   { id: 'laboratory', label: 'Laboratory', icon: FlaskConical },
   { id: 'radiology', label: 'Radiology', icon: ScanLine },
-  { id: 'blood', label: 'Blood', icon: Droplet },
-  { id: 'procedure', label: 'Procedure', icon: Scissors },
-  { id: 'consultation', label: 'Consultation', icon: Stethoscope },
-  { id: 'diet', label: 'Diet', icon: UtensilsCrossed },
-  { id: 'physiotherapy', label: 'Physiotherapy', icon: Dumbbell },
-  { id: 'nursing_task', label: 'Nursing Task', icon: ClipboardList },
   { id: 'consumables', label: 'Consumables', icon: Package },
 ];
 
@@ -63,21 +50,8 @@ type NewOrderPanelProps = {
   onBack: () => void;
 };
 
-const IMPLEMENTED_CATEGORIES = new Set<OrderCategoryId>([
-  'medication',
-  'procedure',
-  'consumables',
-]);
-
 export function NewOrderPanel({ admission, onBack }: NewOrderPanelProps) {
   const [selectedCategory, setSelectedCategory] = useState<OrderCategoryId | null>(null);
-
-  const handleCategoryClick = (categoryId: OrderCategoryId, label: string) => {
-    setSelectedCategory(categoryId);
-    if (!IMPLEMENTED_CATEGORIES.has(categoryId)) {
-      toast.info(`${label} order form coming soon`, { description: categoryId });
-    }
-  };
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -122,7 +96,7 @@ export function NewOrderPanel({ admission, onBack }: NewOrderPanelProps) {
               <button
                 key={id}
                 type="button"
-                onClick={() => handleCategoryClick(id, label)}
+                onClick={() => setSelectedCategory(id)}
                 className={cn(
                   'flex min-h-[120px] flex-col items-center justify-center gap-3 rounded-lg border bg-card p-6 shadow-sm transition-colors',
                   selected
@@ -142,11 +116,21 @@ export function NewOrderPanel({ admission, onBack }: NewOrderPanelProps) {
           })}
         </div>
 
-        {selectedCategory === 'medication' ? <MedicationOrderForm /> : null}
-        {selectedCategory === 'procedure' ? (
-          <SimpleCategoryOrderForm config={PROCEDURE_ORDER_FORM_CONFIG} />
+        {selectedCategory === 'medication' ? (
+          <MedicationOrderForm admissionId={admission.id} />
         ) : null}
-        {selectedCategory === 'consumables' ? <ConsumablesOrderForm /> : null}
+        {selectedCategory === 'procedure' ? (
+          <SimpleCategoryOrderForm admissionId={admission.id} config={PROCEDURE_ORDER_FORM_CONFIG} />
+        ) : null}
+        {selectedCategory === 'laboratory' ? (
+          <SimpleCategoryOrderForm admissionId={admission.id} config={LABORATORY_ORDER_FORM_CONFIG} />
+        ) : null}
+        {selectedCategory === 'radiology' ? (
+          <SimpleCategoryOrderForm admissionId={admission.id} config={RADIOLOGY_ORDER_FORM_CONFIG} />
+        ) : null}
+        {selectedCategory === 'consumables' ? (
+          <ConsumablesOrderForm admissionId={admission.id} />
+        ) : null}
       </div>
     </div>
   );

@@ -9,7 +9,6 @@ import {
   FileText,
   LogOut,
   Pencil,
-  Pill,
   Receipt,
   StickyNote,
 } from 'lucide-react';
@@ -22,6 +21,9 @@ import { Tabs, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
 import { cn } from '@pulse/utils';
 import { fetchAdmissionById, fetchWardBeds } from '../api/admissions';
+import { fetchClinicalNotes } from '../api/clinical-notes';
+import { fetchInpatientOrders } from '../api/orders';
+import { fetchVitalCheckIns } from '../api/vitals';
 import { ipdQueryKeys } from '../api/query-keys';
 import { resolveWardAndBed } from '../lib/bed-display';
 import {
@@ -34,15 +36,17 @@ import {
 } from '../lib/display';
 import type { AdmissionDetail } from '../types';
 import { ClinicalNotePanel } from './clinical-note-panel';
+import { EpisodeOrderList } from './episode-order-list';
 import { NonRoutineExitPanel } from './non-routine-exit-panel';
 import { OrderTrackerPanel } from './order-tracker-panel';
+import { SummaryNotesPanel } from './summary-notes-panel';
+import { SummaryVitalsPanel } from './summary-vitals-panel';
 import { VitalsChartPanel } from './vitals-chart-panel';
 
 type EpisodeModuleTab =
   | 'summary'
   | 'notes'
   | 'vitals'
-  | 'medications'
   | 'orders'
   | 'billing'
   | 'discharge'
@@ -53,7 +57,6 @@ type SummaryContentTab =
   | 'orders'
   | 'vitals'
   | 'io'
-  | 'medications'
   | 'consults'
   | 'charges'
   | 'timeline'
@@ -64,23 +67,21 @@ const EPISODE_MODULE_TABS: { id: EpisodeModuleTab; label: string; icon: typeof F
   { id: 'summary', label: 'Summary', icon: FileText },
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'vitals', label: 'Vitals', icon: Activity },
-  { id: 'medications', label: 'Medications', icon: Pill },
   { id: 'orders', label: 'Orders', icon: ClipboardList },
   { id: 'billing', label: 'Billing', icon: Receipt },
   { id: 'discharge', label: 'Discharge', icon: LogOut },
   { id: 'exit', label: 'Exit', icon: AlertTriangle },
 ];
 
-const SUMMARY_CONTENT_TABS: { value: SummaryContentTab; label: string; badge?: number }[] = [
+const SUMMARY_CONTENT_TABS_BASE: { value: SummaryContentTab; label: string }[] = [
   { value: 'overview', label: 'Overview' },
-  { value: 'notes', label: 'Notes', badge: 0 },
-  { value: 'orders', label: 'Orders', badge: 0 },
+  { value: 'notes', label: 'Notes' },
+  { value: 'orders', label: 'Orders' },
   { value: 'vitals', label: 'Vitals' },
   { value: 'io', label: 'I/O' },
-  { value: 'medications', label: 'Medications' },
   { value: 'consults', label: 'Consults' },
   { value: 'charges', label: 'Charges' },
-  { value: 'timeline', label: 'Timeline', badge: 1 },
+  { value: 'timeline', label: 'Timeline' },
   { value: 'discharge', label: 'Discharge' },
 ];
 
@@ -95,10 +96,22 @@ type AdmissionDetailPageProps = {
   admissionId: string;
 };
 
+function summaryTabBadge(
+  tab: SummaryContentTab,
+  counts: { notes: number; vitals: number; orders: number },
+): number | undefined {
+  if (tab === 'notes') return counts.notes;
+  if (tab === 'vitals') return counts.vitals;
+  if (tab === 'orders') return counts.orders;
+  if (tab === 'timeline') return 1;
+  return undefined;
+}
+
 export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
   const [moduleTab, setModuleTab] = useState<EpisodeModuleTab>('summary');
   const [contentTab, setContentTab] = useState<SummaryContentTab>('overview');
   const [shiftFilter, setShiftFilter] = useState<ShiftFilter>('all');
+  const [ordersInitialView, setOrdersInitialView] = useState<'list' | 'new_order'>('list');
 
   const { data: admission, isLoading, isError } = useQuery({
     queryKey: ipdQueryKeys.admissionDetail(admissionId),
@@ -109,6 +122,30 @@ export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
     queryKey: ipdQueryKeys.wards(),
     queryFn: fetchWardBeds,
   });
+
+  const { data: clinicalNotes = [] } = useQuery({
+    queryKey: ipdQueryKeys.clinicalNotes(admissionId),
+    queryFn: () => fetchClinicalNotes(admissionId),
+  });
+
+  const { data: vitalCheckIns = [] } = useQuery({
+    queryKey: ipdQueryKeys.vitalCheckIns(admissionId),
+    queryFn: () => fetchVitalCheckIns(admissionId),
+  });
+
+  const { data: ordersPage } = useQuery({
+    queryKey: ipdQueryKeys.orders(admissionId, { page: 1, limit: 1 }),
+    queryFn: () => fetchInpatientOrders(admissionId, { page: 1, limit: 1 }),
+  });
+
+  const summaryContentTabs = SUMMARY_CONTENT_TABS_BASE.map((tab) => ({
+    ...tab,
+    badge: summaryTabBadge(tab.value, {
+      notes: clinicalNotes.length,
+      vitals: vitalCheckIns.length,
+      orders: ordersPage?.total ?? 0,
+    }),
+  }));
 
   if (isLoading) {
     return (
@@ -137,7 +174,10 @@ export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
       <EpisodeModuleNav
         admission={admission}
         activeTab={moduleTab}
-        onTabChange={setModuleTab}
+        onTabChange={(tab) => {
+          if (tab === 'orders') setOrdersInitialView('list');
+          setModuleTab(tab);
+        }}
       />
 
       {moduleTab === 'notes' ? (
@@ -145,7 +185,7 @@ export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
       ) : moduleTab === 'vitals' ? (
         <VitalsChartPanel admission={admission} onBack={() => setModuleTab('summary')} />
       ) : moduleTab === 'orders' ? (
-        <OrderTrackerPanel admission={admission} />
+        <OrderTrackerPanel admission={admission} initialView={ordersInitialView} />
       ) : moduleTab === 'exit' ? (
         <NonRoutineExitPanel admission={admission} onBack={() => setModuleTab('summary')} />
       ) : (
@@ -161,7 +201,7 @@ export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
 
                 <div className="overflow-hidden rounded-lg border bg-card">
                   <PageTabs
-                    tabs={SUMMARY_CONTENT_TABS.map((tab) => ({
+                    tabs={summaryContentTabs.map((tab) => ({
                       value: tab.value,
                       label: tab.label,
                       badge: tab.badge,
@@ -173,6 +213,25 @@ export function AdmissionDetailPage({ admissionId }: AdmissionDetailPageProps) {
                   <div className="p-4 md:p-6">
                     {contentTab === 'overview' ? (
                       <OverviewPanel admission={admission} />
+                    ) : contentTab === 'notes' ? (
+                      <SummaryNotesPanel
+                        admissionId={admission.id}
+                        onAddNote={() => setModuleTab('notes')}
+                      />
+                    ) : contentTab === 'orders' ? (
+                      <EpisodeOrderList
+                        admissionId={admission.id}
+                        variant="summary"
+                        onNewOrder={() => {
+                          setOrdersInitialView('new_order');
+                          setModuleTab('orders');
+                        }}
+                      />
+                    ) : contentTab === 'vitals' ? (
+                      <SummaryVitalsPanel
+                        admissionId={admission.id}
+                        onOpenVitalsChart={() => setModuleTab('vitals')}
+                      />
                     ) : (
                       <PlaceholderPanel tab={contentTab} />
                     )}
