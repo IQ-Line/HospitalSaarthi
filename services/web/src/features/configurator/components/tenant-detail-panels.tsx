@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@pulse/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -1393,39 +1394,67 @@ export function TenantFollowUpPanel({ iqTenantId }: { iqTenantId: string }) {
   }
 
   return (
-    <div className="max-w-lg space-y-4 rounded-lg border bg-card p-4 shadow-sm">
-      <div>
-        <h2 className="text-base font-semibold tracking-tight">OPD follow-up policy</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Applies to this tenant. Free follow-up is same department within the window; paid
-          follow-up is after the window.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="follow-up-days">Free follow-up window (days)</Label>
-          <Input
-            id="follow-up-days"
-            type="number"
-            min={0}
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="follow-up-visits">Free follow-ups allowed (per department)</Label>
-          <Input
-            id="follow-up-visits"
-            type="number"
-            min={0}
-            value={visits}
-            onChange={(e) => setVisits(e.target.value)}
-          />
-        </div>
-      </div>
-      <Button type="button" onClick={handleSave} disabled={updateMutation.isPending}>
-        {updateMutation.isPending ? 'Saving…' : 'Save configuration'}
-      </Button>
+    <div className="w-full space-y-4">
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-base">OPD follow-up policy</CardTitle>
+            <CardDescription>
+              Applies to this tenant. Free follow-up is same department within the window; paid
+              follow-up is after the window.
+            </CardDescription>
+          </div>
+          <Button
+            type="button"
+            className="shrink-0 bg-[#008C9E] text-white hover:bg-[#00798a]"
+            onClick={handleSave}
+            disabled={updateMutation.isPending}
+          >
+            {updateMutation.isPending ? 'Saving…' : 'Save configuration'}
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-6 pt-6">
+          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="follow-up-days">Free follow-up window (days)</Label>
+              <Input
+                id="follow-up-days"
+                type="number"
+                min={0}
+                value={days}
+                onChange={(e) => setDays(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Days after the first visit in a department when free follow-up still applies.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="follow-up-visits">Free follow-ups allowed (per department)</Label>
+              <Input
+                id="follow-up-visits"
+                type="number"
+                min={0}
+                value={visits}
+                onChange={(e) => setVisits(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Maximum number of free follow-up visits per patient in the same department.
+              </p>
+            </div>
+          </div>
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+            <p className="font-medium">How visit types are decided</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+              <li>First visit in a department is registered as an OPD first visit.</li>
+              <li>
+                Within the window and under the free quota, same-department visits are free
+                follow-up.
+              </li>
+              <li>After the window or quota is used, same-department visits are paid follow-up.</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
