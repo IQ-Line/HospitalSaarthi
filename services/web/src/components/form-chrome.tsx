@@ -8,7 +8,7 @@ export function FormSection({
   children,
   className,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
