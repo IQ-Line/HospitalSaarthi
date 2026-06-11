@@ -6,7 +6,15 @@ import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
 
 const DESK_OVERRIDE_DISABLED_MSG =
-  "desk_price_overrides_disabled: set BILLING_ALLOW_DESK_OVERRIDES=true in dev; tracked in #94";
+  "desk_price_overrides_disabled: set BILLING_ALLOW_DESK_OVERRIDES=true (or false to disable in dev); tracked in #94";
+
+/** Desk discounts / price overrides on POST /charges — gated until #94 approval workflow. */
+function isDeskOverridesAllowed(): boolean {
+  const explicit = process.env["BILLING_ALLOW_DESK_OVERRIDES"];
+  if (explicit === "true") return true;
+  if (explicit === "false") return false;
+  return process.env["NODE_ENV"] !== "production";
+}
 
 function hasDeskPricingOverrides(input: CaptureChargeInput): boolean {
   return (
@@ -97,10 +105,7 @@ export async function captureCharge(
   if (!input.item_code?.trim()) return fail("VALIDATION", "item_code is required");
   if (!input.source_module?.trim()) return fail("VALIDATION", "source_module is required");
 
-  if (
-    hasDeskPricingOverrides(input) &&
-    process.env["BILLING_ALLOW_DESK_OVERRIDES"] !== "true"
-  ) {
+  if (hasDeskPricingOverrides(input) && !isDeskOverridesAllowed()) {
     return fail("VALIDATION", DESK_OVERRIDE_DISABLED_MSG);
   }
 
