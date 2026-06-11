@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 
+<<<<<<< HEAD
 function isInteractiveTableRowTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
@@ -44,11 +45,13 @@ function isInteractiveTableRowTarget(target: EventTarget | null): boolean {
     ),
   );
 }
+=======
 type DataTableColumnMeta = {
   label?: string;
   headerClassName?: string;
   cellClassName?: string;
 };
+>>>>>>> 9b293b62f27cd207d001196db91503286eef01e0
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
