@@ -11,6 +11,7 @@ import {
 } from '@/features/opd-patients/api/empi-patients';
 import { fetchPatientHealthDocuments } from '@/features/create-rx/api/health-documents';
 import type { OpdPrescriptionListItem } from '@/features/create-rx/api/opd-prescription-types';
+import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { SEARCH_VISITS_PER_PATIENT_LIMIT } from './constants';
 import { fetchDoctorLookupMap, resolveDoctorName } from './doctor-lookup';
 import { isWithinDateRange } from '../lib/formatters';
@@ -23,6 +24,7 @@ import type {
   HistoricalReportHiType,
   HistoricalReportItem,
   HistoricalSearchField,
+  HistoricalClinicalReportType,
 } from '../types';
 
 const EMPI_PATIENTS_BASE = '/api/empi/v1/patients';
@@ -255,6 +257,55 @@ const REPORT_HI_TYPES: HistoricalReportHiType[] = [
   'Immunization Record',
 ];
 
+const CLINICAL_REPORT_TYPES: HistoricalClinicalReportType[] = [
+  'op-consultation',
+  'prescription',
+  'immunization',
+];
+
+const CLINICAL_REPORT_LABELS: Record<HistoricalClinicalReportType, HistoricalReportHiType> = {
+  'op-consultation': 'OP Consultation Record',
+  prescription: 'Prescription Record',
+  immunization: 'Immunization Record',
+};
+
+const CLINICAL_REPORT_TITLES: Record<HistoricalClinicalReportType, string> = {
+  'op-consultation': 'OP Consultation',
+  prescription: 'Prescription',
+  immunization: 'Immunization',
+};
+
+function pushClinicalReportsForVisit(
+  reports: HistoricalReportItem[],
+  opts: {
+    visitId: string;
+    visitNumber: string;
+    doctorName: string;
+    reportTime: string;
+    prescriptionId?: string;
+    /** Backend only renders HTML/PDF after consultation is finalized. */
+    viewable: boolean;
+  },
+): void {
+  if (!opts.viewable) return;
+  for (const clinicalReportType of CLINICAL_REPORT_TYPES) {
+    const hiType = CLINICAL_REPORT_LABELS[clinicalReportType];
+    const label = CLINICAL_REPORT_TITLES[clinicalReportType];
+    reports.push({
+      id: `rx-${clinicalReportType}-${opts.visitId}`,
+      title: `${label} — ${opts.visitNumber}`,
+      hiType,
+      visitNumber: opts.visitNumber,
+      doctorName: opts.doctorName,
+      reportTime: opts.reportTime,
+      source: 'prescription',
+      prescriptionId: opts.prescriptionId,
+      visitId: opts.visitId,
+      clinicalReportType,
+    });
+  }
+}
+
 export async function fetchHistoricalPatientReports(
   patientId: string,
   options?: {
@@ -266,50 +317,57 @@ export async function fetchHistoricalPatientReports(
   },
 ): Promise<HistoricalReportItem[]> {
   const [prescriptions, healthDocs, doctorLookup, visitPage] = await Promise.all([
-    listPatientPrescriptions(patientId),
+    listPatientPrescriptions(patientId).catch(() => [] as OpdPrescriptionListItem[]),
     fetchPatientHealthDocuments(patientId, undefined, 1, 100),
     fetchDoctorLookupMap(),
     listRegistrationVisits({ patient_id: patientId, page: 1, limit: 200 }),
   ]);
 
   const visitById = new Map(visitPage.data.map((v) => [v.id, v]));
+  const overlayByVisitId = await fetchOpdEncounterOverlaysByVisitIds(
+    visitPage.data.map((v) => v.id),
+  );
   const search = options?.search?.trim().toLowerCase() ?? '';
   const reports: HistoricalReportItem[] = [];
+  const visitsWithClinicalReports = new Set<string>();
 
   for (const rx of prescriptions) {
     if (rx.status !== 'final') continue;
     const visit = visitById.get(rx.visit_id);
-    const reportTime = rx.finalized_at ?? rx.updated_at;
+    const reportTime = rx.finalized_at ?? rx.updated_at ?? rx.created_at;
     if (!isWithinDateRange(reportTime, options?.startDate ?? '', options?.endDate ?? '')) continue;
 
     const visitNumber = visit ? formatVisitNumber(visit) : '—';
     const doctorName = resolveDoctorName(rx.doctor_id ?? visit?.doctor_id, doctorLookup);
 
-    const opConsult: HistoricalReportItem = {
-      id: `rx-op-${rx.id}`,
-      title: `OP Consultation — ${visitNumber}`,
-      hiType: 'OP Consultation Record',
+    pushClinicalReportsForVisit(reports, {
+      visitId: rx.visit_id,
       visitNumber,
       doctorName,
       reportTime,
-      source: 'prescription',
       prescriptionId: rx.id,
-      visitId: rx.visit_id,
-    };
+      viewable: true,
+    });
+    visitsWithClinicalReports.add(rx.visit_id);
+  }
 
-    const prescription: HistoricalReportItem = {
-      id: `rx-rx-${rx.id}`,
-      title: `Prescription — ${visitNumber}`,
-      hiType: 'Prescription Record',
-      visitNumber,
-      doctorName,
+  for (const visit of visitPage.data) {
+    if (visitsWithClinicalReports.has(visit.id)) continue;
+    const overlay = overlayByVisitId.get(visit.id);
+    if (!overlay || overlay.prescriptionStatus === 'cancelled') continue;
+    if (overlay.prescriptionStatus !== 'final') continue;
+
+    const reportTime = visit.updated_at ?? visit.created_at;
+    if (!isWithinDateRange(reportTime, options?.startDate ?? '', options?.endDate ?? '')) continue;
+
+    pushClinicalReportsForVisit(reports, {
+      visitId: visit.id,
+      visitNumber: formatVisitNumber(visit),
+      doctorName: resolveDoctorName(visit.doctor_id, doctorLookup),
       reportTime,
-      source: 'prescription',
-      prescriptionId: rx.id,
-      visitId: rx.visit_id,
-    };
-
-    reports.push(opConsult, prescription);
+      viewable: true,
+    });
+    visitsWithClinicalReports.add(visit.id);
   }
 
   for (const doc of healthDocs.data) {
@@ -329,6 +387,9 @@ export async function fetchHistoricalPatientReports(
       source: 'health_document',
       documentId: doc.id,
       visitId: doc.visit_id ?? undefined,
+      downloadUrl: doc.download_url,
+      fileName: doc.file_name,
+      fileType: doc.file_type,
     });
   }
 

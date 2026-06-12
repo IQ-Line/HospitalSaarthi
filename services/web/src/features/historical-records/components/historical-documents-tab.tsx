@@ -22,7 +22,7 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientDocuments } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
-import { defaultDateRange, formatHistoricalShortDate } from '../lib/formatters';
+import { formatHistoricalShortDate, historicalPatientTabDateRange } from '../lib/formatters';
 import type { HistoricalDocumentItem } from '../types';
 
 interface HistoricalDocumentsTabProps {
@@ -72,7 +72,7 @@ function DocumentCard({ doc }: { doc: HistoricalDocumentItem }) {
 }
 
 export function HistoricalDocumentsTab({ patientId }: HistoricalDocumentsTabProps) {
-  const { startDate, endDate } = defaultDateRange();
+  const { startDate, endDate } = historicalPatientTabDateRange();
   const [filters, setFilters] = useState({
     startDate,
     endDate,

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { FileText, Loader2, Search } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import {
   Select,
@@ -10,58 +10,86 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { ClinicalReportModal } from '@/components/clinical-report-modal';
+import { downloadHealthDocument } from '@/features/create-rx/api/health-documents';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientReports, REPORT_HI_TYPES } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
-import { defaultDateRange, formatHistoricalShortDate } from '../lib/formatters';
+import { usePatientReports } from '@/features/opd-patients/hooks/use-patient-reports';
+import { formatHistoricalShortDate, historicalPatientTabDateRange } from '../lib/formatters';
 import type { HistoricalReportItem } from '../types';
 
 interface HistoricalReportsTabProps {
   patientId: string;
 }
 
-function ReportCard({ report, patientId }: { report: HistoricalReportItem; patientId: string }) {
-  const content = (
-    <article className="rounded-lg border border-[#E2E8F0] bg-white p-4 shadow-sm transition-colors hover:border-blue-300 hover:shadow-md">
-      <div className="mb-2 flex items-start gap-2">
-        <FileText className="size-5 shrink-0 text-gray-500" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-800">{report.title}</p>
-          <p className="mt-1 text-xs font-medium text-[#0D9488]">{report.hiType}</p>
+function ReportCard({
+  report,
+  onOpenClinicalReport,
+}: {
+  report: HistoricalReportItem;
+  onOpenClinicalReport: (report: HistoricalReportItem) => void;
+}) {
+  const handleClick = () => {
+    if (report.clinicalReportType && report.visitId) {
+      onOpenClinicalReport(report);
+      return;
+    }
+    if (report.source === 'health_document' && report.downloadUrl) {
+      void downloadHealthDocument(
+        report.downloadUrl,
+        report.fileName ?? 'document',
+        report.fileType ?? 'application/octet-stream',
+      ).catch((error) => {
+        console.error(error);
+        toast.error('Failed to download report');
+      });
+    }
+  };
+
+  const isInteractive =
+    Boolean(report.clinicalReportType && report.visitId) ||
+    Boolean(report.source === 'health_document' && report.downloadUrl);
+
+  return (
+    <button
+      type="button"
+      onClick={isInteractive ? handleClick : undefined}
+      disabled={!isInteractive}
+      className="block w-full text-left disabled:cursor-default"
+    >
+      <article className="rounded-lg border border-[#E2E8F0] bg-white p-4 shadow-sm transition-colors hover:border-blue-300 hover:shadow-md disabled:hover:border-[#E2E8F0] disabled:hover:shadow-sm">
+        <div className="mb-2 flex items-start gap-2">
+          <FileText className="size-5 shrink-0 text-gray-500" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-800">{report.title}</p>
+            <p className="mt-1 text-xs font-medium text-[#0D9488]">{report.hiType}</p>
+          </div>
         </div>
-      </div>
-      <p className="text-sm text-gray-700">{report.doctorName}</p>
-      <p className="mt-1 text-xs text-gray-500">Visit ID: {report.visitNumber}</p>
-      <p className="mt-1 text-xs text-gray-500">
-        Report time: {formatHistoricalShortDate(report.reportTime)},{' '}
-        {new Date(report.reportTime).toLocaleTimeString('en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false,
-        })}
-      </p>
-    </article>
+        <p className="text-sm text-gray-700">{report.doctorName}</p>
+        <p className="mt-1 text-xs text-gray-500">Visit ID: {report.visitNumber}</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Report time: {formatHistoricalShortDate(report.reportTime)},{' '}
+          {new Date(report.reportTime).toLocaleTimeString('en-GB', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          })}
+        </p>
+        {isInteractive ? (
+          <p className="mt-2 text-xs font-medium text-[#2563EB]">
+            {report.clinicalReportType ? 'View report' : 'Download'}
+          </p>
+        ) : null}
+      </article>
+    </button>
   );
-
-  if (report.source === 'prescription' && report.visitId) {
-    return (
-      <Link
-        to="/create-rx/$visitId"
-        params={{ visitId: report.visitId }}
-        search={{ mode: 'view', loadPrescription: true, patientId }}
-        className="block"
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return content;
 }
 
 export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
-  const { startDate, endDate } = defaultDateRange();
+  const { startDate, endDate } = historicalPatientTabDateRange();
+  const patientReports = usePatientReports();
   const [filters, setFilters] = useState({
     startDate,
     endDate,
@@ -76,12 +104,19 @@ export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
     [filters, debouncedSearch],
   );
 
-  const { data: reports = [], isLoading } = useQuery({
+  const { data: reports = [], isLoading, isError, error } = useQuery({
     queryKey: historicalRecordsQueryKeys.patientReports(patientId, queryFilters),
     queryFn: () => fetchHistoricalPatientReports(patientId, queryFilters),
     enabled: Boolean(patientId),
     staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
+
+  const handleOpenClinicalReport = (report: HistoricalReportItem) => {
+    if (!report.visitId || !report.clinicalReportType) return;
+    patientReports.openReport(report.visitId, report.clinicalReportType, {
+      doctor_name: report.doctorName !== '—' ? report.doctorName : undefined,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -147,6 +182,10 @@ export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
         <div className="flex justify-center py-16">
           <Loader2 className="size-8 animate-spin text-gray-400" />
         </div>
+      ) : isError ? (
+        <div className="rounded-lg bg-[#F5F5F5] py-16 text-center text-sm text-destructive">
+          {error instanceof Error ? error.message : 'Failed to load reports'}
+        </div>
       ) : reports.length === 0 ? (
         <div className="rounded-lg bg-[#F5F5F5] py-16 text-center text-sm text-muted-foreground">
           No reports found
@@ -154,10 +193,24 @@ export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {reports.map((report) => (
-            <ReportCard key={report.id} report={report} patientId={patientId} />
+            <ReportCard
+              key={report.id}
+              report={report}
+              onOpenClinicalReport={handleOpenClinicalReport}
+            />
           ))}
         </div>
       )}
+
+      <ClinicalReportModal
+        open={patientReports.open}
+        onOpenChange={(open) => {
+          if (!open) patientReports.closeReport();
+        }}
+        visitId={patientReports.selection?.visitId ?? null}
+        reportType={patientReports.selection?.reportType ?? null}
+        reportContext={patientReports.selection?.reportContext}
+      />
     </div>
   );
 }
