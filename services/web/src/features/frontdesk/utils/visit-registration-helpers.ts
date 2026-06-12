@@ -84,13 +84,16 @@ export const VISIT_REGISTRATION_TEXTAREA_CLASS =
 
 // ─── Billing helpers ───────────────────────────────────────────────────────────
 
-/** Resolved line discount in rupees (explicit ₹ amount, or derived from %). */
+/** Round to paise (2 dp) — matches billing NUMERIC(18,4) display on the desk. */
+export function roundBillingAmount(amount: number): number {
+  return Math.round(amount * 100) / 100;
+}
+
+/** Line discount in rupees — derived from discount % and unit price. */
 export function billingLineDiscountAmount(line: VisitRegistrationBillingFeeLine): number {
-  const discountRs = line.discount ?? 0;
-  if (discountRs > 0) return discountRs;
   const pct = line.discount_percent ?? 0;
-  if (pct > 0) return Math.round((line.unit_price ?? 0) * pct / 100);
-  return 0;
+  if (pct <= 0) return 0;
+  return roundBillingAmount((line.unit_price ?? 0) * pct / 100);
 }
 
 /** Pre-tax net after line discount (unit − discount). */
@@ -99,19 +102,18 @@ export function billingLineNetPrice(line: VisitRegistrationBillingFeeLine): numb
   return Math.max(0, unit - billingLineDiscountAmount(line));
 }
 
-/** Tax computed on full unit price (matches billing-svc desk line math). */
+/** Tax on net after line discount (matches billing-svc `computeDeskLineAmounts`). */
 export function billingLineTaxAmount(line: VisitRegistrationBillingFeeLine): number {
-  const unit = line.unit_price ?? 0;
+  const net = billingLineNetPrice(line);
   const tax = line.tax_percent ?? 0;
-  return Math.round(unit * tax / 100);
+  return roundBillingAmount(net * tax / 100);
 }
 
-/** Line total: (unit + tax) − discount — aligned with billing-svc `computeDeskLineAmounts`. */
+/** Line total: net after discount + tax on that net. */
 export function billingLineTotal(line: VisitRegistrationBillingFeeLine): number {
-  const unit = line.unit_price ?? 0;
+  const net = billingLineNetPrice(line);
   const tax = billingLineTaxAmount(line);
-  const discount = billingLineDiscountAmount(line);
-  return Math.max(0, unit + tax - discount);
+  return Math.max(0, net + tax);
 }
 
 const AMOUNT_PAID_EPSILON = 0.001;
@@ -208,6 +210,16 @@ export function formatInr(amount: number): string {
   return `₹${amount.toLocaleString('en-IN')}`;
 }
 
+/** INR for billing cells — shows paise when the amount is fractional. */
+export function formatBillingInr(amount: number): string {
+  const value = roundBillingAmount(amount);
+  const hasFraction = Math.abs(value - Math.trunc(value)) > 0.0001;
+  return `₹${value.toLocaleString('en-IN', {
+    minimumFractionDigits: hasFraction ? 2 : 0,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 /** Invoice / line deduction preview — avoids showing "-₹0" when amount is zero. */
 export function formatBillingDeduction(amount: number): string {
   if (!Number.isFinite(amount) || amount <= 0) return '—';
@@ -218,13 +230,13 @@ export function formatBillingDeduction(amount: number): string {
 export function formatBillingTaxLine(taxPercent: number, taxAmount: number): string {
   if (!Number.isFinite(taxPercent) || taxPercent <= 0) return '0';
   if (!Number.isFinite(taxAmount) || taxAmount <= 0) return `${taxPercent}%`;
-  return `${taxPercent}% · ${formatInr(taxAmount)}`;
+  return `${taxPercent}% · ${formatBillingInr(taxAmount)}`;
 }
 
 /** Tax column in summary rows — matches data rows (0 vs ₹ amount). */
 export function formatBillingTaxSummary(taxAmount: number): string {
   if (!Number.isFinite(taxAmount) || taxAmount <= 0) return '0';
-  return formatInr(taxAmount);
+  return formatBillingInr(taxAmount);
 }
 
 // ─── Date of birth → age ─────────────────────────────────────────────────────

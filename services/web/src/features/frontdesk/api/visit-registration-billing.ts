@@ -14,13 +14,10 @@ import type {
 
 function lineDiscountFields(
   line: VisitRegistrationBillingFeeLine | undefined,
-): Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> {
-  const fields: Pick<CaptureChargeInput, 'line_discount_amount' | 'line_discount_percentage'> = {};
+): Pick<CaptureChargeInput, 'line_discount_percentage'> {
   const discountPct = line?.discount_percent ?? 0;
-  const discountAmt = line?.discount ?? 0;
-  if (discountPct > 0) fields.line_discount_percentage = discountPct;
-  if (discountAmt > 0) fields.line_discount_amount = discountAmt;
-  return fields;
+  if (discountPct <= 0) return {};
+  return { line_discount_percentage: discountPct };
 }
 
 function requireItemCode(

@@ -51,10 +51,12 @@ import {
   billingLineNetPrice,
   billingLineTaxAmount,
   billingLineTotal,
+  roundBillingAmount,
   computeBillingGrandTotal,
   formatBillingDeduction,
   formatBillingTaxLine,
   formatBillingTaxSummary,
+  formatBillingInr,
   formatInr,
   buildRegistrationVisitTypeOptions,
   isVisitRegistrationAmountPaidValid,
@@ -438,7 +440,6 @@ export function VisitRegistrationBillingSection({
               unitPrice={registrationFee.unit_price}
               taxPercent={registrationFee.tax_percent}
               discountPercent={registrationFee.discount_percent}
-              discountRs={registrationFee.discount}
               discountPercentPath="billing.registration_fee.discount_percent"
               discountRsPath="billing.registration_fee.discount"
               setValue={setValue}
@@ -457,7 +458,6 @@ export function VisitRegistrationBillingSection({
                 unitPrice={consultationFee.unit_price}
                 taxPercent={consultationFee.tax_percent}
                 discountPercent={consultationFee.discount_percent}
-                discountRs={consultationFee.discount}
                 discountPercentPath="billing.consultation_fee.discount_percent"
                 discountRsPath="billing.consultation_fee.discount"
                 setValue={setValue}
@@ -487,7 +487,7 @@ export function VisitRegistrationBillingSection({
                 {formatBillingTaxSummary(regTax + (hasProvider ? consultTax : 0))}
               </TableCell>
               <TableCell className={BILLING_NUM_CELL}>
-                {formatInr(hasProvider ? itemsSubtotal : regTotal)}
+                {formatBillingInr(hasProvider ? itemsSubtotal : regTotal)}
               </TableCell>
             </TableRow>
             <TableRow className="hover:bg-transparent">
@@ -523,7 +523,7 @@ export function VisitRegistrationBillingSection({
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
               <TableCell className={`${BILLING_NUM_CELL} text-base font-semibold`}>
-                {formatInr(grandTotal)}
+                {formatBillingInr(grandTotal)}
               </TableCell>
             </TableRow>
           </TableBody>
@@ -898,7 +898,6 @@ function BillingFeeRow({
   unitPrice,
   taxPercent,
   discountPercent,
-  discountRs,
   discountPercentPath,
   discountRsPath,
   setValue,
@@ -912,7 +911,6 @@ function BillingFeeRow({
   unitPrice: number;
   taxPercent: number;
   discountPercent: number;
-  discountRs: number;
   discountPercentPath:
     | 'billing.registration_fee.discount_percent'
     | 'billing.consultation_fee.discount_percent';
@@ -941,33 +939,27 @@ function BillingFeeRow({
               shouldDirty: true,
               shouldValidate: true,
             });
-            if (pct >= 0) {
-              setValue(discountRsPath, Math.round(unitPrice * pct / 100), {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }
+            setValue(discountRsPath, pct > 0 ? roundBillingAmount(unitPrice * pct / 100) : 0, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
           }}
         />
       </BillingNumericInputCell>
-      <BillingNumericInputCell>
-        <FormNumberInput
-          min={0}
-          className={BILLING_INPUT_CLASS}
-          value={discountRs}
-          onChange={(rs) =>
-            setValue(discountRsPath, rs, {
-              shouldDirty: true,
-              shouldValidate: true,
-            })
-          }
-        />
-      </BillingNumericInputCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatInr(
+          billingLineDiscountAmount({
+            unit_price: unitPrice,
+            discount_percent: discountPercent,
+            discount: 0,
+          }),
+        )}
+      </TableCell>
       <TableCell className={BILLING_NUM_CELL}>{formatInr(netPrice)}</TableCell>
       <TableCell className={`${BILLING_NUM_CELL} whitespace-nowrap`}>
         {formatBillingTaxLine(taxPercent, taxAmount)}
       </TableCell>
-      <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatInr(total)}</TableCell>
+      <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatBillingInr(total)}</TableCell>
     </TableRow>
   );
 }
