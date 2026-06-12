@@ -16,7 +16,7 @@
       "executor": "nx:run-commands",
       "dependsOn": ["configurator:db-migrate"],
       "options": {
-        "command": "npx tsx watch src/main.ts",
+        "command": "tsx src/main.ts",
         "cwd": "services/configurator-svc",
         "envFile": "{workspaceRoot}/.env"
       }

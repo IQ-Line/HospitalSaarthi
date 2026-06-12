@@ -122,6 +122,41 @@ describe('fetchOpdPatientsList', () => {
     expect(result.items[0]?.actionLabel).toBe('Create Rx');
   });
 
+  it('shows Create Rx for in-progress registration without a draft prescription', async () => {
+    vi.mocked(listRegistrationVisits).mockResolvedValue({
+      data: [{ ...sampleVisit, status: 'in_progress' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+      total_pages: 1,
+    });
+
+    const result = await fetchOpdPatientsList(baseParams);
+
+    expect(result.items[0]?.status).toBe('in-progress');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
+  });
+
+  it('shows Edit RX when doctor has a draft prescription on the visit', async () => {
+    vi.mocked(listRegistrationVisits).mockResolvedValue({
+      data: [{ ...sampleVisit, status: 'pending' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+      total_pages: 1,
+    });
+    vi.mocked(fetchOpdEncounterOverlaysByVisitIds).mockResolvedValue(
+      new Map([
+        [sampleVisit.id, { prescriptionStatus: 'draft', visitStatus: 'in_progress' }],
+      ]),
+    );
+
+    const result = await fetchOpdPatientsList(baseParams);
+
+    expect(result.items[0]?.status).toBe('in-progress');
+    expect(result.items[0]?.actionLabel).toBe('Edit RX');
+  });
+
   it('maps nurse pre-consulted OPD overlay to Pre Consulted queue status', async () => {
     vi.mocked(listRegistrationVisits).mockResolvedValue({
       data: [{ ...sampleVisit, status: 'completed' }],
@@ -142,7 +177,7 @@ describe('fetchOpdPatientsList', () => {
     const result = await fetchOpdPatientsList(baseParams);
 
     expect(result.items[0]?.status).toBe('pre-consulted');
-    expect(result.items[0]?.actionLabel).toBe('Create Rx');
+    expect(result.items[0]?.actionLabel).toBe('Edit RX');
   });
 
   it('maps cancelled registration visits', async () => {

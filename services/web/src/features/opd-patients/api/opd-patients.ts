@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchOpdEncounterOverlaysByVisitIds } from './opd-encounter-overlay';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord } from './opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from './empi-patients';
 import { computeOpdPatientsStats, filterOpdPatientRows } from '../lib/opd-patients-list-utils';
 import { opdUiStatusToRegistrationVisitQuery } from '../lib/registration-visit-status';
@@ -96,5 +96,6 @@ export async function fetchOpdPatientsList(
     items,
     total,
     stats: computeOpdPatientsStats(items),
+    encounterOverlaysByVisitId: encounterOverlaysToRecord(encounterByVisitId),
   };
 }

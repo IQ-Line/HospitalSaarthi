@@ -16,7 +16,6 @@ const MIGRATION_FILES = [
   "007_configurator_tenant_integration_profiles.sql",
   "008_configurator_sequence_configuration.sql",
   "009_citus_distribute_tenant_modules.sql",
-  "009_deactivate_invalid_tenant_modules.sql",
   "010_tenant_api_keys.sql",
   "011_tenant_follow_up_config.sql",
 ] as const;
@@ -111,11 +110,29 @@ function splitSqlStatements(sqlText: string): string[] {
   });
 }
 
+
+function getPgErrorCode(error: unknown): string | undefined {
+  let current: unknown = error;
+  while (current && typeof current === "object") {
+    if ("code" in current && typeof (current as { code: unknown }).code === "string") {
+      return (current as { code: string }).code;
+    }
+    current = "cause" in current ? (current as { cause: unknown }).cause : undefined;
+  }
+  return undefined;
+}
+
+function isSkippableCitusReapplyError(error: unknown): boolean {
+  const code = getPgErrorCode(error);
+  return code === "XX000" || code === "0A000" || code === "42701" || code === "42P07";
+}
+
 /**
  * Applies `configurator` schema DDL (idempotent — safe to run on every dev boot).
- * Statements run one at a time so Citus/PgBouncer accept DDL on distributed tables.
+ * Each statement runs separately so Citus/PgBouncer accept DDL on distributed tables.
  *
- * `009_deactivate_invalid_tenant_modules.sql` is a Citus-unsafe data backfill — skipped with a warning on local Citus.
+ * `009_deactivate_invalid_tenant_modules.sql` is kept in migrations/ for reference only
+ * (plain UPDATE — Citus-unsafe). Orphan cleanup runs at runtime in listEntitlementEnabledModuleIds().
  */
 export async function applyConfiguratorSchemaMigration(
   connectionString: string,
@@ -124,23 +141,19 @@ export async function applyConfiguratorSchemaMigration(
   for (const file of MIGRATION_FILES) {
     const ddl = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
     const statements = splitSqlStatements(ddl);
-    try {
-      for (const statement of statements) {
+    for (const statement of statements) {
+      try {
         await db.execute(sql.raw(statement));
+      } catch (error) {
+        if (isSkippableCitusReapplyError(error)) {
+          console.warn(
+            `[configurator] skipped statement in ${file} (already applied):`,
+            error instanceof Error ? error.message : error,
+          );
+          continue;
+        }
+        throw error;
       }
-    } catch (error) {
-      // Data backfills — Citus may reject cross-schema UPDATE / ON CONFLICT on distributed tables.
-      if (
-        file === "005_backfill_infrastructure_tenant_modules.sql" ||
-        file === "009_deactivate_invalid_tenant_modules.sql"
-      ) {
-        console.warn(
-          `[configurator] skipped ${file} (non-fatal data backfill):`,
-          error instanceof Error ? error.message : error,
-        );
-        continue;
-      }
-      throw error;
     }
   }
 }

@@ -8,6 +8,7 @@ import {
   emptyDraftFormData,
   prescriptionDetailToSession,
 } from '../lib/opd-prescription-mapper';
+import { sanitizeCreateRxFormDataForPersist } from '../lib/form-data-session';
 import type {
   OpdPrescriptionCreateBody,
   OpdPrescriptionFinalizeBody,
@@ -64,6 +65,55 @@ function resolveOpdDoctorId(): string {
 
 export type { OpdPrescriptionSession } from './opd-prescription-types';
 
+/** Response from `/visits/{visitId}/prescription` — includes merged Create-RX form_data. */
+export interface OpdVisitPrescriptionResponse {
+  prescription_id: string;
+  visit_id: string;
+  patient_id: string;
+  visit_status: string;
+  prescription_status: OpdPrescriptionStatus;
+  is_read_only: boolean;
+  form_data: CreateRxFormData;
+}
+
+export function visitPrescriptionResponseToSession(
+  response: OpdVisitPrescriptionResponse,
+): OpdPrescriptionSession {
+  return {
+    prescription_id: response.prescription_id,
+    visit_id: response.visit_id,
+    patient_id: response.patient_id,
+    prescription_status: response.prescription_status,
+    is_read_only: response.is_read_only,
+    form_data: response.form_data ?? emptyDraftFormData(),
+  };
+}
+
+/** Persist Create-RX form_data for a registration visit (same path nurse pre-consult uses). */
+async function upsertVisitPrescriptionFormData(
+  visitId: string,
+  formData: CreateRxFormData,
+  options?: { finalize?: boolean; endConsultation?: boolean },
+): Promise<OpdPrescriptionSession> {
+  const visitKey = visitId.trim();
+  if (!visitKey) {
+    throw new Error('Visit id is required for OPD');
+  }
+
+  const path = options?.endConsultation
+    ? `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription/end`
+    : `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription`;
+
+  const response = await apiClient<OpdVisitPrescriptionResponse>(path, {
+    method: options?.endConsultation ? 'POST' : 'PUT',
+    body: JSON.stringify({
+      form_data: sanitizeCreateRxFormDataForPersist(formData),
+      finalize: options?.finalize ?? false,
+    }),
+  });
+  return visitPrescriptionResponseToSession(response);
+}
+
 /** Visit summary for legacy status helpers (OPD visits list is deprecated for queues). */
 export interface OpdVisitSummary {
   visit_id: string;
@@ -118,15 +168,14 @@ export async function fetchPrescriptionStatusesByVisitIds(
   return map;
 }
 
-async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPrescriptionSession | null> {
-  const tenantId = requireTenantId();
+export async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPrescriptionSession | null> {
   const visitKey = visitId.trim();
   if (!visitKey) return null;
   try {
-    const response = await apiClient<OpdPrescriptionSingleResponse>(
-      `${PRESCRIPTIONS_PREFIX}/by-visit/${encodeURIComponent(visitKey)}?${tenantQueryParam(tenantId)}`,
+    const response = await apiClient<OpdVisitPrescriptionResponse>(
+      `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription`,
     );
-    return prescriptionDetailToSession(response.data);
+    return visitPrescriptionResponseToSession(response);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return null;
@@ -274,8 +323,7 @@ export async function saveOpdPrescriptionDraft(
     throw new Error('Visit id is required for OPD');
   }
 
-  const draft = await ensureDraftPrescription(visitKey, patientKey);
-  return updatePrescriptionClinical(draft.prescription_id, formData);
+  return upsertVisitPrescriptionFormData(visitKey, formData);
 }
 
 /**
@@ -342,9 +390,7 @@ async function endOpdPrescription(
     throw new Error('Visit id is required for OPD');
   }
 
-  const draft = await ensureDraftPrescription(visitKey, patientKey);
-  await updatePrescriptionClinical(draft.prescription_id, formData);
-  return finalizePrescriptionRecord(draft.prescription_id);
+  return upsertVisitPrescriptionFormData(visitKey, formData, { endConsultation: true });
 }
 
 /** @deprecated Use {@link endConsultation}. */

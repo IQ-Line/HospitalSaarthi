@@ -18,5 +18,12 @@ export const doctorModuleManifest: ModuleManifest = {
       route: '/patients',
       catalogModuleSlug: 'opd',
     },
+    {
+      id: 'doctor-historical-records',
+      label: 'Historical Records',
+      icon: 'history',
+      route: '/historical-records',
+      catalogModuleSlug: 'opd',
+    },
   ],
 };

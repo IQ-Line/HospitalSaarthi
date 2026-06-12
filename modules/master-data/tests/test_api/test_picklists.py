@@ -133,6 +133,23 @@ def test_list_picklist_values_pagination(
     assert len(page.json()["data"]) == 1
 
 
+def test_list_picklist_values_by_slug(
+    picklist_client: TestClient,
+    picklist_sqlite_session: Session,
+) -> None:
+    picklist_id, _ = _seed_picklist_with_values(picklist_sqlite_session)
+
+    values = picklist_client.get("/api/v1/master-data/picklists/gender/values")
+    assert values.status_code == 200
+    payload = values.json()
+    assert payload["total"] == 2
+    assert {row["value"] for row in payload["data"]} == {"male", "female"}
+    assert payload["data"][0]["category_id"] == str(picklist_id)
+
+
 def test_list_picklist_values_unknown_picklist(picklist_client: TestClient) -> None:
     response = picklist_client.get(f"/api/v1/master-data/picklists/{uuid4()}/values")
     assert response.status_code == 404
+
+    response_slug = picklist_client.get("/api/v1/master-data/picklists/unknown-slug/values")
+    assert response_slug.status_code == 404

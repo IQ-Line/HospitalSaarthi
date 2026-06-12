@@ -1,3 +1,5 @@
+import type { OpdEncounterOverlay } from './api/opd-encounter-overlay';
+
 export type OpdVisitStatus =
   | 'registered'
   | 'pre-consulted'
@@ -74,4 +76,5 @@ export interface OpdPatientsListResponse {
   items: OpdPatientVisitRow[];
   total: number;
   stats: OpdPatientsStats;
+  encounterOverlaysByVisitId?: Record<string, OpdEncounterOverlay>;
 }

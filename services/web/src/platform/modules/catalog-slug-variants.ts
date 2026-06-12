@@ -1,8 +1,8 @@
 /**
  * Manifest slugs use kebab-case; Master Data catalog may use underscores (e.g. visitpad_templates).
  */
-export function catalogSlugVariants(slug: string): string[] {
-  const normalized = slug.trim();
+export function catalogSlugVariants(slug: string | null | undefined): string[] {
+  const normalized = slug?.trim() ?? '';
   if (!normalized) {
     return [];
   }
@@ -17,7 +17,7 @@ export function catalogSlugVariants(slug: string): string[] {
   return [...variants];
 }
 
-export function addCatalogSlugToSet(target: Set<string>, slug: string): void {
+export function addCatalogSlugToSet(target: Set<string>, slug: string | null | undefined): void {
   for (const variant of catalogSlugVariants(slug)) {
     target.add(variant);
   }

@@ -744,21 +744,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-  /picklists/{picklistId}/values:
+  /picklists/{picklistKey}/values:
     get:
       operationId: listPicklistValues
       summary: List values for a picklist domain
-      description: Returns active values for the picklist (`category_id` = picklist id), ordered by `display_order` then `label`.
+      description: >-
+        Returns active values for the picklist (`category_id` = picklist id), ordered by
+        `display_order` then `label`. `picklistKey` may be the picklist UUID or its slug
+        (e.g. `role-types`).
       security: []
       tags:
         - Picklists
       parameters:
-        - name: picklistId
+        - name: picklistKey
           in: path
           required: true
           schema:
             type: string
-            format: uuid
+            minLength: 1
+          description: Picklist domain UUID or slug (e.g. `role-types`).
         - name: limit
           in: query
           required: false

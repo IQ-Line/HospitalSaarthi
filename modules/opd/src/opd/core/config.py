@@ -58,6 +58,28 @@ class Settings(BaseSettings):
         default="http://localhost:3004",
         description="record-foundation-svc origin (no trailing path).",
     )
+    pdf_platform_url: str = Field(
+        default="http://localhost:8091",
+        description="pdf-platform worker origin (no trailing path).",
+        validation_alias="PDF_PLATFORM_URL",
+    )
+    pdf_platform_api_key: str = Field(
+        default="",
+        description="Optional bearer token for pdf-platform.",
+        validation_alias="PDF_PLATFORM_API_KEY",
+    )
+    pdf_platform_timeout_seconds: int = Field(
+        default=125,
+        description="HTTP timeout for pdf-platform render requests.",
+    )
+    master_data_url: str = Field(
+        default="http://localhost:8010",
+        description="master-data-svc origin for visitpad catalog lookups.",
+    )
+    master_data_timeout_seconds: int = Field(
+        default=15,
+        description="HTTP timeout for master-data catalog requests.",
+    )
 
 
 class AzureBlobSettings(BaseSettings):

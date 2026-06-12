@@ -1,11 +1,15 @@
 import type { OpdVisitSummary } from '@/features/create-rx/api/opd-prescription';
+import type { OpdPrescriptionStatus } from '@/features/create-rx/api/opd-prescription-types';
 import type { OpdPatientVisitRow, OpdVisitStatus } from '../types';
 
+/** Queue action: Edit RX only when a draft exists or nurse pre-consult is done. */
 export function opdVisitStatusToActionLabel(
   status: OpdVisitStatus,
+  prescriptionStatus?: OpdPrescriptionStatus | null,
 ): OpdPatientVisitRow['actionLabel'] {
   if (status === 'completed') return 'View RX';
-  if (status === 'in-progress') return 'Edit RX';
+  if (status === 'pre-consulted') return 'Edit RX';
+  if (prescriptionStatus === 'draft') return 'Edit RX';
   return 'Create Rx';
 }
 
@@ -25,6 +29,7 @@ export function mapOpdVisitSummariesByPatientId(
 export function applyOpdVisitSummaryOverlay(
   row: OpdPatientVisitRow,
   summary: OpdVisitSummary | undefined,
+  prescriptionStatus?: OpdPrescriptionStatus | null,
 ): OpdPatientVisitRow {
   if (!summary) return row;
   const status: OpdVisitStatus =
@@ -36,6 +41,6 @@ export function applyOpdVisitSummaryOverlay(
   return {
     ...row,
     status,
-    actionLabel: opdVisitStatusToActionLabel(status),
+    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus),
   };
 }

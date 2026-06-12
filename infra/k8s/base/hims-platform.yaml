@@ -32,7 +32,7 @@ data:
   RECORD_FOUNDATION_BASE_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
   # Public origin for NHA callbacks (/api/v3) and M3 dataPushUrl — match AUTH_BASE_URL host
   INTEGRATION_HUB_PUBLIC_BASE_URL: "https://hims.example.com"
-  # registration-svc OPD slip/receipt PDFs (internal pdf-worker; not exposed via Ingress)
+  # registration-svc OPD slip/receipt PDFs; opd-svc clinical reports (internal pdf-worker; not via Ingress)
   PDF_PLATFORM_URL: "http://pdf-worker.himsv2.svc.cluster.local:8091"
   # Public web origin for report assets (logo) inlined before PDF render — match AUTH_BASE_URL host
   REPORT_WEB_ORIGIN: "https://hims.example.com"
@@ -475,6 +475,8 @@ spec:
           env:
             - name: PHARMACY_SVC_PORT
               value: "3004"
+            - name: PHARMACY_SKIP_MIGRATE
+              value: "true"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

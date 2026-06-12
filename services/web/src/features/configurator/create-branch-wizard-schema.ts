@@ -4,15 +4,28 @@ import { createTenantStep2Schema, createTenantStep3Schema } from './create-tenan
 /** Applied on create; not collected in the branch wizard UI. */
 export const DEFAULT_BRANCH_TYPE = 'satellite' as const;
 
+const optionalBranchCode = z
+  .string()
+  .trim()
+  .refine(
+    (value) => value === '' || (value.length >= 2 && value.length <= 10 && /^[A-Za-z0-9_-]+$/.test(value)),
+    'Code must be 2–10 characters: letters, digits, hyphens, and underscores only',
+  );
+
+const optionalBranchSlug = z
+  .string()
+  .trim()
+  .refine((value) => value === '' || value.length >= 3, 'Slug must be at least 3 characters')
+  .refine(
+    (value) => value === '' || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value),
+    'Use lowercase letters, digits, and hyphens only',
+  );
+
 export const createBranchStep1Schema = z
   .object({
     branchName: z.string().min(1, 'Branch name is required'),
-    branchCode: z
-      .string()
-      .trim()
-      .min(2, 'Code must be at least 2 characters')
-      .max(10, 'Code must be at most 10 characters')
-      .regex(/^[A-Za-z0-9-]+$/, 'Use letters, digits, and hyphens only'),
+    branchCode: optionalBranchCode,
+    branchSlug: optionalBranchSlug,
     gstin: z.string().optional(),
     pan: z.string().optional(),
     hqAddressLine1: z.string().min(1, 'Address is required'),
@@ -51,6 +64,7 @@ export type BranchWizardFormValues = z.infer<typeof createBranchStep1Schema> &
 export const BRANCH_WIZARD_DEFAULT_VALUES: BranchWizardFormValues = {
   branchName: '',
   branchCode: '',
+  branchSlug: '',
   gstin: '',
   pan: '',
   hqAddressLine1: '',
