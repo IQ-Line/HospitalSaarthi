@@ -24,7 +24,7 @@ export interface WizardStepBranchDetailsProps {
   register: UseFormRegister<BranchWizardFormValues>;
   control: Control<BranchWizardFormValues>;
   errors: FieldErrors<BranchWizardFormValues>;
-  tenantSlugPreview: string;
+  suggestedSlug: string;
   parentTenantName: string;
 }
 
@@ -32,7 +32,7 @@ export function WizardStepBranchDetails({
   register,
   control,
   errors,
-  tenantSlugPreview,
+  suggestedSlug,
   parentTenantName,
 }: WizardStepBranchDetailsProps) {
   return (
@@ -58,9 +58,7 @@ export function WizardStepBranchDetails({
           </FieldContent>
         </Field>
         <Field>
-          <FieldLabel htmlFor="br-wiz-code">
-            Branch code <span className="text-destructive">*</span>
-          </FieldLabel>
+          <FieldLabel htmlFor="br-wiz-code">Branch code (optional)</FieldLabel>
           <FieldContent>
             <Input
               id="br-wiz-code"
@@ -68,20 +66,24 @@ export function WizardStepBranchDetails({
               placeholder="MUM-01"
               {...register('branchCode')}
             />
-            <FieldDescription>Uppercase alphanumeric + hyphen, 2–10 characters.</FieldDescription>
+            <FieldDescription>Uppercase letters, digits, hyphens, and underscores; 2–10 characters.</FieldDescription>
             <FieldError errors={errors.branchCode ? [errors.branchCode] : undefined} />
           </FieldContent>
         </Field>
         <Field>
-          <FieldLabel htmlFor="br-wiz-slug-preview">Slug (auto)</FieldLabel>
+          <FieldLabel htmlFor="br-wiz-slug">Tenant slug (optional)</FieldLabel>
           <FieldContent>
             <Input
-              id="br-wiz-slug-preview"
+              id="br-wiz-slug"
               className="h-9 font-mono text-sm"
-              readOnly
-              disabled
-              value={tenantSlugPreview}
+              placeholder={suggestedSlug || 'e.g., org-slug-branch-name'}
+              {...register('branchSlug')}
             />
+            <FieldDescription>
+              Leave blank to auto-generate from branch name
+              {suggestedSlug ? ` (suggested: ${suggestedSlug})` : ''}.
+            </FieldDescription>
+            <FieldError errors={errors.branchSlug ? [errors.branchSlug] : undefined} />
           </FieldContent>
         </Field>
         <Field className="md:col-span-2">
