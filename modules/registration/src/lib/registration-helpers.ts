@@ -142,6 +142,11 @@ function trimString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export function abhaAddressFromIntake(intake: Record<string, unknown>): string | null {
+  const value = trimString(intake.abha_address);
+  return value || null;
+}
+
 /** Year of birth from intake `year_of_birth` or `date_of_birth` (desk form / ABHA profile). */
 export function yearOfBirthFromIntake(patient: Record<string, unknown>): number | null {
   const explicit = patient.year_of_birth;

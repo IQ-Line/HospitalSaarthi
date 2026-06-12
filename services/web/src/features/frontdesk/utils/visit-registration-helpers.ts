@@ -579,10 +579,29 @@ export function mapVisitRegistrationToExistingPatientIntakeBody(
   data: CreateVisitRequestBody,
   patientId: string,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient_id: patientId,
     ...mapVisitEncounterFields(data.appointment),
   };
+
+  const p = data.patient;
+  const patientOverlay: Record<string, unknown> = {};
+  const abhaAddr = p.abha_address?.trim();
+  if (abhaAddr) patientOverlay.abha_address = abhaAddr;
+  const abhaNum = p.abha_number?.trim();
+  if (abhaNum) patientOverlay.abha_number = abhaNum;
+  const dob = p.date_of_birth?.trim();
+  if (dob) {
+    patientOverlay.date_of_birth = dob;
+    const y = new Date(dob).getFullYear();
+    if (!Number.isNaN(y) && y > 1900) patientOverlay.year_of_birth = y;
+  }
+
+  if (Object.keys(patientOverlay).length > 0) {
+    body.patient = patientOverlay;
+  }
+
+  return body;
 }
 
 export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['permanent_address'] {

@@ -137,6 +137,7 @@ export const createPatientBodySchema = {
     emergency_contact_relationship: { type: "string" },
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
+    abha_address: { type: "string" },
     registered_by: uuidParam,
     created_by: uuidParam,
     force_create: { type: "boolean" },

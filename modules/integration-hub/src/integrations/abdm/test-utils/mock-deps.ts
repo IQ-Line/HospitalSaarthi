@@ -64,6 +64,7 @@ export function buildMockAbdmDeps(
       overrides.registration ??
       ({
         findM2PatientProfile: async () => null,
+        findPatientIdByAbhaAddress: async () => null,
       } as AbdmAdapterDeps["registration"]),
     recordFoundation:
       overrides.recordFoundation ??

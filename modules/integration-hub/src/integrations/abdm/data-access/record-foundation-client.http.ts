@@ -84,13 +84,23 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
         care_context_id: string;
         bundle_json: Record<string, unknown>;
         bundle_kind?: string;
+        produced_at?: string;
       }>;
     };
-    return (json.data ?? []).map((b) => ({
-      careContextReference: input.careContextId,
-      contentJson: JSON.stringify(b.bundle_json),
-      media: "application/fhir+json",
-    }));
+    const rows = json.data ?? [];
+    if (rows.length === 0) return [];
+    const latest = [...rows].sort(
+      (a, b) =>
+        new Date(b.produced_at ?? 0).getTime() -
+        new Date(a.produced_at ?? 0).getTime(),
+    )[0]!;
+    return [
+      {
+        careContextReference: input.careContextId,
+        contentJson: JSON.stringify(latest.bundle_json),
+        media: "application/fhir+json",
+      },
+    ];
   }
 }
 

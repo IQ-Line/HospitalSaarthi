@@ -184,6 +184,10 @@ export interface RegistrationClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<M2PatientProfile | null>;
+  findPatientIdByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null>;
 }
 
 export interface HealthRecordBundleEntry {

@@ -1,5 +1,5 @@
 import type { HipDataPushRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
-import type { AbdmAdapterDeps } from "../../../ports.js";
+import type { AbdmAdapterDeps, HealthRecordBundleEntry } from "../../../ports.js";
 import type { ParsedHiRequest } from "../../../lib/parse-hi-request-body.js";
 import type { AbdmSession } from "../../../domain/session.js";
 import { assertFlowKind } from "../../../domain/session.js";
@@ -10,6 +10,66 @@ import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { isValidFideliusPublicKeyB64 } from "../../../lib/fidelius-public-key.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
+
+async function collectRecordFoundationBundles(
+  deps: AbdmAdapterDeps,
+  input: {
+    iqTenantId: string;
+    careContextReferences: string[];
+    patientId: string;
+    consentId: string;
+    patientAbhaAddress?: string | null;
+  },
+): Promise<HealthRecordBundleEntry[]> {
+  const triedRefs = new Set<string>();
+  const bundleEntries: HealthRecordBundleEntry[] = [];
+
+  const appendForRef = async (ref: string) => {
+    const key = ref.trim();
+    if (!key || triedRefs.has(key)) return;
+    triedRefs.add(key);
+    const bundles = await deps.recordFoundation.listBundles({
+      iqTenantId: input.iqTenantId,
+      careContextId: key,
+    });
+    bundleEntries.push(...bundles);
+  };
+
+  for (const ref of input.careContextReferences) {
+    await appendForRef(ref);
+  }
+
+  if (
+    bundleEntries.length === 0 &&
+    process.env["ABDM_M2_MOCK_PLATFORM"] !== "true"
+  ) {
+    let rfPatientId = input.patientId;
+    const abha = input.patientAbhaAddress?.trim();
+    if (abha) {
+      const empiMatch = await deps.empi.findPatientByAbhaAddress({
+        iqTenantId: input.iqTenantId,
+        abhaAddress: abha,
+      });
+      if (empiMatch?.patientId) rfPatientId = empiMatch.patientId;
+    }
+
+    const contexts = await deps.recordFoundation.listCareContexts({
+      iqTenantId: input.iqTenantId,
+      patientId: rfPatientId,
+    });
+    abdmWarn("abdm.m3.hip_push.rf_patient_context_fallback", {
+      consentId: input.consentId,
+      consentRefs: input.careContextReferences,
+      rfPatientId,
+      rfContextRefs: contexts.map((c) => c.referenceNumber),
+    });
+    for (const ctx of contexts) {
+      await appendForRef(ctx.referenceNumber);
+    }
+  }
+
+  return bundleEntries;
+}
 
 export async function pushHealthInformationForSession(
   input: {
@@ -39,14 +99,13 @@ export async function pushHealthInformationForSession(
     );
   }
 
-  const bundleEntries = [];
-  for (const ref of careContextReferences) {
-    const bundles = await deps.recordFoundation.listBundles({
-      iqTenantId: input.iqTenantId,
-      careContextId: ref,
-    });
-    bundleEntries.push(...bundles);
-  }
+  const bundleEntries = await collectRecordFoundationBundles(deps, {
+    iqTenantId: input.iqTenantId,
+    careContextReferences,
+    patientId: input.patientId,
+    consentId: input.parsed.consentId,
+    patientAbhaAddress: m3Artefact?.patientAbhaAddress ?? null,
+  });
 
   if (bundleEntries.length === 0) {
     throw new Error(

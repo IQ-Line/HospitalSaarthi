@@ -80,10 +80,48 @@ export class HttpRegistrationClient implements RegistrationClient {
       return null;
     }
   }
+
+  async findPatientIdByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null> {
+    if (!this.baseUrl) return null;
+    const abhaAddress = input.abhaAddress.trim();
+    if (!abhaAddress) return null;
+    const base = this.baseUrl.replace(/\/+$/, "");
+    const url = `${base}${REGISTRATION_API_PREFIX}/internal/patients/resolve-by-abha?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`;
+    try {
+      const res = await fetchWithTimeout(url, {
+        method: "GET",
+        headers: registrationInternalHeaders(input.iqTenantId),
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        abdmWarn("abdm.registration.resolve_by_abha_failed", {
+          status: res.status,
+          abhaAddress,
+        });
+        return null;
+      }
+      const json = (await res.json()) as { patientId?: string };
+      const patientId = json.patientId?.trim();
+      return patientId || null;
+    } catch (e) {
+      abdmWarn("abdm.registration.resolve_by_abha_error", {
+        abhaAddress,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  }
 }
 
 export class NoOpRegistrationClient implements RegistrationClient {
   async findM2PatientProfile(): Promise<null> {
+    return null;
+  }
+
+  async findPatientIdByAbhaAddress(): Promise<null> {
     return null;
   }
 }

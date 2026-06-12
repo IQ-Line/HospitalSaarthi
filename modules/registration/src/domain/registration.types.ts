@@ -54,6 +54,8 @@ export interface NewPatientIntakeInput {
 
 export interface ExistingPatientVisitInput {
   patient_id: string;
+  /** Desk-captured ABHA / DOB overlay when re-visiting an existing EMPI patient. */
+  patient?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;

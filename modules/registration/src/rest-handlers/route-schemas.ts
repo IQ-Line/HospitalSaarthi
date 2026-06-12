@@ -139,12 +139,24 @@ export const visitTypeDecisionBodySchema = {
   },
 } as const;
 
+const existingPatientDemographicsOverlay = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+  },
+} as const;
+
 export const existingPatientVisitBodySchema = {
   type: "object" as const,
   required: ["patient_id"],
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
+    patient: existingPatientDemographicsOverlay,
     ...visitEncounterFields,
   },
 } as const;

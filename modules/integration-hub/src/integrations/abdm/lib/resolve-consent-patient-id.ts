@@ -1,6 +1,6 @@
 import { AbdmUseCaseError } from "./m1-errors.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
-import type { EmpiClient } from "../ports.js";
+import type { EmpiClient, RegistrationClient } from "../ports.js";
 
 const DEFAULT_MOCK_PATIENT_ID = "00000000-0000-4000-8000-000000000001";
 
@@ -9,6 +9,7 @@ export async function resolveConsentPatientId(input: {
   iqTenantId: string;
   abhaAddress: string;
   empi: EmpiClient;
+  registration?: RegistrationClient;
 }): Promise<string> {
   const empiPatient = await input.empi.findPatientByAbhaAddress({
     iqTenantId: input.iqTenantId,
@@ -16,6 +17,18 @@ export async function resolveConsentPatientId(input: {
   });
   if (empiPatient?.patientId) {
     return empiPatient.patientId;
+  }
+
+  const registrationPatientId = await input.registration?.findPatientIdByAbhaAddress({
+    iqTenantId: input.iqTenantId,
+    abhaAddress: input.abhaAddress,
+  });
+  if (registrationPatientId) {
+    abdmWarn("abdm.m2.consent.registration_patient_fallback", {
+      abhaAddress: input.abhaAddress,
+      patientId: registrationPatientId,
+    });
+    return registrationPatientId;
   }
   if (process.env["ABDM_M2_MOCK_PLATFORM"] === "true") {
     const mockId =

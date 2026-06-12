@@ -25,9 +25,26 @@ export interface OrchestrateM2AfterCareContextsResult {
 }
 
 const PUBLISH_DELAY_MS = 2000;
+const LINK_WAIT_MS = 15_000;
+const LINK_POLL_MS = 500;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForHipLinkLinked(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  sessionId: string,
+): Promise<boolean> {
+  const deadline = Date.now() + LINK_WAIT_MS;
+  while (Date.now() < deadline) {
+    const session = await deps.sessions.findById({ iqTenantId, sessionId });
+    if (session?.state === "LINKED") return true;
+    if (session?.state === "FAILED") return false;
+    await delay(LINK_POLL_MS);
+  }
+  return false;
 }
 
 function groupByHiType(
@@ -115,6 +132,24 @@ export async function orchestrateM2AfterCareContexts(
         message,
       });
     }
+  }
+
+  if (result.hipLinkSessions.length === 0) {
+    return result;
+  }
+
+  const linkedFlags = await Promise.all(
+    result.hipLinkSessions.map((sessionId) =>
+      waitForHipLinkLinked(deps, input.iqTenantId, sessionId),
+    ),
+  );
+  if (!linkedFlags.some(Boolean)) {
+    abdmWarn("abdm.m2.orchestrate.add_contexts_skipped_not_linked", {
+      iqTenantId: input.iqTenantId,
+      patientId: input.patientId,
+      hipLinkSessions: result.hipLinkSessions,
+    });
+    return result;
   }
 
   let publishIndex = 0;

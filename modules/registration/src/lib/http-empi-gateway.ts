@@ -169,6 +169,45 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     return { ok: false, kind: "error", status: res.status, body: text };
   }
 
+  async linkAbhaAddress(
+    tenantId: string,
+    patientId: string,
+    abhaAddress: string,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<{ ok: true } | { ok: false; reason: "conflict" | "error"; status: number }> {
+    const value = abhaAddress.trim();
+    if (!value) return { ok: true };
+
+    const url = joinUrl(
+      this.empiServiceOrigin,
+      `/api/empi/v1/patients/${encodeURIComponent(patientId)}/identifiers`,
+    );
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...this.tenantHeaders(tenantId, bearerToken),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier_type: "abha_address",
+          identifier_value: value,
+          issuing_system: "abdm",
+          created_by: actorId,
+        }),
+      });
+    } catch {
+      return { ok: false, reason: "error", status: 503 };
+    }
+
+    if (res.status === 201 || res.status === 200) return { ok: true };
+    if (res.status === 409) return { ok: false, reason: "conflict", status: 409 };
+    return { ok: false, reason: "error", status: res.status };
+  }
+
   private tenantHeaders(tenantId: string, bearerToken?: string): Record<string, string> {
     const h: Record<string, string> = { iq_tenant_id: tenantId };
     if (bearerToken) {
