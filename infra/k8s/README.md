@@ -64,6 +64,8 @@ Browser → BFF → registration-svc → pdf-worker → gotenberg
 
 `PDF_PLATFORM_URL` is **not** exposed via Ingress. `registration-svc` and `opd-svc` call pdf-worker inside the cluster.
 
+**OPD database migrations** — `opd-svc` runs `alembic upgrade heads` on pod startup (branched Alembic history; do not use `upgrade head`). Set `OPD_SKIP_MIGRATE=true` on the Deployment only if you run migrations out-of-band. After deploying health-documents or other OPD schema changes, restart `opd-svc` so pending revisions apply before traffic hits new handlers.
+
 **Dev (`dev.v2.hospitalsaarthi.com`)** — update in `hims-config`:
 
 ```yaml

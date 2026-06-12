@@ -40,14 +40,14 @@
       "cache": true
     },
     "migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "uv run python -m opd.core.migrations",
       "options": {
         "cwd": "modules/opd"
       },
       "dependsOn": ["setup"]
     },
     "db-migrate": {
-      "command": "uv run alembic upgrade heads",
+      "command": "uv run python -m opd.core.migrations",
       "options": {
         "cwd": "modules/opd"
       },
