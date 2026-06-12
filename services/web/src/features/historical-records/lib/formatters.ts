@@ -43,6 +43,11 @@ export function defaultDateRange(): { startDate: string; endDate: string } {
   };
 }
 
+/** Patient detail tabs (Documents / Reports) — show full history by default. */
+export function historicalPatientTabDateRange(): { startDate: string; endDate: string } {
+  return { startDate: '', endDate: '' };
+}
+
 export function isWithinDateRange(iso: string, startDate: string, endDate: string): boolean {
   if (!startDate && !endDate) return true;
   const date = new Date(iso);

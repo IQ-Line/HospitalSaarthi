@@ -59,6 +59,8 @@ export type HistoricalReportHiType =
   | 'Diagnostic Report Record'
   | 'Immunization Record';
 
+export type HistoricalClinicalReportType = 'op-consultation' | 'prescription' | 'immunization';
+
 export interface HistoricalReportItem {
   id: string;
   title: string;
@@ -70,6 +72,11 @@ export interface HistoricalReportItem {
   prescriptionId?: string;
   visitId?: string;
   documentId?: string;
+  /** Opens OPD HTML/PDF clinical report when set (prescription-sourced cards). */
+  clinicalReportType?: HistoricalClinicalReportType;
+  downloadUrl?: string;
+  fileName?: string;
+  fileType?: string;
 }
 
 export interface HistoricalDocumentItem {

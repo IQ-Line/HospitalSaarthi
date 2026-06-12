@@ -41,13 +41,14 @@ export function HistoricalRecordDetailPage({
     staleTime: HISTORICAL_RECORDS_STALE_MS,
   });
 
-  const isLoading = empiLoading || profileLoading;
   const patient = empiDetail?.patient;
   const age = patient ? empiPatientAgeYears(patient) : 0;
   const genderLabel = patient?.gender ?? 'unknown';
   const headerTitle = patient
     ? `${patient.first_name || patient.full_name} (${genderLabel}, ${age}) - UHID:${patient.uhid}`
-    : 'Patient Record';
+    : empiLoading
+      ? 'Loading patient…'
+      : 'Patient Record';
 
   return (
     <div className="min-h-full bg-[#F5F5F5] px-2 pb-6 pt-4 md:px-4">
@@ -84,17 +85,17 @@ export function HistoricalRecordDetailPage({
         </nav>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <Loader2 className="size-8 animate-spin text-gray-400" />
-        </div>
-      ) : (
-        <>
-          {activeTab === 'profile' && profile ? <PatientProfileTab profile={profile} /> : null}
-          {activeTab === 'documents' ? <HistoricalDocumentsTab patientId={patientId} /> : null}
-          {activeTab === 'reports' ? <HistoricalReportsTab patientId={patientId} /> : null}
-        </>
-      )}
+      {activeTab === 'profile' ? (
+        profileLoading ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="size-8 animate-spin text-gray-400" />
+          </div>
+        ) : profile ? (
+          <PatientProfileTab profile={profile} />
+        ) : null
+      ) : null}
+      {activeTab === 'documents' ? <HistoricalDocumentsTab patientId={patientId} /> : null}
+      {activeTab === 'reports' ? <HistoricalReportsTab patientId={patientId} /> : null}
     </div>
   );
 }
