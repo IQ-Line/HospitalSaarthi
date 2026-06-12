@@ -7,7 +7,7 @@ import { refreshAccessToken } from '@/lib/auth-session';
 import type { UmUser } from '@/features/user-management/types';
 import { useAuthStore } from '@/stores/auth.store';
 import { configuratorKeys } from './query-keys';
-import type { ConfiguratorTenant, CreateConfiguratorTenantInput } from '../types';
+import type { ConfiguratorBranchType, ConfiguratorTenant, CreateConfiguratorTenantInput } from '../types';
 
 const BASE = '/api/configurator/v1/tenants';
 
@@ -98,6 +98,17 @@ export function useCreateTenant() {
 }
 
 export interface UpdateConfiguratorTenantInput {
+  name?: string;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  address_line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pin_code?: string | null;
+  timezone?: string;
+  locale?: string;
+  metadata?: Record<string, unknown> | null;
+  branch_type?: ConfiguratorBranchType | null;
   free_follow_up_days?: number;
   free_follow_up_visits?: number;
 }
@@ -112,6 +123,7 @@ export function useUpdateTenant(tenantId: string) {
       }),
     onSuccess: (row) => {
       qc.setQueryData(configuratorKeys.tenantDetail(tenantId), row);
+      qc.invalidateQueries({ queryKey: configuratorKeys.all });
     },
   });
 }
