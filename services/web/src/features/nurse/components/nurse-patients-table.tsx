@@ -4,6 +4,7 @@ import { HeartPulse } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { Skeleton } from '@pulse/ui/skeleton';
 import type { ClinicalReportType } from '@/features/opd-patients/api/clinical-documents';
+import type { OpdEncounterOverlay } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { PatientReportsDropdown } from '@/features/opd-patients/components/patient-reports-dropdown';
 import {
   formatGenderAge,
@@ -16,6 +17,7 @@ import { NurseVitalsInlineForm } from './nurse-vitals-inline-form';
 
 interface NursePatientsTableProps {
   rows: NursePatientVisitRow[];
+  encounterOverlaysByVisitId?: Record<string, OpdEncounterOverlay>;
   isLoading: boolean;
   total: number;
   page: number;
@@ -30,6 +32,7 @@ function stopRowClick(e: MouseEvent) {
 
 export function NursePatientsTable({
   rows,
+  encounterOverlaysByVisitId,
   isLoading,
   total,
   page,
@@ -145,6 +148,8 @@ export function NursePatientsTable({
                   <td className="px-3 py-3">
                     {row.status === 'completed' && onOpenReport ? (
                       <PatientReportsDropdown
+                        visitId={row.id}
+                        encounterOverlaysByVisitId={encounterOverlaysByVisitId}
                         onClick={stopRowClick}
                         onSelectReport={(reportType) => onOpenReport(row, reportType)}
                       />

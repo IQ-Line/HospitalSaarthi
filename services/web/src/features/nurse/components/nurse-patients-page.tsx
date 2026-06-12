@@ -97,6 +97,7 @@ export function NursePatientsPage() {
       <div className="overflow-hidden rounded-lg bg-white shadow-md">
         <NursePatientsTable
           rows={data?.items ?? []}
+          encounterOverlaysByVisitId={data?.encounterOverlaysByVisitId}
           isLoading={isLoading}
           total={data?.total ?? 0}
           page={page}

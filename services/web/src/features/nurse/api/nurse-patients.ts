@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
 import { mapRegistrationVisitToOpdPatientRow } from '@/features/opd-patients/api/registration-patients-mapper';
 import { matchesAgeGroup } from '@/features/opd-patients/lib/opd-patients-list-utils';
@@ -119,5 +119,6 @@ export async function fetchNursePatientsList(
     items,
     total,
     stats: computeNursePatientsStats(items),
+    encounterOverlaysByVisitId: encounterOverlaysToRecord(encounterByVisitId),
   };
 }

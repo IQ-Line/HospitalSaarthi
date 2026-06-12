@@ -18,7 +18,15 @@ describe('fetchOpdEncounterOverlaysByVisitIds', () => {
   it('fetches overlays in a single batch request', async () => {
     vi.mocked(apiClient).mockResolvedValue({
       data: {
-        'visit-a': { status: 'draft', visit_status: 'pre_consulted' },
+        'visit-a': {
+          status: 'draft',
+          visit_status: 'pre_consulted',
+          reports: {
+            prescription: { available: false, reason: 'No prescription data available for this visit' },
+            'op-consultation': { available: true },
+            immunization: { available: false, reason: 'No immunization records available for this visit' },
+          },
+        },
         'visit-b': { status: 'final', visit_status: 'completed' },
       },
     });
@@ -36,10 +44,16 @@ describe('fetchOpdEncounterOverlaysByVisitIds', () => {
     expect(result.get('visit-a')).toEqual({
       prescriptionStatus: 'draft',
       visitStatus: 'pre_consulted',
+      reportAvailability: {
+        prescription: { available: false, reason: 'No prescription data available for this visit' },
+        'op-consultation': { available: true },
+        immunization: { available: false, reason: 'No immunization records available for this visit' },
+      },
     });
     expect(result.get('visit-b')).toEqual({
       prescriptionStatus: 'final',
       visitStatus: 'completed',
+      reportAvailability: undefined,
     });
   });
 

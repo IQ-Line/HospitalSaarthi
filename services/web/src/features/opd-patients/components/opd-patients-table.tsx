@@ -4,6 +4,7 @@ import { useMemo, type MouseEvent } from 'react';
 import { Button } from '@pulse/ui/button';
 import { DataTable } from '@/components/data-table';
 import type { ClinicalReportType } from '../api/clinical-documents';
+import type { OpdEncounterOverlay } from '../api/opd-encounter-overlay';
 import { PatientReportsDropdown } from './patient-reports-dropdown';
 import {
   formatOpdVisitCreated,
@@ -15,6 +16,7 @@ import type { OpdPatientVisitRow } from '../types';
 
 interface OpdPatientsTableProps {
   rows: OpdPatientVisitRow[];
+  encounterOverlaysByVisitId?: Record<string, OpdEncounterOverlay>;
   isLoading: boolean;
   total: number;
   page: number;
@@ -30,6 +32,7 @@ function stopRowClick(e: MouseEvent) {
 
 export function OpdPatientsTable({
   rows,
+  encounterOverlaysByVisitId,
   isLoading,
   total,
   page,
@@ -127,6 +130,8 @@ export function OpdPatientsTable({
         cell: ({ row }) =>
           row.original.status === 'completed' && onOpenReport ? (
             <PatientReportsDropdown
+              visitId={row.original.id}
+              encounterOverlaysByVisitId={encounterOverlaysByVisitId}
               onClick={stopRowClick}
               onSelectReport={(reportType) => onOpenReport(row.original, reportType)}
             />
@@ -135,7 +140,7 @@ export function OpdPatientsTable({
           ),
       },
     ],
-    [onPatientRowClick, onOpenReport],
+    [encounterOverlaysByVisitId, onPatientRowClick, onOpenReport],
   );
 
   return (

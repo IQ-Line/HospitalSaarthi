@@ -5,22 +5,78 @@ import { resolveOpdConsultationTenantId } from '../lib/opd-consultation-tenant';
 const OPD_PREFIX = '/api/v1/opd';
 const PRESCRIPTIONS_PREFIX = `${OPD_PREFIX}/prescriptions`;
 
+export type ClinicalReportType = 'op-consultation' | 'prescription' | 'immunization';
+
+export interface ClinicalReportAvailabilityItem {
+  available: boolean;
+  reason?: string;
+}
+
+export type ClinicalReportAvailability = Record<
+  ClinicalReportType,
+  ClinicalReportAvailabilityItem
+>;
+
 export interface OpdEncounterOverlay {
   prescriptionStatus: OpdPrescriptionStatus;
   visitStatus: string;
+  reportAvailability?: ClinicalReportAvailability;
+}
+
+interface ClinicalReportAvailabilityDto {
+  available: boolean;
+  reason?: string | null;
 }
 
 interface PrescriptionEncounterOverlayDto {
   status: OpdPrescriptionStatus;
   visit_status: string;
+  reports?: Partial<Record<string, ClinicalReportAvailabilityDto>> | null;
 }
 
 interface PrescriptionEncounterOverlayBatchResponse {
   data: Record<string, PrescriptionEncounterOverlayDto>;
 }
 
+const REPORT_TYPES: ClinicalReportType[] = [
+  'op-consultation',
+  'prescription',
+  'immunization',
+];
+
 function tenantQueryParam(tenantId: string): string {
   return `tenant_id=${encodeURIComponent(tenantId)}`;
+}
+
+function mapReportAvailability(
+  reports?: Partial<Record<string, ClinicalReportAvailabilityDto>> | null,
+): ClinicalReportAvailability | undefined {
+  if (!reports) return undefined;
+
+  const mapped = {} as ClinicalReportAvailability;
+  for (const reportType of REPORT_TYPES) {
+    const item = reports[reportType];
+    if (!item) continue;
+    mapped[reportType] = {
+      available: item.available,
+      ...(item.reason?.trim() ? { reason: item.reason.trim() } : {}),
+    };
+  }
+  return mapped;
+}
+
+export function unavailableClinicalReportAvailability(
+  reason = 'Prescription not found for this visit',
+): ClinicalReportAvailability {
+  return Object.fromEntries(
+    REPORT_TYPES.map((reportType) => [reportType, { available: false, reason }]),
+  ) as ClinicalReportAvailability;
+}
+
+export function encounterOverlaysToRecord(
+  overlays: ReadonlyMap<string, OpdEncounterOverlay>,
+): Record<string, OpdEncounterOverlay> {
+  return Object.fromEntries(overlays);
 }
 
 /**
@@ -46,6 +102,7 @@ export async function fetchOpdEncounterOverlaysByVisitIds(
     map.set(visitId, {
       prescriptionStatus: row.status,
       visitStatus: row.visit_status?.trim() || 'registered',
+      reportAvailability: mapReportAvailability(row.reports),
     });
   }
   return map;
