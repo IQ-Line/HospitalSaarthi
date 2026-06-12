@@ -366,4 +366,151 @@ Branch `feat/py-sdk-fhir-bundle-builders`, PR into `dev`:
 - Updated `__init__.py`, `README.md`, `pyproject.toml` (test deps already present;
   no runtime deps added).
 - All tests green; `ruff` clean.
+
+## 12. Builder API contract (addendum — Wave B + Wave C code against this)
+
+**ID ownership.** The **composer** (Layer 2) generates every resource's `id` up front
+via the injected `uuid_factory` and passes it into the builder as `resource_id`. Cross
+references are emitted as `{"reference": f"{ResourceType}/{resource_id}"}`. `build_document_bundle`
+later assigns `urn:uuid:<id>` fullUrls and rewrites those `Type/id` references to the
+matching `urn:uuid:` — so ids must be stable and references must use the same ids.
+Builders never call `uuid_factory` themselves, **except** `build_vital_observations`
+(variable fan-out), which takes a `uuid_factory` and sets its own ids.
+
+**Output.** Every builder returns a plain `dict` (typed as its `types.py` TypedDict),
+already run through `compact()`, with `meta.profile = [resource_profile("<Type>")]` and
+`id = resource_id`. Encounter etc. emit the literal `"class"` JSON key.
+
+**Layer-1 builder signatures** (all keyword-only after the input; `from __future__ import annotations`):
+
+```
+# builders/patient.py
+build_patient(inp: PatientInput, *, resource_id: str) -> Patient
+    # identifiers: MRN (v2-0203 MR, system MRN_SYSTEM_URI) when mrn; ABHA number
+    # (system ABHA_NUMBER_SYSTEM_URI) when abha_number; ABHA address
+    # (ABHA_ADDRESS_SYSTEM_URI) when abha_address. name=[{text: full_name}].
+    # gender, birthDate via safe_birth_date, telecom phone (home) when phone.
+
+# builders/practitioner.py
+build_practitioner(inp: PractitionerInput, *, resource_id: str) -> Practitioner
+    # identifier MD (v2-0203) system https://doctor.ndhm.gov.in when registration_id.
+
+# builders/organization.py
+build_organization(inp: OrganizationInput, *, resource_id: str) -> Organization
+    # identifier PRN (v2-0203), system = identifier_system or https://facility.ndhm.gov.in,
+    # value = facility_id; telecom phone/email (work) when present.
+
+# builders/encounter.py
+build_encounter(inp: EncounterInput, *, resource_id: str, subject: FhirReference, now: str) -> Encounter
+    # identifier [{system "https://ndhm.in", value: visit_number or resource_id}];
+    # status=inp.status; class={system v3-ActCode, code class_code, display per code
+    # (AMB->ambulatory)}; period.start = inp.start or now.
+
+# builders/condition.py
+build_condition(*, resource_id: str, text: str, subject: FhirReference,
+                certainty: str | None = None, category_problem_list: bool = False,
+                recorded_date: str | None = None) -> Condition
+    # clinicalStatus active; verificationStatus from certainty (confirmed->confirmed,
+    # else provisional) when certainty given; category problem-list-item when flag set.
+
+# builders/observation.py
+build_observation(*, resource_id: str, code_text: str, subject: FhirReference, effective: str,
+                  value_quantity: tuple[float, str | None, str | None] | None = None,  # (value, unit, ucum)
+                  value_string: str | None = None,
+                  category_vital_signs: bool = False,
+                  components: list[dict] | None = None) -> Observation
+    # status final; exactly one of value_quantity / value_string / components.
+
+# builders/vitals.py
+build_vital_observations(*, legacy: LegacyVitalsInput | None, vitals: Sequence[VitalSignInput],
+                         subject: FhirReference, now: str, uuid_factory: UuidFactory) -> list[Observation]
+    # Versioned `vitals` first (value numeric->valueQuantity, else valueString).
+    # Then legacy fields -> UCUM-coded Observations, mirroring bundleVitalsObservations.js:
+    #   BP -> one Observation "Blood Pressure" with two components (systolic/diastolic, mm[Hg]);
+    #   pulse /min; temperature [degF]; respiratory rate /min; spo2 %; height cm; weight kg;
+    #   bmi kg/m2; blood sugar mg/dL. Each carries category vital-signs + an id from uuid_factory.
+
+# builders/medication_request.py
+build_medication_request(inp: MedicineInput, *, resource_id: str, subject: FhirReference,
+                         requester: FhirReference, authored_on: str,
+                         reason_reference: FhirReference | None = None) -> MedicationRequest
+    # status active, intent order; medicationCodeableConcept.text = "name (form) (strength)"
+    # (omit empty parens); dosageInstruction[0].text built from dosage/frequency/duration/
+    # route/method/sos (mirror bundle.js); timing.repeat from frequency/duration_days;
+    # dispenseRequest.quantity when quantity.
+
+# builders/medication_statement.py
+build_medication_statement(*, resource_id: str, text: str, subject: FhirReference,
+                           effective: str | None = None) -> MedicationStatement
+    # status active; medicationCodeableConcept.text = text.
+
+# builders/allergy_intolerance.py
+build_allergy_intolerance(inp: AllergyInput | None, *, resource_id: str, patient: FhirReference,
+                          recorder: FhirReference | None = None, recorded_date: str) -> AllergyIntolerance
+    # inp None -> "No known allergies" resource. clinicalStatus active, verificationStatus
+    # confirmed; code.text = inp.text; note from reaction/severity.
+
+# builders/immunization.py
+build_immunization(inp: ImmunizationInput, *, resource_id: str, patient: FhirReference, now: str,
+                   manufacturer: FhirReference | None = None,
+                   performer: FhirReference | None = None) -> Immunization
+    # status completed; vaccineCode.text = vaccine_name; occurrenceDateTime = date or now
+    # (use occurrenceString fallback only if date unparseable); lotNumber; protocolApplied
+    # [{doseNumberPositiveInt: dose_number}] when dose_number; manufacturer/performer refs.
+    # (ImmunizationRecommendation for next_due_date is built by the composer, not here.)
+
+# builders/document_reference.py
+build_document_reference(inp: DocumentInput, *, resource_id: str, subject: FhirReference) -> DocumentReference
+    # status current, docStatus final; type.text = title; content[0].attachment =
+    # {contentType: content_type or application/octet-stream, language en-IN,
+    #  data: data_base64 (omit if None), title, creation: created or now-handled-by-composer}.
+
+# builders/composition.py  (mirror ts buildComposition)
+build_composition(*, profile: str,  # NRCES_PROFILES key
+                  type: FhirCodeableConcept, subject: FhirReference, author: list[FhirReference],
+                  date: str, title: str, sections: list[CompositionSection],
+                  encounter: FhirReference | None = None, identifier: FhirIdentifier | None = None,
+                  status: str = "final", custodian: FhirReference | None = None) -> Composition
+    # meta.profile = [f"{canonical_url}|{version}"]; generated narrative from title.
+
+# builders/document_bundle.py  (mirror ts buildDocumentBundle)
+build_document_bundle(*, composition: Composition, entries: list[FhirResource],
+                      uuid_factory: UuidFactory = default_uuid_factory,
+                      clock: Clock = default_clock,
+                      identifier: FhirIdentifier | None = None,
+                      timestamp: str | None = None,
+                      meta: FhirMeta | None = None) -> Bundle
+    # type "document"; first entry = composition; assign urn:uuid: fullUrls + matching ids;
+    # build ref map; rewrite_references_in_place over all entries. identifier defaults to
+    # {system "http://hip.in", value: f"urn:uuid:{uuid}"}. When meta given, set bundle["meta"]
+    # (composer passes DocumentBundle profile + CONFIDENTIALITY_SECURITY). Mirrors ts exactly
+    # for the default (meta=None) call.
+```
+
+**Composer (Layer-2) responsibilities** (one per `hi_types/*.py`):
+1. `now = to_fhir_datetime(clock())`. Generate ids via `uuid_factory()`.
+2. Build Patient, Practitioner (+ Organization if given). Build Encounter.
+3. Build the HI-Type's clinical resources + section entry lists (omit empty sections).
+4. `comp = build_composition(profile=<key>, type=<SNOMED codeable concept>, subject=patient_ref,
+   encounter=encounter_ref, author=[practitioner_ref], date=now, title=<title>, sections=...,
+   custodian=org_ref if org)`.
+5. `bundle = build_document_bundle(composition=comp, entries=[encounter, patient, practitioner, ...],
+   uuid_factory=uuid_factory, clock=clock, meta={"profile": [f"{DOCUMENT_BUNDLE_PROFILE}|{DOCUMENT_BUNDLE_PROFILE_VERSION}"], "security": [CONFIDENTIALITY_SECURITY]})`.
+6. Attach `bundle["signature"]` (FhirSignature, who=practitioner_ref) when `signature_base64`.
+7. For Prescription `pdf_base64`: add a `Binary` resource ({resourceType, id, contentType
+   application/pdf, data}) to entries and a section/Binary reference. Return the bundle dict.
+
+**Composer signatures** (keyword-only injectables with stdlib defaults so tests pass deterministic ones):
+```
+build_op_consult_bundle(inp: OpConsultInput, *, uuid_factory=default_uuid_factory, clock=default_clock) -> Bundle
+build_prescription_bundle(inp: PrescriptionInput, *, uuid_factory=default_uuid_factory, clock=default_clock) -> Bundle
+build_immunization_bundle(inp: ImmunizationBundleInput, *, uuid_factory=default_uuid_factory, clock=default_clock) -> Bundle
+build_health_document_bundle(inp: HealthDocumentInput, *, uuid_factory=default_uuid_factory, clock=default_clock) -> Bundle
+```
+
+**SNOMED composition `type` per HI-Type** (system `http://snomed.info/sct`):
+OP Consult `371530004`/"Clinical consultation report"; Prescription `440545006`/"Prescription record";
+Immunization `41000179103`/"Immunization record"; Health Document `419891008`/"Record artifact".
+Titles: "Consultation Report", "Prescription record", "Immunization record", and the document's
+`title` (fallback "Health Document") respectively.
 ```
