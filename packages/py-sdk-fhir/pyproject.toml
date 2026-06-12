@@ -1,7 +1,7 @@
 [project]
 name = "hims_sdk_fhir"
 version = "0.1.0"
-description = "Python mirror of @hims/ts-sdk-fhir — FHIR R4 + NRCeS profile primitives. Implementation pending until first Python service touches FHIR."
+description = "Python mirror of @hims/ts-sdk-fhir — FHIR R4 + NRCeS profile primitives and HI-Type Document Bundle composers (OP Consultation, Prescription, Immunization, Health Document)."
 requires-python = ">=3.12"
 dependencies = []
 

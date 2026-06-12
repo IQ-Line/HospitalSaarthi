@@ -24,6 +24,12 @@ from .builders import (
     build_practitioner,
     build_vital_observations,
 )
+from .hi_types import (
+    build_health_document_bundle,
+    build_immunization_bundle,
+    build_op_consult_bundle,
+    build_prescription_bundle,
+)
 from .identifiers import (
     ABHA_ADDRESS_SYSTEM_URI,
     ABHA_NUMBER_SYSTEM_URI,
@@ -71,8 +77,6 @@ from .profile_registry import (
     NrcesProfile,
     resource_profile,
 )
-
-# Later waves add the Layer-2 HI-Type composers: from .hi_types import ...
 
 __all__ = [
     # identifiers
@@ -133,6 +137,11 @@ __all__ = [
     "build_document_reference",
     "build_composition",
     "build_document_bundle",
+    # Layer-2 HI-Type composers
+    "build_op_consult_bundle",
+    "build_prescription_bundle",
+    "build_immunization_bundle",
+    "build_health_document_bundle",
 ]
 
 __version__ = "0.1.0"
