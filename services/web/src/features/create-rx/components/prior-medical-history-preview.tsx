@@ -113,7 +113,7 @@ function VitalComparisonTable({ records }: { records: PriorVisitMedicalRecord[] 
 }
 
 function RxTable({ medicines }: { medicines: PriorVisitMedicalRecord['medicines'] }) {
-  const rows = medicines.filter((m) => m.medicine.trim());
+  const rows = medicines.filter((m) => m.medicine?.trim());
 
   return (
     <div className="mt-3">

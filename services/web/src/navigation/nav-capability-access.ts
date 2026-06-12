@@ -33,9 +33,12 @@ export function buildPrincipalCapabilityModuleSegments(
 /**
  * Match SPA route path segment to Master Data `modules.slug` (handles pluralization and hyphens).
  */
-export function catalogSlugMatchesRouteSegment(catalogSlug: string, routeSegment: string): boolean {
-  const slug = catalogSlug.trim().toLowerCase();
-  const seg = routeSegment.trim().toLowerCase();
+export function catalogSlugMatchesRouteSegment(
+  catalogSlug: string | null | undefined,
+  routeSegment: string | null | undefined,
+): boolean {
+  const slug = catalogSlug?.trim().toLowerCase() ?? '';
+  const seg = routeSegment?.trim().toLowerCase() ?? '';
   if (!slug || !seg) {
     return false;
   }

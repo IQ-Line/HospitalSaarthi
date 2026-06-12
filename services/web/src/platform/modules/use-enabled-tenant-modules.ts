@@ -63,7 +63,10 @@ export function catalogSlugsFromTenantModules(
       continue;
     }
 
-    const moduleId = row.module_id.trim();
+    const moduleId = row.module_id?.trim();
+    if (!moduleId) {
+      continue;
+    }
     const entry =
       index.byId.get(moduleId) ??
       index.byId.get(moduleId.toLowerCase()) ??
