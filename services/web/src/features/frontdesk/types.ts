@@ -55,9 +55,9 @@ export interface VisitRegistrationRisBlock {
 export interface VisitRegistrationBillingFeeLine {
   unit_price: number;
   tax_percent: number;
-  /** Line discount percentage (0–100). Syncs discount (₹) when edited in the UI. */
+  /** Line discount percentage (0–100); only user-editable discount field. */
   discount_percent: number;
-  /** Line discount amount in rupees. */
+  /** Line discount in rupees — derived from `discount_percent` × unit price. */
   discount: number;
   /** Tariff `service_code` for `POST /charges` (`item_code`). */
   item_code?: string;

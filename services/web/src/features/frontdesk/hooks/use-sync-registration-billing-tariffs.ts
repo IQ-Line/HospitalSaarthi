@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import type { UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import { roundBillingAmount } from '@/features/frontdesk/utils/visit-registration-helpers';
 
 type FeeLine = {
   unit_price: number;
@@ -20,9 +21,7 @@ export function useSyncRegistrationBillingTariffs(
   hasProvider: boolean,
   waiveConsultationFee = false,
 ) {
-  const currentRegDiscount = watch('billing.registration_fee.discount') ?? 0;
   const currentRegDiscountPct = watch('billing.registration_fee.discount_percent') ?? 0;
-  const currentConsultDiscount = watch('billing.consultation_fee.discount') ?? 0;
   const currentConsultDiscountPct = watch('billing.consultation_fee.discount_percent') ?? 0;
 
   useEffect(() => {
@@ -31,12 +30,15 @@ export function useSyncRegistrationBillingTariffs(
       'billing.registration_fee',
       {
         ...registrationFeeLine,
-        discount: currentRegDiscount,
         discount_percent: currentRegDiscountPct,
+        discount:
+          currentRegDiscountPct > 0
+            ? roundBillingAmount(registrationFeeLine.unit_price * currentRegDiscountPct / 100)
+            : 0,
       },
       { shouldDirty: true },
     );
-  }, [registrationFeeLine, currentRegDiscount, currentRegDiscountPct, setValue]);
+  }, [registrationFeeLine, currentRegDiscountPct, setValue]);
 
   useEffect(() => {
     if (!hasProvider || waiveConsultationFee) {
@@ -59,10 +61,13 @@ export function useSyncRegistrationBillingTariffs(
       'billing.consultation_fee',
       {
         ...consultationFeeLine,
-        discount: currentConsultDiscount,
         discount_percent: currentConsultDiscountPct,
+        discount:
+          currentConsultDiscountPct > 0
+            ? roundBillingAmount(consultationFeeLine.unit_price * currentConsultDiscountPct / 100)
+            : 0,
       },
       { shouldDirty: true },
     );
-  }, [consultationFeeLine, hasProvider, waiveConsultationFee, currentConsultDiscount, currentConsultDiscountPct, setValue]);
+  }, [consultationFeeLine, hasProvider, waiveConsultationFee, currentConsultDiscountPct, setValue]);
 }
