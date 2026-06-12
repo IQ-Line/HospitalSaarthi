@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import type { FastifyReply } from "fastify";
+import { describe, expect, it, vi } from "vitest";
 import {
   DuplicateUserRoleTemplateError,
   InvalidRoleSeedError,
@@ -10,7 +11,10 @@ import {
   UserNotFoundError,
   ValidationError,
 } from "../domain/errors.js";
-import { resolveUserManagementHttpError } from "./map-user-management-error.js";
+import {
+  replyWithUserManagementError,
+  resolveUserManagementHttpError,
+} from "./map-user-management-error.js";
 
 describe("resolveUserManagementHttpError", () => {
   const cid = "corr-1";
@@ -98,5 +102,78 @@ describe("resolveUserManagementHttpError", () => {
     expect(r.status).toBe(500);
     expect(r.body.code).toBe("FUTURE_ERROR_CODE");
     expect(r.body.message).toBe("future");
+  });
+});
+
+describe("replyWithUserManagementError", () => {
+  const cid = "corr-2";
+
+  function makeReply() {
+    const error = vi.fn();
+    const reply = {
+      log: { error },
+      status: vi.fn(function status(this: unknown) {
+        return reply;
+      }),
+      send: vi.fn(function send(this: unknown) {
+        return reply;
+      }),
+    };
+    return { reply: reply as unknown as FastifyReply, error, status: reply.status, send: reply.send };
+  }
+
+  it("sends the resolved status + masked body to the client", () => {
+    const { reply, status, send } = makeReply();
+    replyWithUserManagementError(reply, new Error("boom"), cid);
+    expect(status).toHaveBeenCalledWith(500);
+    expect(send).toHaveBeenCalledWith({
+      code: "INTERNAL_ERROR",
+      message: "An unexpected error occurred.",
+      correlation_id: cid,
+    });
+  });
+
+  it("logs the ORIGINAL error (with masked flag) for unmapped 500s", () => {
+    const { reply, error } = makeReply();
+    const original = new Error("driver exploded");
+    replyWithUserManagementError(reply, original, cid);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]?.[0]).toMatchObject({
+      err: original,
+      correlation_id: cid,
+      status: 500,
+      code: "INTERNAL_ERROR",
+      masked: true,
+    });
+    expect(error.mock.calls[0]?.[1]).toBe("user-management request failed");
+  });
+
+  it("logs mapped 5xx domain errors but marks them not-masked", () => {
+    const { reply, error } = makeReply();
+    replyWithUserManagementError(reply, new UnexpectedPersistenceError(), cid);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]?.[0]).toMatchObject({
+      status: 500,
+      code: "UNEXPECTED_PERSISTENCE",
+      masked: false,
+    });
+  });
+
+  it("does NOT log expected 4xx client errors", () => {
+    const { reply, error } = makeReply();
+    replyWithUserManagementError(reply, new UserNotFoundError("u1"), cid);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it("never throws when no logger is attached to the reply", () => {
+    const reply = {
+      status: vi.fn(function status(this: unknown) {
+        return reply;
+      }),
+      send: vi.fn(function send(this: unknown) {
+        return reply;
+      }),
+    } as unknown as FastifyReply;
+    expect(() => replyWithUserManagementError(reply, new Error("boom"), cid)).not.toThrow();
   });
 });

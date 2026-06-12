@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { betterAuth, type Auth } from "better-auth";
+import { betterAuth, type Auth, type BetterAuthOptions } from "better-auth";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { bearer, jwt } from "better-auth/plugins";
+import type { FastifyBaseLogger } from "fastify";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
   loadIdentityJwtClaims,
@@ -79,12 +80,40 @@ export async function repairJwksForDevelopment(
  * better-auth: sessions, bearer, refresh lifecycle, RS256 JWT + JWKS.
  * JWT carries HLD-04 identity claims only; authorization comes from PrincipalService + Cerbos (never from JWT beyond roles/org/dept).
  */
+/**
+ * Routes Better Auth's internal logger into the service pino logger so its errors
+ * become structured/correlated lines instead of plain `[Better Auth]` stderr text
+ * (which is easy to lose when grepping JSON logs). Omit `logger` to keep the
+ * library default (e.g. in tests).
+ */
+function betterAuthLoggerOption(
+  logger: FastifyBaseLogger | undefined,
+): Pick<BetterAuthOptions, "logger"> {
+  if (logger === undefined) {
+    return {};
+  }
+  return {
+    logger: {
+      // Param types are inferred from BetterAuthOptions["logger"]["log"].
+      log: (level, message, ...args) => {
+        const meta = { source: "better-auth", ...(args.length > 0 ? { args } : {}) };
+        if (level === "error") logger.error(meta, message);
+        else if (level === "warn") logger.warn(meta, message);
+        else if (level === "debug") logger.debug(meta, message);
+        else logger.info(meta, message);
+      },
+    },
+  };
+}
+
 export function createHimsBetterAuth(
   db: DbInstance,
   env: HimsBetterAuthEnv,
   claimsDeps: IdentityJwtClaimsDeps,
+  logger?: FastifyBaseLogger,
 ) {
   return betterAuth({
+    ...betterAuthLoggerOption(logger),
     baseURL: env.authBaseUrl,
     basePath: "/api/auth",
     secret: env.secret,
