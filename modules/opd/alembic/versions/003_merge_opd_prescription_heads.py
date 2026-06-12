@@ -5,6 +5,10 @@ Revises: 002_health_documents, 0003_prescription_form_data
 
 Unifies the normalized prescription schema branch (``001`` → ``002_health_documents``)
 with the incremental column branch (``001`` → ``0002_rx_doctor_vitals`` → ``0003``).
+
+Always run ``alembic upgrade heads`` (plural). ``upgrade head`` (singular) can apply
+only one branch and leave ``opd.health_documents`` missing on databases that followed
+the ``0003`` line first.
 """
 
 from __future__ import annotations

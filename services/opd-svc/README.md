@@ -22,8 +22,11 @@ From the repo root (Postgres on `localhost:5433` per root `.env`):
 ```bash
 cd services/opd-svc
 uv sync --reinstall-package hims-opd
-npx nx run opd-svc:serve   # runs opd:db-migrate first
+npx nx run opd-svc:serve   # runs opd:db-migrate first (alembic upgrade heads)
 ```
+
+On deploy, ``opd-svc`` runs pending migrations at startup unless ``OPD_SKIP_MIGRATE=true``.
+The OPD Alembic chain has branched revisions — always use ``heads`` (plural), not ``head``.
 
 `hims-opd` is an **editable** path dependency — handler changes under `modules/opd/` are used at runtime.
 
