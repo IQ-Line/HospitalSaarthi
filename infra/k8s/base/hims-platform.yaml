@@ -475,6 +475,8 @@ spec:
           env:
             - name: PHARMACY_SVC_PORT
               value: "3004"
+            - name: PHARMACY_SKIP_MIGRATE
+              value: "true"
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
