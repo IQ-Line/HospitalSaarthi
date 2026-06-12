@@ -509,7 +509,7 @@ export function CreateTenantWizard({
       })),
       admin: {
         first_name: values.adminFirstName.trim(),
-        last_name: values.adminLastName.trim(),
+        last_name: values.adminLastName?.trim() || null,
         email: values.adminEmail.trim(),
         password: values.password,
         phone: values.adminMobile?.trim() || null,
