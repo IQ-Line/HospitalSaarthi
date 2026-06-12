@@ -51,6 +51,7 @@ import {
   firstZodMessage,
   setModuleSubtreeSelection,
 } from './wizard-helpers';
+import { mutationErrorMessage } from '@/lib/mutation-error';
 
 const STEPS = [
   { step: 1 as const, label: 'Organisation' },
@@ -451,9 +452,7 @@ export function CreateTenantWizard({
         const logo = await uploadOrganizationBrandingLogo(organisationSlug, organisationLogoFile);
         organisationLogoMetadata = { logo };
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Failed to upload organisation logo';
-        toast.error(message);
+        toast.error(mutationErrorMessage(error));
         return;
       }
     }
@@ -464,8 +463,7 @@ export function CreateTenantWizard({
         const logo = await uploadTenantBrandingLogo(tenantSlug, tenantLogoFile);
         tenantLogoMetadata = { logo };
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to upload tenant logo';
-        toast.error(message);
+        toast.error(mutationErrorMessage(error));
         return;
       }
     }
