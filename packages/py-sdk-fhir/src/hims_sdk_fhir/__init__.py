@@ -8,6 +8,22 @@ reference rewriting, canonical JSON, compaction). Resource builders and
 HI-Type composers are added by later waves.
 """
 
+from .builders import (
+    build_allergy_intolerance,
+    build_composition,
+    build_condition,
+    build_document_bundle,
+    build_document_reference,
+    build_encounter,
+    build_immunization,
+    build_medication_request,
+    build_medication_statement,
+    build_observation,
+    build_organization,
+    build_patient,
+    build_practitioner,
+    build_vital_observations,
+)
 from .identifiers import (
     ABHA_ADDRESS_SYSTEM_URI,
     ABHA_NUMBER_SYSTEM_URI,
@@ -56,7 +72,7 @@ from .profile_registry import (
     resource_profile,
 )
 
-# Later waves add: from .builders import ...; from .hi_types import ...
+# Later waves add the Layer-2 HI-Type composers: from .hi_types import ...
 
 __all__ = [
     # identifiers
@@ -102,6 +118,21 @@ __all__ = [
     "rewrite_references_in_place",
     "generated_narrative",
     "escape_xml",
+    # Layer-1 resource builders
+    "build_patient",
+    "build_practitioner",
+    "build_organization",
+    "build_encounter",
+    "build_condition",
+    "build_observation",
+    "build_vital_observations",
+    "build_medication_request",
+    "build_medication_statement",
+    "build_allergy_intolerance",
+    "build_immunization",
+    "build_document_reference",
+    "build_composition",
+    "build_document_bundle",
 ]
 
 __version__ = "0.1.0"
