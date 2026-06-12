@@ -18,7 +18,7 @@ export function buildCatalogIndex(modules: readonly Module[]): ModuleCatalogInde
   const bySlug = new Map<string, ModuleCatalogEntry>();
 
   for (const module of modules) {
-    if (!module.is_active || module.is_deleted) {
+    if (!module.is_active || module.is_deleted || !module.slug?.trim()) {
       continue;
     }
     const entry: ModuleCatalogEntry = {

@@ -8,6 +8,12 @@ describe('catalogSlugVariants', () => {
     );
   });
 
+  it('returns an empty list for blank or missing slugs', () => {
+    expect(catalogSlugVariants(undefined)).toEqual([]);
+    expect(catalogSlugVariants(null)).toEqual([]);
+    expect(catalogSlugVariants('   ')).toEqual([]);
+  });
+
   it('adds all variants to a set', () => {
     const slugs = new Set<string>();
     addCatalogSlugToSet(slugs, 'visitpad-templates');
