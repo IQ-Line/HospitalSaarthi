@@ -42,3 +42,31 @@ export function findDistrictCodeByName(
   );
   return district ? String(district.code) : undefined;
 }
+
+/**
+ * Resolve LGD catalog district code for a state from NHA fields.
+ * Prefers name (reliable vs LGD) then validates numeric code against the catalog.
+ */
+export function resolveCatalogDistrictCode(
+  stateCode: string,
+  districtCode?: string,
+  districtName?: string,
+): string | undefined {
+  const code = stateCode.trim();
+  if (!code) return undefined;
+
+  const districts = listDistrictsForStateCode(code);
+  if (districts.length === 0) return undefined;
+
+  const byName = districtName?.trim()
+    ? findDistrictCodeByName(code, districtName)
+    : undefined;
+  if (byName) return byName;
+
+  const raw = districtCode?.trim();
+  if (!raw) return undefined;
+  const normalized = String(Number(raw));
+  if (normalized === 'NaN') return undefined;
+  const byCode = districts.find((row) => String(row.code) === normalized);
+  return byCode ? String(byCode.code) : undefined;
+}
