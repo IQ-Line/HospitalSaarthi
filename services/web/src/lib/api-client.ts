@@ -123,7 +123,8 @@ function buildRequestHeaders(
   const tenantId = resolveEffectiveTenantId(context);
   const headers = new Headers(options.headers);
   // FormData uploads must omit Content-Type so the browser sets multipart boundary.
-  if (!(options.body instanceof FormData)) {
+  // Bodyless writes must omit Content-Type — Fastify 5 rejects empty JSON bodies.
+  if (options.body != null && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 

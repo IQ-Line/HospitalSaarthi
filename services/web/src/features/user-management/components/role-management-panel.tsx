@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { Capability, UmRole } from '../types';
 import {
   useCreateRole,
-  useDeleteRole,
   useUpdateRole,
 } from '../api/mutations';
 import { userManagementKeys } from '../api/keys';
@@ -19,7 +17,6 @@ import { useAnyCapability, useCapability } from '@/hooks/use-capability';
 import {
   UM_CAPABILITY_READ,
   UM_ROLE_CREATE,
-  UM_ROLE_DELETE,
   UM_ROLE_READ,
   UM_ROLE_UPDATE,
   UM_ROLES_ADMIN_ANY,
@@ -246,13 +243,11 @@ export function RoleManagementPanel() {
   const umRoleRead = useCapability(UM_ROLE_READ);
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
-  const umRoleDelete = useAnyCapability([UM_ROLE_DELETE, UM_ROLE_UPDATE]);
   const umCapabilityRead = useCapability(UM_CAPABILITY_READ);
   const umRolesAdmin = useAnyCapability(UM_ROLES_ADMIN_ANY);
   const { data: roles } = useRolesSuspense();
   const [state, dispatch] = useReducer(roleManagementReducer, initialState);
   const [editorMode, setEditorMode] = useState<RoleEditorMode>(null);
-  const [deleteRoleDialogOpen, setDeleteRoleDialogOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
@@ -260,7 +255,6 @@ export function RoleManagementPanel() {
   const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole();
-  const deleteRole = useDeleteRole();
   const selectedRole = roles.find((role) => role.id === state.selectedRoleId) ?? null;
   const isViewMode = editorMode === 'view';
   const isEditMode = editorMode === 'edit';
@@ -445,24 +439,6 @@ export function RoleManagementPanel() {
     });
   }
 
-  const handleDeleteRole = () => {
-    if (!selectedRole) return;
-
-    const nextRoleId = roles.find((role) => role.id !== selectedRole.id)?.id ?? '';
-
-    deleteRole.mutate(selectedRole.id, {
-      onSuccess: () => {
-        toast.success(`Role "${selectedRole.display_name}" deleted`);
-        setDeleteRoleDialogOpen(false);
-        setEditorMode(null);
-        dispatch({ type: 'selectRole', roleId: nextRoleId });
-      },
-      onError: (error) => {
-        toast.error(mutationErrorMessage(error));
-      },
-    });
-  };
-
   const handleResetEditor = () => {
     if (isCreateMode) {
       resetCreateEditorState();
@@ -552,7 +528,6 @@ export function RoleManagementPanel() {
           isDirty={editorDirty}
           savePending={savePending}
           saveDisabled={!canSaveDialog}
-          deletePending={deleteRole.isPending}
           assignedCapabilitiesPending={
             editorMode === 'edit' || editorMode === 'view' ? roleCapabilitiesQuery.isPending : false
           }
@@ -622,23 +597,8 @@ export function RoleManagementPanel() {
           onToggleCapability={handleToggleCapability}
           onReset={handleResetEditor}
           onSave={() => void handleSaveEditor()}
-          onDelete={() => setDeleteRoleDialogOpen(true)}
         />
       ) : null}
-
-      <ConfirmDialog
-        open={deleteRoleDialogOpen}
-        onOpenChange={setDeleteRoleDialogOpen}
-        title="Delete role?"
-        description={
-          selectedRole
-            ? `"${selectedRole.display_name}" will be removed. People who already had this role keep the access they were given.`
-            : 'This role will be removed.'
-        }
-        confirmLabel={deleteRole.isPending ? 'Deleting...' : 'Delete role'}
-        destructive
-        onConfirm={handleDeleteRole}
-      />
     </>
   );
 }
