@@ -124,9 +124,9 @@ export function mapAbhaProfileAddressPrefill(profile: NhaAbhaProfile): AbhaAddre
   const pincode = pickProfileString(flat, 'pinCode', 'pincode').replace(/\D/g, '').slice(0, 6);
 
   let state = pickProfileString(flat, 'stateCode', 'state_code');
-  const stateName = pickProfileString(flat, 'stateName');
+  const stateName = pickProfileString(flat, 'stateName', 'state');
   const districtCode = pickProfileString(flat, 'districtCode', 'district_code');
-  const districtName = pickProfileString(flat, 'districtName');
+  const districtName = pickProfileString(flat, 'districtName', 'district');
 
   if (!state && stateName) {
     state = findStateCodeByName(stateName) ?? '';
