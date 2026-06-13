@@ -13,6 +13,7 @@ interface ConsultationStatusModalProps {
   onContinue: () => void;
   onEndConsultation: () => void;
   ending?: boolean;
+  canMutate?: boolean;
 }
 
 export function ConsultationStatusModal({
@@ -21,6 +22,7 @@ export function ConsultationStatusModal({
   onContinue,
   onEndConsultation,
   ending = false,
+  canMutate = true,
 }: ConsultationStatusModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -38,23 +40,27 @@ export function ConsultationStatusModal({
           will generate reports and navigate away from this screen.
         </div>
         <DialogFooter className="gap-2 sm:justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            className="min-w-[160px] border-gray-300"
-            onClick={onContinue}
-            disabled={ending}
-          >
-            Continue Consultation
-          </Button>
-          <Button
-            type="button"
-            className="min-w-[160px] bg-[#0d9488] text-white hover:bg-[#0f766e]"
-            onClick={onEndConsultation}
-            disabled={ending}
-          >
-            {ending ? 'Ending…' : 'End Consultation'}
-          </Button>
+          {canMutate ? (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                className="min-w-[160px] border-gray-300"
+                onClick={onContinue}
+                disabled={ending}
+              >
+                Continue Consultation
+              </Button>
+              <Button
+                type="button"
+                className="min-w-[160px] bg-[#0d9488] text-white hover:bg-[#0f766e]"
+                onClick={onEndConsultation}
+                disabled={ending}
+              >
+                {ending ? 'Ending…' : 'End Consultation'}
+              </Button>
+            </>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

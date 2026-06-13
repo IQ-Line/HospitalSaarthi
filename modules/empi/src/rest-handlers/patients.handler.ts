@@ -39,6 +39,8 @@ import {
   updatePatientBodySchema,
 } from "./patient-schemas.js";
 
+const protectedRoute = { config: { authMode: "protected" as const } };
+
 interface SearchPatientsQuerystring {
   name?: string;
   phone?: string;
@@ -64,6 +66,7 @@ export function registerPatientsHandler(
   app.post<{ Body: RegisterPatientRequestBody }>(
     "/patients",
     {
+      ...protectedRoute,
       schema: {
         body: createPatientBodySchema,
       },
@@ -96,6 +99,7 @@ export function registerPatientsHandler(
   app.get<{ Querystring: SearchPatientsQuerystring }>(
     "/patients",
     {
+      ...protectedRoute,
       schema: {
         querystring: searchPatientsQuerySchema,
       },
@@ -127,6 +131,7 @@ export function registerPatientsHandler(
   app.get<{ Querystring: { abha_address: string } }>(
     "/patients/find",
     {
+      ...protectedRoute,
       schema: {
         querystring: findPatientByAbhaQuerySchema,
       },
@@ -160,6 +165,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/find-by-demographics",
     {
+      ...protectedRoute,
       schema: {
         body: findPatientByDemographicsBodySchema,
       },
@@ -206,6 +212,7 @@ export function registerPatientsHandler(
   app.get<{ Params: { id: string } }>(
     "/patients/:id",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
       },
@@ -232,6 +239,7 @@ export function registerPatientsHandler(
   app.patch<{ Params: { id: string }; Body: UpdatePatientRequestBody }>(
     "/patients/:id",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: updatePatientBodySchema,
@@ -259,6 +267,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/status",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: changePatientStatusBodySchema,
@@ -297,6 +306,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/identifiers",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: createIdentifierBodySchema,
@@ -327,6 +337,7 @@ export function registerPatientsHandler(
   app.delete<{ Params: { id: string; identifierId: string } }>(
     "/patients/:id/identifiers/:identifierId",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientAndIdentifierSchema,
       },
@@ -349,6 +360,7 @@ export function registerPatientsHandler(
   app.post<{ Params: { id: string }; Body: CreateAddressRequestBody }>(
     "/patients/:id/addresses",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: createAddressBodySchema,
@@ -381,6 +393,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/addresses/:addressId",
     {
+      ...protectedRoute,
       schema: {
         params: paramsPatientAndAddressSchema,
         body: updateAddressBodySchema,

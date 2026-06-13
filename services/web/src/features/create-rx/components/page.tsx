@@ -32,6 +32,8 @@ import { MainTabs } from './main-tabs';
 import { PatientProfile } from './patient-profile';
 import { RightPanel } from './right-panel';
 import { VisitPad } from './visit-pad';
+import { useCapability } from '@/hooks/use-capability';
+import { OPD_PATIENT_UPDATE } from '@/lib/runtime-capability-keys';
 
 interface PageProps {
   visitId: string;
@@ -61,6 +63,7 @@ export function Page({
   const clearVisitpadFieldErrors = useCreateRxStore((s) => s.clearVisitpadFieldErrors);
   const [consultationModalOpen, setConsultationModalOpen] = useState(false);
   const [endingConsultation, setEndingConsultation] = useState(false);
+  const canUpdatePatient = useCapability(OPD_PATIENT_UPDATE);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,7 +241,7 @@ export function Page({
 
   const centerContent =
     activeMainTab === 'visitpad' ? (
-      <VisitPad onSaveClick={() => setConsultationModalOpen(true)} />
+      <VisitPad onSaveClick={() => canUpdatePatient && setConsultationModalOpen(true)} />
     ) : activeMainTab === 'documents' ? (
       <DocumentsTab />
     ) : (
@@ -273,6 +276,7 @@ export function Page({
         onContinue={() => void handleContinueConsultation()}
         onEndConsultation={() => void handleEndConsultation()}
         ending={endingConsultation}
+        canMutate={canUpdatePatient}
       />
     </div>
   );

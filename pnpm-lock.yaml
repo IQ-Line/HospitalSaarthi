@@ -101,6 +101,9 @@ importers:
 
   modules/empi:
     dependencies:
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -753,6 +756,9 @@ importers:
       '@hims/empi':
         specifier: workspace:*
         version: link:../../modules/empi
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -768,6 +774,9 @@ importers:
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       fastify:
         specifier: ^5.3.3
         version: 5.8.5

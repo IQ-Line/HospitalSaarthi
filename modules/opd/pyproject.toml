@@ -10,7 +10,8 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
-    "pyjwt",
+    "pyjwt[crypto]",
+    "httpx",
     "python-multipart",
     "sqlalchemy",
 ]

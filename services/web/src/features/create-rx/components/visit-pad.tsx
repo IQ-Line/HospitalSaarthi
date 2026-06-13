@@ -8,6 +8,8 @@ import { CurrentMedication } from './visitpad/current-medication';
 import { MedicalHistory } from './visitpad/medical-history';
 import { PhysicalActivity } from './visitpad/physical-activity';
 import { PreConsult } from './pre-consult';
+import { useCapability } from '@/hooks/use-capability';
+import { OPD_PATIENT_UPDATE } from '@/lib/runtime-capability-keys';
 
 const SECTION_TABS: { key: CreateRxSectionTab; label: string }[] = [
   { key: 'pre-consult', label: 'Pre Consult' },
@@ -29,6 +31,7 @@ interface VisitPadProps {
 }
 
 export function VisitPad({ onSaveClick }: VisitPadProps) {
+  const canUpdatePatient = useCapability(OPD_PATIENT_UPDATE);
   const activeSectionTab = useCreateRxStore((s) => s.activeSectionTab);
   const setActiveSectionTab = useCreateRxStore((s) => s.setActiveSectionTab);
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
@@ -85,7 +88,7 @@ export function VisitPad({ onSaveClick }: VisitPadProps) {
         </nav>
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-gray-50">{renderSection()}</div>
       </div>
-      {!isReadOnly ? (
+      {!isReadOnly && canUpdatePatient ? (
         <div className="flex shrink-0 justify-end border-t border-gray-200 bg-white px-4 py-3">
           <Button
             type="button"

@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
+from opd.core.authz import require_opd_patient_update
 from opd.core.deps import DbSession, TenantId
 from opd.core.principal import resolve_doctor_id
 from opd.core.schemas_api import (
@@ -129,6 +130,7 @@ def ensure_registration_encounter(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     """Create OPD visit + draft prescription for a registration.visit id (idempotent)."""
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
@@ -210,6 +212,7 @@ def upsert_visit_nurse_pre_consult(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
@@ -237,6 +240,7 @@ def upsert_visit_prescription(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
@@ -268,6 +272,7 @@ def end_visit_consultation(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     visit = _visit_for_tenant_or_ensure_registration(db, tenant_id, visit_id)
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
@@ -298,6 +303,7 @@ def upsert_patient_prescription(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
     try:
@@ -322,6 +328,7 @@ def end_patient_consultation(
     db: DbSession,
     tenant_id: TenantId,
     doctor_id: DoctorId,
+    _: None = Depends(require_opd_patient_update),
 ) -> OpdPrescriptionResponse:
     repo = PrescriptionRepository(db, tenant_id, doctor_id)
     visit, rx = repo.end_consultation(patient_id, body.form_data)
