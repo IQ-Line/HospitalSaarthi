@@ -44,6 +44,6 @@ export function mapRegistrationVisitToOpdPatientRow(
     visitCreatedAt: visit.created_at.slice(0, 10),
     status,
     isOwnPatient: true,
-    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus),
+    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus, opdVisitStatus),
   };
 }

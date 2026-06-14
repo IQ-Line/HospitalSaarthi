@@ -32,7 +32,9 @@ def effective_encounter_status(
             return "cancelled"
         if visit.status == "pre_consulted":
             return "pre_consulted"
-        if visit.status in ("in_progress", "registered"):
+        if visit.status == "registered":
+            return "registered"
+        if visit.status == "in_progress":
             return "in_progress"
         return visit.status
     if rx_status is not None:
