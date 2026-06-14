@@ -95,6 +95,7 @@ export function CreateBranchWizard({
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -313,6 +314,8 @@ export function CreateBranchWizard({
                 register={register}
                 control={control}
                 errors={errors}
+                setValue={setValue}
+                watch={watch}
                 suggestedSlug={suggestedSlug}
                 parentTenantName={parentTenantName}
               />

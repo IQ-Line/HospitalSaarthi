@@ -1,29 +1,23 @@
 import type { ComponentProps } from 'react';
-import { Controller } from 'react-hook-form';
-import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form';
+import type { Control, FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Input } from '@pulse/ui/input';
 import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from '@pulse/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
-import { INDIAN_STATE_OPTIONS, type WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
+import type { WizardFormValues } from '@/features/configurator/create-tenant-wizard-schema';
+import { ConfiguratorAddressPincodeFields } from '@/features/configurator/components/configurator-address-pincode-fields';
 import { LogoUploadField } from '@/features/configurator/components/logo-upload-field';
 
 export interface WizardStep1OrgFieldsProps {
   register: UseFormRegister<WizardFormValues>;
   control: Control<WizardFormValues>;
   errors: FieldErrors<WizardFormValues>;
+  setValue: UseFormSetValue<WizardFormValues>;
+  watch: UseFormWatch<WizardFormValues>;
   tenantSlugInputProps: ComponentProps<'input'>;
   tenantLogoFile: File | null;
   onTenantLogoFileChange: (file: File | null) => void;
@@ -33,6 +27,8 @@ export function WizardStep1OrgFields({
   register,
   control,
   errors,
+  setValue,
+  watch,
   tenantSlugInputProps,
   tenantLogoFile,
   onTenantLogoFileChange,
@@ -65,10 +61,13 @@ export function WizardStep1OrgFields({
               placeholder="e.g., city-diagnostics"
               {...tenantSlugInputProps}
             />
-            <FieldDescription>
+            <p
+              data-slot="field-description"
+              className="text-muted-foreground text-sm leading-normal font-normal"
+            >
               Fills with the first letter or digit from the tenant name; edit freely (minimum 3
               characters).
-            </FieldDescription>
+            </p>
             <FieldError errors={errors.tenantSlug ? [errors.tenantSlug] : undefined} />
           </FieldContent>
         </Field>
@@ -102,68 +101,14 @@ export function WizardStep1OrgFields({
             />
           </FieldContent>
         </Field>
-        <Field>
-          <FieldLabel htmlFor="wiz-locality">Locality</FieldLabel>
-          <FieldContent>
-            <Input id="wiz-locality" className="h-9 text-sm" placeholder="Locality" {...register('locality')} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="wiz-block">Block</FieldLabel>
-          <FieldContent>
-            <Input id="wiz-block" className="h-9 text-sm" placeholder="Block" {...register('block')} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="wiz-district">
-            District <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Input id="wiz-district" className="h-9 text-sm" placeholder="District" {...register('district')} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel id="wiz-state-label">
-            State <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Controller
-              name="state"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || undefined} onValueChange={field.onChange}>
-                  <SelectTrigger
-                    className="h-9 w-full min-w-0 text-sm"
-                    aria-labelledby="wiz-state-label"
-                  >
-                    <SelectValue placeholder="Select state" className="truncate" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATE_OPTIONS.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="wiz-pin">
-            PIN code <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Input
-              id="wiz-pin"
-              className="h-9 text-sm"
-              placeholder="123456"
-              maxLength={6}
-              {...register('pinCode')}
-            />
-          </FieldContent>
-        </Field>
+        <ConfiguratorAddressPincodeFields
+          idPrefix="wiz"
+          register={register}
+          control={control}
+          errors={errors}
+          setValue={setValue}
+          watch={watch}
+        />
 
         <LogoUploadField
           id="wiz-tenant-logo"

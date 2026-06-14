@@ -171,6 +171,24 @@ async function main() {
 
   app.get('/healthz', async () => ({ status: 'ok' }));
 
+  app.get('/api/public/postal/pincode/:pincode', async (request, reply) => {
+    const pincode = (request.params as { pincode?: string }).pincode?.trim() ?? '';
+    if (!/^\d{6}$/.test(pincode)) {
+      return reply.code(400).send({ error: 'PIN code must be 6 digits' });
+    }
+
+    try {
+      const upstream = await fetch(`https://api.postalpincode.in/pincode/${pincode}`, {
+        headers: { Accept: 'application/json' },
+      });
+      const body = await upstream.text();
+      return reply.code(upstream.status).type('application/json').send(body);
+    } catch (err) {
+      request.log.error({ err, pincode }, 'Postal pincode lookup failed');
+      return reply.code(502).send({ error: 'Postal pincode lookup failed' });
+    }
+  });
+
   await app.listen({ port: PORT, host: '0.0.0.0' });
   app.log.info(`BFF listening on http://localhost:${PORT}`);
   const opdUpstream =
