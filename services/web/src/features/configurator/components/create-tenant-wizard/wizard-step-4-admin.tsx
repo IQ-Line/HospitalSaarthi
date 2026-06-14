@@ -32,11 +32,10 @@ export function WizardStep4Admin({ register }: WizardStep4AdminProps) {
           </FieldContent>
         </Field>
         <Field>
-          <FieldLabel htmlFor="wiz-aln">
-            Admin last name <span className="text-destructive">*</span>
-          </FieldLabel>
+          <FieldLabel htmlFor="wiz-aln">Admin last name</FieldLabel>
           <FieldContent>
             <Input id="wiz-aln" className="h-9 text-sm" placeholder="Last name" {...register('adminLastName')} />
+            <FieldDescription>Optional.</FieldDescription>
           </FieldContent>
         </Field>
       </div>

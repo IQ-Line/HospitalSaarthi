@@ -38,6 +38,7 @@ import {
   filterCatalogL1Modules,
   isCatalogL1Module,
 } from '@/features/configurator/tenant-module-catalog';
+import { TenantDetailsEditPanel } from '@/features/configurator/components/tenant-details-edit-panel';
 import {
   TenantBillingPanel,
   TenantDepartmentsPanel,
@@ -59,6 +60,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empt
 
 const TENANT_DETAIL_TABS = [
   'overview',
+  'details',
   'branches',
   'users',
   'role-templates',
@@ -425,6 +427,9 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="overview" className="shrink-0 text-xs sm:text-sm">
               Overview
             </TabsTrigger>
+            <TabsTrigger value="details" className="shrink-0 text-xs sm:text-sm">
+              Details
+            </TabsTrigger>
             <TabsTrigger value="branches" className="shrink-0 text-xs sm:text-sm">
               Branches
             </TabsTrigger>
@@ -646,6 +651,13 @@ function TenantOrganizationDetailPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="details" className="mt-4">
+          <TenantDetailsEditPanel
+            iqTenantId={contextTenant.iq_tenant_id}
+            showOrganisationFields={contextTenant.iq_tenant_id === rootTenant?.iq_tenant_id}
+          />
         </TabsContent>
 
         <TabsContent value="branches" className="mt-4 space-y-4">

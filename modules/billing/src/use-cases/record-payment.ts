@@ -1,5 +1,4 @@
 import { money, moneyGt, moneySub } from "../lib/money.js";
-import { nextPaymentNumber, nextReceiptNumber } from "../lib/bill-numbers.js";
 import { fail, loadBill, ok, requireStatus } from "../lib/use-case.js";
 import type { BillWithItems, RecordPaymentInput, UseCaseResult } from "../domain/bill.types.js";
 import type { BillingDeps } from "../ports.js";
@@ -35,8 +34,8 @@ export async function recordPayment(
 
   const payment = await deps.billingRepo.insertPayment({
     iq_tenant_id: tenantId,
-    payment_number: nextPaymentNumber(tenantId),
-    receipt_number: nextReceiptNumber(tenantId),
+    payment_number: "",
+    receipt_number: null,
     bill_id: bill.id,
     patient_id: bill.patient_id,
     payment_date: input.payment_date ?? new Date().toISOString(),

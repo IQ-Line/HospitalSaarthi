@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeLineAmounts, rollupBillTotals } from "./bill-math.js";
+import { computeDeskLineAmounts, computeLineAmounts, rollupBillTotals } from "./bill-math.js";
 import type { BillItemRow, BillRow } from "../domain/bill.types.js";
 
 const baseBill: Pick<BillRow, "discount_amount" | "round_off_amount" | "paid_amount"> = {
@@ -23,6 +23,15 @@ describe("bill-math", () => {
     expect(line.gross_amount).toBe("500.0000");
     expect(line.net_amount).toBe("500.0000");
     expect(line.total_amount).toBe("500.0000");
+  });
+
+  it("applies desk tax on net after line discount", () => {
+    const line = computeDeskLineAmounts("100.0000", 1, "18.0000", "10.0000");
+    expect(line.gross_amount).toBe("100.0000");
+    expect(line.discount_amount).toBe("10.0000");
+    expect(line.net_amount).toBe("90.0000");
+    expect(line.tax_amount).toBe("16.2000");
+    expect(line.total_amount).toBe("106.2000");
   });
 
   it("rolls up bill totals with discount", () => {

@@ -17,7 +17,7 @@ export function computeLineAmounts(
   };
 }
 
-/** Matches frontdesk desk line: (unit × qty + tax) − line discount (same as billingLineTotal in web). */
+/** Desk line: discount on gross, then tax on the discounted net (matches registration desk UI). */
 export function computeDeskLineAmounts(
   unitPrice: string,
   quantity: number,
@@ -28,17 +28,15 @@ export function computeDeskLineAmounts(
   "gross_amount" | "net_amount" | "tax_amount" | "total_amount" | "discount_amount"
 > {
   const gross = moneyMul(unitPrice, quantity);
-  const tax = moneyTax(gross, taxPct);
-  const beforeDiscount = moneyAdd(gross, tax);
   const discount = money(lineDiscount);
-  const net = moneyGte(beforeDiscount, discount)
-    ? moneySub(beforeDiscount, discount)
-    : "0.0000";
+  const net = moneyGte(gross, discount) ? moneySub(gross, discount) : "0.0000";
+  const tax = moneyTax(net, taxPct);
+  const total = moneyAdd(net, tax);
   return {
     gross_amount: gross,
     tax_amount: tax,
     net_amount: net,
-    total_amount: net,
+    total_amount: total,
     discount_amount: discount,
   };
 }

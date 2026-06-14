@@ -10,6 +10,7 @@ import {
   FOLLOW_UP_VISIT_TYPE_CODE,
   FREE_FOLLOW_UP_VISIT_TYPE_CODE,
   formatBillingDeduction,
+  formatBillingInr,
   formatBillingTaxLine,
   formatBillingTaxSummary,
   isFollowUpVisitType,
@@ -30,23 +31,30 @@ const baseLine = {
 };
 
 describe('billing line math', () => {
-  it('computes net, tax, and total with rupee discount', () => {
-    const line = { ...baseLine, discount: 10 };
+  it('computes net, tax, and total with percent discount', () => {
+    const line = { ...baseLine, discount_percent: 10 };
     expect(billingLineDiscountAmount(line)).toBe(10);
     expect(billingLineNetPrice(line)).toBe(90);
-    expect(billingLineTaxAmount(line)).toBe(18);
-    expect(billingLineTotal(line)).toBe(108);
+    expect(billingLineTaxAmount(line)).toBe(16.2);
+    expect(billingLineTotal(line)).toBe(106.2);
   });
 
   it('derives discount from percent when rupee amount is zero', () => {
     const line = { ...baseLine, discount_percent: 10 };
     expect(billingLineDiscountAmount(line)).toBe(10);
-    expect(billingLineTotal(line)).toBe(108);
+    expect(billingLineTotal(line)).toBe(106.2);
   });
 
-  it('prefers explicit rupee discount over percent', () => {
+  it('computes fractional tax on discounted net', () => {
+    const line = { unit_price: 10, tax_percent: 10, discount_percent: 10, discount: 0 };
+    expect(billingLineNetPrice(line)).toBe(9);
+    expect(billingLineTaxAmount(line)).toBe(0.9);
+    expect(billingLineTotal(line)).toBe(9.9);
+  });
+
+  it('derives rupee discount from percent only', () => {
     const line = { ...baseLine, discount_percent: 50, discount: 5 };
-    expect(billingLineDiscountAmount(line)).toBe(5);
+    expect(billingLineDiscountAmount(line)).toBe(50);
   });
 });
 
@@ -93,9 +101,16 @@ describe('formatBillingTaxSummary', () => {
   });
 });
 
+describe('formatBillingInr', () => {
+  it('shows paise for fractional amounts', () => {
+    expect(formatBillingInr(0.9)).toBe('₹0.90');
+    expect(formatBillingInr(9)).toBe('₹9');
+  });
+});
+
 describe('formatBillingTaxLine', () => {
   it('combines rate and amount on one line', () => {
-    expect(formatBillingTaxLine(5, 10)).toBe('5% · ₹10');
+    expect(formatBillingTaxLine(10, 0.9)).toBe('10% · ₹0.90');
   });
 
   it('shows 0 when rate is zero', () => {

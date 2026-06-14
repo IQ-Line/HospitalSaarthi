@@ -509,19 +509,6 @@ function VisitRegistrationRoute() {
   } = form.register('patient.phone', indianMobileRegisterOptions());
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
-  const pendingAbhaDistrictRef = useRef<string | null>(null);
-  const permanentState = useWatch({ control: form.control, name: 'permanent_address.state' });
-
-  const applyPendingAbhaDistrict = () => {
-    const districtCode = pendingAbhaDistrictRef.current;
-    if (!districtCode || !form.getValues('permanent_address.state')) return;
-    form.setValue('permanent_address.district', districtCode, { shouldValidate: true });
-    pendingAbhaDistrictRef.current = null;
-  };
-
-  useEffect(() => {
-    applyPendingAbhaDistrict();
-  }, [permanentState, form]);
 
   const applyAbhaPayloadToForm = (payload: AbhaCreatedPayload) => {
     if (payload.abhaNumber) {
@@ -552,18 +539,15 @@ function VisitRegistrationRoute() {
       if (line1) {
         form.setValue('permanent_address.line1', line1, { shouldValidate: true });
       }
-      if (state) {
-        form.setValue('permanent_address.state', state, { shouldValidate: true });
-        if (district) {
-          pendingAbhaDistrictRef.current = district;
-        }
-      } else if (district) {
-        form.setValue('permanent_address.district', district, { shouldValidate: true });
-      }
       if (pincode) {
         form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
       }
-      applyPendingAbhaDistrict();
+      if (state) {
+        form.setValue('permanent_address.state', state, { shouldValidate: true });
+        if (district) {
+          form.setValue('permanent_address.district', district, { shouldValidate: true });
+        }
+      }
     }
   };
 
@@ -586,7 +570,6 @@ function VisitRegistrationRoute() {
   const handleClearAbhaRegistration = () => {
     form.setValue('patient.abha_number', '', { shouldValidate: false });
     form.setValue('patient.abha_address', '', { shouldValidate: false });
-    pendingAbhaDistrictRef.current = null;
     setAbhaRegistration(null);
     toast.message('ABHA details cleared');
   };

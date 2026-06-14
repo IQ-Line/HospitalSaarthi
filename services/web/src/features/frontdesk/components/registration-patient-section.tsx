@@ -330,6 +330,7 @@ export function RegistrationPatientSection({
         <RegistrationField>
           <RegistrationFieldLabel required>District</RegistrationFieldLabel>
           <Select
+            key={stateCode || '__no_state__'}
             value={districtCode || '__none__'}
             disabled={districtSelectDisabled}
             onValueChange={(v) =>
