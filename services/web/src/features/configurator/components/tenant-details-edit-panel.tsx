@@ -18,8 +18,8 @@ import {
   uploadTenantBrandingLogo,
 } from '@/features/configurator/api/branding-logos';
 import { BrandingLogoImage } from '@/features/configurator/components/branding-logo-image';
+import { IndianPincodeAddressFields } from '@/features/configurator/components/indian-pincode-address-fields';
 import { LogoUploadField } from '@/features/configurator/components/logo-upload-field';
-import { INDIAN_STATE_OPTIONS } from '@/features/configurator/create-tenant-wizard-schema';
 import type { ConfiguratorBranchType, ConfiguratorTenant, OrganizationType } from '@/features/configurator/types';
 import { organizationTypeOptions } from '@/features/configurator/validation';
 
@@ -206,6 +206,7 @@ export function TenantDetailsEditPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [orgLogoFile, setOrgLogoFile] = useState<File | null>(null);
+  const [initialPinCode, setInitialPinCode] = useState('');
   const [form, setForm] = useState<DetailsFormState>(() => ({
     name: '',
     contactEmail: '',
@@ -240,7 +241,9 @@ export function TenantDetailsEditPanel({
 
   useEffect(() => {
     if (!tenant) return;
-    setForm(tenantToFormState(tenant));
+    const nextForm = tenantToFormState(tenant);
+    setForm(nextForm);
+    setInitialPinCode(nextForm.pinCode);
     setLogoFile(null);
   }, [tenant]);
 
@@ -546,55 +549,25 @@ export function TenantDetailsEditPanel({
                   onChange={(e) => setField('addressLine1', e.target.value)}
                 />
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-details-locality">Locality (optional)</Label>
-                <Input
-                  id="tenant-details-locality"
-                  value={form.locality}
-                  onChange={(e) => setField('locality', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-details-block">Block (optional)</Label>
-                <Input
-                  id="tenant-details-block"
-                  value={form.block}
-                  onChange={(e) => setField('block', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-details-city">City / district</Label>
-                <Input
-                  id="tenant-details-city"
-                  value={form.city}
-                  onChange={(e) => setField('city', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-details-state">State</Label>
-                <Select value={form.state || undefined} onValueChange={(v) => setField('state', v)}>
-                  <SelectTrigger id="tenant-details-state">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="tenant-details-pin">PIN code</Label>
-                <Input
-                  id="tenant-details-pin"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={form.pinCode}
-                  onChange={(e) => setField('pinCode', e.target.value)}
-                />
-              </div>
+              <IndianPincodeAddressFields
+                idPrefix="tenant-details"
+                values={{
+                  pinCode: form.pinCode,
+                  locality: form.locality,
+                  block: form.block,
+                  district: form.city,
+                  state: form.state,
+                }}
+                initialPinCode={initialPinCode}
+                districtLabel="City / district"
+                onFieldChange={(field, value) => {
+                  if (field === 'district') {
+                    setField('city', value);
+                    return;
+                  }
+                  setField(field, value);
+                }}
+              />
             </div>
           </section>
 

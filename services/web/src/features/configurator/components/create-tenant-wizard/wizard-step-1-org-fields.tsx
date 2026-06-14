@@ -103,8 +103,6 @@ export function WizardStep1OrgFields({
         </Field>
         <ConfiguratorAddressPincodeFields
           idPrefix="wiz"
-          register={register}
-          control={control}
           errors={errors}
           setValue={setValue}
           watch={watch}

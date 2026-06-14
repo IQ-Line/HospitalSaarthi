@@ -96,8 +96,6 @@ export function WizardStepBranchDetails({
         </Field>
         <ConfiguratorAddressPincodeFields
           idPrefix="br-wiz"
-          register={register}
-          control={control}
           errors={errors}
           setValue={setValue}
           watch={watch}
