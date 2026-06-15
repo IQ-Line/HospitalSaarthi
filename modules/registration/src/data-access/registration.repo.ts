@@ -203,6 +203,8 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           ilike(registrations.patient_uhid, pattern),
           ilike(registrations.patient_phone_number, pattern),
           ilike(registrations.patient_full_name, pattern),
+          ilike(registrations.patient_abha_number, pattern),
+          ilike(registrations.patient_abha_address, pattern),
         )!,
       );
     } else if (name && name.length >= 2) {
