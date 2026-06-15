@@ -6,12 +6,12 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from opd.data_access.prescription_form_data import effective_form_data_for_prescription
 from opd.data_access.prescription_repository import PrescriptionNotFoundError, PrescriptionRepository
 from opd.data_access.registration_patient_source import VisitPatientSource, load_visit_patient_source
 from opd.lib.build_clinical_report_payload import (
     ClinicalReportType,
     build_clinical_report_request,
-    clinical_payload_to_form_data,
     report_filename,
     validate_report_request,
 )
@@ -59,7 +59,7 @@ def _build_clinical_report_request_body(
     if prescription.status != PrescriptionStatus.FINAL:
         raise PermissionError("Reports are available only after consultation is completed")
 
-    form_data = clinical_payload_to_form_data(prescription.clinical)
+    form_data = effective_form_data_for_prescription(session, tenant_id, prescription_row.id)
     visitpad_vitals = fetch_visitpad_vitals_catalog(tenant_id)
     request_body = build_clinical_report_request(
         report_type,
@@ -143,6 +143,8 @@ def _unavailable_all_reports(reason: str) -> dict[str, dict[str, object]]:
 
 def _availability_for_prescription(
     *,
+    session: Session,
+    tenant_id: UUID,
     source: VisitPatientSource,
     prescription_row: Any,
     context: ClinicalReportContext,
@@ -152,7 +154,7 @@ def _availability_for_prescription(
     if prescription.status != PrescriptionStatus.FINAL:
         return _unavailable_all_reports("Reports are available only after consultation is completed")
 
-    form_data = clinical_payload_to_form_data(prescription.clinical)
+    form_data = effective_form_data_for_prescription(session, tenant_id, prescription_row.id)
     availability: dict[str, dict[str, object]] = {}
     for report_type in _CLINICAL_REPORT_TYPES:
         request_body = build_clinical_report_request(
@@ -203,6 +205,8 @@ def get_clinical_reports_availability_by_visit_ids(
             continue
 
         availability_by_visit[str(visit_id)] = _availability_for_prescription(
+            session=session,
+            tenant_id=tenant_id,
             source=source,
             prescription_row=prescription_row,
             context=report_context,

@@ -20,9 +20,19 @@ interface ImmunizationStoredMeta {
   notes?: string;
 }
 
+function normalizeImmunizationDate(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed);
+  return match ? match[1]! : trimmed.slice(0, 10);
+}
+
 function toIsoDateTime(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return `${trimmed}T12:00:00+05:30`;
+  }
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
@@ -64,7 +74,7 @@ export function immunizationRowToVaccinePayload(
   const meta: ImmunizationStoredMeta = {
     manufacturer: row.manufacturer.trim() || undefined,
     lotNumber: row.lotNumber.trim() || undefined,
-    dateOfDose: row.dateOfDose.trim() || undefined,
+    dateOfDose: normalizeImmunizationDate(row.dateOfDose) || undefined,
     doseNumber: row.doseNumber.trim() || undefined,
     notes: row.notes.trim() || undefined,
   };
@@ -108,7 +118,7 @@ export function vaccinePayloadToImmunizationRow(row: {
       ...base,
       manufacturer: meta.manufacturer?.trim() ?? '',
       lotNumber: meta.lotNumber?.trim() ?? '',
-      dateOfDose: meta.dateOfDose?.trim() ?? '',
+      dateOfDose: normalizeImmunizationDate(meta.dateOfDose?.trim() ?? ''),
       doseNumber: meta.doseNumber?.trim() ?? '',
       notes: meta.notes?.trim() ?? '',
     };

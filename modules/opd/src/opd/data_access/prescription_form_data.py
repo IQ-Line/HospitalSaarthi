@@ -453,6 +453,25 @@ def effective_form_data(session: Session, rx: Prescription) -> dict[str, Any]:
     return _merge_form_data(from_normalized, stored)
 
 
+def effective_form_data_for_prescription(
+    session: Session,
+    tenant_id: UUID,
+    prescription_id: UUID,
+) -> dict[str, Any]:
+    """Load merged Create-RX form_data for a prescription id (JSON + normalized tables)."""
+    from sqlalchemy import select
+
+    rx = session.scalar(
+        select(Prescription).where(
+            Prescription.tenant_id == tenant_id,
+            Prescription.id == prescription_id,
+        )
+    )
+    if rx is None:
+        return _empty_form_data()
+    return effective_form_data(session, rx)
+
+
 def persist_normalized_from_form_data(
     session: Session,
     tenant_id: UUID,
