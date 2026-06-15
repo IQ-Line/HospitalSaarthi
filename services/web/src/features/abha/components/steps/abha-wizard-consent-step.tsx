@@ -39,6 +39,9 @@ export function AbhaWizardConsentStep({
           onMaskSeg2={(masked) => dispatch({ type: 'SET_MASK_SEG', index: 2, masked })}
           onMaskSeg3={(masked) => dispatch({ type: 'SET_MASK_SEG', index: 3, masked })}
         />
+        {aadhaar.error ? (
+          <p className="text-sm text-destructive">{aadhaar.error}</p>
+        ) : null}
         <p className="text-xs leading-relaxed text-muted-foreground">
           Please ensure that mobile number is linked with Aadhaar as it will be required for OTP
           authentication. If you do not have a mobile number linked, visit the{' '}

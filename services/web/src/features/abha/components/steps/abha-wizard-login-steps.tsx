@@ -115,6 +115,9 @@ export function AbhaWizardLoginSteps({
             segments={login.abhaSegments}
             onChange={(segments) => dispatch({ type: 'SET_LOGIN_ABHA_SEGMENTS', segments })}
           />
+          {login.abhaNumberError ? (
+            <p className="text-sm text-destructive">{login.abhaNumberError}</p>
+          ) : null}
         </Field>
       </FieldGroup>
     );
