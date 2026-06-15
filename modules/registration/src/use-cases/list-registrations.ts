@@ -17,7 +17,13 @@ export async function listRegistrations(
   params: ListRegistrationsParams,
 ): Promise<RegistrationListPage> {
   const q = params.q?.trim();
-  const hasLegacy = !!(params.uhid?.trim() || params.mobile?.trim() || params.name?.trim());
+  const hasLegacy = !!(
+    params.uhid?.trim() ||
+    params.mobile?.trim() ||
+    params.name?.trim() ||
+    params.abha_number?.trim() ||
+    params.abha_address?.trim()
+  );
   if (q && hasLegacy) {
     throw new Error("list_search_params_conflict");
   }

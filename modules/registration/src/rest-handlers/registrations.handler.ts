@@ -147,6 +147,8 @@ export function registerRegistrationsHandler(
             uhid: q.uhid,
             mobile: q.mobile,
             name: q.name,
+            abha_number: q.abha_number,
+            abha_address: q.abha_address,
             patient_id: q.patient_id,
           },
         );

@@ -11,7 +11,9 @@ interface HistoricalRecordsTableProps {
   total: number;
   page: number;
   pageSize: number;
+  pageSizeOptions?: readonly number[];
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }
 
 export function HistoricalRecordsTable({
@@ -20,7 +22,9 @@ export function HistoricalRecordsTable({
   total,
   page,
   pageSize,
+  pageSizeOptions,
   onPageChange,
+  onPageSizeChange,
 }: HistoricalRecordsTableProps) {
   const columns = useMemo<ColumnDef<HistoricalRecordRow, unknown>[]>(
     () => [
@@ -119,8 +123,9 @@ export function HistoricalRecordsTable({
           pageIndex: page - 1,
           pageSize,
           total,
+          pageSizeOptions,
           onPageChange: (pageIndex) => onPageChange(pageIndex + 1),
-          onPageSizeChange: () => {},
+          onPageSizeChange,
         }}
       />
     </div>

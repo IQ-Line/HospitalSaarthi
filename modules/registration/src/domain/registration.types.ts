@@ -70,6 +70,8 @@ export interface ListRegistrationsParams {
   uhid?: string;
   mobile?: string;
   name?: string;
+  abha_number?: string;
+  abha_address?: string;
   patient_id?: string;
 }
 

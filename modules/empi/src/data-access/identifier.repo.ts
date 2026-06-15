@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq } from "@hims/ts-sdk-db";
+import { and, eq, ilike, sql } from "@hims/ts-sdk-db";
 import { patientIdentifiers } from "../schema/tables.js";
 import type { IdentifierRepo } from "../ports.js";
 import type {
@@ -32,6 +32,7 @@ export class DrizzleIdentifierRepo implements IdentifierRepo {
     identifierType: string,
     identifierValue: string,
   ): Promise<string | undefined> {
+    const normalizedValue = identifierValue.trim();
     const rows = await this.db
       .select({ patient_id: patientIdentifiers.patient_id })
       .from(patientIdentifiers)
@@ -39,7 +40,9 @@ export class DrizzleIdentifierRepo implements IdentifierRepo {
         and(
           eq(patientIdentifiers.iq_tenant_id, tenantId),
           eq(patientIdentifiers.identifier_type, identifierType),
-          eq(patientIdentifiers.identifier_value, identifierValue),
+          identifierType === "abha_address"
+            ? sql`lower(${patientIdentifiers.identifier_value}) = lower(${normalizedValue})`
+            : eq(patientIdentifiers.identifier_value, normalizedValue),
           eq(patientIdentifiers.is_active, true),
         ),
       )
