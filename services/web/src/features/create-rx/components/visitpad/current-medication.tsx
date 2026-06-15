@@ -48,7 +48,9 @@ export function CurrentMedication() {
     diagnosisOptions,
     medicineOptions,
     procedureOptions,
+    methodStrengthOptions,
     medicines,
+    methodStrengthColumns,
     procedures: procedureCatalog,
   } = useVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
@@ -100,8 +102,22 @@ export function CurrentMedication() {
     [diagnosisOptions],
   );
 
-  const medicineColumns = useMemo<FormTableColumn<MedicineRow>[]>(
-    () => [
+  const medicineColumns = useMemo<FormTableColumn<MedicineRow>[]>(() => {
+    const strengthOptionValues = new Set(methodStrengthOptions.map((opt) => opt.value));
+    for (const row of medicinesRows) {
+      const strength = row.strength?.trim();
+      if (strength && !strengthOptionValues.has(strength)) {
+        strengthOptionValues.add(strength);
+      }
+    }
+    const strengthOptions = [
+      ...methodStrengthOptions,
+      ...[...strengthOptionValues]
+        .filter((value) => !methodStrengthOptions.some((opt) => opt.value === value))
+        .map((value) => ({ label: value, value })),
+    ];
+
+    return [
       {
         key: 'medicine',
         label: 'Medicine',
@@ -125,7 +141,15 @@ export function CurrentMedication() {
         emptyOptionLabel: 'Route',
         options: MEDICATION_ROUTE_OPTIONS,
       },
-      { key: 'strength', label: 'Strength' },
+      {
+        key: 'strength',
+        label: 'Strength',
+        type: 'select',
+        placeholder: 'Strength',
+        emptyOptionLabel: 'Strength',
+        options: strengthOptions,
+        width: '7.5rem',
+      },
       {
         key: 'dosageMorning',
         label: 'Dosage',
@@ -155,9 +179,8 @@ export function CurrentMedication() {
         options: MEDICATION_TOA_OPTIONS,
       },
       { key: 'quantity', label: 'Quantity', type: 'number', width: '5rem' },
-    ],
-    [medicineOptions],
-  );
+    ];
+  }, [medicineOptions, methodStrengthOptions, medicinesRows]);
 
   const testColumns = useMemo<FormTableColumn<TestRow>[]>(
     () => [
@@ -206,10 +229,10 @@ export function CurrentMedication() {
 
       patchMedicine(index, {
         medicine: catalog.display_name,
-        ...buildCatalogMedicineDefaults(catalog),
+        ...buildCatalogMedicineDefaults(catalog, methodStrengthColumns),
       });
     },
-    [medicines, patchMedicine],
+    [medicines, methodStrengthColumns, patchMedicine],
   );
 
   const handleMedicineUpdate = useCallback(

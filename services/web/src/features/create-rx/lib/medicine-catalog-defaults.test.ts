@@ -42,20 +42,30 @@ describe('computeMedicineQuantity', () => {
 
 describe('buildCatalogMedicineDefaults', () => {
   it('fills strength from value and unit and calculates quantity', () => {
-    const patch = buildCatalogMedicineDefaults({
-      id: 'med-1',
-      display_name: 'Paracetamol',
-      dosage_form: 'tablet',
-      route_of_admin: ['oral'],
-      default_route: 'oral',
-      strength_display: '',
-      strength_value: 500,
-      strength_unit: 'mg',
-      default_dose_value: 1,
-      default_frequency: 'tid',
-      default_duration_days: 3,
-      typical_quantity: null,
-    } as never);
+    const patch = buildCatalogMedicineDefaults(
+      {
+        id: 'med-1',
+        display_name: 'Paracetamol',
+        dosage_form: 'tablet',
+        route_of_admin: ['oral'],
+        default_route: 'oral',
+        strength_display: '',
+        strength_value: 500,
+        strength_unit: 'mg',
+        default_dose_value: 1,
+        default_frequency: 'tid',
+        default_duration_days: 3,
+        typical_quantity: null,
+      } as never,
+      [
+        {
+          is_active: true,
+          is_deleted: false,
+          display_name: '500',
+          extra_unit: 'mg',
+        } as never,
+      ],
+    );
 
     expect(patch.strength).toBe('500 mg');
     expect(patch.quantity).toBe('3');
@@ -73,5 +83,43 @@ describe('buildCatalogMedicineDefaults', () => {
 
     expect(patch.strength).toBe('100 ml');
     expect(patch.quantity).toBe('2');
+  });
+
+  it('autofills strength from medicine when no method_strength picklist match', () => {
+    const patch = buildCatalogMedicineDefaults({
+      id: 'med-3',
+      display_name: 'Dolo-650',
+      dosage_form: 'tablet',
+      route_of_admin: ['oral'],
+      strength_display: '',
+      strength_value: 350,
+      strength_unit: null,
+    } as never);
+
+    expect(patch.strength).toBe('350');
+  });
+
+  it('prefers method_strength picklist label over raw medicine strength', () => {
+    const patch = buildCatalogMedicineDefaults(
+      {
+        id: 'med-4',
+        display_name: 'Dolo-650',
+        dosage_form: 'tablet',
+        route_of_admin: ['oral'],
+        strength_display: '',
+        strength_value: 350,
+        strength_unit: null,
+      } as never,
+      [
+        {
+          is_active: true,
+          is_deleted: false,
+          display_name: '350',
+          extra_unit: 'mg',
+        } as never,
+      ],
+    );
+
+    expect(patch.strength).toBe('350 mg');
   });
 });

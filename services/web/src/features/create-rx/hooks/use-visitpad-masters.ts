@@ -8,15 +8,17 @@ import {
   useVisitpadManufacturers,
   useVisitpadMedicines,
   useVisitpadProcedures,
+  useVisitpadRxColumns,
   useVisitpadVaccines,
   VISITPAD_CATALOG_FORM_PAGE,
 } from '@/features/visitpad/api';
-import type { VisitpadMedicine, VisitpadProcedure } from '@/features/visitpad/types';
+import type { VisitpadMedicine, VisitpadProcedure, VisitpadRxColumn } from '@/features/visitpad/types';
 import {
   activeVisitpadCatalogRows,
   visitpadDiagnosisOptions,
   visitpadDisplayNameOptions,
   visitpadMedicineOptions,
+  visitpadMethodStrengthOptions,
   visitpadProcedureOptions,
   type VisitpadSelectOption,
 } from '../lib/visitpad-catalog-options';
@@ -33,10 +35,12 @@ export function useVisitpadMasters(): {
   diagnosisOptions: VisitpadSelectOption[];
   medicineOptions: VisitpadSelectOption[];
   procedureOptions: VisitpadSelectOption[];
+  methodStrengthOptions: VisitpadSelectOption[];
   chronicIllnessOptions: VisitpadSelectOption[];
   chiefComplaintOptions: VisitpadSelectOption[];
   medicines: VisitpadMedicine[];
   procedures: VisitpadProcedure[];
+  methodStrengthColumns: VisitpadRxColumn[];
 } {
   const vaccinesQ = useVisitpadVaccines(undefined, FORM_PAGE);
   const manufacturersQ = useVisitpadManufacturers(undefined, FORM_PAGE);
@@ -45,6 +49,7 @@ export function useVisitpadMasters(): {
   const diagnosesQ = useVisitpadDiagnoses(undefined, undefined, FORM_PAGE);
   const medicinesQ = useVisitpadMedicines(undefined, undefined, FORM_PAGE);
   const proceduresQ = useVisitpadProcedures(undefined, undefined, undefined, FORM_PAGE);
+  const methodStrengthQ = useVisitpadRxColumns(undefined, 'method_strength', FORM_PAGE);
   const chronicQ = useVisitpadChronicIllnesses(undefined, undefined, FORM_PAGE);
   const chiefComplaintsQ = useVisitpadChiefComplaints(undefined, undefined, undefined, FORM_PAGE);
 
@@ -56,6 +61,7 @@ export function useVisitpadMasters(): {
     diagnosesQ,
     medicinesQ,
     proceduresQ,
+    methodStrengthQ,
     chronicQ,
     chiefComplaintsQ,
   ];
@@ -68,6 +74,10 @@ export function useVisitpadMasters(): {
     () => activeVisitpadCatalogRows(proceduresQ.data?.data),
     [proceduresQ.data?.data],
   );
+  const methodStrengthColumns = useMemo(
+    () => activeVisitpadCatalogRows(methodStrengthQ.data?.data),
+    [methodStrengthQ.data?.data],
+  );
 
   return {
     isLoading: queries.some((q) => q.isLoading),
@@ -79,9 +89,11 @@ export function useVisitpadMasters(): {
     diagnosisOptions: visitpadDiagnosisOptions(diagnosesQ.data?.data),
     medicineOptions: visitpadMedicineOptions(medicinesQ.data?.data),
     procedureOptions: visitpadProcedureOptions(proceduresQ.data?.data),
+    methodStrengthOptions: visitpadMethodStrengthOptions(methodStrengthQ.data?.data),
     chronicIllnessOptions: visitpadDisplayNameOptions(chronicQ.data?.data),
     chiefComplaintOptions: visitpadDisplayNameOptions(chiefComplaintsQ.data?.data),
     medicines,
     procedures,
+    methodStrengthColumns,
   };
 }

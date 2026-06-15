@@ -3,9 +3,12 @@ import {
   activeVisitpadCatalogRows,
   findVisitpadMedicineByDisplayName,
   findVisitpadProcedureByDisplayName,
+  formatMethodStrengthLabel,
+  matchMethodStrengthOption,
   resolveMedicineStrengthDisplay,
   visitpadDiagnosisOptions,
   visitpadMedicineOptions,
+  visitpadMethodStrengthOptions,
   visitpadProcedureOptions,
 } from './visitpad-catalog-options';
 
@@ -113,5 +116,44 @@ describe('visitpad-catalog-options', () => {
     expect(findVisitpadProcedureByDisplayName(rows, 'Appendectomy (44950)')?.display_name).toBe(
       'Appendectomy',
     );
+  });
+
+  it('formats and matches method strength rx column options', () => {
+    const columns = [
+      {
+        is_active: true,
+        is_deleted: false,
+        display_name: '100',
+        extra_unit: 'mg',
+      },
+      {
+        is_active: true,
+        is_deleted: false,
+        display_name: '250',
+        extra_unit: 'mg',
+      },
+    ] as never;
+
+    expect(formatMethodStrengthLabel(columns[0])).toBe('100 mg');
+    expect(visitpadMethodStrengthOptions(columns)).toEqual([
+      { label: '100 mg', value: '100 mg' },
+      { label: '250 mg', value: '250 mg' },
+    ]);
+    expect(matchMethodStrengthOption(columns, '100 mg')).toBe('100 mg');
+    expect(matchMethodStrengthOption(columns, '500 mg')).toBe('');
+    expect(matchMethodStrengthOption(columns, '100')).toBe('100 mg');
+  });
+
+  it('matches medicine strength to method_strength by numeric display_name only', () => {
+    const columns = [
+      {
+        is_active: true,
+        is_deleted: false,
+        display_name: '350',
+        extra_unit: 'mg',
+      },
+    ] as never;
+
+    expect(matchMethodStrengthOption(columns, '350')).toBe('350 mg');
   });
 });

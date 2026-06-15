@@ -121,6 +121,62 @@ export function resolveMedicineStrengthDisplay(
   return '';
 }
 
+/** Rx column method_strength — strength value plus dose unit (e.g. `100 mg`). */
+export function formatMethodStrengthLabel(
+  column: Pick<VisitpadRxColumn, 'display_name' | 'extra_unit'>,
+): string {
+  const name = column.display_name?.trim() ?? '';
+  const unit = column.extra_unit?.trim() ?? '';
+  if (name && unit) return `${name} ${unit}`;
+  return name;
+}
+
+export function visitpadMethodStrengthOptions(
+  items: VisitpadRxColumn[] | undefined,
+): VisitpadSelectOption[] {
+  return activeVisitpadCatalogRows(items).map((item) => {
+    const label = formatMethodStrengthLabel(item);
+    return { label, value: label };
+  });
+}
+
+/** Map medicine/catalog strength text to a method_strength picklist value when possible. */
+export function matchMethodStrengthOption(
+  items: VisitpadRxColumn[] | undefined,
+  rawStrength: string | null | undefined,
+): string {
+  const trimmed = rawStrength?.trim() ?? '';
+  if (!trimmed) return '';
+
+  const rows = activeVisitpadCatalogRows(items);
+  const formatted = (row: VisitpadRxColumn) => formatMethodStrengthLabel(row);
+
+  const exact = rows.find((row) => formatted(row) === trimmed);
+  if (exact) return formatted(exact);
+
+  const lower = trimmed.toLowerCase();
+  const caseInsensitive = rows.find((row) => formatted(row).toLowerCase() === lower);
+  if (caseInsensitive) return formatted(caseInsensitive);
+
+  const parsed = trimmed.match(/^([\d.]+)\s*(.*)$/);
+  if (parsed) {
+    const [, value, unitPart] = parsed;
+    const unit = unitPart.trim().toLowerCase();
+    const match = rows.find((row) => {
+      if (row.display_name.trim() !== value) return false;
+      if (!unit) return true;
+      const rowUnit = row.extra_unit?.trim().toLowerCase() ?? '';
+      return !rowUnit || rowUnit === unit;
+    });
+    if (match) return formatted(match);
+  }
+
+  const byName = rows.find((row) => row.display_name.trim() === trimmed);
+  if (byName) return formatted(byName);
+
+  return '';
+}
+
 export function visitpadRxColumnOptions(
   items: VisitpadRxColumn[] | undefined,
   fallback?: readonly VisitpadSelectOption[],
