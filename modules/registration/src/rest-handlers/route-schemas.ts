@@ -149,6 +149,8 @@ export const existingPatientVisitBodySchema = {
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
     ...visitEncounterFields,
   },
 } as const;

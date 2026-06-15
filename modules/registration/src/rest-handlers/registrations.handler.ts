@@ -18,7 +18,9 @@ import {
   createIntakeForNewPatient,
   createVisitForExistingPatient,
 } from "../use-cases/create-intake-for-new-patient.js";
+import { createRegistration } from "../use-cases/create-registration.js";
 import { getVisitTypeDecision } from "../use-cases/get-visit-type-decision.js";
+import { mapEmpiPatientToSnapshot, mergeIntakeIntoSnapshot } from "../lib/registration-helpers.js";
 import {
   dashboardStatsQuerySchema,
   existingPatientVisitBodySchema,
@@ -226,10 +228,42 @@ export function registerRegistrationsHandler(
           },
         );
 
-        const registration = await deps.registrationRepo.findByPatientId(
+        let registration = await deps.registrationRepo.findByPatientId(
           request.tenantId,
           request.body.patient_id,
         );
+        if (deps.empiGateway) {
+          const detail = await deps.empiGateway.fetchPatientDetail(
+            request.tenantId,
+            request.body.patient_id,
+            bearerToken,
+          );
+          if (detail) {
+            const wire = {
+              ...detail.patient,
+              abha_number: detail.abha_number ?? detail.patient.abha_number ?? null,
+              abha_address: detail.abha_address ?? detail.patient.abha_address ?? null,
+            };
+            const mapped = mapEmpiPatientToSnapshot(wire, wire.id);
+            const intakeAbha: Record<string, unknown> = {};
+            const bodyAbhaNumber = request.body.abha_number?.trim();
+            const bodyAbhaAddress = request.body.abha_address?.trim();
+            if (bodyAbhaNumber) intakeAbha.abha_number = bodyAbhaNumber;
+            if (bodyAbhaAddress) intakeAbha.abha_address = bodyAbhaAddress;
+            const snapshot = mergeIntakeIntoSnapshot(mapped.snapshot, intakeAbha);
+            const regResult = await createRegistration(
+              { registrationRepo: deps.registrationRepo, eventBus: deps.eventBus },
+              request.tenantId,
+              {
+                patient_id: request.body.patient_id,
+                patient_source_record_id: mapped.sourceRecordId,
+                patient_snapshot: snapshot,
+              },
+              { idempotencyKey, actorId: resolveActorId(request) },
+            );
+            registration = regResult.record;
+          }
+        }
 
         const status = result.created ? 201 : 200;
         const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);

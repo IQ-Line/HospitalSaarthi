@@ -591,10 +591,15 @@ export function mapVisitRegistrationToExistingPatientIntakeBody(
   data: CreateVisitRequestBody,
   patientId: string,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient_id: patientId,
     ...mapVisitEncounterFields(data.appointment),
   };
+  const abhaNumber = data.patient.abha_number?.trim();
+  const abhaAddress = data.patient.abha_address?.trim();
+  if (abhaNumber) body.abha_number = abhaNumber;
+  if (abhaAddress) body.abha_address = abhaAddress;
+  return body;
 }
 
 export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['permanent_address'] {
