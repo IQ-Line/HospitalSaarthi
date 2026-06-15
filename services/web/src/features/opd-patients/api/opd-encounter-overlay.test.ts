@@ -53,7 +53,32 @@ describe('fetchOpdEncounterOverlaysByVisitIds', () => {
     expect(result.get('visit-b')).toEqual({
       prescriptionStatus: 'final',
       visitStatus: 'completed',
-      reportAvailability: undefined,
+      reportAvailability: {
+        'op-consultation': { available: true },
+        prescription: { available: true },
+        immunization: { available: true },
+      },
+    });
+  });
+
+  it('keeps backend unavailable reasons for non-final prescriptions', async () => {
+    vi.mocked(apiClient).mockResolvedValue({
+      data: {
+        'visit-draft': {
+          status: 'draft',
+          visit_status: 'registered',
+          reports: {
+            prescription: { available: false, reason: 'Not finalized' },
+          },
+        },
+      },
+    });
+
+    const result = await fetchOpdEncounterOverlaysByVisitIds(['visit-draft']);
+    expect(result.get('visit-draft')?.reportAvailability).toEqual({
+      'op-consultation': { available: false, reason: 'Reports are available only after consultation is completed' },
+      prescription: { available: false, reason: 'Not finalized' },
+      immunization: { available: false, reason: 'Reports are available only after consultation is completed' },
     });
   });
 

@@ -62,7 +62,74 @@ function mapReportAvailability(
       ...(item.reason?.trim() ? { reason: item.reason.trim() } : {}),
     };
   }
-  return mapped;
+  return Object.keys(mapped).length > 0 ? mapped : undefined;
+}
+
+function defaultAvailableClinicalReportAvailability(): ClinicalReportAvailability {
+  return Object.fromEntries(
+    REPORT_TYPES.map((reportType) => [reportType, { available: true }]),
+  ) as ClinicalReportAvailability;
+}
+
+/** Merge API availability with sensible defaults for finalized consultations. */
+export function resolveClinicalReportAvailability(
+  prescriptionStatus: OpdPrescriptionStatus | undefined,
+  partial?: ClinicalReportAvailability,
+): ClinicalReportAvailability {
+  const mergePartial = (
+    base: ClinicalReportAvailability,
+  ): ClinicalReportAvailability =>
+    REPORT_TYPES.reduce((acc, reportType) => {
+      acc[reportType] = partial?.[reportType] ?? base[reportType]!;
+      return acc;
+    }, {} as ClinicalReportAvailability);
+
+  if (prescriptionStatus === 'final') {
+    return mergePartial(defaultAvailableClinicalReportAvailability());
+  }
+
+  if (partial) {
+    return mergePartial(
+      unavailableClinicalReportAvailability(
+        'Reports are available only after consultation is completed',
+      ),
+    );
+  }
+
+  return unavailableClinicalReportAvailability(
+    prescriptionStatus === 'cancelled'
+      ? 'Prescription was cancelled'
+      : prescriptionStatus
+        ? 'Reports are available only after consultation is completed'
+        : 'Prescription not found for this visit',
+  );
+}
+
+function normalizeVisitId(visitId: string): string {
+  return visitId.trim().toLowerCase();
+}
+
+export function resolveVisitClinicalReportAvailability(
+  visitId: string,
+  overlays?: Record<string, OpdEncounterOverlay>,
+): ClinicalReportAvailability {
+  const overlay =
+    overlays?.[visitId] ??
+    overlays?.[normalizeVisitId(visitId)];
+  if (!overlay) {
+    return unavailableClinicalReportAvailability();
+  }
+  return resolveClinicalReportAvailability(
+    overlay.prescriptionStatus,
+    overlay.reportAvailability,
+  );
+}
+
+export function getEncounterOverlayByVisitId(
+  overlays: ReadonlyMap<string, OpdEncounterOverlay>,
+  visitId: string,
+): OpdEncounterOverlay | undefined {
+  return overlays.get(normalizeVisitId(visitId));
 }
 
 export function unavailableClinicalReportAvailability(
@@ -99,10 +166,11 @@ export async function fetchOpdEncounterOverlaysByVisitIds(
 
   const map = new Map<string, OpdEncounterOverlay>();
   for (const [visitId, row] of Object.entries(response.data)) {
-    map.set(visitId, {
+    const partial = mapReportAvailability(row.reports);
+    map.set(normalizeVisitId(visitId), {
       prescriptionStatus: row.status,
       visitStatus: row.visit_status?.trim() || 'registered',
-      reportAvailability: mapReportAvailability(row.reports),
+      reportAvailability: resolveClinicalReportAvailability(row.status, partial),
     });
   }
   return map;
