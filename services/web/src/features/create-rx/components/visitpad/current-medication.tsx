@@ -38,8 +38,13 @@ const TEST_STATUS_OPTIONS = [
 ];
 
 export function CurrentMedication() {
-  const { isLoading: catalogLoading, diagnosisOptions, medicineOptions, medicines } =
-    useVisitpadMasters();
+  const {
+    isLoading: catalogLoading,
+    diagnosisOptions,
+    medicineOptions,
+    procedureOptions,
+    medicines,
+  } = useVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const diagnosis = useCreateRxStore((s) => s.formData.diagnosis);
   const medicinesRows = useCreateRxStore((s) => s.formData.medicines);
@@ -160,10 +165,16 @@ export function CurrentMedication() {
 
   const procedureColumns = useMemo<FormTableColumn<ProcedureRow>[]>(
     () => [
-      { key: 'procedureName', label: 'Procedure', placeholder: 'Procedure name' },
+      {
+        key: 'procedureName',
+        label: 'Procedure',
+        type: 'creatable-select',
+        placeholder: 'Search or type procedure name',
+        options: procedureOptions,
+      },
       { key: 'advisedDate', label: 'Advised Date', type: 'date', width: '130px' },
     ],
-    [],
+    [procedureOptions],
   );
 
   const handleMedicineUpdate = useCallback(
@@ -285,6 +296,7 @@ export function CurrentMedication() {
             columns={procedureColumns}
             rows={procedures}
             readOnly={isReadOnly}
+            catalogLoading={catalogLoading}
             invalidCells={procedureInvalidCells}
             highlightSection={proceduresHasErrors}
             emptyMessage="No procedures added."

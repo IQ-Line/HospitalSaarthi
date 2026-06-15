@@ -41,6 +41,7 @@ export function mapOpdEncounterToVisitRow(
     actionLabel: opdVisitStatusToActionLabel(
       status,
       encounter.prescription_status as OpdPrescriptionStatus | null,
+      encounter.visit_status,
     ),
   };
 }

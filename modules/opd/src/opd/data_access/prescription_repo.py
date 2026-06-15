@@ -10,7 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
-from opd.data_access.prescription_form_data import persist_normalized_from_form_data
+from opd.data_access.prescription_form_data import (
+    persist_normalized_from_form_data,
+    prescription_form_data_has_content,
+)
 from opd.data_access.visit_status import effective_encounter_status
 from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
@@ -217,7 +220,20 @@ class PrescriptionRepository:
         )
         rx = self._session.scalars(stmt).first()
         if rx is not None:
+            if (
+                visit.status == "in_progress"
+                and rx.status == "draft"
+                and not prescription_form_data_has_content(rx)
+            ):
+                visit.status = "registered"
+                visit.updated_at = now
+                self._session.flush()
             return visit, rx
+
+        if visit.status == "in_progress":
+            visit.status = "registered"
+            visit.updated_at = now
+            self._session.flush()
 
         rx = Prescription(
             tenant_id=self._tenant_id,

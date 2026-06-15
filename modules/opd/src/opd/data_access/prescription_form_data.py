@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import exists, or_, select, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from opd.models.prescription_row import Prescription
+
+if TYPE_CHECKING:
+    from opd.models.prescription import PrescriptionModel
+
+_FORM_DATA_ATTR = object()
 
 IMMUNIZATION_META_PREFIX = "__hims_immunization_v1:"
 
@@ -84,6 +89,107 @@ def _stored_form_data_has_content(stored: dict[str, Any]) -> bool:
     if _vitals_has_content(stored.get("vitals")):
         return True
     return False
+
+
+def _prescription_form_data_column(
+    session: Session,
+    prescription_id: UUID,
+    tenant_id: UUID,
+) -> dict[str, Any]:
+    """Read JSONB form_data for normalized PrescriptionModel rows (same table, legacy column)."""
+    try:
+        table = _qualified_table(session, "prescriptions")
+        raw = session.execute(
+            text(
+                f"""
+                SELECT form_data
+                FROM {table}
+                WHERE id = :pid AND tenant_id = :tenant
+                LIMIT 1
+                """
+            ),
+            {"pid": str(prescription_id), "tenant": str(tenant_id)},
+        ).scalar_one_or_none()
+    except (OperationalError, ProgrammingError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _prescription_model_has_normalized_clinical_content(
+    session: Session,
+    rx: PrescriptionModel,
+) -> bool:
+    """True when normalized child tables carry clinical input for this prescription."""
+    from opd.models.prescription.children import (
+        PrescriptionChiefComplaintModel,
+        PrescriptionLegacyVitalsModel,
+        PrescriptionMedicineModel,
+        PrescriptionVaccineRequiredModel,
+        PrescriptionVitalObservationModel,
+    )
+
+    pid = rx.id
+    tid = rx.tenant_id
+    child_exists = or_(
+        exists(
+            select(PrescriptionChiefComplaintModel.id).where(
+                PrescriptionChiefComplaintModel.prescription_id == pid,
+                PrescriptionChiefComplaintModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionMedicineModel.id).where(
+                PrescriptionMedicineModel.prescription_id == pid,
+                PrescriptionMedicineModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionVaccineRequiredModel.id).where(
+                PrescriptionVaccineRequiredModel.prescription_id == pid,
+                PrescriptionVaccineRequiredModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionVitalObservationModel.id).where(
+                PrescriptionVitalObservationModel.prescription_id == pid,
+                PrescriptionVitalObservationModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionLegacyVitalsModel.prescription_id).where(
+                PrescriptionLegacyVitalsModel.prescription_id == pid,
+                PrescriptionLegacyVitalsModel.tenant_id == tid,
+            )
+        ),
+    )
+    return bool(session.scalar(select(child_exists)))
+
+
+def prescription_form_data_has_content(
+    rx: Prescription | PrescriptionModel | None,
+    *,
+    session: Session | None = None,
+) -> bool:
+    """True when a draft prescription carries nurse/doctor clinical input (not an empty shell)."""
+    if rx is None:
+        return False
+
+    form_data = getattr(rx, "form_data", _FORM_DATA_ATTR)
+    if form_data is not _FORM_DATA_ATTR:
+        return _stored_form_data_has_content(form_data or {})
+
+    from opd.models.prescription import PrescriptionModel
+
+    if not isinstance(rx, PrescriptionModel):
+        return False
+    if session is None:
+        return False
+
+    if _stored_form_data_has_content(
+        _prescription_form_data_column(session, rx.id, rx.tenant_id)
+    ):
+        return True
+    return _prescription_model_has_normalized_clinical_content(session, rx)
 
 
 def _coerce_vital_number(raw: str) -> int | float:

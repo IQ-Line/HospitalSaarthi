@@ -1,4 +1,9 @@
-import type { VisitpadDiagnosis, VisitpadMedicine, VisitpadRxColumn } from '@/features/visitpad/types';
+import type {
+  VisitpadDiagnosis,
+  VisitpadMedicine,
+  VisitpadProcedure,
+  VisitpadRxColumn,
+} from '@/features/visitpad/types';
 import { VISITPAD_MEDICINE_ADMIN_ROUTES } from '@/features/visitpad/openapi-constants';
 
 export type VisitpadSelectOption = { label: string; value: string };
@@ -34,6 +39,15 @@ export function visitpadMedicineOptions(
     label: item.strength_display
       ? `${item.display_name} — ${item.strength_display}`
       : item.display_name,
+    value: item.display_name,
+  }));
+}
+
+export function visitpadProcedureOptions(
+  items: VisitpadProcedure[] | undefined,
+): VisitpadSelectOption[] {
+  return activeVisitpadCatalogRows(items).map((item) => ({
+    label: item.cpt_code ? `${item.display_name} (${item.cpt_code})` : item.display_name,
     value: item.display_name,
   }));
 }
