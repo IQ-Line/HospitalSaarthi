@@ -87,6 +87,7 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     ),
     advised_procedures: lineItems(data.procedures, (row, index) => ({
       line_no: index + 1,
+      procedure_id: row.procedureId || null,
       procedure_name: row.procedureName,
       advised_date: row.advisedDate || null,
     })),
@@ -220,11 +221,19 @@ export function clinicalToCreateRxFormData(
         status: (row as { status?: string }).status ?? '',
       })) ?? [],
     procedures:
-      c.advised_procedures?.map((row) => ({
-        id: crypto.randomUUID(),
-        procedureName: (row as { procedure_name: string }).procedure_name,
-        advisedDate: (row as { advised_date?: string }).advised_date ?? '',
-      })) ?? [],
+      c.advised_procedures?.map((row) => {
+        const procedure = row as {
+          procedure_name: string;
+          procedure_id?: string | null;
+          advised_date?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          procedureId: procedure.procedure_id ?? '',
+          procedureName: procedure.procedure_name,
+          advisedDate: procedure.advised_date ?? '',
+        };
+      }) ?? [],
     carePlan: {
       advice: c.care_plan?.advice ?? '',
       referTo: c.care_plan?.refer_to ?? '',

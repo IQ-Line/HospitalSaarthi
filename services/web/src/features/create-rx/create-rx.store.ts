@@ -116,6 +116,7 @@ interface CreateRxState {
   addProcedureRow: () => void;
   removeProcedureRow: (index: number) => void;
   updateProcedureRow: (index: number, field: keyof ProcedureRow, value: string) => void;
+  patchProcedureRow: (index: number, patch: Partial<ProcedureRow>) => void;
 }
 
 export const useCreateRxStore = create<CreateRxState>((set) => ({
@@ -380,6 +381,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ...s.formData,
         procedures: s.formData.procedures.map((row, i) =>
           i === index ? { ...row, [field]: value } : row,
+        ),
+      },
+    })),
+  patchProcedureRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        procedures: s.formData.procedures.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
         ),
       },
     })),
