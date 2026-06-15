@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTariffServices } from '@/features/billing/api';
+import { decodeDoctorTariffDescription } from '@/features/billing/lib/doctor-tariff-meta';
 import {
   pickConsultationTariff,
   pickRegistrationTariff,
@@ -39,12 +40,18 @@ export function useVisitRegistrationTariffs(
     [consultationTariff],
   );
 
+  const consultationRoomNumber = useMemo(() => {
+    if (!consultationTariff) return '';
+    return decodeDoctorTariffDescription(consultationTariff.description).room_number.trim();
+  }, [consultationTariff]);
+
   return {
     catalogQuery,
     registrationTariff,
     consultationTariff,
     registrationFeeLine,
     consultationFeeLine,
+    consultationRoomNumber,
     isLoading: catalogQuery.isPending,
     isError: catalogQuery.isError,
   };

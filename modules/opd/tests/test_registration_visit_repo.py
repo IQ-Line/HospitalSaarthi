@@ -92,3 +92,25 @@ def test_resolve_visit_statuses_for_prescriptions_batch(db_session) -> None:
     assert resolved[visit_pre] == "pre_consulted"
     assert resolved[visit_progress] == "in_progress"
     assert resolved[missing_visit] == "completed"
+
+
+def test_registered_visit_with_draft_stays_registered(db_session) -> None:
+    from tests.conftest import TENANT_A
+
+    visit_id = uuid4()
+    db_session.add(
+        Visit(
+            id=visit_id,
+            tenant_id=TENANT_A,
+            patient_id=uuid4(),
+            status="registered",
+        )
+    )
+    db_session.flush()
+
+    resolved = resolve_visit_statuses_for_prescriptions(
+        db_session,
+        TENANT_A,
+        [(visit_id, "draft")],
+    )
+    assert resolved[visit_id] == "registered"

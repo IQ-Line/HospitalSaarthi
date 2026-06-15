@@ -4,6 +4,7 @@ import { resolveOpdConsultationTenantId } from '../lib/opd-consultation-tenant';
 
 const OPD_PREFIX = '/api/v1/opd';
 const PRESCRIPTIONS_PREFIX = `${OPD_PREFIX}/prescriptions`;
+const OVERLAY_FETCH_TIMEOUT_MS = 15_000;
 
 export type ClinicalReportType = 'op-consultation' | 'prescription' | 'immunization';
 
@@ -160,18 +161,31 @@ export async function fetchOpdEncounterOverlaysByVisitIds(
   if (unique.length === 0) return new Map();
 
   const visitIdsParam = encodeURIComponent(unique.join(','));
-  const response = await apiClient<PrescriptionEncounterOverlayBatchResponse>(
-    `${PRESCRIPTIONS_PREFIX}/by-visits?${tenantQueryParam(tenantId)}&visit_ids=${visitIdsParam}`,
-  );
+  const url = `${PRESCRIPTIONS_PREFIX}/by-visits?${tenantQueryParam(tenantId)}&visit_ids=${visitIdsParam}`;
 
-  const map = new Map<string, OpdEncounterOverlay>();
-  for (const [visitId, row] of Object.entries(response.data)) {
-    const partial = mapReportAvailability(row.reports);
-    map.set(normalizeVisitId(visitId), {
-      prescriptionStatus: row.status,
-      visitStatus: row.visit_status?.trim() || 'registered',
-      reportAvailability: resolveClinicalReportAvailability(row.status, partial),
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), OVERLAY_FETCH_TIMEOUT_MS);
+
+  try {
+    const response = await apiClient<PrescriptionEncounterOverlayBatchResponse>(url, {
+      signal: controller.signal,
     });
+
+    const map = new Map<string, OpdEncounterOverlay>();
+    for (const [visitId, row] of Object.entries(response.data)) {
+      map.set(visitId, {
+        prescriptionStatus: row.status,
+        visitStatus: row.visit_status?.trim() || 'registered',
+        reportAvailability: mapReportAvailability(row.reports),
+      });
+    }
+    return map;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return new Map();
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return map;
 }

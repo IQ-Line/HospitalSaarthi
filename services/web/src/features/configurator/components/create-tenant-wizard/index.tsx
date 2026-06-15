@@ -595,6 +595,8 @@ export function CreateTenantWizard({
                 register={register}
                 control={control}
                 errors={errors}
+                setValue={setValue}
+                watch={watch}
                 tenantSlugInputProps={tenantSlugInputProps}
                 tenantLogoFile={tenantLogoFile}
                 onTenantLogoFileChange={setTenantLogoFile}

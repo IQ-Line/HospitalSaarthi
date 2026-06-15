@@ -40,6 +40,7 @@ describe('fetchOpdEncounterOverlaysByVisitIds', () => {
     expect(apiClient).toHaveBeenCalledTimes(1);
     expect(apiClient).toHaveBeenCalledWith(
       '/api/v1/opd/prescriptions/by-visits?tenant_id=tenant-1&visit_ids=visit-a%2Cvisit-b',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(result.get('visit-a')).toEqual({
       prescriptionStatus: 'draft',

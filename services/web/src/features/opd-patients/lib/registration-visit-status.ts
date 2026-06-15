@@ -28,7 +28,8 @@ export function registrationVisitStatusToOpdUi(status: string): OpdVisitStatus {
 
 /**
  * Queue status from registration.visit plus OPD visit/prescription overlay.
- * Nurse pre-consult updates ``opd.visits.status`` to ``pre_consulted`` (registration stays pending/completed).
+ * Nurse pre-consult sets ``opd.visits.status`` to ``pre_consulted``; doctor draft save to ``in_progress``.
+ * Auto-created empty draft Rx (visit ``registered``) stays ``registered`` until then.
  */
 export function effectiveOpdQueueStatus(
   registrationStatus: string,
@@ -39,13 +40,14 @@ export function effectiveOpdQueueStatus(
   if (rxStatus === 'final') return 'completed';
   if (rxStatus === 'cancelled') return 'cancelled';
 
-  const opdUi = opdVisitStatus ? opdVisitStatusToOpdUi(opdVisitStatus) : null;
-  if (opdUi === 'pre-consulted' || opdUi === 'in-progress') {
-    return opdUi;
-  }
+  const opdNorm = opdVisitStatus ? normalizeVisitStatusToken(opdVisitStatus) : null;
+  if (opdNorm === 'pre_consulted') return 'pre-consulted';
+  /** Doctor partial consultation (or legacy rows) — queue as pre-consulted, not in-progress. */
+  if (opdNorm === 'in_progress') return 'pre-consulted';
 
   const normalized = normalizeVisitStatusToken(registrationStatus);
-  if (normalized === 'completed') return 'registered';
+  if (normalized === 'completed' || normalized === 'pending') return 'registered';
+  if (normalized === 'in_progress') return 'registered';
   return registrationVisitStatusToOpdUi(registrationStatus);
 }
 
@@ -56,4 +58,22 @@ export function opdUiStatusToRegistrationVisitQuery(status: string): string | un
   if (status === 'registered' || status === 'pre-consulted') return 'pending';
   if (status === 'completed' || status === 'cancelled') return status;
   return undefined;
+}
+
+/** Human-readable queue status (frontdesk list uses Pre-consultation label). */
+export function queueStatusLabel(status: OpdVisitStatus): string {
+  switch (status) {
+    case 'registered':
+      return 'Registered';
+    case 'pre-consulted':
+      return 'Pre-consultation';
+    case 'in-progress':
+      return 'In-Progress';
+    case 'completed':
+      return 'Consulted';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return status;
+  }
 }
