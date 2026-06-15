@@ -1,4 +1,4 @@
-import type { VisitpadMedicine } from '@/features/visitpad/types';
+import type { VisitpadMedicine, VisitpadRxColumn } from '@/features/visitpad/types';
 import type { MedicineRow } from '../types';
 import {
   computeMedicineQuantity,
@@ -7,19 +7,26 @@ import {
   resolveMedicationRouteLabel,
   resolveMedicationToaLabel,
 } from './medication-rx-options';
-import { resolveMedicineStrengthDisplay } from './visitpad-catalog-options';
+import {
+  matchMethodStrengthOption,
+  resolveMedicineStrengthDisplay,
+} from './visitpad-catalog-options';
 
 /** Apply visitpad medicine catalog defaults onto a prescription row. */
 export function buildCatalogMedicineDefaults(
   catalog: VisitpadMedicine,
+  methodStrengthColumns?: VisitpadRxColumn[],
 ): Partial<MedicineRow> {
+  const rawStrength = resolveMedicineStrengthDisplay(catalog);
+  const matchedStrength = matchMethodStrengthOption(methodStrengthColumns, rawStrength);
+
   const patch: Partial<MedicineRow> = {
     medicineId: catalog.id,
     dosageForm: resolveMedicationDosageFormLabel(catalog.dosage_form),
     route: resolveMedicationRouteLabel(
       catalog.default_route ?? catalog.route_of_admin[0] ?? '',
     ),
-    strength: resolveMedicineStrengthDisplay(catalog),
+    strength: matchedStrength || rawStrength,
   };
 
   if (catalog.default_dose_value != null) {
