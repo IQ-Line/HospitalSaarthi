@@ -59,7 +59,27 @@ export function findVisitpadMedicineByDisplayName(
 ): VisitpadMedicine | undefined {
   const trimmed = displayName.trim();
   if (!trimmed) return undefined;
-  return activeVisitpadCatalogRows(items).find((item) => item.display_name === trimmed);
+  const rows = activeVisitpadCatalogRows(items);
+
+  const exact = rows.find((item) => item.display_name === trimmed);
+  if (exact) return exact;
+
+  const lower = trimmed.toLowerCase();
+  const caseInsensitive = rows.find((item) => item.display_name.toLowerCase() === lower);
+  if (caseInsensitive) return caseInsensitive;
+
+  return rows.find((item) => {
+    const strength = resolveMedicineStrengthDisplay(item);
+    const label = strength ? `${item.display_name} — ${strength}` : item.display_name;
+    return label === trimmed || label.toLowerCase() === lower;
+  });
+}
+
+function coerceStrengthValue(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(String(value).trim());
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** Prefer explicit display; fall back to value + unit when admin only filled formulation fields. */
@@ -70,7 +90,7 @@ export function resolveMedicineStrengthDisplay(
   if (display) return display;
 
   const unit = medicine.strength_unit?.trim();
-  const value = medicine.strength_value;
+  const value = coerceStrengthValue(medicine.strength_value);
   if (value != null && unit) {
     const formattedValue = Number.isInteger(value) ? String(value) : String(value);
     return `${formattedValue} ${unit}`;
