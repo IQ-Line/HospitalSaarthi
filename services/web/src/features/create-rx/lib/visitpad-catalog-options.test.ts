@@ -3,6 +3,7 @@ import {
   activeVisitpadCatalogRows,
   visitpadDiagnosisOptions,
   visitpadMedicineOptions,
+  visitpadProcedureOptions,
 } from './visitpad-catalog-options';
 
 describe('visitpad-catalog-options', () => {
@@ -38,5 +39,16 @@ describe('visitpad-catalog-options', () => {
         } as never,
       ]),
     ).toEqual([{ label: 'Paracetamol — 500 mg', value: 'Paracetamol' }]);
+
+    expect(
+      visitpadProcedureOptions([
+        {
+          is_active: true,
+          is_deleted: false,
+          display_name: 'Appendectomy',
+          cpt_code: '44950',
+        } as never,
+      ]),
+    ).toEqual([{ label: 'Appendectomy (44950)', value: 'Appendectomy' }]);
   });
 });

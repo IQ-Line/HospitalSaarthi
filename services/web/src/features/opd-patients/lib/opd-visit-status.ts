@@ -5,18 +5,16 @@ import type { OpdPatientVisitRow, OpdVisitStatus } from '../types';
 /** Queue action: Edit RX when nurse pre-consult or doctor has saved consultation content. */
 export function opdVisitStatusToActionLabel(
   status: OpdVisitStatus,
-  prescriptionStatus?: OpdPrescriptionStatus | null,
+  _prescriptionStatus?: OpdPrescriptionStatus | null,
   opdVisitStatus?: string | null,
 ): OpdPatientVisitRow['actionLabel'] {
   if (status === 'completed') return 'View RX';
-  if (status === 'pre-consulted') return 'Edit RX';
-  const opdNorm = opdVisitStatus?.trim().toLowerCase().replace(/-/g, '_');
-  if (
-    prescriptionStatus === 'draft' &&
-    (opdNorm === 'pre_consulted' || opdNorm === 'in_progress')
-  ) {
+
+  const opdNorm = opdVisitStatus?.trim().toLowerCase().replace(/-/g, '_') ?? '';
+  if (opdNorm === 'pre_consulted' || opdNorm === 'in_progress') {
     return 'Edit RX';
   }
+
   return 'Create Rx';
 }
 

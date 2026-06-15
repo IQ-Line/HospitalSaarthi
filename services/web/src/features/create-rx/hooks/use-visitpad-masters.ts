@@ -7,6 +7,7 @@ import {
   useVisitpadDiagnoses,
   useVisitpadManufacturers,
   useVisitpadMedicines,
+  useVisitpadProcedures,
   useVisitpadVaccines,
   VISITPAD_CATALOG_FORM_PAGE,
 } from '@/features/visitpad/api';
@@ -16,6 +17,7 @@ import {
   visitpadDiagnosisOptions,
   visitpadDisplayNameOptions,
   visitpadMedicineOptions,
+  visitpadProcedureOptions,
   type VisitpadSelectOption,
 } from '../lib/visitpad-catalog-options';
 
@@ -30,6 +32,7 @@ export function useVisitpadMasters(): {
   allergyReactionOptions: VisitpadSelectOption[];
   diagnosisOptions: VisitpadSelectOption[];
   medicineOptions: VisitpadSelectOption[];
+  procedureOptions: VisitpadSelectOption[];
   chronicIllnessOptions: VisitpadSelectOption[];
   chiefComplaintOptions: VisitpadSelectOption[];
   medicines: VisitpadMedicine[];
@@ -40,6 +43,7 @@ export function useVisitpadMasters(): {
   const reactionsQ = useVisitpadAllergyReactions(undefined, FORM_PAGE);
   const diagnosesQ = useVisitpadDiagnoses(undefined, undefined, FORM_PAGE);
   const medicinesQ = useVisitpadMedicines(undefined, undefined, FORM_PAGE);
+  const proceduresQ = useVisitpadProcedures(undefined, undefined, undefined, FORM_PAGE);
   const chronicQ = useVisitpadChronicIllnesses(undefined, undefined, FORM_PAGE);
   const chiefComplaintsQ = useVisitpadChiefComplaints(undefined, undefined, undefined, FORM_PAGE);
 
@@ -50,6 +54,7 @@ export function useVisitpadMasters(): {
     reactionsQ,
     diagnosesQ,
     medicinesQ,
+    proceduresQ,
     chronicQ,
     chiefComplaintsQ,
   ];
@@ -68,6 +73,7 @@ export function useVisitpadMasters(): {
     allergyReactionOptions: visitpadDisplayNameOptions(reactionsQ.data?.data),
     diagnosisOptions: visitpadDiagnosisOptions(diagnosesQ.data?.data),
     medicineOptions: visitpadMedicineOptions(medicinesQ.data?.data),
+    procedureOptions: visitpadProcedureOptions(proceduresQ.data?.data),
     chronicIllnessOptions: visitpadDisplayNameOptions(chronicQ.data?.data),
     chiefComplaintOptions: visitpadDisplayNameOptions(chiefComplaintsQ.data?.data),
     medicines,

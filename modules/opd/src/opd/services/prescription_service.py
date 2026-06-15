@@ -73,6 +73,7 @@ class PrescriptionService:
             self._session,
             tenant_id,
             [(row.visit_id, str(row.status)) for row in rows],
+            rx_by_visit_id={row.visit_id: row for row in rows},
         )
         return {
             str(row.visit_id): PrescriptionEncounterOverlay(
