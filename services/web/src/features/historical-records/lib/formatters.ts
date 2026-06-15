@@ -24,6 +24,16 @@ export function formatAbhaNumber(value: string | null | undefined): string {
   return `${raw.slice(0, 2)}-${raw.slice(2, 6)}-${raw.slice(6, 10)}-${raw.slice(10, 14)}`;
 }
 
+/** Normalize user input for EMPI ABHA exact-match search (stored with dashes). */
+export function normalizeAbhaForSearch(raw: string): string {
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 14) {
+    return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}-${digits.slice(10, 14)}`;
+  }
+  return trimmed;
+}
+
 export function formatPatientNameLink(
   name: string,
   age: number,

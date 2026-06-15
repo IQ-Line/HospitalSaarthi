@@ -49,6 +49,8 @@ export const listRegistrationsQuerySchema = {
   },
 };
 
+const isoDateParam = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } as const;
+
 export const listVisitsQuerySchema = {
   type: "object" as const,
   additionalProperties: false,
@@ -60,6 +62,8 @@ export const listVisitsQuerySchema = {
     facility_id: uuidParam,
     department_id: uuidParam,
     doctor_id: uuidParam,
+    updated_from: isoDateParam,
+    updated_to: isoDateParam,
   },
 };
 

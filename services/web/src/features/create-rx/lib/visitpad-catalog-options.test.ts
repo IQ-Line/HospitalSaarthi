@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeVisitpadCatalogRows,
+  resolveMedicineStrengthDisplay,
   visitpadDiagnosisOptions,
   visitpadMedicineOptions,
   visitpadProcedureOptions,
@@ -50,5 +51,28 @@ describe('visitpad-catalog-options', () => {
         } as never,
       ]),
     ).toEqual([{ label: 'Appendectomy (44950)', value: 'Appendectomy' }]);
+  });
+
+  it('resolves strength from value and unit when display is empty', () => {
+    expect(
+      resolveMedicineStrengthDisplay({
+        strength_display: '',
+        strength_value: 500,
+        strength_unit: 'mg',
+      } as never),
+    ).toBe('500 mg');
+
+    expect(
+      visitpadMedicineOptions([
+        {
+          is_active: true,
+          is_deleted: false,
+          display_name: 'Paracetamol',
+          strength_display: '',
+          strength_value: 500,
+          strength_unit: 'mg',
+        } as never,
+      ]),
+    ).toEqual([{ label: 'Paracetamol — 500 mg', value: 'Paracetamol' }]);
   });
 });

@@ -34,6 +34,8 @@ interface ListQuery {
   facility_id?: string;
   department_id?: string;
   doctor_id?: string;
+  updated_from?: string;
+  updated_to?: string;
 }
 
 export interface VisitsHandlerDeps {
@@ -65,6 +67,8 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
           facility_id: q.facility_id,
           department_id: q.department_id,
           doctor_id: q.doctor_id,
+          updated_from: q.updated_from,
+          updated_to: q.updated_to,
         },
       );
       return reply.send({

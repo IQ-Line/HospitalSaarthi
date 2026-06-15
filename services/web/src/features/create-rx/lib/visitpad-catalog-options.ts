@@ -35,12 +35,13 @@ export function visitpadDiagnosisOptions(
 export function visitpadMedicineOptions(
   items: VisitpadMedicine[] | undefined,
 ): VisitpadSelectOption[] {
-  return activeVisitpadCatalogRows(items).map((item) => ({
-    label: item.strength_display
-      ? `${item.display_name} — ${item.strength_display}`
-      : item.display_name,
-    value: item.display_name,
-  }));
+  return activeVisitpadCatalogRows(items).map((item) => {
+    const strength = resolveMedicineStrengthDisplay(item);
+    return {
+      label: strength ? `${item.display_name} — ${strength}` : item.display_name,
+      value: item.display_name,
+    };
+  });
 }
 
 export function visitpadProcedureOptions(
@@ -59,6 +60,24 @@ export function findVisitpadMedicineByDisplayName(
   const trimmed = displayName.trim();
   if (!trimmed) return undefined;
   return activeVisitpadCatalogRows(items).find((item) => item.display_name === trimmed);
+}
+
+/** Prefer explicit display; fall back to value + unit when admin only filled formulation fields. */
+export function resolveMedicineStrengthDisplay(
+  medicine: Pick<VisitpadMedicine, 'strength_display' | 'strength_value' | 'strength_unit'>,
+): string {
+  const display = medicine.strength_display?.trim();
+  if (display) return display;
+
+  const unit = medicine.strength_unit?.trim();
+  const value = medicine.strength_value;
+  if (value != null && unit) {
+    const formattedValue = Number.isInteger(value) ? String(value) : String(value);
+    return `${formattedValue} ${unit}`;
+  }
+  if (value != null) return String(value);
+  if (unit) return unit;
+  return '';
 }
 
 export function visitpadRxColumnOptions(

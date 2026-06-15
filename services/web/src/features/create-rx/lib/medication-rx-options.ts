@@ -97,3 +97,49 @@ export function resolveMedicationDosageFormLabel(form: string | null | undefined
   );
   return fromOptions?.value ?? trimmed;
 }
+
+function parseNonNegativeNumber(value: string | null | undefined): number {
+  const n = Number(String(value ?? '').trim());
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return n;
+}
+
+function frequencyDosesPerDay(frequency: string | null | undefined): number {
+  const normalized = (frequency ?? '').trim().toLowerCase();
+  if (!normalized) return 0;
+  if (normalized.includes('thrice') || normalized === 'tid') return 3;
+  if (normalized.includes('twice') || normalized === 'bid') return 2;
+  if (normalized.includes('once') || normalized === 'od' || normalized === 'qd') return 1;
+  return 0;
+}
+
+/**
+ * Auto-calculate dispense quantity from MAN dosage, days, and frequency.
+ * Returns empty string when inputs are insufficient — caller may fall back to typical_quantity.
+ */
+export function computeMedicineQuantity(input: {
+  dosageMorning: string;
+  dosageAfternoon: string;
+  dosageNight: string;
+  days: string;
+  frequency: string;
+}): string {
+  const morning = parseNonNegativeNumber(input.dosageMorning);
+  const afternoon = parseNonNegativeNumber(input.dosageAfternoon);
+  const night = parseNonNegativeNumber(input.dosageNight);
+  const days = parseNonNegativeNumber(input.days);
+  if (days <= 0) return '';
+
+  const manTotal = morning + afternoon + night;
+  if (manTotal > 0) {
+    return String(manTotal * days);
+  }
+
+  const dosesPerDay = frequencyDosesPerDay(input.frequency);
+  const singleDose = morning || afternoon || night;
+  if (singleDose > 0 && dosesPerDay > 0) {
+    return String(singleDose * dosesPerDay * days);
+  }
+
+  return '';
+}

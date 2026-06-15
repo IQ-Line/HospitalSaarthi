@@ -248,7 +248,8 @@ paths:
       summary: List visits (paginated)
       description: |
         Tenant-scoped encounter rows newest first. Filter by `status`, `patient_id`,
-        `facility_id`, `department_id`, or `doctor_id`.
+        `facility_id`, `department_id`, `doctor_id`, or inclusive `updated_from` /
+        `updated_to` calendar dates on `updated_at`.
 
         Defaults: `page=1`, `limit=20` (max `limit` 100).
       tags: [Visits]
@@ -274,6 +275,14 @@ paths:
         - name: doctor_id
           in: query
           schema: { type: string, format: uuid }
+        - name: updated_from
+          in: query
+          schema: { type: string, format: date }
+          description: Inclusive lower bound on visit `updated_at` (calendar date).
+        - name: updated_to
+          in: query
+          schema: { type: string, format: date }
+          description: Inclusive upper bound on visit `updated_at` (calendar date).
       responses:
         "200":
           description: Paginated visit list
