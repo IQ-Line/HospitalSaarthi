@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activeVisitpadCatalogRows,
+  findVisitpadMedicineByDisplayName,
   resolveMedicineStrengthDisplay,
   visitpadDiagnosisOptions,
   visitpadMedicineOptions,
@@ -74,5 +75,21 @@ describe('visitpad-catalog-options', () => {
         } as never,
       ]),
     ).toEqual([{ label: 'Paracetamol — 500 mg', value: 'Paracetamol' }]);
+  });
+
+  it('finds medicine by case-insensitive name and dropdown label', () => {
+    const rows = [
+      {
+        is_active: true,
+        is_deleted: false,
+        display_name: 'Calpol',
+        strength_display: '',
+        strength_value: 500,
+        strength_unit: 'mg',
+      },
+    ] as never;
+
+    expect(findVisitpadMedicineByDisplayName(rows, 'calpol')?.display_name).toBe('Calpol');
+    expect(findVisitpadMedicineByDisplayName(rows, 'Calpol — 500 mg')?.display_name).toBe('Calpol');
   });
 });

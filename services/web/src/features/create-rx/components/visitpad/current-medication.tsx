@@ -1,4 +1,5 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
+import { fetchVisitpadMedicineById } from '@/features/visitpad/api';
 import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
 import {
   buildCatalogMedicineDefaults,
@@ -58,6 +59,7 @@ export function CurrentMedication() {
   const removeMedicine = useCreateRxStore((s) => s.removeMedicineRow);
   const updateMedicine = useCreateRxStore((s) => s.updateMedicineRow);
   const patchMedicine = useCreateRxStore((s) => s.patchMedicineRow);
+  const medicineSelectSeq = useRef(0);
   const addTest = useCreateRxStore((s) => s.addTestRow);
   const removeTest = useCreateRxStore((s) => s.removeTestRow);
   const updateTest = useCreateRxStore((s) => s.updateTestRow);
@@ -179,15 +181,36 @@ export function CurrentMedication() {
     [procedureOptions],
   );
 
+  const applyCatalogMedicine = useCallback(
+    async (index: number, displayName: string) => {
+      const selectionSeq = ++medicineSelectSeq.current;
+      const catalogFromList = findVisitpadMedicineByDisplayName(medicines, displayName);
+      if (!catalogFromList) {
+        patchMedicine(index, { medicine: displayName, medicineId: '' });
+        return;
+      }
+
+      let catalog = catalogFromList;
+      try {
+        catalog = await fetchVisitpadMedicineById(catalogFromList.id);
+      } catch {
+        // Fall back to list row when detail fetch fails.
+      }
+
+      if (selectionSeq !== medicineSelectSeq.current) return;
+
+      patchMedicine(index, {
+        medicine: catalog.display_name,
+        ...buildCatalogMedicineDefaults(catalog),
+      });
+    },
+    [medicines, patchMedicine],
+  );
+
   const handleMedicineUpdate = useCallback(
     (index: number, field: keyof MedicineRow, value: string) => {
       if (field === 'medicine') {
-        const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
-        if (!catalogMedicine) {
-          patchMedicine(index, { medicine: value, medicineId: '' });
-          return;
-        }
-        patchMedicine(index, { medicine: value, ...buildCatalogMedicineDefaults(catalogMedicine) });
+        void applyCatalogMedicine(index, value);
         return;
       }
 
@@ -202,7 +225,7 @@ export function CurrentMedication() {
         }
       }
     },
-    [medicines, patchMedicine, updateMedicine],
+    [applyCatalogMedicine, updateMedicine],
   );
 
   return (
