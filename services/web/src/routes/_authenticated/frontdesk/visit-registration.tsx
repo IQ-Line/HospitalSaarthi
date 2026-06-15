@@ -66,6 +66,7 @@ import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
+import { useSyncRegistrationAppointmentRoom } from '@/features/frontdesk/hooks/use-sync-registration-appointment-room';
 import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useProviderList } from '@/features/user-management/api/queries';
@@ -353,6 +354,13 @@ function VisitRegistrationRoute() {
     tariffs.consultationFeeLine,
     hasProvider,
     visitDecisionMeta?.fee === 0,
+  );
+
+  useSyncRegistrationAppointmentRoom(
+    departmentId,
+    appointmentProviderId?.trim() || null,
+    tariffs.consultationRoomNumber,
+    form.setValue,
   );
 
   const visitTypeDecisionPatient = useMemo(

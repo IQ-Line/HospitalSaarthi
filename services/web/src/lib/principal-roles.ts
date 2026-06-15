@@ -21,6 +21,27 @@ export function mergePrincipalRoleCodes(
   return [...merged];
 }
 
+/** Human-readable label for a Cerbos/JWT role code (e.g. `receptionist` → `Receptionist`). */
+export function formatRoleCodeLabel(roleCode: string): string {
+  const trimmed = roleCode.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/** Merged principal roles as a comma-separated display string for shell UX. */
+export function formatPrincipalRoleLabels(
+  ...roleLists: ReadonlyArray<readonly string[] | undefined>
+): string {
+  return mergePrincipalRoleCodes(...roleLists)
+    .map(formatRoleCodeLabel)
+    .filter((label) => label.length > 0)
+    .join(', ');
+}
+
 /** True when the principal holds any listed role (case-insensitive). */
 export function principalHasAnyRole(
   principalRoles: readonly string[],

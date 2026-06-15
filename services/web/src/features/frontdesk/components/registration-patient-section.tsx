@@ -23,6 +23,7 @@ import {
   RegistrationSection,
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
+import { DobDdMmYyyyField } from '@/features/frontdesk/components/dob-dd-mm-yyyy-field';
 import { sanitizeIndianMobileInput } from '@/lib/indian-mobile';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
 import { coerceAgePartValue } from '@/features/frontdesk/utils/visit-registration-helpers';
@@ -245,13 +246,8 @@ export function RegistrationPatientSection({
           ) : null}
         </RegistrationField>
         <RegistrationField className="lg:col-span-3">
-          <RegistrationFieldLabel htmlFor="visit-reg-dob">Date of Birth</RegistrationFieldLabel>
-          <Input
-            id="visit-reg-dob"
-            type="date"
-            className="h-10 w-full"
-            {...register('patient.date_of_birth')}
-          />
+          <RegistrationFieldLabel htmlFor="visit-reg-dob-day">Date of Birth</RegistrationFieldLabel>
+          <DobDdMmYyyyField control={form.control} name="patient.date_of_birth" />
         </RegistrationField>
         <RegistrationField className="lg:col-span-1">
           <RegistrationFieldLabel htmlFor="visit-reg-age-yrs" required>

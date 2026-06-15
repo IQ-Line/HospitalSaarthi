@@ -224,6 +224,7 @@ export function VisitRegistrationAppointmentSection({
             setValue('appointment.department_id', nextId);
             setValue('appointment.department_name', nextName);
             setValue('appointment.provider_id', '');
+            setValue('appointment.room_number', '');
           }}
           placeholder={departmentPlaceholder}
           disabled={
