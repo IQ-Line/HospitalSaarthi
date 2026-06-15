@@ -46,6 +46,7 @@ function mockSharedInfra(profiles: IntegrationProfileRepo): IntegrationHubShared
     fidelius: {} as IntegrationHubSharedInfra["fidelius"],
     payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
     linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],
+    shareTokens: {} as IntegrationHubSharedInfra["shareTokens"],
   };
 }
 

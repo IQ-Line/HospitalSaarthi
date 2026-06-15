@@ -7,6 +7,7 @@ import {
   registerM1Routes,
   registerM2PlatformRoutes,
   registerM3PlatformRoutes,
+  registerScanShareRoutes,
 } from "./rest-handlers/index.js";
 
 export type AbdmAdapterRouterOptions = IntegrationHubSharedInfra;
@@ -20,6 +21,7 @@ async function abdmAdapterRouter(
   await registerM1Routes(app);
   await registerM2PlatformRoutes(app);
   await registerM3PlatformRoutes(app);
+  await registerScanShareRoutes(app, sharedInfra);
 }
 
 export function createRouter(sharedInfra: IntegrationHubSharedInfra) {

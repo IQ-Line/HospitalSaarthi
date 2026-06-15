@@ -94,6 +94,7 @@ export {
   createFideliusEncryptorFromEnv,
 } from "./integrations/abdm/data-access/fidelius.js";
 export { DrizzleLinkOtpsRepo } from "./integrations/abdm/data-access/abdm-link-otps.repo.js";
+export { DrizzleShareTokensRepo } from "./integrations/abdm/data-access/abdm-share-tokens.repo.js";
 export { createPayloadEncryptorFromEnv } from "./integrations/abdm/lib/payload-encryptor.js";
 export {
   registerM2CallbackRoutes,

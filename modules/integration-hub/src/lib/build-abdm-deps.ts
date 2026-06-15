@@ -26,6 +26,7 @@ import type {
   PayloadEncryptor,
   RecordFoundationClient,
 } from "../integrations/abdm/ports.js";
+import type { ShareTokensPort } from "../integrations/abdm/data-access/abdm-share-tokens.repo.js";
 
 export interface IntegrationHubDeploymentConfig {
   gatewayBaseUrl: string;
@@ -52,6 +53,7 @@ export interface IntegrationHubSharedInfra {
   fidelius: FideliusEncryptor;
   payloadEncryptor: PayloadEncryptor;
   linkOtpStore: LinkOtpStorePort;
+  shareTokens: ShareTokensPort;
   dataPush?: HipDataPushClient;
   eventBus?: EventBus;
 }

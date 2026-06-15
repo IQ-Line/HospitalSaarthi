@@ -112,6 +112,10 @@ type RegistrationFormHeaderProps = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onPatientQueue: () => void;
+  abdmTokenValue?: string;
+  onAbdmTokenChange?: (value: string) => void;
+  onAbdmTokenSubmit?: (token: string) => void;
+  abdmEnabled?: boolean;
   actions?: ReactNode;
 };
 
@@ -123,6 +127,10 @@ export function RegistrationFormHeader({
   searchValue,
   onSearchChange,
   onPatientQueue,
+  abdmTokenValue = '',
+  onAbdmTokenChange,
+  onAbdmTokenSubmit,
+  abdmEnabled = false,
   actions,
 }: RegistrationFormHeaderProps) {
   return (
@@ -148,15 +156,31 @@ export function RegistrationFormHeader({
           >
             Token
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-full px-4"
-            disabled
-          >
-            ABHA Token
-          </Button>
+          <div className="relative min-w-[8rem] sm:min-w-[10rem]">
+            <Label htmlFor="reg-abha-token" className="sr-only">
+              ABHA Token
+            </Label>
+            <Input
+              id="reg-abha-token"
+              value={abdmTokenValue}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (/^[a-zA-Z0-9]*$/.test(value)) {
+                  onAbdmTokenChange?.(value);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && abdmTokenValue.trim() && onAbdmTokenSubmit) {
+                  onAbdmTokenSubmit(abdmTokenValue.trim());
+                  onAbdmTokenChange?.('');
+                }
+              }}
+              placeholder="ABHA Token"
+              className="h-9 rounded-full px-4"
+              disabled={!abdmEnabled}
+              autoComplete="off"
+            />
+          </div>
           <div className="relative min-w-[12rem] flex-1 sm:min-w-[16rem] sm:max-w-xs">
             <Label htmlFor="reg-header-search" className="sr-only">
               Search by name or mobile

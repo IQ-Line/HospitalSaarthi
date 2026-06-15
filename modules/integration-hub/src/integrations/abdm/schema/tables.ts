@@ -190,6 +190,69 @@ export const abdmM3DataTransfers = abdmAdapterSchema.table(
   ],
 );
 
+export const abdmShareTokens = abdmAdapterSchema.table(
+  "abdm_share_tokens",
+  {
+    ...tenantColumn(),
+    id: uuid("id").defaultRandom().notNull(),
+    facility_id_ref: text("facility_id_ref").notNull(),
+    issue_date: text("issue_date").notNull(),
+    next_token_number: smallint("next_token_number").notNull().default(1),
+    created_at: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("uq_share_token_per_facility_day").on(
+      t.iq_tenant_id,
+      t.facility_id_ref,
+      t.issue_date,
+    ),
+  ],
+);
+
+export const abdmShareTokenIssuances = abdmAdapterSchema.table(
+  "abdm_share_token_issuances",
+  {
+    ...tenantColumn(),
+    id: uuid("id").defaultRandom().notNull(),
+    facility_id_ref: text("facility_id_ref").notNull(),
+    issue_date: text("issue_date").notNull(),
+    token_number: smallint("token_number").notNull(),
+    abha_address: text("abha_address").notNull(),
+    patient_metadata: jsonb("patient_metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    active: boolean("active").notNull().default(true),
+    issued_at: timestamp("issued_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    redeemed_at: timestamp("redeemed_at", { withTimezone: true }),
+    updated_at: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("uq_share_token_issuance").on(
+      t.iq_tenant_id,
+      t.facility_id_ref,
+      t.issue_date,
+      t.token_number,
+    ),
+    index("ix_share_issuance_active").on(
+      t.iq_tenant_id,
+      t.facility_id_ref,
+      t.active,
+      t.issued_at,
+    ),
+    index("ix_share_issuance_abha").on(t.iq_tenant_id, t.abha_address),
+  ],
+);
+
 export const abdmConsentArtefacts = abdmAdapterSchema.table(
   "abdm_consent_artefacts",
   {

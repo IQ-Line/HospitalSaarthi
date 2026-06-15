@@ -27,6 +27,15 @@ import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog'
 import type { AbhaCreatedPayload } from '@/features/abha/types';
 import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
 import {
+  PatientQueueModal,
+  type PatientQueueModalRef,
+} from '@/features/frontdesk/components/patient-queue-modal';
+import {
+  applyQueuePatientToVisitForm,
+  useAbdmIntegrationProfile,
+  type QueuePatient,
+} from '@/features/frontdesk/api/scan-share-queue';
+import {
   RegistrationPatientSection,
   type RegistrationAbhaContext,
 } from '@/features/frontdesk/components/registration-patient-section';
@@ -113,7 +122,13 @@ function VisitRegistrationRoute() {
   const [listSearchDraft, setListSearchDraft] = useState('');
   const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
   const [listPage, setListPage] = useState(1);
+  const [patientQueueOpen, setPatientQueueOpen] = useState(false);
+  const [abdmTokenDraft, setAbdmTokenDraft] = useState('');
+  const patientQueueRef = useRef<PatientQueueModalRef>(null);
   const queryClient = useQueryClient();
+  const tenantId = useTenantStore((s) => s.tenantId ?? s.homeTenantId);
+  const abdmProfileQuery = useAbdmIntegrationProfile(tenantId ?? null);
+  const abdmEnabled = Boolean(abdmProfileQuery.data?.hip_id);
   const sectionVisible = useVisitRegistrationSectionsStore((s) => s.visible);
   const providersQuery = useProviderList(null, { enabled: phase === 'form' });
 
@@ -584,6 +599,31 @@ function VisitRegistrationRoute() {
     }
   };
 
+  const handleQueuePatientSelect = (patient: QueuePatient) => {
+    applyQueuePatientToVisitForm(patient, form.setValue);
+    if (patient.abhaNumber || patient.abhaAddress) {
+      setAbhaRegistration({
+        sessionId: '',
+        abhaNumber: patient.abhaNumber,
+        abhaAddress: patient.abhaAddress,
+      });
+    }
+    toast.success('Queue patient details applied to registration form');
+  };
+
+  const handleAbdmTokenSubmit = async (token: string) => {
+    if (!patientQueueRef.current) {
+      toast.error('Patient queue is not ready');
+      return;
+    }
+    const foundPatient = await Promise.resolve(patientQueueRef.current.findPatientByToken(token));
+    if (foundPatient) {
+      handleQueuePatientSelect(foundPatient);
+      return;
+    }
+    toast.error('No patient found for this token');
+  };
+
   const mutation = useMutation({
     mutationFn: (data: VisitSubmitPayload) => {
       const { existingPatientId: patientId, ...formData } = data;
@@ -763,7 +803,11 @@ function VisitRegistrationRoute() {
           <RegistrationFormHeader
             searchValue={formSearchDraft}
             onSearchChange={setFormSearchDraft}
-            onPatientQueue={() => setPhase('list')}
+            onPatientQueue={() => setPatientQueueOpen(true)}
+            abdmTokenValue={abdmTokenDraft}
+            onAbdmTokenChange={setAbdmTokenDraft}
+            onAbdmTokenSubmit={(token) => void handleAbdmTokenSubmit(token)}
+            abdmEnabled={abdmEnabled}
             actions={<VisitRegistrationSectionMenu />}
           />
           )}
@@ -1023,6 +1067,15 @@ function VisitRegistrationRoute() {
         onOpenChange={setAbhaDialogOpen}
         flow={abhaDialogFlow}
         onSuccess={handleAbhaCreated}
+      />
+
+      <PatientQueueModal
+        ref={patientQueueRef}
+        open={patientQueueOpen}
+        onOpenChange={setPatientQueueOpen}
+        abdmProfile={abdmProfileQuery.data}
+        abdmEnabled={abdmEnabled}
+        onPatientSelect={handleQueuePatientSelect}
       />
 
       {reportsModal ? (

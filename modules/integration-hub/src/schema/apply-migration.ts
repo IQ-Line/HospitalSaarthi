@@ -10,6 +10,7 @@ const MIGRATION_FILES = [
   "0001_integration_hub_m2_schema.sql",
   "0002_abdm_link_otps.sql",
   "0003_integration_hub_m3_schema.sql",
+  "0004_abdm_scan_share.sql",
 ] as const;
 
 /**

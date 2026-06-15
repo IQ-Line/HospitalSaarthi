@@ -82,6 +82,7 @@ describe("registerM2EventConsumers", () => {
       fidelius: {} as IntegrationHubSharedInfra["fidelius"],
       payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
       linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],
+      shareTokens: {} as IntegrationHubSharedInfra["shareTokens"],
     } as IntegrationHubSharedInfra;
 
     const handlers = new Map<string, (event: unknown) => Promise<void>>();

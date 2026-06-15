@@ -30,6 +30,7 @@ import {
   DrizzleM3ConsentRequestsRepo,
   DrizzleM3ConsentArtefactsHiuRepo,
   DrizzleM3DataTransfersRepo,
+  DrizzleShareTokensRepo,
   scheduleIntegrationHubJanitor,
   allowInsecureAbdmCallbacks,
   nodeEnv,
@@ -179,6 +180,7 @@ async function main() {
   const m3ConsentArtefactsHiu = new DrizzleM3ConsentArtefactsHiuRepo(db);
   const m3DataTransfers = new DrizzleM3DataTransfersRepo(db);
   const linkOtpStore = new DrizzleLinkOtpsRepo(db);
+  const shareTokens = new DrizzleShareTokensRepo(db);
 
   const sharedInfra: IntegrationHubSharedInfra = {
     profiles,
@@ -199,6 +201,7 @@ async function main() {
     fidelius,
     payloadEncryptor,
     linkOtpStore,
+    shareTokens,
     dataPush,
     eventBus,
   };

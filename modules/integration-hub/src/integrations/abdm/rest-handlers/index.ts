@@ -8,3 +8,4 @@ export {
   registerM3CallbackRoutes,
   registerM3PlatformRoutes,
 } from "./m3/index.js";
+export { registerScanShareRoutes } from "./scan-share/scan-share-routes.js";
