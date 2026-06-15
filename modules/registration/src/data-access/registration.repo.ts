@@ -193,10 +193,28 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       conditions.push(eq(registrations.patient_id, params.patient_id));
     }
 
-    const q = params.q?.trim() || params.uhid?.trim() || params.mobile?.trim();
+    const q = params.q?.trim();
+    const uhid = params.uhid?.trim();
+    const mobile = params.mobile?.trim();
     const name = params.name?.trim();
+    const abhaNumber = params.abha_number?.trim();
+    const abhaAddress = params.abha_address?.trim();
 
-    if (q) {
+    if (abhaNumber) {
+      conditions.push(ilike(registrations.patient_abha_number, `%${abhaNumber}%`));
+    } else if (abhaAddress) {
+      conditions.push(ilike(registrations.patient_abha_address, `%${abhaAddress}%`));
+    } else if (uhid) {
+      conditions.push(ilike(registrations.patient_uhid, `%${uhid}%`));
+    } else if (mobile) {
+      const digits = mobile.replace(/\D/g, "");
+      const tail = digits.slice(-10);
+      if (tail.length === 10) {
+        conditions.push(ilike(registrations.patient_phone_number, `%${tail}`));
+      }
+    } else if (name && name.length >= 2) {
+      conditions.push(ilike(registrations.patient_full_name, `%${name}%`));
+    } else if (q) {
       const pattern = `%${q}%`;
       conditions.push(
         or(
@@ -205,8 +223,6 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           ilike(registrations.patient_full_name, pattern),
         )!,
       );
-    } else if (name && name.length >= 2) {
-      conditions.push(ilike(registrations.patient_full_name, `%${name}%`));
     }
 
     const where = and(...conditions);

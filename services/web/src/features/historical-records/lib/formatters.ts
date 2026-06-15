@@ -1,3 +1,5 @@
+import type { HistoricalSearchField } from '../types';
+
 export function formatHistoricalDateTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
@@ -32,6 +34,38 @@ export function normalizeAbhaForSearch(raw: string): string {
     return `${digits.slice(0, 2)}-${digits.slice(2, 6)}-${digits.slice(6, 10)}-${digits.slice(10, 14)}`;
   }
   return trimmed;
+}
+
+/** Normalize mobile for EMPI search — accepts 10 digits or +91 prefix (not UHID/ABHA-length values). */
+export function normalizeIndianPhoneForSearch(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 10 || digits.length > 13) return null;
+  return `+91${digits.slice(-10)}`;
+}
+
+/** True when the query shape matches the selected historical-records search field. */
+export function isHistoricalSearchQueryValid(
+  field: HistoricalSearchField,
+  query: string,
+): boolean {
+  const trimmed = query.trim();
+  if (!trimmed) return false;
+  const digits = trimmed.replace(/\D/g, '');
+
+  switch (field) {
+    case 'patient_name':
+      return trimmed.length >= 2 && digits.length !== trimmed.length;
+    case 'mobile_number':
+      return digits.length >= 10 && digits.length <= 13;
+    case 'abha_number':
+      return digits.length === 14;
+    case 'abha_address':
+      return trimmed.includes('@') && trimmed.length >= 3;
+    case 'uhid':
+      return digits.length >= 15;
+    default:
+      return false;
+  }
 }
 
 export function formatPatientNameLink(

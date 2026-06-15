@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
+import { listRegistrations, listRegistrationVisits } from '@/features/frontdesk/api/registrations';
 import type { RegistrationVisitResponse } from '@/features/frontdesk/types';
 import { resolveOpdConsultationTenantId } from '@/features/opd-patients/lib/opd-consultation-tenant';
 import {
@@ -19,7 +19,7 @@ import {
   resolvePatientAbhaNumber,
   type RegistrationPatientSnapshot,
 } from './registration-snapshot';
-import { isWithinDateRange, normalizeAbhaForSearch } from '../lib/formatters';
+import { isWithinDateRange, isHistoricalSearchQueryValid, normalizeAbhaForSearch, normalizeIndianPhoneForSearch } from '../lib/formatters';
 import type {
   HistoricalDocumentItem,
   HistoricalPatientProfile,
@@ -58,13 +58,13 @@ async function searchEmpiByField(
   query: string,
 ): Promise<EmpiPatient[]> {
   const trimmed = query.trim();
-  if (trimmed.length < 2 && field === 'patient_name') return [];
-  if (trimmed.length < 1 && field !== 'patient_name') return [];
+  if (!isHistoricalSearchQueryValid(field, trimmed)) return [];
 
   if (field === 'abha_address') {
+    const abhaAddress = trimmed.toLowerCase();
     try {
       const match = await apiClient<{ patientId?: string; id?: string }>(
-        `${EMPI_PATIENTS_BASE}/find?abha_address=${encodeURIComponent(trimmed)}`,
+        `${EMPI_PATIENTS_BASE}/find?abha_address=${encodeURIComponent(abhaAddress)}`,
       );
       const patientId = match?.patientId?.trim() || match?.id?.trim();
       if (!patientId) return [];
@@ -80,12 +80,78 @@ async function searchEmpiByField(
   sp.set('limit', '100');
 
   if (field === 'patient_name') sp.set('name', trimmed);
-  else if (field === 'mobile_number') sp.set('phone', trimmed.replace(/\D/g, ''));
-  else if (field === 'abha_number') sp.set('abha_number', normalizeAbhaForSearch(trimmed));
+  else if (field === 'mobile_number') {
+    const phone = normalizeIndianPhoneForSearch(trimmed);
+    if (!phone) return [];
+    sp.set('phone', phone);
+  } else if (field === 'abha_number') sp.set('abha_number', normalizeAbhaForSearch(trimmed));
   else if (field === 'uhid') sp.set('uhid', trimmed);
 
   const result = await apiClient<EmpiSearchPage>(`${EMPI_PATIENTS_BASE}?${sp.toString()}`);
   return result.data;
+}
+
+async function searchRegistrationPatientIds(
+  field: HistoricalSearchField,
+  query: string,
+): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed || !isHistoricalSearchQueryValid(field, trimmed)) return [];
+
+  if (field === 'patient_name') {
+    const page = await listRegistrations({ page: 1, limit: 100, name: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'mobile_number') {
+    const digits = trimmed.replace(/\D/g, '');
+    const page = await listRegistrations({ page: 1, limit: 100, mobile: digits.slice(-10) });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'uhid') {
+    const page = await listRegistrations({ page: 1, limit: 100, uhid: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'abha_number') {
+    const page = await listRegistrations({
+      page: 1,
+      limit: 100,
+      abha_number: normalizeAbhaForSearch(trimmed),
+    });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'abha_address') {
+    const page = await listRegistrations({ page: 1, limit: 100, abha_address: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  return [];
+}
+
+async function resolvePatientIdsForSearch(
+  field: HistoricalSearchField,
+  query: string,
+): Promise<string[]> {
+  const empiPatients = await searchEmpiByField(field, query);
+  const patientIds = new Set(empiPatients.map((patient) => patient.id));
+
+  if (
+    field === 'patient_name' ||
+    field === 'mobile_number' ||
+    field === 'uhid' ||
+    field === 'abha_number' ||
+    field === 'abha_address'
+  ) {
+    const registrationIds = await searchRegistrationPatientIds(field, query).catch(() => []);
+    for (const patientId of registrationIds) {
+      patientIds.add(patientId);
+    }
+  }
+
+  return [...patientIds];
 }
 
 async function fetchVisitsForPatients(
@@ -116,6 +182,10 @@ function visitDateFilters(filters: HistoricalRecordsFilters): {
     ...(filters.startDate ? { updated_from: filters.startDate } : {}),
     ...(filters.endDate ? { updated_to: filters.endDate } : {}),
   };
+}
+
+function isHistoricalSearchActive(filters: HistoricalRecordsFilters): boolean {
+  return isHistoricalSearchQueryValid(filters.searchField, filters.search);
 }
 
 function mapVisitToRow(
@@ -155,14 +225,13 @@ export async function fetchHistoricalRecordsList(params: {
 
   const doctorLookup = await fetchDoctorLookupMap();
 
-  if (search.length >= 2 || (search.length >= 1 && filters.searchField !== 'patient_name')) {
-    const patients = await searchEmpiByField(filters.searchField, search);
-    const patientIds = [...new Set(patients.map((p) => p.id))];
-    const [visits, registrationByPatientId] = await Promise.all([
+  if (isHistoricalSearchActive(filters)) {
+    const patientIds = await resolvePatientIdsForSearch(filters.searchField, search);
+    const [visits, registrationByPatientId, empiById] = await Promise.all([
       fetchVisitsForPatients(patientIds, dateFilters),
       fetchRegistrationSnapshotByPatientIds(patientIds),
+      fetchEmpiPatientLookupMap(patientIds),
     ]);
-    const empiById = new Map(patients.map((p) => [p.id, p]));
 
     const items = visits
       .map((v) =>

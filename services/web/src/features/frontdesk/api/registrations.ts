@@ -42,6 +42,11 @@ export interface ListRegistrationsParams {
   /** Substring match on snapshot UHID, phone, or patient name. */
   q?: string;
   patient_id?: string;
+  mobile?: string;
+  uhid?: string;
+  name?: string;
+  abha_number?: string;
+  abha_address?: string;
 }
 
 export interface ListRegistrationVisitsParams {
@@ -66,6 +71,11 @@ export async function listRegistrations(
   if (params.limit != null) sp.set('limit', String(params.limit));
   if (params.q?.trim()) sp.set('q', params.q.trim());
   if (params.patient_id?.trim()) sp.set('patient_id', params.patient_id.trim());
+  if (params.mobile?.trim()) sp.set('mobile', params.mobile.trim());
+  if (params.uhid?.trim()) sp.set('uhid', params.uhid.trim());
+  if (params.name?.trim()) sp.set('name', params.name.trim());
+  if (params.abha_number?.trim()) sp.set('abha_number', params.abha_number.trim());
+  if (params.abha_address?.trim()) sp.set('abha_address', params.abha_address.trim());
   const qs = sp.toString();
   return apiClient<RegistrationListPageResponse>(
     `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
