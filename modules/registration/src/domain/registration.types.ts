@@ -57,6 +57,8 @@ export interface ExistingPatientVisitInput {
   /** Desk-captured ABHA fields (EMPI may not have address on patient row yet). */
   abha_number?: string | null;
   abha_address?: string | null;
+  /** Desk-captured ABHA / DOB overlay when re-visiting an existing EMPI patient. */
+  patient?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;

@@ -9,6 +9,7 @@ import type { InsertVisitResult } from "../domain/visit.types.js";
 import { createRegistration } from "./create-registration.js";
 import { createVisit } from "./create-visit.js";
 import {
+  abhaAddressFromIntake,
   mergeIntakeIntoSnapshot,
   stripNonEmpiIntakeFields,
 } from "../lib/registration-helpers.js";
@@ -121,6 +122,17 @@ export async function createIntakeForNewPatient(
     ctx,
   );
 
+  const abhaAddress = abhaAddressFromIntake(input.patient);
+  if (abhaAddress) {
+    await deps.empiGateway.linkAbhaAddress(
+      tenantId,
+      empiResult.patientId,
+      abhaAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
+
   const visitResult = await createVisit(
     deps,
     tenantId,
@@ -152,9 +164,26 @@ export async function createIntakeForNewPatient(
   };
 }
 
+function registrationRecordToSnapshot(
+  row: import("../domain/registration.types.js").RegistrationRecord,
+): PatientDemographicsSnapshot {
+  return {
+    uhid: row.patient_uhid,
+    abha_number: row.patient_abha_number,
+    abha_address: row.patient_abha_address,
+    full_name: row.patient_full_name,
+    phone_number: row.patient_phone_number,
+    gender: row.patient_gender,
+    date_of_birth: row.patient_date_of_birth,
+    year_of_birth: row.patient_year_of_birth,
+  };
+}
+
 export async function createVisitForExistingPatient(
   deps: {
+    registrationRepo: RegistrationRepo;
     visitRepo: VisitRepo;
+    empiGateway?: EmpiHttpPort;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     eventBus: EventBus;
     opdGateway?: OpdHttpPort;
@@ -164,6 +193,38 @@ export async function createVisitForExistingPatient(
   input: import("../domain/registration.types.js").ExistingPatientVisitInput,
   ctx: IntakeContext,
 ): Promise<InsertVisitResult> {
+  const intakePatient = input.patient;
+  const abhaAddress = intakePatient ? abhaAddressFromIntake(intakePatient) : null;
+
+  if (intakePatient && (abhaAddress || intakePatient.abha_number || intakePatient.date_of_birth)) {
+    const registration = await deps.registrationRepo.findByPatientId(tenantId, input.patient_id);
+    if (registration) {
+      await createRegistration(
+        deps,
+        tenantId,
+        {
+          patient_id: input.patient_id,
+          patient_source_record_id: registration.patient_source_record_id,
+          patient_snapshot: mergeIntakeIntoSnapshot(
+            registrationRecordToSnapshot(registration),
+            intakePatient,
+          ),
+        },
+        ctx,
+      );
+    }
+  }
+
+  if (abhaAddress && deps.empiGateway) {
+    await deps.empiGateway.linkAbhaAddress(
+      tenantId,
+      input.patient_id,
+      abhaAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
+
   return createVisit(
     deps,
     tenantId,

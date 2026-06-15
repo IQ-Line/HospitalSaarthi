@@ -1,10 +1,24 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
-import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { createCareContextLinkedEnvelope } from "../../../lib/abdm-envelope.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { smsNotifyRequest } from "../sms-notify/request.js";
+
+async function markSessionCareContextsLinked(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  session: { context: { abhaAddress?: string; careContexts?: Array<{ referenceNumber: string }> } },
+): Promise<void> {
+  const { abhaAddress, careContexts } = session.context;
+  if (!abhaAddress || !careContexts?.length) return;
+  await deps.careContextLinkState.markLinked({
+    iqTenantId,
+    abhaAddress,
+    careContextReferences: careContexts.map((c) => c.referenceNumber),
+  });
+}
 
 export async function handleHipLinkCallback(
   input: AbdmTenantInput<
@@ -23,6 +37,7 @@ export async function handleHipLinkCallback(
   if ("error" in input && input.error) {
     const code = input.error.code;
     if (code === ABDM_ERROR_CODES.CARE_CONTEXTS_ALREADY_LINKED) {
+      await markSessionCareContextsLinked(deps, input.iqTenantId, session);
       await deps.sessions.patch({
         iqTenantId: input.iqTenantId,
         sessionId: session.sessionId,
@@ -54,12 +69,8 @@ export async function handleHipLinkCallback(
   });
 
   const ctx = session.context;
-  for (const cc of ctx.careContexts) {
-    await deps.recordFoundation.markCareContextLinked({
-      iqTenantId: input.iqTenantId,
-      careContextId: cc.referenceNumber,
-    });
-  }
+
+  await markSessionCareContextsLinked(deps, input.iqTenantId, session);
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

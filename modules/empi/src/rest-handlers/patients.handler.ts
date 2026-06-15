@@ -24,6 +24,7 @@ import { getPatient } from "../use-cases/get-patient.js";
 import { findPatientByAbhaAddress } from "../use-cases/find-patient-by-abha-address.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
 import { linkIdentifier } from "../use-cases/link-identifier.js";
+import { ensurePatientAbhaAddress } from "../use-cases/ensure-patient-abha-address.js";
 import {
   changePatientStatusBodySchema,
   createAddressBodySchema,
@@ -70,7 +71,8 @@ export function registerPatientsHandler(
     },
     async (request, reply) => {
       const tenantId = request.tenantId;
-      const body = request.body;
+      const { abha_address: abhaAddressRaw, ...registerBody } = request.body;
+      const abhaAddress = abhaAddressRaw?.trim();
 
       try {
         const result = await registerPatient(
@@ -79,12 +81,33 @@ export function registerPatientsHandler(
             allocatePatientUhid: deps.allocatePatientUhid,
             eventBus: deps.eventBus,
           },
-          { ...body, iq_tenant_id: tenantId },
+          { ...registerBody, iq_tenant_id: tenantId },
         );
 
         if (isDuplicateRegistrationResult(result)) {
           return reply.code(409).send(result);
         }
+
+        if (abhaAddress) {
+          const ensured = await ensurePatientAbhaAddress(
+            { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
+            tenantId,
+            result.id,
+            abhaAddress,
+            registerBody.created_by ?? null,
+          );
+          if (ensured.status === "conflict") {
+            request.log.warn(
+              {
+                patientId: result.id,
+                existingPatientId: ensured.existingPatientId,
+                abhaAddress,
+              },
+              "ABHA address already linked to another patient",
+            );
+          }
+        }
+
         return reply.code(201).send(result);
       } catch (err) {
         request.log.error({ err }, "registerPatient failed");
@@ -306,6 +329,26 @@ export function registerPatientsHandler(
       const tenantId = request.tenantId;
       const { id: patientId } = request.params;
       const body = request.body;
+
+      if (body.identifier_type === "abha_address") {
+        const ensured = await ensurePatientAbhaAddress(
+          { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
+          tenantId,
+          patientId,
+          body.identifier_value,
+          body.created_by ?? null,
+        );
+        if (ensured.status === "conflict") {
+          return reply.code(409).send({
+            error: "identifier_conflict",
+            existing_patient_id: ensured.existingPatientId,
+          });
+        }
+        if (ensured.status === "already_linked") {
+          return reply.code(200).send({ status: "already_linked" });
+        }
+        return reply.code(201).send(ensured.identifier);
+      }
 
       const identifier = await linkIdentifier(
         { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },

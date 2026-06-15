@@ -213,7 +213,9 @@ export function registerRegistrationsHandler(
       try {
         const result = await createVisitForExistingPatient(
           {
+            registrationRepo: deps.registrationRepo,
             visitRepo: deps.visitRepo,
+            empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
             opdGateway: deps.opdGateway,

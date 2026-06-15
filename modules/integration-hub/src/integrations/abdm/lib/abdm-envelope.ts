@@ -15,11 +15,11 @@ export interface AbdmSessionStateChangedPayload {
   newState: AbdmSessionState;
 }
 
-export function createAbdmEnvelope<T extends Record<string, unknown>>(
+function createAbdmEnvelope(
   eventType: string,
   iqTenantId: string,
-  payload: T,
-): DomainEvent<T> {
+  payload: Record<string, unknown>,
+): DomainEvent {
   return createEnvelope({
     event_type: eventType,
     source_module: ABDM_ADAPTER_SOURCE_MODULE,
@@ -35,8 +35,12 @@ export function createAbdmEnvelope<T extends Record<string, unknown>>(
 export function createSessionStateChangedEnvelope(
   iqTenantId: string,
   payload: AbdmSessionStateChangedPayload,
-): DomainEvent<AbdmSessionStateChangedPayload> {
-  return createAbdmEnvelope("abdm.session.state-changed", iqTenantId, payload);
+): DomainEvent {
+  return createAbdmEnvelope(
+    "abdm.session.state-changed",
+    iqTenantId,
+    payload as Record<string, unknown>,
+  );
 }
 
 export interface CareContextLinkedPayload {
@@ -49,8 +53,12 @@ export interface CareContextLinkedPayload {
 export function createCareContextLinkedEnvelope(
   iqTenantId: string,
   payload: CareContextLinkedPayload,
-): DomainEvent<CareContextLinkedPayload> {
-  return createAbdmEnvelope("abdm.care-context.linked", iqTenantId, payload);
+): DomainEvent {
+  return createAbdmEnvelope(
+    "abdm.care-context.linked",
+    iqTenantId,
+    payload as Record<string, unknown>,
+  );
 }
 
 export interface ConsentGrantedPayload {
@@ -62,8 +70,12 @@ export interface ConsentGrantedPayload {
 export function createConsentGrantedEnvelope(
   iqTenantId: string,
   payload: ConsentGrantedPayload,
-): DomainEvent<ConsentGrantedPayload> {
-  return createAbdmEnvelope("abdm.consent.granted", iqTenantId, payload);
+): DomainEvent {
+  return createAbdmEnvelope(
+    "abdm.consent.granted",
+    iqTenantId,
+    payload as Record<string, unknown>,
+  );
 }
 
 export interface CareContextPublishedPayload {
@@ -75,8 +87,12 @@ export interface CareContextPublishedPayload {
 export function createCareContextPublishedEnvelope(
   iqTenantId: string,
   payload: CareContextPublishedPayload,
-): DomainEvent<CareContextPublishedPayload> {
-  return createAbdmEnvelope("abdm.care-context.published", iqTenantId, payload);
+): DomainEvent {
+  return createAbdmEnvelope(
+    "abdm.care-context.published",
+    iqTenantId,
+    payload as Record<string, unknown>,
+  );
 }
 
 export interface HealthRecordReceivedPayload {
@@ -88,6 +104,10 @@ export interface HealthRecordReceivedPayload {
 export function createHealthRecordReceivedEnvelope(
   iqTenantId: string,
   payload: HealthRecordReceivedPayload,
-): DomainEvent<HealthRecordReceivedPayload> {
-  return createAbdmEnvelope("abdm.health-record.received", iqTenantId, payload);
+): DomainEvent {
+  return createAbdmEnvelope(
+    "abdm.health-record.received",
+    iqTenantId,
+    payload as Record<string, unknown>,
+  );
 }

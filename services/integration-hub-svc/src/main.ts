@@ -27,6 +27,7 @@ import {
   registerM2EventConsumers,
   createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
+  DrizzleCareContextLinkStateRepo,
   DrizzleM3ConsentRequestsRepo,
   DrizzleM3ConsentArtefactsHiuRepo,
   DrizzleM3DataTransfersRepo,
@@ -179,6 +180,7 @@ async function main() {
   const m3ConsentArtefactsHiu = new DrizzleM3ConsentArtefactsHiuRepo(db);
   const m3DataTransfers = new DrizzleM3DataTransfersRepo(db);
   const linkOtpStore = new DrizzleLinkOtpsRepo(db);
+  const careContextLinkState = new DrizzleCareContextLinkStateRepo(db);
 
   const sharedInfra: IntegrationHubSharedInfra = {
     profiles,
@@ -196,6 +198,7 @@ async function main() {
     empi,
     registration,
     recordFoundation,
+    careContextLinkState,
     fidelius,
     payloadEncryptor,
     linkOtpStore,
