@@ -14,9 +14,13 @@ vi.mock('./empi-patients', async (importOriginal) => {
   };
 });
 
-vi.mock('./opd-encounter-overlay', () => ({
-  fetchOpdEncounterOverlaysByVisitIds: vi.fn(),
-}));
+vi.mock('./opd-encounter-overlay', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./opd-encounter-overlay')>();
+  return {
+    ...actual,
+    fetchOpdEncounterOverlaysByVisitIds: vi.fn(),
+  };
+});
 
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
 import { fetchOpdEncounterOverlaysByVisitIds } from './opd-encounter-overlay';
@@ -133,11 +137,31 @@ describe('fetchOpdPatientsList', () => {
 
     const result = await fetchOpdPatientsList(baseParams);
 
-    expect(result.items[0]?.status).toBe('in-progress');
+    expect(result.items[0]?.status).toBe('registered');
     expect(result.items[0]?.actionLabel).toBe('Create Rx');
   });
 
-  it('shows Edit RX when doctor has a draft prescription on the visit', async () => {
+  it('shows Create Rx for auto-created draft before nurse or doctor acts', async () => {
+    vi.mocked(listRegistrationVisits).mockResolvedValue({
+      data: [{ ...sampleVisit, status: 'completed' }],
+      total: 1,
+      page: 1,
+      limit: 10,
+      total_pages: 1,
+    });
+    vi.mocked(fetchOpdEncounterOverlaysByVisitIds).mockResolvedValue(
+      new Map([
+        [sampleVisit.id, { prescriptionStatus: 'draft', visitStatus: 'registered' }],
+      ]),
+    );
+
+    const result = await fetchOpdPatientsList(baseParams);
+
+    expect(result.items[0]?.status).toBe('registered');
+    expect(result.items[0]?.actionLabel).toBe('Create Rx');
+  });
+
+  it('shows Edit RX and pre-consulted when doctor has saved partial consultation', async () => {
     vi.mocked(listRegistrationVisits).mockResolvedValue({
       data: [{ ...sampleVisit, status: 'pending' }],
       total: 1,
@@ -153,7 +177,7 @@ describe('fetchOpdPatientsList', () => {
 
     const result = await fetchOpdPatientsList(baseParams);
 
-    expect(result.items[0]?.status).toBe('in-progress');
+    expect(result.items[0]?.status).toBe('pre-consulted');
     expect(result.items[0]?.actionLabel).toBe('Edit RX');
   });
 

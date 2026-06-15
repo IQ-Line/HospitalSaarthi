@@ -2,14 +2,21 @@ import type { OpdVisitSummary } from '@/features/create-rx/api/opd-prescription'
 import type { OpdPrescriptionStatus } from '@/features/create-rx/api/opd-prescription-types';
 import type { OpdPatientVisitRow, OpdVisitStatus } from '../types';
 
-/** Queue action: Edit RX only when a draft exists or nurse pre-consult is done. */
+/** Queue action: Edit RX when nurse pre-consult or doctor has saved consultation content. */
 export function opdVisitStatusToActionLabel(
   status: OpdVisitStatus,
   prescriptionStatus?: OpdPrescriptionStatus | null,
+  opdVisitStatus?: string | null,
 ): OpdPatientVisitRow['actionLabel'] {
   if (status === 'completed') return 'View RX';
   if (status === 'pre-consulted') return 'Edit RX';
-  if (prescriptionStatus === 'draft') return 'Edit RX';
+  const opdNorm = opdVisitStatus?.trim().toLowerCase().replace(/-/g, '_');
+  if (
+    prescriptionStatus === 'draft' &&
+    (opdNorm === 'pre_consulted' || opdNorm === 'in_progress')
+  ) {
+    return 'Edit RX';
+  }
   return 'Create Rx';
 }
 
@@ -34,13 +41,15 @@ export function applyOpdVisitSummaryOverlay(
   if (!summary) return row;
   const status: OpdVisitStatus =
     summary.status === 'in_progress'
-      ? 'in-progress'
+      ? 'pre-consulted'
       : summary.status === 'pre_consulted'
         ? 'pre-consulted'
-        : (summary.status as OpdVisitStatus);
+        : summary.status === 'registered'
+          ? 'registered'
+          : (summary.status as OpdVisitStatus);
   return {
     ...row,
     status,
-    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus),
+    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus, summary.status),
   };
 }

@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 import { executeCreateVisitFlow, fetchVisitTypeDecision, listRegistrations, type VisitTypeDecisionResult } from '@/features/frontdesk/api/registrations';
+import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
@@ -57,6 +58,10 @@ import {
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
+import {
+  effectiveOpdQueueStatus,
+  queueStatusLabel,
+} from '@/features/opd-patients/lib/registration-visit-status';
 import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
@@ -130,6 +135,22 @@ function VisitRegistrationRoute() {
         q: listSearch || undefined,
       }),
     enabled: phase === 'list',
+  });
+
+  const listVisitIds = useMemo(
+    () =>
+      (listQuery.data?.data ?? [])
+        .map((row) => row.id?.trim())
+        .filter((id): id is string => Boolean(id)),
+    [listQuery.data?.data],
+  );
+
+  const encounterOverlayQuery = useQuery({
+    queryKey: ['registrations', 'encounter-overlay', listVisitIds],
+    queryFn: () => fetchOpdEncounterOverlaysByVisitIds(listVisitIds),
+    enabled: phase === 'list' && listVisitIds.length > 0,
+    retry: false,
+    staleTime: 30_000,
   });
 
   const openSlipPreview = (row: RegistrationListItemResponse) => {
@@ -808,6 +829,7 @@ function VisitRegistrationRoute() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>UHID</TableHead>
+                          <TableHead>Visit ID</TableHead>
                           <TableHead>Patient</TableHead>
                           <TableHead>Phone</TableHead>
                           <TableHead>Status</TableHead>
@@ -819,7 +841,7 @@ function VisitRegistrationRoute() {
                       <TableBody>
                         {listQuery.data.data.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center text-muted-foreground">
                               No registrations match your search.
                             </TableCell>
                           </TableRow>
@@ -827,14 +849,26 @@ function VisitRegistrationRoute() {
                           listQuery.data.data.map((row) => {
                             const invoiceLoading =
                               invoiceLookupRegistrationId === row.registration_id;
+                            const overlay = row.id
+                              ? encounterOverlayQuery.data?.get(row.id)
+                              : undefined;
+                            const visitStatus = effectiveOpdQueueStatus(
+                              row.registration_status,
+                              overlay?.prescriptionStatus,
+                              overlay?.visitStatus,
+                            );
+                            const statusLabel = queueStatusLabel(visitStatus);
                             return (
                             <TableRow key={row.registration_id}>
                               <TableCell className="font-medium tabular-nums">
                                 {row.patient_uhid ?? '—'}
                               </TableCell>
+                              <TableCell className="font-medium tabular-nums">
+                                {row.visit_id ?? '—'}
+                              </TableCell>
                               <TableCell>{row.patient_full_name ?? '—'}</TableCell>
                               <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
-                              <TableCell>{row.registration_status_label ?? row.registration_status}</TableCell>
+                              <TableCell>{statusLabel}</TableCell>
                               <TableCell>{row.visit_type_label ?? row.visit_type ?? '—'}</TableCell>
                               <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
                                 {new Date(row.created_at).toLocaleString()}
