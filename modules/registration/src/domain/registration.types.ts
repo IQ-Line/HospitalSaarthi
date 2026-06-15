@@ -54,9 +54,6 @@ export interface NewPatientIntakeInput {
 
 export interface ExistingPatientVisitInput {
   patient_id: string;
-  /** Desk-captured ABHA fields (EMPI may not have address on patient row yet). */
-  abha_number?: string | null;
-  abha_address?: string | null;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;
