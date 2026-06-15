@@ -55,7 +55,7 @@ class Settings(BaseSettings):
         description="integration-hub-svc origin (no trailing path).",
     )
     record_foundation_base_url: str = Field(
-        default="http://localhost:3004",
+        default="http://localhost:3009",
         description="record-foundation-svc origin (no trailing path).",
     )
     pdf_platform_url: str = Field(

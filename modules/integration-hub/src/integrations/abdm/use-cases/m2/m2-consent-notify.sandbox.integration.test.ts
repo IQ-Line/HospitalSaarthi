@@ -4,13 +4,18 @@ import { createDb } from "@hims/ts-sdk-db";
 import { DrizzleAbdmSessionsRepo } from "../../data-access/abdm-sessions.repo.js";
 import { DrizzleInboundMessagesRepo } from "../../data-access/abdm-inbound-messages.repo.js";
 import { DrizzleConsentArtefactsRepo } from "../../data-access/abdm-consent-artefacts.repo.js";
+import { DrizzleCareContextLinkStateRepo } from "../../data-access/abdm-care-context-link-state.repo.js";
 import { MockEmpiClient } from "../../data-access/mock-platform-clients.js";
 import { FideliusEncryptor } from "../../data-access/fidelius.js";
 import { LoggingSmsClient } from "../../data-access/sms-client.js";
 import { EnvSecretsClient } from "../../data-access/env-secrets.client.js";
 import { InMemoryLinkOtpStore } from "../../lib/link-otp-store.js";
-import { HttpGatewayClient } from "../../data-access/gateway-client.http.js";
+import { NoOpRegistrationClient } from "../../data-access/registration-client.http.js";
+import { DrizzleM3ConsentRequestsRepo } from "../../data-access/abdm-m3-consent-requests.repo.js";
+import { DrizzleM3ConsentArtefactsHiuRepo } from "../../data-access/abdm-m3-consent-artefacts-hiu.repo.js";
+import { DrizzleM3DataTransfersRepo } from "../../data-access/abdm-m3-data-transfers.repo.js";
 import type { AbdmAdapterDeps } from "../../ports.js";
+import { buildMockAbdmDeps } from "../../test-utils/mock-deps.js";
 import { handleConsentNotifyCallback } from "./consent-notify/handle-consent-notify-callback.js";
 
 import { resolveSandboxDatabaseUrl } from "../../test-utils/sandbox-env.js";
@@ -21,25 +26,26 @@ const DB_URL = resolveSandboxDatabaseUrl();
 function buildDeps(post: ReturnType<typeof vi.fn>): AbdmAdapterDeps {
   const db = createDb(DB_URL!);
   const secrets = new EnvSecretsClient();
-  return {
+  return buildMockAbdmDeps({
     sessions: new DrizzleAbdmSessionsRepo(db),
     gateway: { post } as never,
     fidelius: new FideliusEncryptor(),
     secrets,
     inboundMessages: new DrizzleInboundMessagesRepo(db),
-    linkTokens: {} as never,
     consentArtefacts: new DrizzleConsentArtefactsRepo(db),
+    m3ConsentRequests: new DrizzleM3ConsentRequestsRepo(db),
+    m3ConsentArtefactsHiu: new DrizzleM3ConsentArtefactsHiuRepo(db),
+    m3DataTransfers: new DrizzleM3DataTransfersRepo(db),
     empi: new MockEmpiClient(),
-    recordFoundation: {
-      listCareContexts: async () => [],
-      listBundles: async () => [],
-    },
+    registration: new NoOpRegistrationClient(),
+    careContextLinkState: new DrizzleCareContextLinkStateRepo(db),
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
     linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),
     xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
+    xHiuId: process.env["ABDM_X_HIU_ID"] ?? "IN3610001625",
     xCmId: "sbx",
-  };
+  });
 }
 
 describe.skipIf(!RUN || !DB_URL)("M2 consent notify", () => {

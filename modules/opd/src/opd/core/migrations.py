@@ -22,6 +22,10 @@ def apply_opd_migrations() -> None:
         raise FileNotFoundError(f"OPD alembic.ini not found at {alembic_ini}")
 
     cfg = Config(str(alembic_ini))
+    # ``script_location`` in alembic.ini is relative; resolve from module root so
+    # migrations work when opd-svc (cwd ``services/opd-svc``) imports this module.
+    cfg.set_main_option("script_location", str(_MODULE_ROOT / "alembic"))
+    cfg.set_main_option("prepend_sys_path", str(_MODULE_ROOT / "src"))
     # Branched chain: 001 → 002_health_documents and 001 → 0002 → 0003 merge at 003.
     # ``upgrade head`` (singular) can skip a branch; always use ``heads``.
     logger.info("Applying OPD database migrations (alembic upgrade heads)")

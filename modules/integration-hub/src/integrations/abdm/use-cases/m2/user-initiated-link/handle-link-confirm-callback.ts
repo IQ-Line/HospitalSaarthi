@@ -76,6 +76,14 @@ export async function handleLinkConfirmCallback(
     xHipId: deps.xHipId,
   });
 
+  if (ctx.abhaAddress && careContexts.length > 0) {
+    await deps.careContextLinkState.markLinked({
+      iqTenantId: input.iqTenantId,
+      abhaAddress: ctx.abhaAddress,
+      careContextReferences: careContexts.map((c) => c.referenceNumber),
+    });
+  }
+
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,

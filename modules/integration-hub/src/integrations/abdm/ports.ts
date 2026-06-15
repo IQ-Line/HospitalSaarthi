@@ -130,6 +130,20 @@ export interface CareContextRef {
   hiType?: string;
 }
 
+/** Tracks care contexts already linked to an ABHA in the CM (ABDM protocol state). */
+export interface CareContextLinkStatePort {
+  listLinkedReferences(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<ReadonlySet<string>>;
+
+  markLinked(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+    careContextReferences: string[];
+  }): Promise<void>;
+}
+
 export interface SmsClient {
   sendOtp(input: { phoneNo: string; message: string }): Promise<void>;
 }
@@ -493,6 +507,7 @@ export interface AbdmAdapterDeps {
   empi: EmpiClient;
   registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
+  careContextLinkState: CareContextLinkStatePort;
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;
   eventBus?: EventBus;

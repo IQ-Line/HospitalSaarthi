@@ -72,6 +72,12 @@ export function buildMockAbdmDeps(
         listCareContexts: async () => [],
         listBundles: async () => [],
       } as AbdmAdapterDeps["recordFoundation"]),
+    careContextLinkState:
+      overrides.careContextLinkState ??
+      ({
+        listLinkedReferences: async () => new Set(),
+        markLinked: async () => undefined,
+      } as AbdmAdapterDeps["careContextLinkState"]),
     dataPush: overrides.dataPush,
     payloadEncryptor:
       overrides.payloadEncryptor ??

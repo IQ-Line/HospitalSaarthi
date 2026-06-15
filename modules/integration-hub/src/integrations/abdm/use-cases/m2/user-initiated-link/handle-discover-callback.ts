@@ -4,6 +4,23 @@ import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { resolveUnifiedLinkHiType } from "../../../lib/m2-link-hi-type.js";
 
+async function listUnlinkedCareContexts(
+  deps: AbdmAdapterDeps,
+  input: { iqTenantId: string; patientId: string; abhaAddress?: string },
+) {
+  const all = await deps.recordFoundation.listCareContexts({
+    iqTenantId: input.iqTenantId,
+    patientId: input.patientId,
+  });
+  if (!input.abhaAddress) return all;
+
+  const linked = await deps.careContextLinkState.listLinkedReferences({
+    iqTenantId: input.iqTenantId,
+    abhaAddress: input.abhaAddress,
+  });
+  return all.filter((ctx) => !linked.has(ctx.referenceNumber));
+}
+
 export async function handleDiscoverCallback(
   input: AbdmTenantInput<DiscoveryRequest & { inboundRequestId: string }>,
   deps: AbdmAdapterDeps,
@@ -86,9 +103,10 @@ export async function handleDiscoverCallback(
     contextMerge: { patientId: patient.patientId, abhaAddress },
   });
 
-  const contexts = await deps.recordFoundation.listCareContexts({
+  const contexts = await listUnlinkedCareContexts(deps, {
     iqTenantId: input.iqTenantId,
     patientId: patient.patientId,
+    abhaAddress,
   });
 
   const patientPayload =

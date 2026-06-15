@@ -91,4 +91,49 @@ describe("handleDiscoverCallback", () => {
     const call = post.mock.calls[0]![0] as { body: { error?: { code: string } } };
     expect(call.body.error?.code).toBe("ABDM-1010");
   });
+
+  it("excludes care contexts already linked to the ABHA in discovery", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const sessions = mockSessions();
+    const deps = buildMockAbdmDeps({
+      sessions,
+      gateway: { post } as never,
+      empi: {
+        findPatientByAbhaAddress: async () => ({
+          patientId: "patient-1",
+          demographics: {},
+        }),
+        findPatientByDemographics: async () => null,
+      },
+      recordFoundation: {
+        listCareContexts: async () => [
+          { id: "cc-1", referenceNumber: "ref-linked", display: "Linked visit" },
+          { id: "cc-2", referenceNumber: "ref-open", display: "Open visit" },
+        ],
+        listBundles: async () => [],
+      },
+      careContextLinkState: {
+        listLinkedReferences: async () => new Set(["ref-linked"]),
+        markLinked: async () => undefined,
+      },
+    });
+
+    await handleDiscoverCallback(
+      {
+        iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+        inboundRequestId: randomUUID(),
+        transactionId: randomUUID(),
+        patient: [{ id: "user@sbx" }],
+      },
+      deps,
+    );
+
+    expect(post).toHaveBeenCalledOnce();
+    const call = post.mock.calls[0]![0] as {
+      body: { patient?: Array<{ careContexts: Array<{ referenceNumber: string }> }> };
+    };
+    expect(call.body.patient?.[0]?.careContexts).toEqual([
+      { referenceNumber: "ref-open", display: "Open visit" },
+    ]);
+  });
 });
