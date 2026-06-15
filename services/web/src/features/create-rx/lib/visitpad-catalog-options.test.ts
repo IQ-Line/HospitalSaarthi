@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   activeVisitpadCatalogRows,
   findVisitpadMedicineByDisplayName,
+  findVisitpadProcedureByDisplayName,
   resolveMedicineStrengthDisplay,
   visitpadDiagnosisOptions,
   visitpadMedicineOptions,
@@ -91,5 +92,26 @@ describe('visitpad-catalog-options', () => {
 
     expect(findVisitpadMedicineByDisplayName(rows, 'calpol')?.display_name).toBe('Calpol');
     expect(findVisitpadMedicineByDisplayName(rows, 'Calpol — 500 mg')?.display_name).toBe('Calpol');
+  });
+
+  it('formats procedure labels and resolves catalog matches', () => {
+    const rows = [
+      {
+        is_active: true,
+        is_deleted: false,
+        display_name: 'Appendectomy',
+        cpt_code: '44950',
+      },
+    ] as never;
+
+    expect(visitpadProcedureOptions(rows)).toEqual([
+      { label: 'Appendectomy (44950)', value: 'Appendectomy' },
+    ]);
+    expect(findVisitpadProcedureByDisplayName(rows, 'appendectomy')?.display_name).toBe(
+      'Appendectomy',
+    );
+    expect(findVisitpadProcedureByDisplayName(rows, 'Appendectomy (44950)')?.display_name).toBe(
+      'Appendectomy',
+    );
   });
 });

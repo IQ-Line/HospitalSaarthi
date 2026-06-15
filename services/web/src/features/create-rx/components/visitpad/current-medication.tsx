@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { fetchVisitpadMedicineById } from '@/features/visitpad/api';
-import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
+import {
+  findVisitpadMedicineByDisplayName,
+  findVisitpadProcedureByDisplayName,
+} from '../../lib/visitpad-catalog-options';
 import {
   buildCatalogMedicineDefaults,
   resolveMedicineQuantityFromRow,
@@ -46,12 +49,13 @@ export function CurrentMedication() {
     medicineOptions,
     procedureOptions,
     medicines,
+    procedures: procedureCatalog,
   } = useVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const diagnosis = useCreateRxStore((s) => s.formData.diagnosis);
   const medicinesRows = useCreateRxStore((s) => s.formData.medicines);
   const tests = useCreateRxStore((s) => s.formData.testsRequired);
-  const procedures = useCreateRxStore((s) => s.formData.procedures);
+  const procedureRows = useCreateRxStore((s) => s.formData.procedures);
   const addDiagnosis = useCreateRxStore((s) => s.addDiagnosisRow);
   const removeDiagnosis = useCreateRxStore((s) => s.removeDiagnosisRow);
   const updateDiagnosis = useCreateRxStore((s) => s.updateDiagnosisRow);
@@ -66,6 +70,7 @@ export function CurrentMedication() {
   const addProcedure = useCreateRxStore((s) => s.addProcedureRow);
   const removeProcedure = useCreateRxStore((s) => s.removeProcedureRow);
   const updateProcedure = useCreateRxStore((s) => s.updateProcedureRow);
+  const patchProcedure = useCreateRxStore((s) => s.patchProcedureRow);
   const diagnosisInvalidCells = useInvalidCellsForSection('diagnosis');
   const medicineInvalidCells = useInvalidCellsForSection('medicines');
   const testInvalidCells = useInvalidCellsForSection('testsRequired');
@@ -173,7 +178,7 @@ export function CurrentMedication() {
         key: 'procedureName',
         label: 'Procedure',
         type: 'creatable-select',
-        placeholder: 'Search or type procedure name',
+        placeholder: 'Search or type procedure',
         options: procedureOptions,
       },
       { key: 'advisedDate', label: 'Advised Date', type: 'date', width: '130px' },
@@ -226,6 +231,26 @@ export function CurrentMedication() {
       }
     },
     [applyCatalogMedicine, updateMedicine],
+  );
+
+  const handleProcedureUpdate = useCallback(
+    (index: number, field: keyof ProcedureRow, value: string) => {
+      if (field === 'procedureName') {
+        const catalogProcedure = findVisitpadProcedureByDisplayName(procedureCatalog, value);
+        if (catalogProcedure) {
+          patchProcedure(index, {
+            procedureName: catalogProcedure.display_name,
+            procedureId: catalogProcedure.id,
+          });
+          return;
+        }
+        patchProcedure(index, { procedureName: value, procedureId: '' });
+        return;
+      }
+
+      updateProcedure(index, field, value);
+    },
+    [patchProcedure, procedureCatalog, updateProcedure],
   );
 
   return (
@@ -300,16 +325,16 @@ export function CurrentMedication() {
             addButtonLabel="Add Procedure"
             indexColumnLabel="Sl. No."
             columns={procedureColumns}
-            rows={procedures}
+            rows={procedureRows}
             readOnly={isReadOnly}
             catalogLoading={catalogLoading}
             invalidCells={procedureInvalidCells}
             highlightSection={proceduresHasErrors}
-            emptyMessage="No procedures added."
+            emptyMessage="No procedures added. Click 'Add Procedure' to search the catalog or type a custom name."
             onAdd={addProcedure}
             onRemove={removeProcedure}
             onUpdate={(i, field, value) =>
-              updateProcedure(i, field as keyof ProcedureRow, value)
+              handleProcedureUpdate(i, field as keyof ProcedureRow, value)
             }
           />
         </div>

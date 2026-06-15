@@ -53,6 +53,27 @@ export function visitpadProcedureOptions(
   }));
 }
 
+export function findVisitpadProcedureByDisplayName(
+  items: VisitpadProcedure[] | undefined,
+  displayName: string,
+): VisitpadProcedure | undefined {
+  const trimmed = displayName.trim();
+  if (!trimmed) return undefined;
+  const rows = activeVisitpadCatalogRows(items);
+
+  const exact = rows.find((item) => item.display_name === trimmed);
+  if (exact) return exact;
+
+  const lower = trimmed.toLowerCase();
+  const caseInsensitive = rows.find((item) => item.display_name.toLowerCase() === lower);
+  if (caseInsensitive) return caseInsensitive;
+
+  return rows.find((item) => {
+    const label = item.cpt_code ? `${item.display_name} (${item.cpt_code})` : item.display_name;
+    return label === trimmed || label.toLowerCase() === lower;
+  });
+}
+
 export function findVisitpadMedicineByDisplayName(
   items: VisitpadMedicine[] | undefined,
   displayName: string,

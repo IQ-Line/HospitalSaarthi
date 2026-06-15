@@ -69,5 +69,5 @@ export function emptyImagingRow(): ImagingRow {
 }
 
 export function emptyProcedureRow(): ProcedureRow {
-  return { id: newRowId(), procedureName: '', advisedDate: '' };
+  return { id: newRowId(), procedureId: '', procedureName: '', advisedDate: '' };
 }

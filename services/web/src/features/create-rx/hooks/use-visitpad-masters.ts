@@ -11,7 +11,7 @@ import {
   useVisitpadVaccines,
   VISITPAD_CATALOG_FORM_PAGE,
 } from '@/features/visitpad/api';
-import type { VisitpadMedicine } from '@/features/visitpad/types';
+import type { VisitpadMedicine, VisitpadProcedure } from '@/features/visitpad/types';
 import {
   activeVisitpadCatalogRows,
   visitpadDiagnosisOptions,
@@ -36,6 +36,7 @@ export function useVisitpadMasters(): {
   chronicIllnessOptions: VisitpadSelectOption[];
   chiefComplaintOptions: VisitpadSelectOption[];
   medicines: VisitpadMedicine[];
+  procedures: VisitpadProcedure[];
 } {
   const vaccinesQ = useVisitpadVaccines(undefined, FORM_PAGE);
   const manufacturersQ = useVisitpadManufacturers(undefined, FORM_PAGE);
@@ -63,6 +64,10 @@ export function useVisitpadMasters(): {
     () => activeVisitpadCatalogRows(medicinesQ.data?.data),
     [medicinesQ.data?.data],
   );
+  const procedures = useMemo(
+    () => activeVisitpadCatalogRows(proceduresQ.data?.data),
+    [proceduresQ.data?.data],
+  );
 
   return {
     isLoading: queries.some((q) => q.isLoading),
@@ -77,5 +82,6 @@ export function useVisitpadMasters(): {
     chronicIllnessOptions: visitpadDisplayNameOptions(chronicQ.data?.data),
     chiefComplaintOptions: visitpadDisplayNameOptions(chiefComplaintsQ.data?.data),
     medicines,
+    procedures,
   };
 }

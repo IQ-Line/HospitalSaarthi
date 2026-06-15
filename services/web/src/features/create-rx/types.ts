@@ -134,6 +134,8 @@ export interface ImagingRow {
 
 export interface ProcedureRow {
   id: string;
+  /** Master-data visitpad procedure UUID when selected from catalog. */
+  procedureId: string;
   procedureName: string;
   advisedDate: string;
 }
