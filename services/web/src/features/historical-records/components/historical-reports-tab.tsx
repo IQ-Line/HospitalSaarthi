@@ -114,6 +114,7 @@ export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
   const handleOpenClinicalReport = (report: HistoricalReportItem) => {
     if (!report.visitId || !report.clinicalReportType) return;
     patientReports.openReport(report.visitId, report.clinicalReportType, {
+      patientId,
       doctor_name: report.doctorName !== '—' ? report.doctorName : undefined,
     });
   };

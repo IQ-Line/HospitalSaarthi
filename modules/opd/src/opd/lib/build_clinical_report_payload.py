@@ -133,6 +133,16 @@ def _map_medicines(form_data: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _normalize_immunization_date(value: str) -> str | None:
+    """Return YYYY-MM-DD for report payloads (no time component)."""
+    raw = _text(value)
+    if not raw:
+        return None
+    if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+        return raw[:10]
+    return raw
+
+
 def _map_immunizations(form_data: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for row in form_data.get("immunizations") or []:
@@ -149,8 +159,8 @@ def _map_immunizations(form_data: dict[str, Any]) -> list[dict[str, Any]]:
                 "vaccineName": vaccine_name,
                 "manufacturer": _text(row.get("manufacturer")) or None,
                 "lotNo": _text(row.get("lotNumber")) or None,
-                "dateOfDose": _text(row.get("dateOfDose")) or None,
-                "nextDueDate": _text(row.get("nextDueDate")) or None,
+                "dateOfDose": _normalize_immunization_date(_text(row.get("dateOfDose"))),
+                "nextDueDate": _normalize_immunization_date(_text(row.get("nextDueDate"))),
                 "doseNumber": dose_number,
                 "vaccinatedBy": _text(row.get("vaccinatedBy")) or None,
             }

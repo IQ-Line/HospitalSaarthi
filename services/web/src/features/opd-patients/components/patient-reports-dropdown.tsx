@@ -9,7 +9,7 @@ import {
 } from '@pulse/ui/dropdown-menu';
 import { CLINICAL_REPORT_LABELS, type ClinicalReportType } from '../api/clinical-documents';
 import {
-  unavailableClinicalReportAvailability,
+  resolveVisitClinicalReportAvailability,
   type OpdEncounterOverlay,
 } from '../api/opd-encounter-overlay';
 
@@ -36,9 +36,10 @@ export function PatientReportsDropdown({
   onSelectReport,
   onClick,
 }: PatientReportsDropdownProps) {
-  const availability =
-    encounterOverlaysByVisitId?.[visitId]?.reportAvailability ??
-    unavailableClinicalReportAvailability();
+  const availability = resolveVisitClinicalReportAvailability(
+    visitId,
+    encounterOverlaysByVisitId,
+  );
   const handleTriggerClick = (event: MouseEvent) => {
     stopRowClick(event);
     onClick?.(event);

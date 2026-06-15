@@ -7,6 +7,7 @@ import {
   resolveRegistrationPatientId,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
+import { persistEmpiPatientPermanentAddress } from '@/features/opd-patients/api/empi-patients';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import type {
   CreateNewPatientRegistrationResponse,
@@ -286,11 +287,18 @@ export async function executeCreateVisitFlow(
   });
 
   const completed = await completeVisitIntake(registration.id!);
-  const patientAddress = formatPatientAddressForReport(
+  const addressBlock =
     form.residential_address?.line1?.trim()
       ? form.residential_address
-      : form.permanent_address,
-  );
+      : form.permanent_address;
+
+  try {
+    await persistEmpiPatientPermanentAddress(registration.patient_id, addressBlock);
+  } catch {
+    // Best-effort — reports can still use formatted address from the visit flow context.
+  }
+
+  const patientAddress = formatPatientAddressForReport(addressBlock);
 
   return {
     ...completed,

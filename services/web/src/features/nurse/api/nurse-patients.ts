@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord } from '@/features/opd-patients/api/opd-encounter-overlay';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord, getEncounterOverlayByVisitId } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
 import { mapRegistrationVisitToOpdPatientRow } from '@/features/opd-patients/api/registration-patients-mapper';
 import { matchesAgeGroup } from '@/features/opd-patients/lib/opd-patients-list-utils';
@@ -74,7 +74,7 @@ export async function fetchNursePatientsList(
   ]);
 
   let items: NursePatientVisitRow[] = visitPage.data.map((visit) => {
-    const encounter = encounterByVisitId.get(visit.id);
+    const encounter = getEncounterOverlayByVisitId(encounterByVisitId, visit.id);
     const row = mapRegistrationVisitToOpdPatientRow(
       visit,
       empiById.get(visit.patient_id),
