@@ -52,6 +52,10 @@ export interface ListRegistrationVisitsParams {
   facility_id?: string;
   department_id?: string;
   doctor_id?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_from?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_to?: string;
 }
 
 export async function listRegistrations(
@@ -80,6 +84,8 @@ export async function listRegistrationVisits(
   if (params.facility_id?.trim()) sp.set('facility_id', params.facility_id.trim());
   if (params.department_id?.trim()) sp.set('department_id', params.department_id.trim());
   if (params.doctor_id?.trim()) sp.set('doctor_id', params.doctor_id.trim());
+  if (params.updated_from?.trim()) sp.set('updated_from', params.updated_from.trim());
+  if (params.updated_to?.trim()) sp.set('updated_to', params.updated_to.trim());
   const qs = sp.toString();
   return apiClient<RegistrationVisitListPageResponse>(
     `${registrationApiBase()}/visits${qs ? `?${qs}` : ''}`,

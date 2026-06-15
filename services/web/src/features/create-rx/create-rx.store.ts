@@ -106,6 +106,7 @@ interface CreateRxState {
   addMedicineRow: () => void;
   removeMedicineRow: (index: number) => void;
   updateMedicineRow: (index: number, field: keyof MedicineRow, value: string) => void;
+  patchMedicineRow: (index: number, patch: Partial<MedicineRow>) => void;
   addTestRow: () => void;
   removeTestRow: (index: number) => void;
   updateTestRow: (index: number, field: keyof TestRow, value: string) => void;
@@ -303,6 +304,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ...s.formData,
         medicines: s.formData.medicines.map((row, i) =>
           i === index ? { ...row, [field]: value } : row,
+        ),
+      },
+    })),
+  patchMedicineRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        medicines: s.formData.medicines.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
         ),
       },
     })),

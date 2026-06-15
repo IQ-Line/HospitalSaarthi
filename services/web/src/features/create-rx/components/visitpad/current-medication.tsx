@@ -1,14 +1,15 @@
 import { useCallback, useMemo } from 'react';
 import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
 import {
+  buildCatalogMedicineDefaults,
+  resolveMedicineQuantityFromRow,
+  shouldRecalculateMedicineQuantity,
+} from '../../lib/medicine-catalog-defaults';
+import {
   MEDICATION_DOSAGE_FORM_OPTIONS,
   MEDICATION_FREQUENCY_OPTIONS,
   MEDICATION_ROUTE_OPTIONS,
   MEDICATION_TOA_OPTIONS,
-  resolveMedicationDosageFormLabel,
-  resolveMedicationFrequencyLabel,
-  resolveMedicationRouteLabel,
-  resolveMedicationToaLabel,
 } from '../../lib/medication-rx-options';
 import {
   useInvalidCellsForSection,
@@ -56,6 +57,7 @@ export function CurrentMedication() {
   const addMedicine = useCreateRxStore((s) => s.addMedicineRow);
   const removeMedicine = useCreateRxStore((s) => s.removeMedicineRow);
   const updateMedicine = useCreateRxStore((s) => s.updateMedicineRow);
+  const patchMedicine = useCreateRxStore((s) => s.patchMedicineRow);
   const addTest = useCreateRxStore((s) => s.addTestRow);
   const removeTest = useCreateRxStore((s) => s.removeTestRow);
   const updateTest = useCreateRxStore((s) => s.updateTestRow);
@@ -179,47 +181,28 @@ export function CurrentMedication() {
 
   const handleMedicineUpdate = useCallback(
     (index: number, field: keyof MedicineRow, value: string) => {
+      if (field === 'medicine') {
+        const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
+        if (!catalogMedicine) {
+          patchMedicine(index, { medicine: value, medicineId: '' });
+          return;
+        }
+        patchMedicine(index, { medicine: value, ...buildCatalogMedicineDefaults(catalogMedicine) });
+        return;
+      }
+
       updateMedicine(index, field, value);
-      if (field !== 'medicine') return;
 
-      const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
-      updateMedicine(index, 'medicineId', catalogMedicine?.id ?? '');
-      if (!catalogMedicine) return;
-
-      updateMedicine(
-        index,
-        'dosageForm',
-        resolveMedicationDosageFormLabel(catalogMedicine.dosage_form),
-      );
-      updateMedicine(
-        index,
-        'route',
-        resolveMedicationRouteLabel(
-          catalogMedicine.default_route ?? catalogMedicine.route_of_admin[0] ?? '',
-        ),
-      );
-      updateMedicine(index, 'strength', catalogMedicine.strength_display);
-      if (catalogMedicine.default_dose_value != null) {
-        updateMedicine(index, 'dosageMorning', String(catalogMedicine.default_dose_value));
-      }
-      if (catalogMedicine.default_frequency) {
-        updateMedicine(
-          index,
-          'frequency',
-          resolveMedicationFrequencyLabel(catalogMedicine.default_frequency),
-        );
-      }
-      if (catalogMedicine.default_instructions) {
-        updateMedicine(index, 'toa', resolveMedicationToaLabel(catalogMedicine.default_instructions));
-      }
-      if (catalogMedicine.default_duration_days != null) {
-        updateMedicine(index, 'days', String(catalogMedicine.default_duration_days));
-      }
-      if (catalogMedicine.typical_quantity != null) {
-        updateMedicine(index, 'quantity', String(catalogMedicine.typical_quantity));
+      if (field !== 'quantity' && shouldRecalculateMedicineQuantity(field)) {
+        const row = useCreateRxStore.getState().formData.medicines[index];
+        if (!row) return;
+        const quantity = resolveMedicineQuantityFromRow(row);
+        if (quantity) {
+          updateMedicine(index, 'quantity', quantity);
+        }
       }
     },
-    [medicines, updateMedicine],
+    [medicines, patchMedicine, updateMedicine],
   );
 
   return (

@@ -140,6 +140,12 @@ export class DrizzleVisitRepo implements VisitRepo {
     if (params.doctor_id) {
       conditions.push(eq(visits.doctor_id, params.doctor_id));
     }
+    if (params.updated_from) {
+      conditions.push(sql`date(${visits.updated_at}) >= ${params.updated_from}::date`);
+    }
+    if (params.updated_to) {
+      conditions.push(sql`date(${visits.updated_at}) <= ${params.updated_to}::date`);
+    }
 
     const where = and(...conditions);
 
