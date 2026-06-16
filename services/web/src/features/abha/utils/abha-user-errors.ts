@@ -45,9 +45,16 @@ function errorCodeFrom(parsed: ParsedApiBody | null): string | undefined {
 function hasInvalidLoginId(parsed: ParsedApiBody | null): boolean {
   if (!parsed) return false;
   const nested = nestedPayload(parsed);
-  if (nested?.loginId === 'Invalid LoginId') return true;
+  const loginIdField = nested?.loginId;
+  if (
+    typeof loginIdField === 'string' &&
+    /loginid/i.test(loginIdField) &&
+    /invalid/i.test(loginIdField)
+  ) {
+    return true;
+  }
   const msg = messageText(parsed);
-  return /invalid loginid/i.test(msg) || /loginid:\s*invalid loginid/i.test(msg);
+  return /loginid.*invalid/i.test(msg) || /invalid.*loginid/i.test(msg);
 }
 
 /** Client-side Aadhaar checks before calling NHA (matches legacy HIMS behaviour). */
