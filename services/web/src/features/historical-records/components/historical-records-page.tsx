@@ -9,7 +9,8 @@ import { HistoricalRecordsFiltersBar } from './historical-records-filters';
 import { HistoricalRecordsTable } from './historical-records-table';
 import type { HistoricalRecordsFilters } from '../types';
 
-const PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 10;
+const PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 function defaultFilters(): HistoricalRecordsFilters {
   const { startDate, endDate } = defaultDateRange();
@@ -24,15 +25,16 @@ function defaultFilters(): HistoricalRecordsFilters {
 export function HistoricalRecordsPage() {
   const [filters, setFilters] = useState<HistoricalRecordsFilters>(defaultFilters);
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const debouncedSearch = useDebouncedValue(filters.search, 400);
 
   const listParams = useMemo(
     () => ({
       page,
-      limit: PAGE_SIZE,
+      limit: pageSize,
       filters: { ...filters, search: debouncedSearch },
     }),
-    [page, filters, debouncedSearch],
+    [page, filters, debouncedSearch, pageSize],
   );
 
   const { data, isLoading } = useQuery({
@@ -44,6 +46,11 @@ export function HistoricalRecordsPage() {
 
   const handleFilterChange = (patch: Partial<HistoricalRecordsFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }));
+    setPage(1);
+  };
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize);
     setPage(1);
   };
 
@@ -61,8 +68,10 @@ export function HistoricalRecordsPage() {
           isLoading={isLoading}
           total={data?.total ?? 0}
           page={page}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
           onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
         />
       </div>
     </div>

@@ -45,6 +45,8 @@ export const listRegistrationsQuerySchema = {
     uhid: { type: "string" },
     mobile: { type: "string" },
     name: { type: "string" },
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
     patient_id: uuidParam,
   },
 };

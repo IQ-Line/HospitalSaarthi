@@ -21,6 +21,7 @@ function freshOtpSession(sessionId: string, aadhaarNumber: string): AbhaWizardSt
 function emptyLoginState(): AbhaWizardState['login'] {
   return {
     abhaSegments: ['', '', '', ''],
+    abhaNumberError: null,
     channel: null,
     otp: '',
     otpMobileLast4: '',
@@ -40,7 +41,15 @@ export function createInitialAbhaWizardState(flow: AbhaWizardFlow = 'create'): A
   return {
     flow,
     step: flow === 'verify' ? 'login-method' : 'method',
-    aadhaar: { seg1: '', seg2: '', seg3: '', maskSeg1: false, maskSeg2: false, maskSeg3: false },
+    aadhaar: {
+      seg1: '',
+      seg2: '',
+      seg3: '',
+      maskSeg1: false,
+      maskSeg2: false,
+      maskSeg3: false,
+      error: null,
+    },
     consent: {
       checked: initialConsentChecked(),
       hwAcknowledged: false,
@@ -92,8 +101,13 @@ export function abhaWizardReducer(
       return { ...state, step: action.step };
     case 'SET_AADHAAR_SEG': {
       const key = action.index === 1 ? 'seg1' : action.index === 2 ? 'seg2' : 'seg3';
-      return { ...state, aadhaar: { ...state.aadhaar, [key]: action.value } };
+      return {
+        ...state,
+        aadhaar: { ...state.aadhaar, [key]: action.value, error: null },
+      };
     }
+    case 'SET_AADHAAR_ERROR':
+      return { ...state, aadhaar: { ...state.aadhaar, error: action.error } };
     case 'SET_MASK_SEG': {
       const key =
         action.index === 1 ? 'maskSeg1' : action.index === 2 ? 'maskSeg2' : 'maskSeg3';
@@ -180,7 +194,12 @@ export function abhaWizardReducer(
       return { ...state, otpSession: { ...state.otpSession, resendCooldown: next } };
     }
     case 'SET_LOGIN_ABHA_SEGMENTS':
-      return { ...state, login: { ...state.login, abhaSegments: action.segments } };
+      return {
+        ...state,
+        login: { ...state.login, abhaSegments: action.segments, abhaNumberError: null },
+      };
+    case 'SET_LOGIN_ABHA_NUMBER_ERROR':
+      return { ...state, login: { ...state.login, abhaNumberError: action.error } };
     case 'SET_LOGIN_CHANNEL':
       return { ...state, login: { ...state.login, channel: action.channel } };
     case 'SET_LOGIN_OTP':

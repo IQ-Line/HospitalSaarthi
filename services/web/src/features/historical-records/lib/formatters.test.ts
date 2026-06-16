@@ -1,5 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { isWithinDateRange, normalizeAbhaForSearch } from './formatters';
+import { isHistoricalSearchQueryValid, isWithinDateRange, normalizeAbhaForSearch, normalizeIndianPhoneForSearch } from './formatters';
+
+describe('normalizeIndianPhoneForSearch', () => {
+  it('normalizes 10-digit mobile to +91 canonical format', () => {
+    expect(normalizeIndianPhoneForSearch('8527020272')).toBe('+918527020272');
+    expect(normalizeIndianPhoneForSearch('+91 8527020272')).toBe('+918527020272');
+    expect(normalizeIndianPhoneForSearch('918527020272')).toBe('+918527020272');
+  });
+
+  it('returns null for incomplete numbers and non-mobile lengths', () => {
+    expect(normalizeIndianPhoneForSearch('852702')).toBeNull();
+    expect(normalizeIndianPhoneForSearch('260605000010000001')).toBeNull();
+  });
+});
+
+describe('isHistoricalSearchQueryValid', () => {
+  it('accepts only query shapes that match the selected field', () => {
+    expect(isHistoricalSearchQueryValid('patient_name', 'Shanti')).toBe(true);
+    expect(isHistoricalSearchQueryValid('patient_name', '8527020272')).toBe(false);
+
+    expect(isHistoricalSearchQueryValid('mobile_number', '7838281800')).toBe(true);
+    expect(isHistoricalSearchQueryValid('mobile_number', '260605000010000001')).toBe(false);
+
+    expect(isHistoricalSearchQueryValid('abha_number', '91568243043771')).toBe(true);
+    expect(isHistoricalSearchQueryValid('abha_number', '7838281800')).toBe(false);
+
+    expect(isHistoricalSearchQueryValid('abha_address', 'user@sbx')).toBe(true);
+    expect(isHistoricalSearchQueryValid('abha_address', '+917838281800')).toBe(false);
+
+    expect(isHistoricalSearchQueryValid('uhid', '260605000010000001')).toBe(true);
+    expect(isHistoricalSearchQueryValid('uhid', '7838281800')).toBe(false);
+  });
+});
 
 describe('normalizeAbhaForSearch', () => {
   it('formats 14-digit ABHA with dashes for EMPI exact match', () => {

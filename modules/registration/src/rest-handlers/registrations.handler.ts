@@ -18,9 +18,7 @@ import {
   createIntakeForNewPatient,
   createVisitForExistingPatient,
 } from "../use-cases/create-intake-for-new-patient.js";
-import { createRegistration } from "../use-cases/create-registration.js";
 import { getVisitTypeDecision } from "../use-cases/get-visit-type-decision.js";
-import { mapEmpiPatientToSnapshot, mergeIntakeIntoSnapshot } from "../lib/registration-helpers.js";
 import {
   dashboardStatsQuerySchema,
   existingPatientVisitBodySchema,
@@ -149,6 +147,8 @@ export function registerRegistrationsHandler(
             uhid: q.uhid,
             mobile: q.mobile,
             name: q.name,
+            abha_number: q.abha_number,
+            abha_address: q.abha_address,
             patient_id: q.patient_id,
           },
         );
@@ -210,6 +210,15 @@ export function registerRegistrationsHandler(
       const authHeader = request.headers.authorization;
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
+      if (!deps.empiGateway) {
+        return reply.code(503).send({
+          statusCode: 503,
+          error: "Service Unavailable",
+          message: "EMPI patient gateway not configured on this service instance",
+          code: "empi_gateway_not_configured",
+        });
+      }
+
       try {
         const result = await createVisitForExistingPatient(
           {
@@ -230,55 +239,26 @@ export function registerRegistrationsHandler(
           },
         );
 
-        let registration = await deps.registrationRepo.findByPatientId(
-          request.tenantId,
-          request.body.patient_id,
-        );
-        if (deps.empiGateway) {
-          const detail = await deps.empiGateway.fetchPatientDetail(
-            request.tenantId,
-            request.body.patient_id,
-            bearerToken,
-          );
-          if (detail) {
-            const wire = {
-              ...detail.patient,
-              abha_number: detail.abha_number ?? detail.patient.abha_number ?? null,
-              abha_address: detail.abha_address ?? detail.patient.abha_address ?? null,
-            };
-            const mapped = mapEmpiPatientToSnapshot(wire, wire.id);
-            const intakeAbha: Record<string, unknown> = {};
-            const bodyAbhaNumber = request.body.abha_number?.trim();
-            const bodyAbhaAddress = request.body.abha_address?.trim();
-            if (bodyAbhaNumber) intakeAbha.abha_number = bodyAbhaNumber;
-            if (bodyAbhaAddress) intakeAbha.abha_address = bodyAbhaAddress;
-            const snapshot = mergeIntakeIntoSnapshot(mapped.snapshot, intakeAbha);
-            const regResult = await createRegistration(
-              { registrationRepo: deps.registrationRepo, eventBus: deps.eventBus },
-              request.tenantId,
-              {
-                patient_id: request.body.patient_id,
-                patient_source_record_id: mapped.sourceRecordId,
-                patient_snapshot: snapshot,
-              },
-              { idempotencyKey, actorId: resolveActorId(request) },
-            );
-            registration = regResult.record;
-          }
-        }
-
         const status = result.created ? 201 : 200;
         const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
         return reply.code(status).send(
           serializeRegistrationWithVisit(
             {
-              registration: registration ?? null,
-              visit: result.record,
+              registration: result.registration,
+              visit: result.visit,
             },
             labelMaps,
           ),
         );
       } catch (err) {
+        if (err instanceof Error && err.message === "empi_patient_not_found") {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: "Not Found",
+            message: "Patient not found in EMPI",
+            code: "empi_patient_not_found",
+          });
+        }
         if (err instanceof RegistrationValidationError) {
           return reply.code(err.statusCode).send({
             statusCode: err.statusCode,
