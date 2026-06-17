@@ -1,11 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { betterAuth, type Auth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { bearer, jwt } from "better-auth/plugins";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
+  assertUserCanAuthenticate,
   loadIdentityJwtClaims,
+  UserAccountDisabledError,
   type IdentityJwtClaimsDeps,
 } from "@hims/user-management";
 import { authJwks, authSchema } from "./auth-schema.js";
@@ -129,6 +132,24 @@ export function createHimsBetterAuth(
           },
         },
       },
+      session: {
+        create: {
+          before: async (session) => {
+            const row = await claimsDeps.userRepository.findUserByGlobalId(session.userId);
+            if (row !== null) {
+              try {
+                assertUserCanAuthenticate(row);
+              } catch (err) {
+                if (err instanceof UserAccountDisabledError) {
+                  throw new APIError("FORBIDDEN", { message: err.message });
+                }
+                throw err;
+              }
+            }
+            return { data: session };
+          },
+        },
+      },
     },
     plugins: [
       bearer(),
@@ -144,7 +165,15 @@ export function createHimsBetterAuth(
           expirationTime: "5m",
           definePayload: async ({ user }) => {
             const authUser = user as Record<string, unknown>;
-            const claims = await loadIdentityJwtClaims(claimsDeps, user.id);
+            let claims;
+            try {
+              claims = await loadIdentityJwtClaims(claimsDeps, user.id);
+            } catch (err) {
+              if (err instanceof UserAccountDisabledError) {
+                throw new APIError("FORBIDDEN", { message: err.message });
+              }
+              throw err;
+            }
 
             if (claims === null) {
               // Platform user row doesn't exist yet (fresh sign-up before admin provisioning).

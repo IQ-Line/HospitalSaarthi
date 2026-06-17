@@ -1,3 +1,4 @@
+import { assertUserCanAuthenticate } from "./assert-user-can-authenticate.js";
 import type { PrincipalRoleProjectionRepository, UserRepository } from "../ports/index.js";
 import { projectPrincipalRoles } from "../use-cases/project-principal-roles.js";
 
@@ -26,6 +27,7 @@ export async function loadIdentityJwtClaims(
   if (row === null) {
     return null;
   }
+  assertUserCanAuthenticate(row);
 
   const roles = await projectPrincipalRoles(
     { principalRoleProjectionRepository: deps.principalRoleProjectionRepository },

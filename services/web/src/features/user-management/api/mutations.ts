@@ -113,6 +113,25 @@ export function useDeactivateUser(userId: string, tenantScope?: string | null) {
   });
 }
 
+export function useActivateUser(userId: string, tenantScope?: string | null) {
+  const qc = useQueryClient();
+  const scopeKey = userTenantScopeKey(tenantScope);
+  return useMutation({
+    mutationFn: () =>
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}/activate`,
+        { method: 'POST' },
+        userTenantApiContext(tenantScope),
+      ),
+    onSuccess: (user) => {
+      qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
+      qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
+        /* best-effort */
+      });
+    },
+  });
+}
+
 export function useReplaceUserCapabilities(userId: string, tenantScope?: string | null) {
   const qc = useQueryClient();
   return useMutation({

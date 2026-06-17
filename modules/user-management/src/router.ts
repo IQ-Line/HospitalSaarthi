@@ -2,6 +2,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
+import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -79,6 +80,7 @@ export interface UserManagementPluginOptions {
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
   internalEntitlementCacheApiKey?: string;
   accessTokenIssuer: AccessTokenIssuerPort;
+  authSessionRevoker?: AuthSessionRevokerPort;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -175,7 +177,12 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       masterDataModuleCatalogPort,
     },
     updateUserDeps: { userRepository, eventBus },
-    deactivateUserDeps: { userRepository, eventBus },
+    deactivateUserDeps: {
+      userRepository,
+      eventBus,
+      authSessionRevoker: options.authSessionRevoker,
+    },
+    activateUserDeps: { userRepository, eventBus },
   });
 
   registerRoleHandlers(fastify, {

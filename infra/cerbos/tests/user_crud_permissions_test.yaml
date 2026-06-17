@@ -197,3 +197,25 @@ tests:
         resource: user_record
         actions:
           user.deactivate: EFFECT_DENY
+
+  - name: user.activate — admin ALLOW
+    input:
+      principals: [full_crud]
+      resources: [user_record]
+      actions: [user.activate]
+    expected:
+      - principal: full_crud
+        resource: user_record
+        actions:
+          user.activate: EFFECT_ALLOW
+
+  - name: user.activate — missing users:users:delete DENY
+    input:
+      principals: [read_only]
+      resources: [user_record]
+      actions: [user.activate]
+    expected:
+      - principal: read_only
+        resource: user_record
+        actions:
+          user.activate: EFFECT_DENY

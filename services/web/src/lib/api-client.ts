@@ -1,6 +1,6 @@
 import type { ApiClientContext } from '@/lib/api-client-context';
 import { resolveBrowserApiBaseUrl } from '@/lib/api-base-url';
-import { refreshAccessToken } from '@/lib/auth-session';
+import { refreshAccessToken, forceLogoutDueToAccountDisabled } from '@/lib/auth-session';
 import {
   billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
@@ -280,6 +280,14 @@ function isInvalidOrExpiredTokenResponse(status: number, body: string): boolean 
   return parsed?.code === 'AUTH_INVALID_TOKEN';
 }
 
+function isAccountDisabledResponse(status: number, body: string): boolean {
+  if (status !== 403) {
+    return false;
+  }
+  const parsed = parseApiErrorBody(body);
+  return parsed?.code === 'USER_ACCOUNT_DISABLED';
+}
+
 async function fetchWithAuthRetry(
   path: string,
   options: RequestInit,
@@ -336,6 +344,10 @@ async function fetchWithAuthRetry(
   }
 
   const body = await response.text();
+  if (isAccountDisabledResponse(response.status, body)) {
+    await forceLogoutDueToAccountDisabled();
+    throw new ApiError(response.status, body);
+  }
   if (isInvalidOrExpiredTokenResponse(response.status, body)) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
@@ -348,7 +360,11 @@ async function fetchWithAuthRetry(
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new ApiError(response.status, await response.text());
+    const body = await response.text();
+    if (isAccountDisabledResponse(response.status, body)) {
+      await forceLogoutDueToAccountDisabled();
+    }
+    throw new ApiError(response.status, body);
   }
 
   if (response.status === 204) {

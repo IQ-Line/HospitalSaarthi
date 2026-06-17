@@ -1269,6 +1269,52 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /users/{id}/activate:
+    post:
+      tags:
+        - Users
+      summary: Reactivate a tenant-scoped platform user
+      description: >
+        Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active.
+        Uses Cerbos action `user.activate` (paired with `user.deactivate`).
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+      responses:
+        "200":
+          description: User is now active (or was already active).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   responses:
     Forbidden:
