@@ -127,6 +127,7 @@ export function OpdPatientsPage() {
           onPatientRowClick={patientDetailsDialog.onRowClick}
           onOpenReport={(row, reportType) =>
             patientReports.openReport(row.id, reportType, {
+              patientId: row.patientId,
               doctor_name: row.doctorName !== '—' ? row.doctorName : undefined,
             })
           }

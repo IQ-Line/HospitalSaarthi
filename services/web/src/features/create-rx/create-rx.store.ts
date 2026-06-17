@@ -106,6 +106,7 @@ interface CreateRxState {
   addMedicineRow: () => void;
   removeMedicineRow: (index: number) => void;
   updateMedicineRow: (index: number, field: keyof MedicineRow, value: string) => void;
+  patchMedicineRow: (index: number, patch: Partial<MedicineRow>) => void;
   addTestRow: () => void;
   removeTestRow: (index: number) => void;
   updateTestRow: (index: number, field: keyof TestRow, value: string) => void;
@@ -115,6 +116,7 @@ interface CreateRxState {
   addProcedureRow: () => void;
   removeProcedureRow: (index: number) => void;
   updateProcedureRow: (index: number, field: keyof ProcedureRow, value: string) => void;
+  patchProcedureRow: (index: number, patch: Partial<ProcedureRow>) => void;
 }
 
 export const useCreateRxStore = create<CreateRxState>((set) => ({
@@ -306,6 +308,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ),
       },
     })),
+  patchMedicineRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        medicines: s.formData.medicines.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
+        ),
+      },
+    })),
 
   addTestRow: () =>
     set((s) => ({
@@ -369,6 +381,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ...s.formData,
         procedures: s.formData.procedures.map((row, i) =>
           i === index ? { ...row, [field]: value } : row,
+        ),
+      },
+    })),
+  patchProcedureRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        procedures: s.formData.procedures.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
         ),
       },
     })),

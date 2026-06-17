@@ -1,7 +1,7 @@
 import type { PicklistValue } from '@/features/master-data/types';
 
 /** Role-type picklist values for platform operators (UM role.code templates). */
-export const GLOBAL_ROLE_TYPE_VALUES = ['super_admin', 'tenant_admin'] as const;
+export const GLOBAL_ROLE_TYPE_VALUES = ['super_admin', 'admin'] as const;
 
 export type GlobalRoleTypeValue = (typeof GLOBAL_ROLE_TYPE_VALUES)[number];
 
@@ -11,7 +11,8 @@ export function isGlobalRoleTypeValue(value: string): boolean {
 }
 
 /**
- * Platform super-admin sees global role types only; tenant-admin and other users see tenant staff types.
+ * Platform super-admin sees global role types only (Super Admin, Administrator);
+ * tenant-admin and other users see tenant staff types.
  */
 export function filterRoleTypePicklistForPrincipal(
   values: readonly PicklistValue[],

@@ -35,6 +35,39 @@ def load_visit_patient_source(
 ) -> VisitPatientSource | None:
     visit_table = _qualified_table(session, "registration", "visit")
     registration_table = _qualified_table(session, "registration", "registration")
+    bind = session.get_bind()
+    is_sqlite = bind is not None and bind.dialect.name == "sqlite"
+
+    if is_sqlite:
+        abha_number_select = "r.patient_abha_number AS patient_abha_number"
+        abha_address_select = "r.patient_abha_address AS patient_abha_address"
+        empi_join = ""
+    else:
+        empi_patients = _qualified_table(session, "empi", "patients")
+        empi_identifiers = _qualified_table(session, "empi", "patient_identifiers")
+        abha_number_select = (
+            "COALESCE(NULLIF(TRIM(r.patient_abha_number), ''), "
+            "NULLIF(TRIM(ep.abha_number), '')) AS patient_abha_number"
+        )
+        abha_address_select = f"""
+            COALESCE(
+                NULLIF(TRIM(r.patient_abha_address), ''),
+                (
+                    SELECT pi.identifier_value
+                    FROM {empi_identifiers} pi
+                    WHERE pi.iq_tenant_id = v.iq_tenant_id
+                      AND pi.patient_id = v.patient_id
+                      AND pi.identifier_type = 'abha_address'
+                      AND pi.is_active = true
+                    LIMIT 1
+                )
+            ) AS patient_abha_address
+        """
+        empi_join = f"""
+                LEFT JOIN {empi_patients} ep
+                    ON ep.iq_tenant_id = v.iq_tenant_id
+                    AND ep.id = v.patient_id
+        """
 
     row = (
         session.execute(
@@ -48,12 +81,13 @@ def load_visit_patient_source(
                     r.patient_full_name AS patient_name,
                     r.patient_uhid AS patient_uhid,
                     r.patient_phone_number AS patient_phone,
-                    r.patient_abha_number AS patient_abha_number,
-                    r.patient_abha_address AS patient_abha_address
+                    {abha_number_select},
+                    {abha_address_select}
                 FROM {visit_table} v
                 INNER JOIN {registration_table} r
                     ON r.iq_tenant_id = v.iq_tenant_id
                     AND r.patient_id = v.patient_id
+                {empi_join}
                 WHERE v.iq_tenant_id = :tenant_id
                   AND v.id = :visit_id
                 LIMIT 1

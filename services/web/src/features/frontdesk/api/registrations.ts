@@ -7,6 +7,7 @@ import {
   resolveRegistrationPatientId,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
+import { persistEmpiPatientPermanentAddress } from '@/features/opd-patients/api/empi-patients';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import type {
   CreateNewPatientRegistrationResponse,
@@ -42,6 +43,11 @@ export interface ListRegistrationsParams {
   /** Substring match on snapshot UHID, phone, or patient name. */
   q?: string;
   patient_id?: string;
+  mobile?: string;
+  uhid?: string;
+  name?: string;
+  abha_number?: string;
+  abha_address?: string;
 }
 
 export interface ListRegistrationVisitsParams {
@@ -52,6 +58,10 @@ export interface ListRegistrationVisitsParams {
   facility_id?: string;
   department_id?: string;
   doctor_id?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_from?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_to?: string;
 }
 
 export async function listRegistrations(
@@ -62,6 +72,11 @@ export async function listRegistrations(
   if (params.limit != null) sp.set('limit', String(params.limit));
   if (params.q?.trim()) sp.set('q', params.q.trim());
   if (params.patient_id?.trim()) sp.set('patient_id', params.patient_id.trim());
+  if (params.mobile?.trim()) sp.set('mobile', params.mobile.trim());
+  if (params.uhid?.trim()) sp.set('uhid', params.uhid.trim());
+  if (params.name?.trim()) sp.set('name', params.name.trim());
+  if (params.abha_number?.trim()) sp.set('abha_number', params.abha_number.trim());
+  if (params.abha_address?.trim()) sp.set('abha_address', params.abha_address.trim());
   const qs = sp.toString();
   return apiClient<RegistrationListPageResponse>(
     `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
@@ -80,6 +95,8 @@ export async function listRegistrationVisits(
   if (params.facility_id?.trim()) sp.set('facility_id', params.facility_id.trim());
   if (params.department_id?.trim()) sp.set('department_id', params.department_id.trim());
   if (params.doctor_id?.trim()) sp.set('doctor_id', params.doctor_id.trim());
+  if (params.updated_from?.trim()) sp.set('updated_from', params.updated_from.trim());
+  if (params.updated_to?.trim()) sp.set('updated_to', params.updated_to.trim());
   const qs = sp.toString();
   return apiClient<RegistrationVisitListPageResponse>(
     `${registrationApiBase()}/visits${qs ? `?${qs}` : ''}`,
@@ -280,11 +297,18 @@ export async function executeCreateVisitFlow(
   });
 
   const completed = await completeVisitIntake(registration.id!);
-  const patientAddress = formatPatientAddressForReport(
+  const addressBlock =
     form.residential_address?.line1?.trim()
       ? form.residential_address
-      : form.permanent_address,
-  );
+      : form.permanent_address;
+
+  try {
+    await persistEmpiPatientPermanentAddress(registration.patient_id, addressBlock);
+  } catch {
+    // Best-effort — reports can still use formatted address from the visit flow context.
+  }
+
+  const patientAddress = formatPatientAddressForReport(addressBlock);
 
   return {
     ...completed,

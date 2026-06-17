@@ -139,7 +139,7 @@ export const createTenantStep2Schema = z.object({});
 export const createTenantStep3Schema = z
   .object({
     adminFirstName: z.string().min(1, 'First name is required'),
-    adminLastName: z.string().min(1, 'Last name is required'),
+    adminLastName: z.string().optional(),
     adminEmail: z.string().email('Valid admin email is required'),
     adminUsername: z.string().optional(),
     adminMobile: z.string().optional(),

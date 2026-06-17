@@ -24,6 +24,23 @@ function trimOpt(s: string | undefined | null): string | null {
   return t.length ? t : null;
 }
 
+function deriveStrengthDisplay(
+  display: string | undefined | null,
+  value: number | string | undefined | null,
+  unit: string | undefined | null,
+): string {
+  const trimmedDisplay = (display ?? '').trim();
+  if (trimmedDisplay) return trimmedDisplay;
+
+  const trimmedUnit = (unit ?? '').trim();
+  if (value != null && String(value).trim() !== '' && trimmedUnit) {
+    return `${value} ${trimmedUnit}`;
+  }
+  if (value != null && String(value).trim() !== '') return String(value).trim();
+  if (trimmedUnit) return trimmedUnit;
+  return '';
+}
+
 /** Maps shared medicine form fields (create or edit) to API JSON (no `code`). */
 function medicineSharedFieldsToApi(
   v: VisitpadMedicineEditFormSchema | VisitpadMedicineCreateFormSchema,
@@ -45,7 +62,7 @@ function medicineSharedFieldsToApi(
     route_of_admin,
     strength_value: v.strength_value,
     strength_unit: trimOpt(v.strength_unit),
-    strength_display: (v.strength_display ?? '').trim() || '',
+    strength_display: deriveStrengthDisplay(v.strength_display, v.strength_value, v.strength_unit),
     concentration_value: v.concentration_value,
     concentration_unit: trimOpt(v.concentration_unit),
     volume_per_unit: v.volume_per_unit,

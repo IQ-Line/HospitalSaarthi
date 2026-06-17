@@ -105,6 +105,7 @@ export function NursePatientsPage() {
           onPageChange={setPage}
           onOpenReport={(row, reportType) =>
             patientReports.openReport(row.id, reportType, {
+              patientId: row.patientId,
               doctor_name: row.doctorName !== '—' ? row.doctorName : undefined,
             })
           }

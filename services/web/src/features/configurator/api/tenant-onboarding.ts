@@ -39,7 +39,7 @@ export interface TenantOnboardingInput {
   modules: Array<{ module_id: string; is_active: boolean }>;
   admin: {
     first_name: string;
-    last_name: string;
+    last_name?: string | null;
     email: string;
     password: string;
     phone?: string | null;

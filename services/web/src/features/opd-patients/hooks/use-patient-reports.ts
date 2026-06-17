@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { fetchFormattedPatientAddressForReport } from '../api/empi-patients';
 import type {
   ClinicalReportQueryContext,
   ClinicalReportType,
@@ -10,6 +11,8 @@ interface PatientReportSelection {
   reportContext?: ClinicalReportQueryContext;
 }
 
+type OpenReportContext = ClinicalReportQueryContext & { patientId?: string };
+
 export function usePatientReports(defaultContext?: ClinicalReportQueryContext) {
   const [selection, setSelection] = useState<PatientReportSelection | null>(null);
 
@@ -17,13 +20,26 @@ export function usePatientReports(defaultContext?: ClinicalReportQueryContext) {
     (
       visitId: string,
       reportType: ClinicalReportType,
-      reportContext?: ClinicalReportQueryContext,
+      reportContext?: OpenReportContext,
     ) => {
-      setSelection({
-        visitId,
-        reportType,
-        reportContext: { ...defaultContext, ...reportContext },
-      });
+      const { patientId, ...context } = reportContext ?? {};
+
+      void (async () => {
+        let patient_address = context.patient_address;
+        if (patientId?.trim() && !patient_address?.trim()) {
+          try {
+            patient_address = await fetchFormattedPatientAddressForReport(patientId);
+          } catch {
+            patient_address = undefined;
+          }
+        }
+
+        setSelection({
+          visitId,
+          reportType,
+          reportContext: { ...defaultContext, ...context, patient_address },
+        });
+      })();
     },
     [defaultContext],
   );

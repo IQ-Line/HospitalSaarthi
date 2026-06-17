@@ -95,6 +95,7 @@ export function CreateBranchWizard({
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = form;
 
@@ -239,7 +240,7 @@ export function CreateBranchWizard({
       modules: [...enabledModuleIds].map((id) => ({ module_id: id, is_active: true })),
       admin: {
         first_name: values.adminFirstName.trim(),
-        last_name: values.adminLastName.trim(),
+        last_name: values.adminLastName?.trim() || null,
         email: values.adminEmail.trim(),
         password: values.password,
         phone: values.adminMobile?.trim() || null,
@@ -313,6 +314,8 @@ export function CreateBranchWizard({
                 register={register}
                 control={control}
                 errors={errors}
+                setValue={setValue}
+                watch={watch}
                 suggestedSlug={suggestedSlug}
                 parentTenantName={parentTenantName}
               />

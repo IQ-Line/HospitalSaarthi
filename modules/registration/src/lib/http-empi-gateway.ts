@@ -211,6 +211,49 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     return null;
   }
 
+  async fetchPatientDetail(
+    tenantId: string,
+    patientId: string,
+    bearerToken?: string,
+  ): Promise<{ patient: EmpiPatientWire; abha_number?: string | null; abha_address?: string | null } | null> {
+    const url = joinUrl(
+      this.empiServiceOrigin,
+      `/api/empi/v1/patients/${encodeURIComponent(patientId.trim())}`,
+    );
+    let res: Response;
+    try {
+      res = await fetch(url, { headers: this.tenantHeaders(tenantId, bearerToken) });
+    } catch {
+      return null;
+    }
+    if (!res.ok) return null;
+
+    try {
+      const json = (await res.json()) as Record<string, unknown>;
+      const patientRaw = json.patient ?? json;
+      if (!isPatientWire(patientRaw)) return null;
+
+      let abhaNumber: string | null = patientRaw.abha_number?.trim() || null;
+      let abhaAddress: string | null = patientRaw.abha_address?.trim() || null;
+      const identifiers = json.identifiers;
+      if (Array.isArray(identifiers)) {
+        for (const item of identifiers) {
+          if (!item || typeof item !== "object") continue;
+          const row = item as Record<string, unknown>;
+          const value = typeof row.identifier_value === "string" ? row.identifier_value.trim() : "";
+          if (!value) continue;
+          if (row.identifier_type === "abha_address" && !abhaAddress) {
+            abhaAddress = value;
+          }
+        }
+      }
+
+      return { patient: patientRaw, abha_number: abhaNumber, abha_address: abhaAddress };
+    } catch {
+      return null;
+    }
+  }
+
   private async fetchPatientIdFromDemographicsDedup(
     tenantId: string,
     body: Record<string, unknown>,

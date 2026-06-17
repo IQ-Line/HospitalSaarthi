@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord } from './opd-encounter-overlay';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord, getEncounterOverlayByVisitId } from './opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from './empi-patients';
 import { computeOpdPatientsStats, filterOpdPatientRows } from '../lib/opd-patients-list-utils';
 import { opdUiStatusToRegistrationVisitQuery } from '../lib/registration-visit-status';
@@ -67,7 +67,7 @@ export async function fetchOpdPatientsList(
   ]);
 
   let items = visitPage.data.map((visit) => {
-    const encounter = encounterByVisitId.get(visit.id);
+    const encounter = getEncounterOverlayByVisitId(encounterByVisitId, visit.id);
     return mapRegistrationVisitToOpdPatientRow(
       visit,
       empiById.get(visit.patient_id),

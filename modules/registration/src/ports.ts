@@ -16,6 +16,7 @@ import type {
 } from "./domain/visit.types.js";
 import type { VisitStatus } from "./lib/visit-helpers.js";
 import type { TenantFollowUpConfig } from "./lib/follow-up.js";
+import type { EmpiPatientWire } from "./lib/registration-helpers.js";
 
 export type { TenantFollowUpConfig };
 
@@ -140,6 +141,11 @@ export interface EmpiHttpPort {
     },
     bearerToken?: string,
   ): Promise<string | null>;
+  fetchPatientDetail(
+    tenantId: string,
+    patientId: string,
+    bearerToken?: string,
+  ): Promise<{ patient: EmpiPatientWire; abha_number?: string | null; abha_address?: string | null } | null>;
 }
 
 export interface ConfiguratorHttpPort {

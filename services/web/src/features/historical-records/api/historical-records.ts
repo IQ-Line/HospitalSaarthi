@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
+import { listRegistrations, listRegistrationVisits } from '@/features/frontdesk/api/registrations';
 import type { RegistrationVisitResponse } from '@/features/frontdesk/types';
 import { resolveOpdConsultationTenantId } from '@/features/opd-patients/lib/opd-consultation-tenant';
 import {
@@ -14,7 +14,12 @@ import type { OpdPrescriptionListItem } from '@/features/create-rx/api/opd-presc
 import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { SEARCH_VISITS_PER_PATIENT_LIMIT } from './constants';
 import { fetchDoctorLookupMap, resolveDoctorName } from './doctor-lookup';
-import { isWithinDateRange } from '../lib/formatters';
+import {
+  fetchRegistrationSnapshotByPatientIds,
+  resolvePatientAbhaNumber,
+  type RegistrationPatientSnapshot,
+} from './registration-snapshot';
+import { isWithinDateRange, isHistoricalSearchQueryValid, normalizeAbhaForSearch, normalizeIndianPhoneForSearch } from '../lib/formatters';
 import type {
   HistoricalDocumentItem,
   HistoricalPatientProfile,
@@ -53,13 +58,13 @@ async function searchEmpiByField(
   query: string,
 ): Promise<EmpiPatient[]> {
   const trimmed = query.trim();
-  if (trimmed.length < 2 && field === 'patient_name') return [];
-  if (trimmed.length < 1 && field !== 'patient_name') return [];
+  if (!isHistoricalSearchQueryValid(field, trimmed)) return [];
 
   if (field === 'abha_address') {
+    const abhaAddress = trimmed.toLowerCase();
     try {
       const match = await apiClient<{ patientId?: string; id?: string }>(
-        `${EMPI_PATIENTS_BASE}/find?abha_address=${encodeURIComponent(trimmed)}`,
+        `${EMPI_PATIENTS_BASE}/find?abha_address=${encodeURIComponent(abhaAddress)}`,
       );
       const patientId = match?.patientId?.trim() || match?.id?.trim();
       if (!patientId) return [];
@@ -75,15 +80,84 @@ async function searchEmpiByField(
   sp.set('limit', '100');
 
   if (field === 'patient_name') sp.set('name', trimmed);
-  else if (field === 'mobile_number') sp.set('phone', trimmed.replace(/\D/g, ''));
-  else if (field === 'abha_number') sp.set('abha_number', trimmed);
+  else if (field === 'mobile_number') {
+    const phone = normalizeIndianPhoneForSearch(trimmed);
+    if (!phone) return [];
+    sp.set('phone', phone);
+  } else if (field === 'abha_number') sp.set('abha_number', normalizeAbhaForSearch(trimmed));
   else if (field === 'uhid') sp.set('uhid', trimmed);
 
   const result = await apiClient<EmpiSearchPage>(`${EMPI_PATIENTS_BASE}?${sp.toString()}`);
   return result.data;
 }
 
-async function fetchVisitsForPatients(patientIds: string[]): Promise<RegistrationVisitResponse[]> {
+async function searchRegistrationPatientIds(
+  field: HistoricalSearchField,
+  query: string,
+): Promise<string[]> {
+  const trimmed = query.trim();
+  if (!trimmed || !isHistoricalSearchQueryValid(field, trimmed)) return [];
+
+  if (field === 'patient_name') {
+    const page = await listRegistrations({ page: 1, limit: 100, name: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'mobile_number') {
+    const digits = trimmed.replace(/\D/g, '');
+    const page = await listRegistrations({ page: 1, limit: 100, mobile: digits.slice(-10) });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'uhid') {
+    const page = await listRegistrations({ page: 1, limit: 100, uhid: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'abha_number') {
+    const page = await listRegistrations({
+      page: 1,
+      limit: 100,
+      abha_number: normalizeAbhaForSearch(trimmed),
+    });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  if (field === 'abha_address') {
+    const page = await listRegistrations({ page: 1, limit: 100, abha_address: trimmed });
+    return [...new Set(page.data.map((row) => row.patient_id).filter(Boolean))];
+  }
+
+  return [];
+}
+
+async function resolvePatientIdsForSearch(
+  field: HistoricalSearchField,
+  query: string,
+): Promise<string[]> {
+  const empiPatients = await searchEmpiByField(field, query);
+  const patientIds = new Set(empiPatients.map((patient) => patient.id));
+
+  if (
+    field === 'patient_name' ||
+    field === 'mobile_number' ||
+    field === 'uhid' ||
+    field === 'abha_number' ||
+    field === 'abha_address'
+  ) {
+    const registrationIds = await searchRegistrationPatientIds(field, query).catch(() => []);
+    for (const patientId of registrationIds) {
+      patientIds.add(patientId);
+    }
+  }
+
+  return [...patientIds];
+}
+
+async function fetchVisitsForPatients(
+  patientIds: string[],
+  dateFilters?: { updated_from?: string; updated_to?: string },
+): Promise<RegistrationVisitResponse[]> {
   if (patientIds.length === 0) return [];
 
   const results = await Promise.all(
@@ -92,6 +166,7 @@ async function fetchVisitsForPatients(patientIds: string[]): Promise<Registratio
         patient_id: patientId,
         page: 1,
         limit: SEARCH_VISITS_PER_PATIENT_LIMIT,
+        ...dateFilters,
       });
       return page.data;
     }),
@@ -99,10 +174,25 @@ async function fetchVisitsForPatients(patientIds: string[]): Promise<Registratio
   return results.flat();
 }
 
+function visitDateFilters(filters: HistoricalRecordsFilters): {
+  updated_from?: string;
+  updated_to?: string;
+} {
+  return {
+    ...(filters.startDate ? { updated_from: filters.startDate } : {}),
+    ...(filters.endDate ? { updated_to: filters.endDate } : {}),
+  };
+}
+
+function isHistoricalSearchActive(filters: HistoricalRecordsFilters): boolean {
+  return isHistoricalSearchQueryValid(filters.searchField, filters.search);
+}
+
 function mapVisitToRow(
   visit: RegistrationVisitResponse,
   empi: EmpiPatient | undefined,
   doctorLookup: Map<string, string>,
+  registrationSnapshot?: RegistrationPatientSnapshot | null,
 ): HistoricalRecordRow {
   const age = empi ? empiPatientAgeYears(empi) : 0;
   const gender = empi?.gender ?? 'other';
@@ -110,12 +200,13 @@ function mapVisitToRow(
   return {
     id: visit.id,
     patientId: visit.patient_id,
-    patientName: empi?.full_name?.trim() || '—',
+    patientName: empi?.full_name?.trim() || registrationSnapshot?.fullName?.trim() || '—',
     age,
     gender: gender === 'male' || gender === 'female' ? gender : 'other',
-    abhaNumber: empi?.abha_number?.trim() || 'NA',
-    uhid: empi?.uhid?.trim() || '—',
-    mobileNumber: empi?.phone_number?.trim() || '—',
+    abhaNumber: resolvePatientAbhaNumber(empi?.abha_number, registrationSnapshot),
+    uhid: empi?.uhid?.trim() || registrationSnapshot?.uhid?.trim() || '—',
+    mobileNumber:
+      empi?.phone_number?.trim() || registrationSnapshot?.phoneNumber?.trim() || '—',
     doctorName: resolveDoctorName(visit.doctor_id, doctorLookup),
     lastVisitAt: visit.created_at,
     visitNumber: formatVisitNumber(visit),
@@ -130,57 +221,81 @@ export async function fetchHistoricalRecordsList(params: {
 }): Promise<HistoricalRecordsListResponse> {
   const { page, limit, filters } = params;
   const search = filters.search.trim();
+  const dateFilters = visitDateFilters(filters);
 
   const doctorLookup = await fetchDoctorLookupMap();
 
-  let visits: RegistrationVisitResponse[];
+  if (isHistoricalSearchActive(filters)) {
+    const patientIds = await resolvePatientIdsForSearch(filters.searchField, search);
+    const [visits, registrationByPatientId, empiById] = await Promise.all([
+      fetchVisitsForPatients(patientIds, dateFilters),
+      fetchRegistrationSnapshotByPatientIds(patientIds),
+      fetchEmpiPatientLookupMap(patientIds),
+    ]);
 
-  if (search.length >= 2 || (search.length >= 1 && filters.searchField !== 'patient_name')) {
-    const patients = await searchEmpiByField(filters.searchField, search);
-    const patientIds = [...new Set(patients.map((p) => p.id))];
-    visits = await fetchVisitsForPatients(patientIds);
-    const empiById = new Map(patients.map((p) => [p.id, p]));
-
-    let items = visits
-      .filter((v) => isWithinDateRange(v.updated_at, filters.startDate, filters.endDate))
-      .map((v) => mapVisitToRow(v, empiById.get(v.patient_id), doctorLookup))
+    const items = visits
+      .map((v) =>
+        mapVisitToRow(
+          v,
+          empiById.get(v.patient_id),
+          doctorLookup,
+          registrationByPatientId.get(v.patient_id),
+        ),
+      )
       .sort((a, b) => b.lastUpdatedAt.localeCompare(a.lastUpdatedAt));
 
     const total = items.length;
     const start = (page - 1) * limit;
-    items = items.slice(start, start + limit);
-    return { items, total };
+    return { items: items.slice(start, start + limit), total };
   }
 
-  const visitPage = await listRegistrationVisits({ page, limit });
-  const empiById = await fetchEmpiPatientLookupMap(visitPage.data.map((v) => v.patient_id));
+  const visitPage = await listRegistrationVisits({ page, limit, ...dateFilters });
+  const patientIds = visitPage.data.map((v) => v.patient_id);
+  const [empiById, registrationByPatientId] = await Promise.all([
+    fetchEmpiPatientLookupMap(patientIds),
+    fetchRegistrationSnapshotByPatientIds(patientIds),
+  ]);
 
-  let items = visitPage.data
-    .filter((v) => isWithinDateRange(v.updated_at, filters.startDate, filters.endDate))
-    .map((v) => mapVisitToRow(v, empiById.get(v.patient_id), doctorLookup));
+  const items = visitPage.data.map((v) =>
+    mapVisitToRow(v, empiById.get(v.patient_id), doctorLookup, registrationByPatientId.get(v.patient_id)),
+  );
 
-  const total =
-    filters.startDate || filters.endDate ? items.length : visitPage.total;
-
-  return { items, total };
+  return { items, total: visitPage.total };
 }
 
 export async function fetchHistoricalPatientProfile(
   patientId: string,
 ): Promise<HistoricalPatientProfile> {
-  const [detail, visitPage] = await Promise.all([
+  const [detail, visitPage, registrationByPatientId] = await Promise.all([
     fetchEmpiPatientDetail(patientId),
     listRegistrationVisits({ patient_id: patientId, page: 1, limit: 1 }),
+    fetchRegistrationSnapshotByPatientIds([patientId]),
   ]);
 
   const mapped = mapEmpiPatientToOpdDetails(detail);
+  const snapshot = registrationByPatientId.get(patientId);
+  const abhaFromSnapshot = snapshot?.abhaNumber?.trim();
+  const abhaAddressFromSnapshot = snapshot?.abhaAddress?.trim();
+  const abhaNumber =
+    mapped.abhaNumber !== 'N/A'
+      ? mapped.abhaNumber
+      : abhaFromSnapshot
+        ? abhaFromSnapshot
+        : 'Not provided';
+  const abhaAddress =
+    mapped.abhaAddress !== 'N/A'
+      ? mapped.abhaAddress
+      : abhaAddressFromSnapshot
+        ? abhaAddressFromSnapshot
+        : 'Not provided';
+
   return {
     firstName: mapped.firstName === '-' ? 'Not provided' : mapped.firstName,
     middleName: mapped.middleName === '-' ? 'Not provided' : mapped.middleName,
     lastName: mapped.lastName === '-' ? 'Not provided' : mapped.lastName,
     uhid: mapped.uhid,
-    abhaNumber: mapped.abhaNumber === 'N/A' ? 'Not provided' : mapped.abhaNumber,
-    abhaAddress: mapped.abhaAddress === 'N/A' ? 'Not provided' : mapped.abhaAddress,
+    abhaNumber: abhaNumber === 'N/A' ? 'Not provided' : abhaNumber,
+    abhaAddress: abhaAddress === 'N/A' ? 'Not provided' : abhaAddress,
     phoneNumber: mapped.phoneNumber === '-' ? 'Not provided' : mapped.phoneNumber,
     dateOfBirth: mapped.dateOfBirth === '-' ? 'Not provided' : mapped.dateOfBirth,
     ageDisplay: mapped.ageDisplay,

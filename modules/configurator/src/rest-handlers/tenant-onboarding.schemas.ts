@@ -77,11 +77,11 @@ export const tenantOnboardingBodySchema = {
     },
     admin: {
       type: "object",
-      required: ["first_name", "last_name", "email", "password"],
+      required: ["first_name", "email", "password"],
       additionalProperties: false,
       properties: {
         first_name: { type: "string", minLength: 1 },
-        last_name: { type: "string", minLength: 1 },
+        last_name: { anyOf: [{ type: "string" }, { type: "null" }] },
         email: { type: "string", format: "email", minLength: 5 },
         password: { type: "string", minLength: 8 },
         phone: { anyOf: [{ type: "string" }, { type: "null" }] },

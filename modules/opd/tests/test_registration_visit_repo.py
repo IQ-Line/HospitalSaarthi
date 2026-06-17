@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from uuid import uuid4
 
 from opd.data_access.visit_status import (
+    effective_encounter_status,
     resolve_visit_status_for_prescription,
     resolve_visit_statuses_for_prescriptions,
 )
@@ -92,3 +94,69 @@ def test_resolve_visit_statuses_for_prescriptions_batch(db_session) -> None:
     assert resolved[visit_pre] == "pre_consulted"
     assert resolved[visit_progress] == "in_progress"
     assert resolved[missing_visit] == "completed"
+
+
+def test_resolve_visit_statuses_for_prescription_model_without_visit_row(db_session) -> None:
+    """Batch overlays pass lean PrescriptionModel rows; must not assume form_data exists."""
+    from tests.conftest import TENANT_A
+
+    from opd.models.prescription import PrescriptionModel
+    from opd.models.prescription.enums import PrescriptionStatus
+
+    visit_id = uuid4()
+    patient_id = uuid4()
+    doctor_id = uuid4()
+    rx = PrescriptionModel(
+        tenant_id=TENANT_A,
+        visit_id=visit_id,
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+        status=PrescriptionStatus.DRAFT,
+    )
+    db_session.add(rx)
+    db_session.flush()
+
+    resolved = resolve_visit_statuses_for_prescriptions(
+        db_session,
+        TENANT_A,
+        [(visit_id, "draft")],
+        rx_by_visit_id={visit_id: rx},
+    )
+    assert resolved[visit_id] == "registered"
+
+
+def test_effective_encounter_status_empty_draft_stays_registered() -> None:
+    visit = SimpleNamespace(status="in_progress")
+    rx = SimpleNamespace(status="draft", form_data={})
+    assert effective_encounter_status(visit, rx) == "registered"
+
+
+def test_effective_encounter_status_draft_with_content_stays_in_progress() -> None:
+    visit = SimpleNamespace(status="in_progress")
+    rx = SimpleNamespace(
+        status="draft",
+        form_data={"chiefComplaints": [{"complaint": "Fever"}]},
+    )
+    assert effective_encounter_status(visit, rx) == "in_progress"
+
+
+def test_registered_visit_with_draft_stays_registered(db_session) -> None:
+    from tests.conftest import TENANT_A
+
+    visit_id = uuid4()
+    db_session.add(
+        Visit(
+            id=visit_id,
+            tenant_id=TENANT_A,
+            patient_id=uuid4(),
+            status="registered",
+        )
+    )
+    db_session.flush()
+
+    resolved = resolve_visit_statuses_for_prescriptions(
+        db_session,
+        TENANT_A,
+        [(visit_id, "draft")],
+    )
+    assert resolved[visit_id] == "registered"

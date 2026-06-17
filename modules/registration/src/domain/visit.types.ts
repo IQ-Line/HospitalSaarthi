@@ -60,6 +60,10 @@ export interface ListVisitsParams {
   facility_id?: string;
   department_id?: string;
   doctor_id?: string;
+  /** Inclusive calendar-date filter on `updated_at` (YYYY-MM-DD). */
+  updated_from?: string;
+  /** Inclusive calendar-date filter on `updated_at` (YYYY-MM-DD). */
+  updated_to?: string;
 }
 
 export interface VisitListPage {

@@ -24,7 +24,6 @@ from opd.schemas.prescription.prescription import (
     PrescriptionListItem,
     PrescriptionUpdate,
 )
-from opd.services.clinical_documents_service import get_clinical_reports_availability_by_visit_ids
 from opd.services.prescription_mapper import prescription_to_detail
 
 
@@ -74,18 +73,13 @@ class PrescriptionService:
             self._session,
             tenant_id,
             [(row.visit_id, str(row.status)) for row in rows],
-        )
-        final_visit_ids = [row.visit_id for row in rows]
-        reports_by_visit_id = get_clinical_reports_availability_by_visit_ids(
-            self._session,
-            tenant_id,
-            final_visit_ids,
+            rx_by_visit_id={row.visit_id: row for row in rows},
         )
         return {
             str(row.visit_id): PrescriptionEncounterOverlay(
                 status=row.status,
                 visit_status=visit_status_by_id.get(row.visit_id, "registered"),
-                reports=reports_by_visit_id.get(str(row.visit_id)),
+                reports=None,
             )
             for row in rows
         }

@@ -26,7 +26,8 @@ function validateLogoFile(file: File): string | null {
     return 'Only PNG and JPEG images are allowed.';
   }
   if (file.size > MAX_LOGO_BYTES) {
-    return 'Logo must be 2 MB or smaller.';
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+    return `Logo is ${sizeMb} MB. Maximum size is 2 MB.`;
   }
   return null;
 }
