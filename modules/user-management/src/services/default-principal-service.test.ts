@@ -79,6 +79,15 @@ describe("DefaultPrincipalService — capability resolution", () => {
     expect(principal.attributes.capabilities).toEqual([]);
   });
 
+  it("rejects inactive users", async () => {
+    const { userRepo, service } = setup();
+    await userRepo.updateUser(T, U, { status: "inactive" });
+
+    await expect(service.getPrincipal({ tenantId: T, userId: U })).rejects.toMatchObject({
+      code: "USER_ACCOUNT_DISABLED",
+    });
+  });
+
   it("deduplicates identical capability grants", async () => {
     const { authorization, service } = setup();
 

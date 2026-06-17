@@ -550,6 +550,7 @@ describe("OpenAPI/runtime coherence", () => {
         "/users/:id/capabilities",
         "/users/:id/effective-capabilities",
         "/users/:id/deactivate",
+        "/users/:id/activate",
         "/roles",
         "/roles/:id",
         "/roles/:id/capabilities",

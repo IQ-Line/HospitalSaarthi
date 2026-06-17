@@ -1,8 +1,11 @@
 import type { User } from "../ports/index.js";
+import type { AuthSessionRevokerPort } from "../ports/auth-session-revoker.js";
 import type { UpdateUserContext, UpdateUserDeps } from "./update-user.js";
 import { updateUser } from "./update-user.js";
 
-export type DeactivateUserDeps = UpdateUserDeps;
+export type DeactivateUserDeps = UpdateUserDeps & {
+  authSessionRevoker?: AuthSessionRevokerPort;
+};
 
 /**
  * Sets the platform user to `inactive` (soft deactivate). Uses {@link updateUser} so
@@ -22,5 +25,9 @@ export async function deactivateUser(
   if (previous.status === "inactive") {
     return previous;
   }
-  return updateUser(deps, ctx, userId, { status: "inactive" });
+  const user = await updateUser(deps, ctx, userId, { status: "inactive" });
+  if (user !== null) {
+    await deps.authSessionRevoker?.revokeAllSessionsForPlatformUser(userId);
+  }
+  return user;
 }

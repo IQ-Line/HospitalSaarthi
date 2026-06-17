@@ -17,6 +17,7 @@ export type {
   TenantApiKeyValidationResult,
   TenantApiKeyValidatorPort,
 } from "./ports/tenant-api-key-validator.js";
+export type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
@@ -57,6 +58,7 @@ export {
   type IdentityJwtClaims,
   type IdentityJwtClaimsDeps,
 } from "./authn/identity-jwt-claims.js";
+export { assertUserCanAuthenticate } from "./authn/assert-user-can-authenticate.js";
 export {
   compareCanonicalRoleCodes,
   normalizeRoleCode,
@@ -94,6 +96,7 @@ export {
   TenantMismatchError,
   UnexpectedPersistenceError,
   UserRoleTemplateNotFoundError,
+  UserAccountDisabledError,
   UserManagementError,
   UserNotFoundError,
   ValidationError,
@@ -198,6 +201,8 @@ export { applyRoleTemplate } from "./use-cases/apply-role-template.js";
 export type { ApplyRoleTemplateDeps } from "./use-cases/apply-role-template.js";
 export { deactivateUser } from "./use-cases/deactivate-user.js";
 export type { DeactivateUserDeps } from "./use-cases/deactivate-user.js";
+export { activateUser } from "./use-cases/activate-user.js";
+export type { ActivateUserDeps } from "./use-cases/activate-user.js";
 export { deleteRole } from "./use-cases/delete-role.js";
 export type { DeleteRoleDeps } from "./use-cases/delete-role.js";
 export { detachRoleTemplate } from "./use-cases/detach-role-template.js";

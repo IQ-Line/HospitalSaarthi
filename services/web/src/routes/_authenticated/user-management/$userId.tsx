@@ -13,7 +13,7 @@ import {
   UM_USER_READ,
   UM_USER_UPDATE,
 } from '@/lib/runtime-capability-keys';
-import { useDeactivateUser } from '@/features/user-management/api/mutations';
+import { useActivateUser, useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
   userCapabilitiesOptions,
   userDetailOptions,
@@ -55,10 +55,13 @@ function UserDetailPage() {
   const { data: user } = useUserDetailSuspense(userId, tenantScope);
   const [editOpen, setEditOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
 
   const umUserUpdate = useCapability(UM_USER_UPDATE);
   const umUserDelete = useCapability(UM_USER_DELETE);
   const deactivate = useDeactivateUser(userId, tenantScope);
+  const activate = useActivateUser(userId, tenantScope);
+  const isActive = user.status === 'active';
 
   return (
     <>
@@ -70,8 +73,8 @@ function UserDetailPage() {
           .filter(Boolean)
           .join(' · ')}
         pageContext={
-          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
-            {user.status === 'active' ? 'Active' : 'Inactive'}
+          <Badge variant={isActive ? 'default' : 'secondary'}>
+            {isActive ? 'Active' : 'Inactive'}
           </Badge>
         }
         actions={
@@ -86,10 +89,17 @@ function UserDetailPage() {
                 Edit profile
               </Button>
             </CapabilityGate>
-            {umUserDelete && user.status === 'active' ? (
+            {umUserDelete && isActive ? (
               <CapabilityGate capability={UM_USER_DELETE}>
                 <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
                   Deactivate
+                </Button>
+              </CapabilityGate>
+            ) : null}
+            {umUserDelete && !isActive ? (
+              <CapabilityGate capability={UM_USER_DELETE}>
+                <Button type="button" onClick={() => setActivateOpen(true)}>
+                  Activate
                 </Button>
               </CapabilityGate>
             ) : null}
@@ -118,6 +128,19 @@ function UserDetailPage() {
         onConfirm={() => {
           deactivate.mutate(undefined, {
             onSuccess: () => setDeactivateOpen(false),
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={activateOpen}
+        onOpenChange={setActivateOpen}
+        title="Activate this user?"
+        description={`${user.full_name} will be able to sign in again.`}
+        confirmLabel={activate.isPending ? 'Activating...' : 'Activate'}
+        onConfirm={() => {
+          activate.mutate(undefined, {
+            onSuccess: () => setActivateOpen(false),
           });
         }}
       />

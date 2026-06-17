@@ -31,7 +31,14 @@ import {
 
 const EMPTY_ROLE_CAPABILITIES: Capability[] = [];
 
-/** Maps form values to `POST /users` body. Exported for unit tests. */
+/** Search params for user profile after create when scoped to a hospital tenant. */
+export function buildUserProfileNavigateSearch(
+  tenantScope?: string | null,
+): { tenant: string } | Record<string, never> {
+  const trimmed = tenantScope?.trim();
+  return trimmed && trimmed.length > 0 ? { tenant: trimmed } : {};
+}
+
 export function buildCreateUserRequestBody(
   values: CreateUserFormValues,
   assignRoles: boolean,
@@ -320,6 +327,7 @@ export function CreateUserForm({
             void navigate({
               to: '/user-management/$userId',
               params: { userId: user.id },
+              search: buildUserProfileNavigateSearch(tenantForCreate),
             });
             return;
           }

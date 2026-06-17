@@ -162,6 +162,13 @@ export class UserNotFoundError extends UserManagementError {
   }
 }
 
+/** Inactive or suspended users must not sign in or receive access tokens. */
+export class UserAccountDisabledError extends UserManagementError {
+  constructor(message = "This account has been deactivated.") {
+    super("USER_ACCOUNT_DISABLED", message);
+  }
+}
+
 /** PEP did not attach `request.cerbosPrincipal` before /auth/principal (mis-ordered plugins or missing enrichment). */
 export class CerbosPrincipalUnavailableError extends UserManagementError {
   constructor() {

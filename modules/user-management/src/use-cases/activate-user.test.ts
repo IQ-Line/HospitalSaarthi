@@ -8,8 +8,8 @@ import type {
   UserRepository,
   UserWithTenant,
 } from "../ports/index.js";
-import { USER_MANAGEMENT_EVENT_USER_DEACTIVATED, USER_MANAGEMENT_EVENT_USER_UPDATED } from "../events/constants.js";
-import { deactivateUser } from "./deactivate-user.js";
+import { USER_MANAGEMENT_EVENT_USER_UPDATED } from "../events/constants.js";
+import { activateUser } from "./activate-user.js";
 
 class MemUserRepo implements UserRepository {
   constructor(private user: User | null) {}
@@ -32,7 +32,7 @@ class MemUserRepo implements UserRepository {
   }
 }
 
-describe("deactivateUser", () => {
+describe("activateUser", () => {
   it("returns null when user is missing", async () => {
     const eventBus: EventBus = {
       async connect() {},
@@ -43,7 +43,7 @@ describe("deactivateUser", () => {
       },
     };
     const publish = vi.spyOn(eventBus, "publish");
-    const out = await deactivateUser(
+    const out = await activateUser(
       { userRepository: new MemUserRepo(null), eventBus },
       {
         tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
@@ -56,11 +56,11 @@ describe("deactivateUser", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it("is idempotent when already inactive (no new events)", async () => {
-    const inactive: User = {
+  it("is idempotent when already active (no new events)", async () => {
+    const active: User = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
       full_name: "X",
-      status: "inactive",
+      status: "active",
     };
     const eventBus: EventBus = {
       async connect() {},
@@ -71,24 +71,24 @@ describe("deactivateUser", () => {
       },
     };
     const publish = vi.spyOn(eventBus, "publish");
-    const out = await deactivateUser(
-      { userRepository: new MemUserRepo(inactive), eventBus },
+    const out = await activateUser(
+      { userRepository: new MemUserRepo(active), eventBus },
       {
         tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
         actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
         correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
       },
-      inactive.id,
+      active.id,
     );
-    expect(out?.status).toBe("inactive");
+    expect(out?.status).toBe("active");
     expect(publish).not.toHaveBeenCalled();
   });
 
-  it("deactivates active user and publishes updated + deactivated", async () => {
-    const active: User = {
+  it("activates inactive user and publishes updated", async () => {
+    const inactive: User = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
       full_name: "Y",
-      status: "active",
+      status: "inactive",
     };
     const events: string[] = [];
     const eventBus: EventBus = {
@@ -101,48 +101,16 @@ describe("deactivateUser", () => {
         return { async unsubscribe() {} };
       },
     };
-    const out = await deactivateUser(
-      { userRepository: new MemUserRepo({ ...active }), eventBus },
+    const out = await activateUser(
+      { userRepository: new MemUserRepo({ ...inactive }), eventBus },
       {
         tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
         actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
         correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
       },
-      active.id,
+      inactive.id,
     );
-    expect(out?.status).toBe("inactive");
+    expect(out?.status).toBe("active");
     expect(events).toContain(USER_MANAGEMENT_EVENT_USER_UPDATED);
-    expect(events).toContain(USER_MANAGEMENT_EVENT_USER_DEACTIVATED);
-  });
-
-  it("revokes auth sessions when deactivating an active user", async () => {
-    const active: User = {
-      id: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
-      full_name: "Y",
-      status: "active",
-    };
-    const revoke = vi.fn(async () => {});
-    const eventBus: EventBus = {
-      async connect() {},
-      async disconnect() {},
-      async publish() {},
-      async subscribe(): Promise<Subscription> {
-        return { async unsubscribe() {} };
-      },
-    };
-    await deactivateUser(
-      {
-        userRepository: new MemUserRepo({ ...active }),
-        eventBus,
-        authSessionRevoker: { revokeAllSessionsForPlatformUser: revoke },
-      },
-      {
-        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
-        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
-        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
-      },
-      active.id,
-    );
-    expect(revoke).toHaveBeenCalledWith(active.id);
   });
 });
