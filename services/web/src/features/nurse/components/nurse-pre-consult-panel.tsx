@@ -11,6 +11,8 @@ import type { ChiefComplaintRow, CreateRxFormData, ImmunizationRow } from '@/fea
 import { prepareCreateRxFormDataForSession } from '@/features/create-rx/lib/form-data-session';
 import { saveNursePreConsult } from '../api/nurse-prescription';
 import { nursePatientsQueryKeys } from '../api/query-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { OPD_PATIENT_UPDATE } from '@/lib/runtime-capability-keys';
 
 const SEVERITY_OPTIONS = [
   { label: 'Mild', value: 'mild' },
@@ -31,6 +33,7 @@ interface NursePreConsultPanelProps {
 
 export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
   const queryClient = useQueryClient();
+  const canUpdatePatient = useCapability(OPD_PATIENT_UPDATE);
   const {
     isLoading: catalogLoading,
     vaccineOptions,
@@ -112,7 +115,7 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
   );
 
   const saveSection = (label: string) => {
-    if (isReadOnly) return;
+    if (isReadOnly || !canUpdatePatient) return;
     saveMutation.mutate(formData, {
       onSuccess: (saved) => {
         toast.success(`${label} saved`);
@@ -133,7 +136,7 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
     <div className="space-y-4 p-4 pb-8">
       <SectionCard title="Patient Details">
         <div className="mb-4 flex justify-end">
-          {!isReadOnly ? (
+          {!isReadOnly && canUpdatePatient ? (
             <Button
               type="button"
               size="sm"
@@ -150,7 +153,7 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
 
       <SectionCard>
         <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
-          {!isReadOnly ? (
+          {!isReadOnly && canUpdatePatient ? (
             <>
               <Button
                 type="button"
@@ -181,7 +184,7 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
 
       <SectionCard>
         <div className="mb-2 flex justify-end">
-          {!isReadOnly ? (
+          {!isReadOnly && canUpdatePatient ? (
             <Button
               type="button"
               size="sm"

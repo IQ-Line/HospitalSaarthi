@@ -1,0 +1,57 @@
+---
+# OPD — clinical patient / visit documentation mutations.
+# Capabilities: opd:patient:{read,update}
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "opd_patient"
+  version: default
+  rules:
+    - actions:
+        - "patient.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:patient:read" in request.principal.attr.capabilities ||
+              "opd:patient:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:patient:update" in request.principal.attr.capabilities ||
+              "opd:patient:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:patient:update" in request.principal.attr.capabilities ||
+              "opd:patient:update" in request.principal.attr.delegated_capabilities
+            )

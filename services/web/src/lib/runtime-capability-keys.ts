@@ -38,6 +38,9 @@ export const CFG_SHELL_ACCESS = 'configurator:shell:access' as const;
 export const FD_SHELL_ACCESS = 'frontdesk:shell:access' as const;
 export const FD_REGISTRATION_READ = 'registration:registration:read' as const;
 
+export const OPD_PATIENT_UPDATE = 'opd:patient:update' as const;
+export const EMPI_PATIENT_UPDATE = 'empi:patient:update' as const;
+
 export const PHARMACY_SHELL_ACCESS = 'pharmacy:shell:access' as const;
 export const PHARMACY_DISPENSE_READ = 'dispense:dispense:read' as const;
 export const PHARMACY_DISPENSE_UPDATE = 'dispense:dispense:update' as const;

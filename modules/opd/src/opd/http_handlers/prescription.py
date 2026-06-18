@@ -8,6 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from opd.core.authz import require_opd_patient_update
+
 from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
 
 from opd.data_access.prescription_repository import (
@@ -72,6 +74,7 @@ def create_prescription(
     payload: PrescriptionCreate,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    _: None = Depends(require_opd_patient_update),
 ) -> PrescriptionSingleResponse:
     try:
         data = service.create(payload)
@@ -151,6 +154,7 @@ def update_prescription(
     tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    _: None = Depends(require_opd_patient_update),
 ) -> PrescriptionSingleResponse:
     try:
         data = service.update(tenant_id, prescription_id, payload)
@@ -174,6 +178,7 @@ def finalize_prescription(
     tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    _: None = Depends(require_opd_patient_update),
 ) -> PrescriptionSingleResponse:
     try:
         data = service.finalize(tenant_id, prescription_id, payload)
@@ -203,6 +208,7 @@ def cancel_prescription(
     tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    _: None = Depends(require_opd_patient_update),
 ) -> PrescriptionSingleResponse:
     try:
         data = service.cancel(tenant_id, prescription_id, payload)
@@ -224,6 +230,7 @@ def delete_prescription(
     tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    _: None = Depends(require_opd_patient_update),
 ) -> None:
     try:
         service.soft_delete(tenant_id, prescription_id)

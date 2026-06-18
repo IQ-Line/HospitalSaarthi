@@ -8,6 +8,8 @@ import { prepareCreateRxFormDataForSession } from '@/features/create-rx/lib/form
 import type { CreateRxFormData } from '@/features/create-rx/types';
 import { fetchOpdPrescriptionSession, saveNursePreConsult } from '../api/nurse-prescription';
 import { nursePatientsQueryKeys } from '../api/query-keys';
+import { useCapability } from '@/hooks/use-capability';
+import { OPD_PATIENT_UPDATE } from '@/lib/runtime-capability-keys';
 
 interface NurseVitalsInlineFormProps {
   visitId: string;
@@ -25,6 +27,7 @@ export function NurseVitalsInlineForm({
   onSaved,
 }: NurseVitalsInlineFormProps) {
   const queryClient = useQueryClient();
+  const canUpdatePatient = useCapability(OPD_PATIENT_UPDATE);
   const [hydrated, setHydrated] = useState(false);
   const resetForVisit = useCreateRxStore((s) => s.resetForVisit);
   const formData = useCreateRxStore((s) => s.formData);
@@ -77,7 +80,7 @@ export function NurseVitalsInlineForm({
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>
           {readOnly ? 'Close' : 'Cancel'}
         </Button>
-        {!readOnly ? (
+        {!readOnly && canUpdatePatient ? (
           <Button
             type="button"
             size="sm"
