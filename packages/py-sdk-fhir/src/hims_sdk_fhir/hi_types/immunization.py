@@ -17,6 +17,8 @@ manufacturer or performer becomes one entry referenced by multiple Immunizations
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ..builders import (
     build_composition,
     build_document_bundle,
@@ -133,19 +135,29 @@ def build_immunization_bundle(
     section_entries: list[FhirReference] = []
 
     for imm in inp.immunizations:
+        immunization_inp = imm
         manufacturer_ref: FhirReference | None = None
-        if imm.manufacturer:
+        if imm.manufacturer and imm.manufacturer_facility_id:
             manufacturer_ref = manufacturer_refs.get(imm.manufacturer)
             if manufacturer_ref is None:
                 manufacturer_id = uuid_factory()
                 entries.append(
                     build_organization(
-                        OrganizationInput(name=imm.manufacturer),
+                        OrganizationInput(
+                            name=imm.manufacturer,
+                            facility_id=imm.manufacturer_facility_id,
+                        ),
                         resource_id=manufacturer_id,
                     )
                 )
                 manufacturer_ref = reference(f"Organization/{manufacturer_id}", "Organization")
                 manufacturer_refs[imm.manufacturer] = manufacturer_ref
+        elif imm.manufacturer:
+            immunization_inp = replace(
+                imm,
+                vaccine_name=f"{imm.vaccine_name} — {imm.manufacturer}",
+                manufacturer=None,
+            )
 
         performer_ref: FhirReference | None = None
         if imm.administered_by is not None:
@@ -160,7 +172,7 @@ def build_immunization_bundle(
         immunization_id = uuid_factory()
         entries.append(
             build_immunization(
-                imm,
+                immunization_inp,
                 resource_id=immunization_id,
                 patient=patient_ref,
                 now=now,
@@ -176,7 +188,7 @@ def build_immunization_bundle(
             entries.append(
                 _build_recommendation(
                     resource_id=recommendation_id,
-                    inp=imm,
+                    inp=immunization_inp,
                     patient_ref=patient_ref,
                     immunization_ref=immunization_ref,
                     now=now,

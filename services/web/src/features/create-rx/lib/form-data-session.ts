@@ -18,7 +18,15 @@ export function sanitizeCreateRxFormDataForPersist(formData: CreateRxFormData): 
       (row) => textValue(row.complaint).length > 0,
     ),
     immunizations: formData.immunizations.filter((row) =>
-      rowHasText(row.vaccineName, row.manufacturer, row.lotNumber, row.notes),
+      rowHasText(
+        row.vaccineName,
+        row.manufacturer,
+        row.lotNumber,
+        row.dateOfDose,
+        row.doseNumber,
+        row.nextDueDate,
+        row.notes,
+      ),
     ),
     physicalActivity: formData.physicalActivity.filter((row) =>
       rowHasText(row.steps, row.sleepDuration, row.caloriesBurned, row.exerciseType),

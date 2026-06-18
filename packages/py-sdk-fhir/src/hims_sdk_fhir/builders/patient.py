@@ -17,6 +17,17 @@ from ..profile_registry import resource_profile
 from ..types import FhirIdentifier, Patient
 
 _V2_0203 = "http://terminology.hl7.org/CodeSystem/v2-0203"
+_MR_TYPE = {
+    "type": {
+        "coding": [
+            {
+                "system": _V2_0203,
+                "code": "MR",
+                "display": "Medical record number",
+            }
+        ]
+    },
+}
 
 
 def build_patient(inp: PatientInput, *, resource_id: str) -> Patient:
@@ -27,25 +38,15 @@ def build_patient(inp: PatientInput, *, resource_id: str) -> Patient:
     """
     identifiers: list[FhirIdentifier] = []
     if inp.mrn:
-        identifiers.append(
-            {
-                "type": {
-                    "coding": [
-                        {
-                            "system": _V2_0203,
-                            "code": "MR",
-                            "display": "Medical record number",
-                        }
-                    ]
-                },
-                "system": MRN_SYSTEM_URI,
-                "value": inp.mrn,
-            }
-        )
+        identifiers.append({**_MR_TYPE, "system": MRN_SYSTEM_URI, "value": inp.mrn})
     if inp.abha_number:
-        identifiers.append({"system": ABHA_NUMBER_SYSTEM_URI, "value": inp.abha_number})
+        identifiers.append(
+            {**_MR_TYPE, "system": ABHA_NUMBER_SYSTEM_URI, "value": inp.abha_number}
+        )
     if inp.abha_address:
-        identifiers.append({"system": ABHA_ADDRESS_SYSTEM_URI, "value": inp.abha_address})
+        identifiers.append(
+            {**_MR_TYPE, "system": ABHA_ADDRESS_SYSTEM_URI, "value": inp.abha_address}
+        )
 
     telecom = []
     if inp.phone:

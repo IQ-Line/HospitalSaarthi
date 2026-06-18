@@ -2,51 +2,121 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
+import traceback
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from typing import Any
-from uuid import UUID, uuid4
+from typing import Any, TypedDict
+from uuid import UUID
 
+from hims_sdk_fhir import (
+    NRCES_PROFILES,
+    NrcesProfile,
+    build_health_document_bundle,
+    build_immunization_bundle,
+    build_op_consult_bundle,
+    build_prescription_bundle,
+)
 from sqlalchemy.orm import Session
 
 from opd.core.config import get_service_integration_settings, get_settings
 from opd.core.database import get_session_factory
+from opd.data_access.health_document_repo import HealthDocumentRepository
 from opd.data_access.prescription_bundle import get_prescription_by_visit_id
-from opd.data_access.prescription_form_data import effective_form_data
+from opd.data_access.prescription_form_data import _merge_form_data, effective_form_data
 from opd.data_access.registration_patient_snapshot import load_op_consult_patient_fields
+from opd.data_access.registration_patient_source import load_visit_patient_source
+from opd.integrations.clinical_form_helpers import (
+    abdm_immunization_debug,
+    clinical_summary_from_form_data,
+    clinical_summary_html,
+    has_immunization_data,
+    has_prescription_clinical_data,
+    immunization_rows_from_form_data,
+    text,
+)
+from opd.integrations.fhir_bundle_mappers import (
+    to_encounter_input,
+    to_health_document_input,
+    to_immunization_bundle_input,
+    to_immunization_inputs,
+    to_op_consult_input,
+    to_patient_input,
+    to_practitioner_input,
+    to_prescription_input,
+)
 from opd.integrations.op_consult_report import (
+    OP_CONSULT_HI_TYPE,
+    OPD_SLIP_HI_TYPE,
     ensure_op_consult_report_pdf_base64,
     wrap_op_consult_report_document,
+)
+from opd.models.prescription_row import Prescription
+from opd.lib import azure_blob_storage
+from opd.lib.clinical_report_context import ClinicalReportContext
+from opd.services.clinical_documents_service import (
+    PdfPlatformRenderError,
+    get_clinical_report_pdf,
 )
 
 logger = logging.getLogger(__name__)
 
-DOCUMENT_BUNDLE_PROFILE_URL = (
-    "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentBundle"
-)
-OP_CONSULT_PROFILE_URL = "https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord"
-DOCUMENT_REFERENCE_PROFILE_URL = (
-    "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DocumentReference"
-)
-OP_CONSULT_PROFILE_VERSION = "6.5.0"
-ABHA_IDENTIFIER_SYSTEM = "https://healthid.ndhm.gov.in"
-SNOMED_SYSTEM = "http://snomed.info/sct"
-V3_ACT_CODE_SYSTEM = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
+ABDM_M2_LOG_PREFIX = "[ABDM-M2]"
+
+BUNDLE_IDENTIFIER_SYSTEM = "https://www.max.in/bundle"
+
+HI_TYPE_OP_CONSULT = "OPCONSULTATION"
+HI_TYPE_PRESCRIPTION = "PRESCRIPTION"
+HI_TYPE_IMMUNIZATION = "IMMUNIZATIONRECORD"
+HI_TYPE_HEALTH_DOCUMENT = "HEALTHDOCUMENTRECORD"
+
+
+class M2CareContext(TypedDict):
+    referenceNumber: str
+    display: str
+    hiType: str
 
 
 @dataclass(frozen=True)
-class _OpConsultSnapshot:
+class _VisitClinicalSnapshot:
+    patient_id: UUID
     patient_name: str
     patient_gender: str | None
     patient_birth_date: date | None
     patient_abha_address: str | None
     practitioner_name: str
+    practitioner_registration_id: str
     clinical_summary: str
     form_data: dict[str, Any]
+    visit_number: str
+
+
+def op_consult_care_context_ref(visit_id: UUID) -> str:
+    """Stable care-context id (legacy HIMS: visit + bundle type suffix)."""
+    return f"{visit_id}_OPConsultNote"
+
+
+def prescription_care_context_ref(visit_id: UUID) -> str:
+    return f"{visit_id}_Prescription"
+
+
+def immunization_care_context_ref(visit_id: UUID) -> str:
+    return f"{visit_id}_ImmunizationRecord"
+
+
+def health_document_care_context_ref(document_id: UUID) -> str:
+    return f"{document_id}_HealthDocument"
+
+
+def stamp_bundle_identifier(bundle: dict[str, Any], care_context_ref: str) -> None:
+    bundle["identifier"] = {
+        "system": BUNDLE_IDENTIFIER_SYSTEM,
+        "value": care_context_ref,
+    }
 
 
 def _integration_hub_base_url() -> str | None:
@@ -59,11 +129,6 @@ def _record_foundation_base_url() -> str | None:
     settings = get_settings()
     base = (settings.record_foundation_base_url or "").strip().rstrip("/")
     return base or None
-
-
-def op_consult_care_context_ref(visit_id: UUID) -> str:
-    """Stable care-context id (legacy HIMS: visit + bundle type suffix)."""
-    return f"{visit_id}_OPConsultNote"
 
 
 def _tenant_headers(tenant_id: UUID) -> dict[str, str]:
@@ -99,153 +164,6 @@ def _http_json(
         return parsed if isinstance(parsed, dict) else None
 
 
-def _text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
-def _form_item_label(item: Any, *keys: str) -> str:
-    if isinstance(item, str):
-        return _text(item)
-    if not isinstance(item, dict):
-        return _text(item)
-    for key in keys:
-        val = _text(item.get(key))
-        if val:
-            return val
-    return ""
-
-
-def _format_chief_complaint(item: dict[str, Any]) -> str:
-    complaint = _text(item.get("complaint"))
-    if not complaint:
-        return ""
-    parts = [complaint]
-    duration = _text(item.get("duration"))
-    unit = _text(item.get("durationUnit") or "days")
-    if duration:
-        parts.append(f"{duration} {unit}")
-    severity = _text(item.get("severity"))
-    if severity:
-        parts.append(severity)
-    return " — ".join(parts)
-
-
-def _format_medicine_line(med: dict[str, Any]) -> str:
-    name = _form_item_label(med, "medicine", "name", "medicineName", "display_name")
-    if not name:
-        return ""
-    dose = _text(med.get("dosage"))
-    frequency = _text(med.get("frequency"))
-    days = _text(med.get("days") or med.get("duration"))
-    strength = _text(med.get("strength"))
-    parts = [name]
-    if strength:
-        parts.append(strength)
-    if dose:
-        parts.append(dose)
-    if frequency:
-        parts.append(frequency)
-    if days:
-        parts.append(f"{days} days")
-    return " — ".join(parts)
-
-
-def _vitals_lines(vitals: Any) -> list[str]:
-    if not isinstance(vitals, dict):
-        return []
-    labels = {
-        "systolic_bp": "BP systolic",
-        "diastolic_bp": "BP diastolic",
-        "pulse_rate": "Pulse",
-        "temperature": "Temperature",
-        "spo2": "SpO2",
-        "height": "Height",
-        "weight": "Weight",
-        "bmi": "BMI",
-        "respiratory_rate": "Respiratory rate",
-        "random_blood_sugar": "Blood sugar",
-    }
-    lines: list[str] = []
-    for key, label in labels.items():
-        val = _text(vitals.get(key))
-        if val:
-            lines.append(f"{label}: {val}")
-    return lines
-
-
-def _lines_from_items(items: Any, section_label: str) -> list[str]:
-    if not isinstance(items, list):
-        return []
-    lines: list[str] = []
-    for item in items:
-        if isinstance(item, dict) and _text(item.get("complaint")):
-            line = _format_chief_complaint(item)
-        elif isinstance(item, dict):
-            line = _form_item_label(item, "notes", "name", "text", "display", "medicine")
-        else:
-            line = _text(item)
-        if line:
-            lines.append(line)
-    if not lines:
-        return []
-    return [f"{section_label}: {', '.join(lines)}"]
-
-
-def _clinical_summary_from_form_data(form_data: dict[str, Any] | None) -> str:
-    if not isinstance(form_data, dict):
-        return "OP consultation record"
-
-    sections: list[str] = []
-    sections += _lines_from_items(
-        form_data.get("chiefComplaints") or form_data.get("chief_complaints"),
-        "Chief complaints",
-    )
-
-    medical_history = form_data.get("medicalHistory")
-    if isinstance(medical_history, dict):
-        hpi = _text(medical_history.get("historyOfPresentIllness"))
-        if hpi:
-            sections.append(f"History of present illness: {hpi}")
-
-    sections += _lines_from_items(form_data.get("diagnosis"), "Diagnosis")
-
-    vitals = _vitals_lines(form_data.get("vitals"))
-    if vitals:
-        sections.append(f"Vitals: {', '.join(vitals)}")
-
-    medicines = form_data.get("medicines")
-    if isinstance(medicines, list) and medicines:
-        med_lines = [
-            line
-            for med in medicines
-            if isinstance(med, dict)
-            for line in [_format_medicine_line(med)]
-            if line
-        ]
-        if med_lines:
-            sections.append(f"Medicines: {'; '.join(med_lines)}")
-
-    care_plan = form_data.get("carePlan")
-    if isinstance(care_plan, dict):
-        advice = care_plan.get("advice")
-        if isinstance(advice, list):
-            sections += _lines_from_items(advice, "Advice")
-        elif _text(advice):
-            sections.append(f"Advice: {_text(advice)}")
-
-    return "\n\n".join(sections) if sections else "OP consultation record"
-
-
-def _clinical_summary_html(summary: str) -> str:
-    paragraphs = [p.strip() for p in summary.split("\n\n") if p.strip()]
-    if not paragraphs:
-        paragraphs = ["OP consultation record"]
-    body = "".join(f"<p>{_escape_xml(p)}</p>" for p in paragraphs)
-    return f'<div xmlns="http://www.w3.org/1999/xhtml">{body}</div>'
-
-
 def _resolve_practitioner_name(tenant_id: UUID, doctor_id: UUID) -> str:
     base = (get_service_integration_settings().user_management_url or "").strip().rstrip("/")
     if not base:
@@ -258,7 +176,7 @@ def _resolve_practitioner_name(tenant_id: UUID, doctor_id: UUID) -> str:
         data = res if isinstance(res, dict) else {}
         if "data" in data and isinstance(data["data"], dict):
             data = data["data"]
-        name = _text(
+        name = text(
             data.get("full_name")
             or data.get("display_name")
             or data.get("displayName")
@@ -270,18 +188,60 @@ def _resolve_practitioner_name(tenant_id: UUID, doctor_id: UUID) -> str:
     return "Practitioner"
 
 
-def _load_op_consult_snapshot(
+def _log_abdm_m2(message: str, *args: Any) -> None:
+    """Stdout trace for opd-svc terminal (uvicorn) — no log file required."""
+    try:
+        body = message % args if args else message
+    except (TypeError, ValueError):
+        body = " ".join([message, *[str(arg) for arg in args]])
+    print(f"{ABDM_M2_LOG_PREFIX} {body}", flush=True)
+
+
+def _log_abdm_m2_exception(message: str, *args: Any) -> None:
+    _log_abdm_m2(message, *args)
+    traceback.print_exc()
+
+
+# Public alias for HTTP handlers that queue the background pipeline.
+log_abdm_m2_console = _log_abdm_m2
+
+
+def _resolve_abdm_form_data(
+    session: Session,
+    rx: Prescription,
+    *,
+    form_data_override: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Merge DB + normalized clinical with optional end-consult payload."""
+    effective = effective_form_data(session, rx)
+    if not form_data_override:
+        return effective
+
+    merged = _merge_form_data(effective, form_data_override)
+    override_rows = immunization_rows_from_form_data(form_data_override)
+    if override_rows:
+        merged["immunizations"] = override_rows
+    elif not immunization_rows_from_form_data(merged):
+        fallback_rows = immunization_rows_from_form_data(effective)
+        if fallback_rows:
+            merged["immunizations"] = fallback_rows
+    return merged
+
+
+def _load_visit_clinical_snapshot(
     session: Session,
     tenant_id: UUID,
     visit_id: UUID,
-) -> _OpConsultSnapshot | None:
+    *,
+    form_data_override: dict[str, Any] | None = None,
+) -> _VisitClinicalSnapshot | None:
     bundle = get_prescription_by_visit_id(session, tenant_id, visit_id)
     if bundle is None:
         return None
 
     patient_fields = load_op_consult_patient_fields(session, tenant_id, bundle.patient_id) or {}
-    patient_name = _text(patient_fields.get("patient_name")) or "Patient"
-    gender_raw = _text(patient_fields.get("gender")).lower()
+    patient_name = text(patient_fields.get("patient_name")) or "Patient"
+    gender_raw = text(patient_fields.get("gender")).lower()
     patient_gender: str | None = None
     if gender_raw in {"male", "female", "other", "unknown"}:
         patient_gender = gender_raw
@@ -290,467 +250,125 @@ def _load_op_consult_snapshot(
     elif gender_raw.startswith("f"):
         patient_gender = "female"
 
-    abha_address = _text(patient_fields.get("abha_address")) or None
+    abha_address = text(patient_fields.get("abha_address")) or None
     birth_date = patient_fields.get("patient_date_of_birth")
     if not isinstance(birth_date, date):
         birth_date = None
 
-    form_data = effective_form_data(session, bundle.rx)
-    return _OpConsultSnapshot(
+    form_data = _resolve_abdm_form_data(
+        session,
+        bundle.rx,
+        form_data_override=form_data_override,
+    )
+    _log_abdm_m2(
+        "visit %s clinical snapshot immunization gate: %s",
+        visit_id,
+        abdm_immunization_debug(form_data),
+    )
+    source = load_visit_patient_source(session, tenant_id, visit_id)
+    visit_number = source.visit_number if source else str(visit_id)
+
+    return _VisitClinicalSnapshot(
+        patient_id=bundle.patient_id,
         patient_name=patient_name,
         patient_gender=patient_gender,
         patient_birth_date=birth_date,
         patient_abha_address=abha_address,
         practitioner_name=_resolve_practitioner_name(tenant_id, bundle.rx.doctor_id),
-        clinical_summary=_clinical_summary_from_form_data(form_data),
+        practitioner_registration_id=str(bundle.rx.doctor_id),
+        clinical_summary=clinical_summary_from_form_data(form_data),
         form_data=form_data,
+        visit_number=visit_number,
     )
 
 
-def _patient_name_element(full_name: str) -> dict[str, Any]:
-    parts = [part for part in full_name.split() if part.strip()]
-    if not parts:
-        return {"text": full_name or "Patient"}
-    if len(parts) == 1:
-        return {"text": full_name, "given": [parts[0]]}
-    return {
-        "text": full_name,
-        "family": parts[-1],
-        "given": parts[:-1],
-    }
-
-
-def _escape_xml(text: str) -> str:
-    return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+def _common_inputs(
+    snapshot: _VisitClinicalSnapshot,
+    visit_id: UUID,
+    *,
+    period_iso: str,
+) -> tuple[Any, Any, Any]:
+    patient = to_patient_input(
+        patient_name=snapshot.patient_name,
+        gender=snapshot.patient_gender,
+        birth_date=snapshot.patient_birth_date,
+        abha_address=snapshot.patient_abha_address,
+        mrn=str(snapshot.patient_id),
     )
+    practitioner = to_practitioner_input(
+        snapshot.practitioner_name,
+        registration_id=snapshot.practitioner_registration_id,
+    )
+    encounter = to_encounter_input(
+        visit_id,
+        visit_number=snapshot.visit_number,
+        start=period_iso,
+    )
+    return patient, practitioner, encounter
 
 
-def _condition_resource(
-    *,
-    cond_id: str,
-    label: str,
-    patient_id: str,
-    patient_name: str,
-    ts: str,
-) -> dict[str, Any]:
-    return {
-        "resourceType": "Condition",
-        "id": cond_id,
-        "clinicalStatus": {
-            "coding": [
-                {
-                    "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
-                    "code": "active",
-                    "display": "Active",
-                }
-            ],
-            "text": "Active",
-        },
-        "code": {"text": label},
-        "subject": {"reference": f"urn:uuid:{patient_id}", "display": patient_name},
-        "recordedDate": ts,
-    }
-
-
-def _medication_request_resource(
-    *,
-    med_id: str,
-    med: dict[str, Any],
-    patient_id: str,
-    patient_name: str,
-    practitioner_id: str,
-    practitioner_name: str,
-    ts: str,
-) -> dict[str, Any]:
-    name = _form_item_label(med, "medicine", "name", "medicineName")
-    dosage = _text(med.get("dosage"))
-    frequency = _text(med.get("frequency"))
-    days = _text(med.get("days") or med.get("duration"))
-    instruction_parts = [part for part in (dosage, frequency, f"for {days} days" if days else "") if part]
-    return {
-        "resourceType": "MedicationRequest",
-        "id": med_id,
-        "status": "active",
-        "intent": "order",
-        "medicationCodeableConcept": {"text": name or "Medicine"},
-        "subject": {"reference": f"urn:uuid:{patient_id}", "display": patient_name},
-        "authoredOn": ts,
-        "requester": {
-            "reference": f"urn:uuid:{practitioner_id}",
-            "display": practitioner_name,
-        },
-        "dosageInstruction": [{"text": ", ".join(instruction_parts) or "As directed"}],
-    }
-
-
-def _build_op_consult_bundle(
-    *,
-    care_context_ref: str,
-    display: str,
-    snapshot: _OpConsultSnapshot | None = None,
-    document_pdf_base64: str | None = None,
-) -> dict[str, Any]:
-    ts = datetime.now(UTC).isoformat()
-    bundle_id = str(uuid4())
-    patient_id = str(uuid4())
-    composition_id = str(uuid4())
-    practitioner_id = str(uuid4())
-    encounter_id = str(uuid4())
-    document_ref_id = str(uuid4())
-    patient_name = snapshot.patient_name if snapshot else "Patient"
-    practitioner_name = snapshot.practitioner_name if snapshot else "Practitioner"
-    clinical_summary = snapshot.clinical_summary if snapshot else display
-    form_data = snapshot.form_data if snapshot else {}
-    html_summary = _clinical_summary_html(clinical_summary)
-    composition_profile = f"{OP_CONSULT_PROFILE_URL}|{OP_CONSULT_PROFILE_VERSION}"
-
-    patient_resource: dict[str, Any] = {
-        "resourceType": "Patient",
-        "id": patient_id,
-        "name": [_patient_name_element(patient_name)],
-    }
-    if snapshot and snapshot.patient_gender:
-        patient_resource["gender"] = snapshot.patient_gender
-    if snapshot and snapshot.patient_birth_date:
-        patient_resource["birthDate"] = snapshot.patient_birth_date.isoformat()
-    if snapshot and snapshot.patient_abha_address:
-        patient_resource["identifier"] = [
-            {
-                "system": ABHA_IDENTIFIER_SYSTEM,
-                "value": snapshot.patient_abha_address,
-            }
-        ]
-
-    clinical_entries: list[dict[str, Any]] = []
-    composition_sections: list[dict[str, Any]] = []
-
-    chief_entries: list[dict[str, str]] = []
-    for item in form_data.get("chiefComplaints") or []:
-        if not isinstance(item, dict):
-            continue
-        label = _format_chief_complaint(item)
-        if not label:
-            continue
-        cond_id = str(uuid4())
-        clinical_entries.append(
-            {
-                "fullUrl": f"urn:uuid:{cond_id}",
-                "resource": _condition_resource(
-                    cond_id=cond_id,
-                    label=label,
-                    patient_id=patient_id,
-                    patient_name=patient_name,
-                    ts=ts,
-                ),
-            }
-        )
-        chief_entries.append({"reference": f"urn:uuid:{cond_id}", "display": "Chief complaint"})
-    if chief_entries:
-        composition_sections.append({"title": "Chief complaints", "entry": chief_entries})
-
-    hpi = ""
-    medical_history = form_data.get("medicalHistory")
-    if isinstance(medical_history, dict):
-        hpi = _text(medical_history.get("historyOfPresentIllness"))
-    if hpi:
-        composition_sections.append(
-            {
-                "title": "History of present illness",
-                "text": {
-                    "status": "generated",
-                    "div": (
-                        '<div xmlns="http://www.w3.org/1999/xhtml">'
-                        f"<p>{_escape_xml(hpi)}</p></div>"
-                    ),
-                },
-            }
-        )
-
-    diagnosis_entries: list[dict[str, str]] = []
-    for item in form_data.get("diagnosis") or []:
-        if not isinstance(item, dict):
-            continue
-        label = _form_item_label(item, "notes", "name", "text")
-        if not label:
-            continue
-        cond_id = str(uuid4())
-        clinical_entries.append(
-            {
-                "fullUrl": f"urn:uuid:{cond_id}",
-                "resource": _condition_resource(
-                    cond_id=cond_id,
-                    label=label,
-                    patient_id=patient_id,
-                    patient_name=patient_name,
-                    ts=ts,
-                ),
-            }
-        )
-        diagnosis_entries.append({"reference": f"urn:uuid:{cond_id}", "display": "Diagnosis"})
-    if diagnosis_entries:
-        composition_sections.append({"title": "Diagnosis", "entry": diagnosis_entries})
-
-    medicine_entries: list[dict[str, str]] = []
-    for med in form_data.get("medicines") or []:
-        if not isinstance(med, dict):
-            continue
-        if not _form_item_label(med, "medicine", "name", "medicineName"):
-            continue
-        med_id = str(uuid4())
-        clinical_entries.append(
-            {
-                "fullUrl": f"urn:uuid:{med_id}",
-                "resource": _medication_request_resource(
-                    med_id=med_id,
-                    med=med,
-                    patient_id=patient_id,
-                    patient_name=patient_name,
-                    practitioner_id=practitioner_id,
-                    practitioner_name=practitioner_name,
-                    ts=ts,
-                ),
-            }
-        )
-        medicine_entries.append({"reference": f"urn:uuid:{med_id}", "display": "Medication"})
-    if medicine_entries:
-        composition_sections.append({"title": "Medications", "entry": medicine_entries})
-
-    if document_pdf_base64:
-        composition_sections.append(
-            {
-                "title": "Document Reference",
-                "code": {
-                    "coding": [
-                        {
-                            "system": SNOMED_SYSTEM,
-                            "code": "371530004",
-                            "display": "Clinical consultation report",
-                        }
-                    ],
-                    "text": "Clinical consultation report",
-                },
-                "entry": [
-                    {
-                        "reference": f"urn:uuid:{document_ref_id}",
-                        "display": "DocumentReference",
-                    }
-                ],
-            }
-        )
-
-    composition_resource = {
-        "resourceType": "Composition",
-        "id": composition_id,
-        "meta": {"profile": [composition_profile]},
-        "language": "en-IN",
-        "status": "final",
-        "type": {
-            "coding": [
-                {
-                    "system": SNOMED_SYSTEM,
-                    "code": "371530004",
-                    "display": "Clinical consultation report",
-                }
-            ],
-            "text": "Clinical Consultation report",
-        },
-        "subject": {
-            "reference": f"urn:uuid:{patient_id}",
-            "display": patient_name,
-        },
-        "encounter": {
-            "reference": f"urn:uuid:{encounter_id}",
-            "display": "Ambulatory encounter",
-        },
-        "date": ts,
-        "author": [
-            {
-                "reference": f"urn:uuid:{practitioner_id}",
-                "display": practitioner_name,
-            }
-        ],
-        "title": "Consultation Report",
-        "section": composition_sections,
-        "text": {
-            "status": "generated",
-            "div": html_summary,
-        },
-    }
-
-    entries: list[dict[str, Any]] = [
-        {"fullUrl": f"urn:uuid:{composition_id}", "resource": composition_resource},
-        {"fullUrl": f"urn:uuid:{patient_id}", "resource": patient_resource},
-        {
-            "fullUrl": f"urn:uuid:{practitioner_id}",
-            "resource": {
-                "resourceType": "Practitioner",
-                "id": practitioner_id,
-                "name": [{"text": practitioner_name}],
-            },
-        },
-        {
-            "fullUrl": f"urn:uuid:{encounter_id}",
-            "resource": {
-                "resourceType": "Encounter",
-                "id": encounter_id,
-                "status": "finished",
-                "class": {
-                    "system": V3_ACT_CODE_SYSTEM,
-                    "code": "AMB",
-                    "display": "ambulatory",
-                },
-                "subject": {
-                    "reference": f"urn:uuid:{patient_id}",
-                    "display": patient_name,
-                },
-                "period": {"start": ts},
-            },
-        },
-        *clinical_entries,
-    ]
-    if document_pdf_base64:
-        entries.append(
-            {
-                "fullUrl": f"urn:uuid:{document_ref_id}",
-                "resource": {
-                    "resourceType": "DocumentReference",
-                    "id": document_ref_id,
-                    "meta": {"profile": [DOCUMENT_REFERENCE_PROFILE_URL]},
-                    "status": "current",
-                    "docStatus": "final",
-                    "type": {
-                        "coding": [
-                            {
-                                "system": SNOMED_SYSTEM,
-                                "code": "371530004",
-                                "display": "Clinical consultation report",
-                            }
-                        ],
-                        "text": "Consultation Report",
-                    },
-                    "subject": {
-                        "reference": f"urn:uuid:{patient_id}",
-                        "display": patient_name,
-                    },
-                    "author": [
-                        {
-                            "reference": f"urn:uuid:{practitioner_id}",
-                            "display": practitioner_name,
-                        }
-                    ],
-                    "content": [
-                        {
-                            "attachment": {
-                                "contentType": "application/pdf",
-                                "language": "en-IN",
-                                "data": document_pdf_base64,
-                                "title": "Consultation Report",
-                                "creation": ts,
-                            }
-                        }
-                    ],
-                },
-            }
-        )
-
-    return {
-        "resourceType": "Bundle",
-        "id": bundle_id,
-        "type": "document",
-        "timestamp": ts,
-        "meta": {
-            "profile": [DOCUMENT_BUNDLE_PROFILE_URL, OP_CONSULT_PROFILE_URL],
-            "lastUpdated": ts,
-        },
-        "identifier": {
-            "system": "https://www.max.in/bundle",
-            "value": care_context_ref,
-        },
-        "entry": entries,
-    }
-
-
-def persist_op_consult_to_record_foundation(
+def _persist_care_context_bundle(
     *,
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
-) -> bool:
-    """
-    Create care context + store FHIR bundle in Record Foundation.
-    Returns True when persisted (or already exists), False when skipped/unreachable.
-    """
-    settings = get_settings()
-    if not settings.abdm_m2_enabled:
-        return False
-
+    care_ref: str,
+    display: str,
+    source_record_type: str,
+    profile: NrcesProfile,
+    bundle_json: dict[str, Any],
+    produced_at: datetime,
+) -> M2CareContext | None:
+    _log_abdm_m2(
+        "visit %s Record Foundation persist start hiType=%s care_ref=%s profile=%s",
+        visit_id,
+        source_record_type,
+        care_ref,
+        profile.canonical_url,
+    )
     base = _record_foundation_base_url()
     if not base:
-        logger.debug("OPD Record Foundation skipped: record_foundation_base_url not configured")
-        return False
-
-    care_ref = op_consult_care_context_ref(visit_id)
-    display = f"OP consultation {care_ref}"
-    now = datetime.now(UTC)
-
-    session = get_session_factory()()
-    snapshot: _OpConsultSnapshot | None = None
-    document_pdf_base64: str | None = None
-    try:
-        snapshot = _load_op_consult_snapshot(session, tenant_id, visit_id)
-        if snapshot is not None:
-            report_html = wrap_op_consult_report_document(
-                patient_name=snapshot.patient_name,
-                practitioner_name=snapshot.practitioner_name,
-                clinical_html=_clinical_summary_html(snapshot.clinical_summary),
-            )
-            document_pdf_base64 = ensure_op_consult_report_pdf_base64(
-                session,
-                tenant_id,
-                visit_id,
-                patient_id,
-                report_html=report_html,
-                fallback_summary=snapshot.clinical_summary,
-            )
-    finally:
-        session.close()
+        _log_abdm_m2(
+            "visit %s Record Foundation persist aborted hiType=%s — base URL missing",
+            visit_id,
+            source_record_type,
+        )
+        return None
 
     try:
-        create_body = {
-            "patient_id": str(patient_id),
-            "source_origin": "platform_module",
-            "source_system_id": "opd",
-            "source_record_type": "opd_visit",
-            "source_record_id": care_ref,
-            "encounter_id": str(visit_id),
-            "display": display,
-            "period_start": now.isoformat(),
-            "period_end": now.isoformat(),
-            "status": "active",
-        }
         create_res = _http_json(
             method="POST",
             url=f"{base}/api/record-foundation/v1/care-contexts",
             tenant_id=tenant_id,
-            body=create_body,
+            body={
+                "patient_id": str(patient_id),
+                "source_origin": "platform_module",
+                "source_system_id": "opd",
+                "source_record_type": source_record_type,
+                "source_record_id": care_ref,
+                "encounter_id": str(visit_id),
+                "display": display,
+                "period_start": produced_at.isoformat(),
+                "period_end": produced_at.isoformat(),
+                "status": "active",
+            },
         )
         if not create_res or "data" not in create_res:
-            logger.warning(
-                "Record Foundation care-context create failed for visit %s",
+            _log_abdm_m2(
+                "visit %s care-context create failed hiType=%s care_ref=%s response=%s",
                 visit_id,
+                source_record_type,
+                care_ref,
+                create_res,
             )
-            return False
+            return None
 
         care_context_id = create_res["data"]["id"]
-        bundle_json = _build_op_consult_bundle(
-            care_context_ref=care_ref,
-            display=display,
-            snapshot=snapshot,
-            document_pdf_base64=document_pdf_base64,
+        _log_abdm_m2(
+            "visit %s care-context created hiType=%s care_context_id=%s",
+            visit_id,
+            source_record_type,
+            care_context_id,
         )
         store_res = _http_json(
             method="POST",
@@ -759,38 +377,529 @@ def persist_op_consult_to_record_foundation(
             body={
                 "care_context_id": care_context_id,
                 "bundle_kind": "document",
-                "fhir_profile_url": OP_CONSULT_PROFILE_URL,
-                "fhir_profile_version": OP_CONSULT_PROFILE_VERSION,
+                "fhir_profile_url": profile.canonical_url,
+                "fhir_profile_version": profile.version,
                 "producer_kind": "platform_module",
                 "producer_id": "opd",
                 "bundle_json": bundle_json,
-                "produced_at": now.isoformat(),
+                "produced_at": produced_at.isoformat(),
             },
         )
         if not store_res or "data" not in store_res:
-            logger.warning(
-                "Record Foundation bundle store failed for visit %s care_context %s",
+            _log_abdm_m2(
+                "visit %s bundle store failed hiType=%s care_ref=%s response=%s",
                 visit_id,
-                care_context_id,
+                source_record_type,
+                care_ref,
+                store_res,
             )
-            return False
-        return True
-    except urllib.error.HTTPError as exc:
-        logger.warning(
-            "Record Foundation HTTP error for visit %s: %s %s",
+            return None
+
+        bundle_id = store_res["data"].get("id")
+        _log_abdm_m2(
+            "visit %s bundle stored hiType=%s bundle_id=%s identifier=%s",
             visit_id,
+            source_record_type,
+            bundle_id,
+            bundle_json.get("identifier", {}).get("value"),
+        )
+
+        return M2CareContext(
+            referenceNumber=care_ref,
+            display=display,
+            hiType=source_record_type,
+        )
+    except urllib.error.HTTPError as exc:
+        _log_abdm_m2(
+            "visit %s Record Foundation HTTP error hiType=%s care_ref=%s status=%s reason=%s",
+            visit_id,
+            source_record_type,
+            care_ref,
             exc.code,
             exc.reason,
         )
     except urllib.error.URLError as exc:
-        logger.warning(
-            "Record Foundation unreachable for visit %s: %s",
+        _log_abdm_m2(
+            "visit %s Record Foundation unreachable hiType=%s care_ref=%s reason=%s",
             visit_id,
+            source_record_type,
+            care_ref,
             exc.reason,
         )
     except OSError as exc:
-        logger.warning("Record Foundation failed for visit %s: %s", visit_id, exc)
-    return False
+        _log_abdm_m2(
+            "visit %s Record Foundation failed hiType=%s care_ref=%s error=%s",
+            visit_id,
+            source_record_type,
+            care_ref,
+            exc,
+        )
+    return None
+
+
+def _render_report_pdf_base64(
+    session: Session,
+    tenant_id: UUID,
+    visit_id: UUID,
+    report_type: str,
+) -> str | None:
+    """Best-effort clinical report PDF; bundle persist continues without attachment."""
+    try:
+        result = get_clinical_report_pdf(
+            session,
+            tenant_id,
+            visit_id,
+            report_type,  # type: ignore[arg-type]
+            ClinicalReportContext(),
+        )
+        return base64.b64encode(result.pdf_bytes).decode("ascii")
+    except (LookupError, PermissionError, ValueError, PdfPlatformRenderError, RuntimeError, OSError) as exc:
+        _log_abdm_m2(
+            "visit %s clinical report PDF skipped type=%s reason=%s (bundle continues without PDF)",
+            visit_id,
+            report_type,
+            exc,
+        )
+        return None
+
+
+def _persist_op_consult(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    snapshot: _VisitClinicalSnapshot,
+    session: Session,
+    now: datetime,
+) -> M2CareContext | None:
+    _log_abdm_m2("visit %s OPCONSULTATION bundle build start", visit_id)
+    care_ref = op_consult_care_context_ref(visit_id)
+    display = f"OP consultation {care_ref}"
+
+    report_html = wrap_op_consult_report_document(
+        patient_name=snapshot.patient_name,
+        practitioner_name=snapshot.practitioner_name,
+        clinical_html=clinical_summary_html(snapshot.clinical_summary),
+    )
+    document_pdf_base64 = ensure_op_consult_report_pdf_base64(
+        session,
+        tenant_id,
+        visit_id,
+        patient_id,
+        report_html=report_html,
+        fallback_summary=snapshot.clinical_summary,
+    )
+
+    period_iso = now.isoformat()
+    patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)
+    bundle_input = to_op_consult_input(
+        patient=patient,
+        practitioner=practitioner,
+        encounter=encounter,
+        form_data=snapshot.form_data,
+        document_pdf_base64=document_pdf_base64,
+    )
+    bundle = build_op_consult_bundle(bundle_input)
+    stamp_bundle_identifier(bundle, care_ref)
+
+    ctx = _persist_care_context_bundle(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        care_ref=care_ref,
+        display=display,
+        source_record_type=HI_TYPE_OP_CONSULT,
+        profile=NRCES_PROFILES["OpConsultRecord"],
+        bundle_json=bundle,
+        produced_at=now,
+    )
+    if ctx is None:
+        _log_abdm_m2("visit %s OPCONSULTATION bundle persist failed care_ref=%s", visit_id, care_ref)
+    else:
+        _log_abdm_m2("visit %s OPCONSULTATION bundle persist ok care_ref=%s", visit_id, care_ref)
+    return ctx
+
+
+def _persist_prescription(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    snapshot: _VisitClinicalSnapshot,
+    session: Session,
+    now: datetime,
+) -> M2CareContext | None:
+    has_rx = has_prescription_clinical_data(snapshot.form_data)
+    _log_abdm_m2(
+        "visit %s PRESCRIPTION gate has_prescription_clinical_data=%s diagnosis_len=%s medicines_len=%s",
+        visit_id,
+        has_rx,
+        len(snapshot.form_data.get("diagnosis") or []),
+        len(snapshot.form_data.get("medicines") or []),
+    )
+    if not has_rx:
+        _log_abdm_m2("visit %s skipping PRESCRIPTION — no diagnosis/medicines", visit_id)
+        return None
+
+    _log_abdm_m2("visit %s PRESCRIPTION bundle build start", visit_id)
+    care_ref = prescription_care_context_ref(visit_id)
+    display = f"Prescription {care_ref}"
+    pdf_base64 = _render_report_pdf_base64(session, tenant_id, visit_id, "prescription")
+
+    period_iso = now.isoformat()
+    patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)
+    bundle_input = to_prescription_input(
+        patient=patient,
+        practitioner=practitioner,
+        encounter=encounter,
+        form_data=snapshot.form_data,
+        pdf_base64=pdf_base64,
+    )
+    bundle = build_prescription_bundle(bundle_input)
+    stamp_bundle_identifier(bundle, care_ref)
+
+    ctx = _persist_care_context_bundle(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        care_ref=care_ref,
+        display=display,
+        source_record_type=HI_TYPE_PRESCRIPTION,
+        profile=NRCES_PROFILES["Prescription"],
+        bundle_json=bundle,
+        produced_at=now,
+    )
+    if ctx is None:
+        _log_abdm_m2("visit %s PRESCRIPTION bundle persist failed care_ref=%s", visit_id, care_ref)
+    else:
+        _log_abdm_m2("visit %s PRESCRIPTION bundle persist ok care_ref=%s", visit_id, care_ref)
+    return ctx
+
+
+def _persist_immunization(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    snapshot: _VisitClinicalSnapshot,
+    session: Session,
+    now: datetime,
+) -> M2CareContext | None:
+    debug = abdm_immunization_debug(snapshot.form_data)
+    if not has_immunization_data(snapshot.form_data):
+        _log_abdm_m2(
+            "visit %s skipping ImmunizationRecord — has_immunization_data=false debug=%s",
+            visit_id,
+            debug,
+        )
+        return None
+
+    immunization_count = len(to_immunization_inputs(snapshot.form_data))
+    _log_abdm_m2(
+        "visit %s persisting ImmunizationRecord immunization_input_count=%s debug=%s",
+        visit_id,
+        immunization_count,
+        debug,
+    )
+
+    care_ref = immunization_care_context_ref(visit_id)
+    display = f"Immunization {care_ref}"
+    pdf_base64 = _render_report_pdf_base64(session, tenant_id, visit_id, "immunization")
+
+    period_iso = now.isoformat()
+    patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)
+    bundle_input = to_immunization_bundle_input(
+        patient=patient,
+        practitioner=practitioner,
+        encounter=encounter,
+        form_data=snapshot.form_data,
+        document_pdf_base64=pdf_base64,
+    )
+    bundle = build_immunization_bundle(bundle_input)
+    stamp_bundle_identifier(bundle, care_ref)
+
+    ctx = _persist_care_context_bundle(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        care_ref=care_ref,
+        display=display,
+        source_record_type=HI_TYPE_IMMUNIZATION,
+        profile=NRCES_PROFILES["ImmunizationRecord"],
+        bundle_json=bundle,
+        produced_at=now,
+    )
+    if ctx is None:
+        _log_abdm_m2(
+            "visit %s ImmunizationRecord persist failed for care_ref=%s",
+            visit_id,
+            care_ref,
+        )
+    else:
+        _log_abdm_m2(
+            "visit %s ImmunizationRecord persisted care_ref=%s hiType=%s",
+            visit_id,
+            care_ref,
+            HI_TYPE_IMMUNIZATION,
+        )
+    return ctx
+
+
+def _persist_health_documents(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    snapshot: _VisitClinicalSnapshot,
+    session: Session,
+    now: datetime,
+) -> list[M2CareContext]:
+    _log_abdm_m2(
+        "visit %s HEALTHDOCUMENTRECORD bundle pass start — user-uploaded documents only",
+        visit_id,
+    )
+
+    repo = HealthDocumentRepository(session, tenant_id)
+    documents = repo.list_active_for_visit(visit_id)
+    _log_abdm_m2(
+        "visit %s HEALTHDOCUMENTRECORD found %s active health document row(s)",
+        visit_id,
+        len(documents),
+    )
+    contexts: list[M2CareContext] = []
+
+    period_iso = now.isoformat()
+    patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)
+
+    for doc in documents:
+        if doc.hi_type in (OP_CONSULT_HI_TYPE, OPD_SLIP_HI_TYPE):
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s reason=system_generated_type",
+                visit_id,
+                doc.id,
+                doc.hi_type,
+            )
+            continue
+        if doc.created_by is None:
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s reason=no_uploader",
+                visit_id,
+                doc.id,
+                doc.hi_type,
+            )
+            continue
+
+        _log_abdm_m2(
+            "visit %s HEALTHDOCUMENTRECORD build doc_id=%s hi_type=%s title=%s",
+            visit_id,
+            doc.id,
+            doc.hi_type,
+            doc.document_title,
+        )
+
+        try:
+            content, _ = azure_blob_storage.download_health_document_bytes(doc.storage_key)
+        except (RuntimeError, OSError) as exc:
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s reason=download_failed error=%s",
+                visit_id,
+                doc.id,
+                exc,
+            )
+            continue
+        if not content:
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s reason=empty_content",
+                visit_id,
+                doc.id,
+            )
+            continue
+
+        data_base64 = base64.b64encode(content).decode("ascii")
+        care_ref = health_document_care_context_ref(doc.id)
+        display = doc.document_title or f"Health document {care_ref}"
+
+        bundle_input = to_health_document_input(
+            patient=patient,
+            practitioner=practitioner,
+            encounter=encounter,
+            document_row=doc,
+            data_base64=data_base64,
+        )
+        bundle = build_health_document_bundle(bundle_input)
+        stamp_bundle_identifier(bundle, care_ref)
+
+        ctx = _persist_care_context_bundle(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            care_ref=care_ref,
+            display=display,
+            source_record_type=HI_TYPE_HEALTH_DOCUMENT,
+            profile=NRCES_PROFILES["HealthDocumentRecord"],
+            bundle_json=bundle,
+            produced_at=now,
+        )
+        if ctx is not None:
+            contexts.append(ctx)
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD persisted doc_id=%s care_ref=%s",
+                visit_id,
+                doc.id,
+                care_ref,
+            )
+        else:
+            _log_abdm_m2(
+                "visit %s HEALTHDOCUMENTRECORD persist failed doc_id=%s care_ref=%s",
+                visit_id,
+                doc.id,
+                care_ref,
+            )
+
+    _log_abdm_m2(
+        "visit %s HEALTHDOCUMENTRECORD bundle pass done contexts=%s",
+        visit_id,
+        len(contexts),
+    )
+    return contexts
+
+
+def persist_visit_abdm_bundles(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    form_data: dict[str, Any] | None = None,
+) -> list[M2CareContext]:
+    """
+    Create care contexts + store FHIR bundles in Record Foundation for all applicable HI-Types.
+    Returns M2 care-context descriptors for orchestration.
+    """
+    settings = get_settings()
+    if not settings.abdm_m2_enabled:
+        _log_abdm_m2("visit %s bundle persist skipped: OPD_ABDM_M2_ENABLED=false", visit_id)
+        return []
+
+    if not _record_foundation_base_url():
+        _log_abdm_m2(
+            "visit %s bundle persist skipped: RECORD_FOUNDATION_BASE_URL not configured",
+            visit_id,
+        )
+        return []
+
+    now = datetime.now(UTC)
+    session = get_session_factory()()
+    contexts: list[M2CareContext] = []
+    try:
+        snapshot = _load_visit_clinical_snapshot(
+            session,
+            tenant_id,
+            visit_id,
+            form_data_override=form_data,
+        )
+        if snapshot is None:
+            _log_abdm_m2(
+                "visit %s bundle persist skipped — no prescription snapshot found",
+                visit_id,
+            )
+            return []
+
+        _log_abdm_m2(
+            "visit %s bundle persist pipeline: OPCONSULTATION -> PRESCRIPTION -> IMMUNIZATIONRECORD -> HEALTHDOCUMENTRECORD",
+            visit_id,
+        )
+
+        persist_steps: tuple[tuple[str, Any], ...] = (
+            ("OPConsultation", lambda: _persist_op_consult(
+                tenant_id=tenant_id,
+                patient_id=patient_id,
+                visit_id=visit_id,
+                snapshot=snapshot,
+                session=session,
+                now=now,
+            )),
+            ("Prescription", lambda: _persist_prescription(
+                tenant_id=tenant_id,
+                patient_id=patient_id,
+                visit_id=visit_id,
+                snapshot=snapshot,
+                session=session,
+                now=now,
+            )),
+            ("ImmunizationRecord", lambda: _persist_immunization(
+                tenant_id=tenant_id,
+                patient_id=patient_id,
+                visit_id=visit_id,
+                snapshot=snapshot,
+                session=session,
+                now=now,
+            )),
+        )
+        for hi_type_label, persist_fn in persist_steps:
+            _log_abdm_m2("visit %s -> entering %s bundle function", visit_id, hi_type_label)
+            try:
+                ctx = persist_fn()
+            except Exception:
+                _log_abdm_m2_exception(
+                    "visit %s %s bundle persist raised",
+                    visit_id,
+                    hi_type_label,
+                )
+                continue
+            if ctx is not None:
+                contexts.append(ctx)
+                _log_abdm_m2(
+                    "visit %s collected care context hiType=%s ref=%s",
+                    visit_id,
+                    ctx["hiType"],
+                    ctx["referenceNumber"],
+                )
+            else:
+                _log_abdm_m2(
+                    "visit %s no care context for %s",
+                    visit_id,
+                    hi_type_label,
+                )
+
+        try:
+            health_contexts = _persist_health_documents(
+                tenant_id=tenant_id,
+                patient_id=patient_id,
+                visit_id=visit_id,
+                snapshot=snapshot,
+                session=session,
+                now=now,
+            )
+        except Exception:
+            _log_abdm_m2_exception("visit %s HEALTHDOCUMENTRECORD bundle persist raised", visit_id)
+            health_contexts = []
+        contexts.extend(health_contexts)
+    finally:
+        session.close()
+
+    _log_abdm_m2(
+        "visit %s persist_visit_abdm_bundles finished total_contexts=%s hi_types=%s",
+        visit_id,
+        len(contexts),
+        [ctx["hiType"] for ctx in contexts],
+    )
+    return contexts
+
+
+def persist_op_consult_to_record_foundation(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+) -> bool:
+    """Backward-compatible wrapper — returns True when any bundle was persisted."""
+    return bool(
+        persist_visit_abdm_bundles(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+        )
+    )
 
 
 def trigger_m2_after_end_consultation(
@@ -798,37 +907,50 @@ def trigger_m2_after_end_consultation(
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
+    form_data: dict[str, Any] | None = None,
 ) -> None:
     """
-    Persist consultation to Record Foundation, then POST integration-hub M2 orchestration.
+    Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
     Non-blocking best-effort — failures are logged only.
     """
-    persist_op_consult_to_record_foundation(
+    _log_abdm_m2(
+        "visit %s end-consultation trigger started form_data_passed=%s immunization_debug=%s",
+        visit_id,
+        form_data is not None,
+        abdm_immunization_debug(form_data or {}),
+    )
+    contexts = persist_visit_abdm_bundles(
         tenant_id=tenant_id,
         patient_id=patient_id,
         visit_id=visit_id,
+        form_data=form_data,
     )
 
     settings = get_settings()
-    if not settings.abdm_m2_enabled:
+    if not settings.abdm_m2_enabled or not contexts:
+        _log_abdm_m2(
+            "visit %s M2 orchestration skipped enabled=%s context_count=%s",
+            visit_id,
+            settings.abdm_m2_enabled,
+            len(contexts),
+        )
         return
 
     base = _integration_hub_base_url()
     if not base:
-        logger.debug("OPD ABDM M2 skipped: integration_hub_base_url not configured")
+        _log_abdm_m2("visit %s M2 orchestration skipped — integration hub URL missing", visit_id)
         return
 
+    _log_abdm_m2(
+        "visit %s M2 orchestration POST careContexts=%s",
+        visit_id,
+        [{"hiType": c["hiType"], "ref": c["referenceNumber"]} for c in contexts],
+    )
+
     url = f"{base}/api/abdm/v1/m2/orchestrate/after-care-contexts"
-    care_ref = op_consult_care_context_ref(visit_id)
     body = {
         "patientId": str(patient_id),
-        "careContexts": [
-            {
-                "referenceNumber": care_ref,
-                "display": f"OP consultation {care_ref}",
-                "hiType": "OPCONSULTATION",
-            }
-        ],
+        "careContexts": contexts,
     }
     payload = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(
@@ -840,23 +962,29 @@ def trigger_m2_after_end_consultation(
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
             if res.status >= 400:
-                logger.warning(
-                    "ABDM M2 orchestration returned HTTP %s for visit %s",
-                    res.status,
+                _log_abdm_m2(
+                    "visit %s M2 orchestration returned HTTP %s",
                     visit_id,
+                    res.status,
                 )
+            else:
+                _log_abdm_m2("visit %s M2 orchestration HTTP %s ok", visit_id, res.status)
     except urllib.error.HTTPError as exc:
-        logger.warning(
-            "ABDM M2 orchestration HTTP error for visit %s: %s %s",
+        _log_abdm_m2(
+            "visit %s M2 orchestration HTTP error status=%s reason=%s",
             visit_id,
             exc.code,
             exc.reason,
         )
     except urllib.error.URLError as exc:
-        logger.warning(
-            "ABDM M2 orchestration unreachable for visit %s: %s",
+        _log_abdm_m2(
+            "visit %s M2 orchestration unreachable reason=%s",
             visit_id,
             exc.reason,
         )
     except OSError as exc:
-        logger.warning("ABDM M2 orchestration failed for visit %s: %s", visit_id, exc)
+        _log_abdm_m2("visit %s M2 orchestration failed error=%s", visit_id, exc)
+
+
+# Re-export for tests that import clinical summary helpers from this module.
+_clinical_summary_from_form_data = clinical_summary_from_form_data

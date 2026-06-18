@@ -122,6 +122,7 @@ class ImmunizationInput:
     dose_number: int | None = None
     lot_number: str | None = None
     manufacturer: str | None = None
+    manufacturer_facility_id: str | None = None  # NDHM facility id when emitting manufacturer Organization
     next_due_date: str | None = None  # -> ImmunizationRecommendation
     administered_by: PractitionerInput | None = None
 

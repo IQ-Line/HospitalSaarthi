@@ -29,7 +29,7 @@ data:
   PHARMACY_URL: "http://pharmacy-svc.himsv2.svc.cluster.local:3004"
   INTEGRATION_HUB_URL: "http://integration-hub-svc.himsv2.svc.cluster.local:3007"
   EMPI_BASE_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
-  RECORD_FOUNDATION_BASE_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
+  RECORD_FOUNDATION_BASE_URL: "http://record-foundation-svc.himsv2.svc.cluster.local:3009"
   # Public origin for NHA callbacks (/api/v3) and M3 dataPushUrl — match AUTH_BASE_URL host
   INTEGRATION_HUB_PUBLIC_BASE_URL: "https://hims.example.com"
   # registration-svc OPD slip/receipt PDFs; opd-svc clinical reports (internal pdf-worker; not via Ingress)
@@ -662,6 +662,73 @@ spec:
   ports:
     - name: http
       port: 3007
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: record-foundation-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: record-foundation-svc
+  template:
+    metadata:
+      labels:
+        app: record-foundation-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: record-foundation-svc
+          image: acriqline.azurecr.io/record-foundation-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3009
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: RECORD_FOUNDATION_SVC_PORT
+              value: "3009"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: record-foundation-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: record-foundation-svc
+  ports:
+    - name: http
+      port: 3009
       targetPort: http
 ---
 apiVersion: apps/v1

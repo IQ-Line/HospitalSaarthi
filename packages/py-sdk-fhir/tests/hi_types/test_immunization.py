@@ -32,9 +32,15 @@ def test_full_bundle_shape(uuid_factory, clock):
                 vaccine_name="BCG",
                 dose_number=1,
                 manufacturer="Acme",
+                manufacturer_facility_id="FAC-ACME",
                 next_due_date="2026-12-01",
             ),
-            ImmunizationInput(vaccine_name="OPV", dose_number=2, manufacturer="Acme"),
+            ImmunizationInput(
+                vaccine_name="OPV",
+                dose_number=2,
+                manufacturer="Acme",
+                manufacturer_facility_id="FAC-ACME",
+            ),
         ],
         organization=OrganizationInput(name="City Hospital", facility_id="FAC-1"),
         document=DocumentInput(title="Vaccination card", data_base64="ZGF0YQ=="),
@@ -86,6 +92,26 @@ def test_minimal_single_immunization(uuid_factory, clock):
     assert "DocumentReference" not in types
     assert "Organization" not in types
     assert "signature" not in bundle
+
+
+def test_manufacturer_without_facility_id_omits_organization(uuid_factory, clock):
+    inp = ImmunizationBundleInput(
+        patient=_PATIENT,
+        practitioner=_DOCTOR,
+        immunizations=[
+            ImmunizationInput(vaccine_name="covid-19", manufacturer="Pfizer Inc"),
+        ],
+    )
+    bundle = build_immunization_bundle(inp, uuid_factory=uuid_factory, clock=clock)
+
+    assert "Organization" not in resource_types(bundle)
+    imm = next(
+        e["resource"]
+        for e in bundle["entry"]
+        if e["resource"]["resourceType"] == "Immunization"
+    )
+    assert imm["vaccineCode"]["text"] == "covid-19 — Pfizer Inc"
+    assert "manufacturer" not in imm
 
 
 def test_performer_dedup(uuid_factory, clock):

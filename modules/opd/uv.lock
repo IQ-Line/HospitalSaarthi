@@ -364,6 +364,7 @@ dependencies = [
     { name = "alembic" },
     { name = "azure-storage-blob" },
     { name = "fastapi" },
+    { name = "hims-sdk-fhir" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -386,6 +387,7 @@ requires-dist = [
     { name = "alembic" },
     { name = "azure-storage-blob" },
     { name = "fastapi" },
+    { name = "hims-sdk-fhir", editable = "../../packages/py-sdk-fhir" },
     { name = "psycopg", extras = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -400,6 +402,19 @@ dev = [
     { name = "pyright" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[[package]]
+name = "hims-sdk-fhir"
+version = "0.1.0"
+source = { editable = "../../packages/py-sdk-fhir" }
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest" },
     { name = "ruff" },
 ]
 

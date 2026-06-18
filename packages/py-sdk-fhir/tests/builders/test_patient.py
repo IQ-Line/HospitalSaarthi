@@ -43,7 +43,9 @@ def test_full_patient_identifiers_and_telecom() -> None:
     assert systems[MRN_SYSTEM_URI]["value"] == "UHID-1"
     assert systems[MRN_SYSTEM_URI]["type"]["coding"][0]["code"] == "MR"
     assert systems[ABHA_NUMBER_SYSTEM_URI]["value"] == "12-3456-7890-1234"
+    assert systems[ABHA_NUMBER_SYSTEM_URI]["type"]["coding"][0]["code"] == "MR"
     assert systems[ABHA_ADDRESS_SYSTEM_URI]["value"] == "asha@abdm"
+    assert systems[ABHA_ADDRESS_SYSTEM_URI]["type"]["coding"][0]["code"] == "MR"
     assert patient["birthDate"] == "1990-04-01"
     assert patient["telecom"] == [{"system": "phone", "value": "9999999999", "use": "home"}]
 

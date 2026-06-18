@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     record_foundation_base_url: str = Field(
         default="http://localhost:3009",
         description="record-foundation-svc origin (no trailing path).",
+        validation_alias="RECORD_FOUNDATION_BASE_URL",
     )
     pdf_platform_url: str = Field(
         default="http://localhost:8091",

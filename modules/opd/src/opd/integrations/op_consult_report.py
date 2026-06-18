@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 
 OP_CONSULT_HI_TYPE = "OP Consultation Record"
 OP_CONSULT_DOCUMENT_TITLE = "OP Consultation Report"
+OPD_SLIP_HI_TYPE = "Consultation Notes"
+OPD_SLIP_DOCUMENT_TITLE = "Consultation Notes"
 
 
 def _escape_html(text: str) -> str:
@@ -195,17 +197,18 @@ def _render_pdf_via_platform(html: str) -> bytes | None:
         return None
 
 
-def _latest_op_consult_document(
+def _latest_document_by_hi_type(
     session: Session,
     tenant_id: UUID,
     visit_id: UUID,
+    hi_type: str,
 ) -> HealthDocument | None:
     stmt = (
         select(HealthDocument)
         .where(
             HealthDocument.tenant_id == tenant_id,
             HealthDocument.visit_id == visit_id,
-            HealthDocument.hi_type == OP_CONSULT_HI_TYPE,
+            HealthDocument.hi_type == hi_type,
             HealthDocument.status == "active",
             HealthDocument.mime_type == "application/pdf",
         )
@@ -213,6 +216,14 @@ def _latest_op_consult_document(
         .limit(1)
     )
     return session.scalar(stmt)
+
+
+def _latest_op_consult_document(
+    session: Session,
+    tenant_id: UUID,
+    visit_id: UUID,
+) -> HealthDocument | None:
+    return _latest_document_by_hi_type(session, tenant_id, visit_id, OP_CONSULT_HI_TYPE)
 
 
 def _load_stored_pdf_base64(session: Session, tenant_id: UUID, visit_id: UUID) -> str | None:
@@ -302,3 +313,84 @@ def ensure_op_consult_report_pdf_base64(
         logger.warning("Could not persist OP consult report for visit %s: %s", visit_id, exc)
 
     return base64.b64encode(pdf_bytes).decode("ascii")
+
+
+def _store_health_document_pdf(
+    session: Session,
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    hi_type: str,
+    document_title: str,
+    file_name: str,
+    pdf_bytes: bytes,
+) -> HealthDocument | None:
+    if not get_azure_blob_settings().connection_string:
+        return None
+
+    folder = generate_health_document_path(patient_id, visit_id, hi_type)
+    blob = azure_blob_storage.upload_health_document_blob(
+        pdf_bytes,
+        file_name,
+        "application/pdf",
+        folder,
+    )
+    repo = HealthDocumentRepository(session, tenant_id)
+    return repo.create(
+        patient_id=patient_id,
+        visit_id=visit_id,
+        hi_type=hi_type,
+        document_title=document_title,
+        original_file_name=file_name,
+        storage_key=blob.storage_key,
+        blob_url=blob.blob_url,
+        mime_type="application/pdf",
+        file_size_bytes=len(pdf_bytes),
+        uploaded_by=None,
+    )
+
+
+def ensure_opd_slip_health_document(
+    session: Session,
+    tenant_id: UUID,
+    visit_id: UUID,
+    patient_id: UUID,
+    *,
+    report_html: str,
+    fallback_summary: str,
+) -> HealthDocument | None:
+    """
+    Ensure an OPD slip health document exists for ABDM HealthDocumentRecord linking.
+    Reuses existing Consultation Notes row when present; otherwise renders and stores PDF.
+    """
+    existing = _latest_document_by_hi_type(session, tenant_id, visit_id, OPD_SLIP_HI_TYPE)
+    if existing is not None:
+        return existing
+
+    pdf_bytes = _render_pdf_via_platform(report_html)
+    if not pdf_bytes:
+        logger.warning(
+            "OPD slip for visit %s: pdf-platform unavailable; using fallback PDF",
+            visit_id,
+        )
+        pdf_bytes = _fallback_pdf_bytes(fallback_summary)
+
+    try:
+        row = _store_health_document_pdf(
+            session,
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            hi_type=OPD_SLIP_HI_TYPE,
+            document_title=OPD_SLIP_DOCUMENT_TITLE,
+            file_name="canvas-consultation.pdf",
+            pdf_bytes=pdf_bytes,
+        )
+        if row is not None:
+            session.commit()
+        return row
+    except Exception as exc:
+        session.rollback()
+        logger.warning("Could not persist OPD slip health document for visit %s: %s", visit_id, exc)
+        return None
