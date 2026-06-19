@@ -920,6 +920,9 @@ def persist_visit_abdm_bundles(
             _log_abdm_m2_exception("visit %s HEALTHDOCUMENTRECORD bundle persist raised", visit_id)
             health_contexts = []
         contexts.extend(health_contexts)
+    except Exception:
+        _log_abdm_m2_exception("visit %s persist_visit_abdm_bundles failed", visit_id)
+        return []
     finally:
         session.close()
 
