@@ -159,9 +159,10 @@ def load_patient_address_for_report(
 ) -> str | None:
     bind = session.get_bind()
     if bind is not None and bind.dialect.name == "sqlite":
-        print(
-            f"[clinical-report] patient address skipped: sqlite bind "
-            f"tenant_id={tenant_id} patient_id={patient_id}",
+        logger.debug(
+            "clinical report: patient address skipped (sqlite bind) tenant_id=%s patient_id=%s",
+            tenant_id,
+            patient_id,
         )
         return None
 
@@ -187,29 +188,35 @@ def load_patient_address_for_report(
         .mappings()
         .all()
     )
-    print(
-        f"[clinical-report] patient address query tenant_id={tenant_id} "
-        f"patient_id={patient_id} row_count={len(rows)}",
+    logger.debug(
+        "clinical report: patient address query tenant_id=%s patient_id=%s row_count=%s",
+        tenant_id,
+        patient_id,
+        len(rows),
     )
     if not rows:
-        print(
-            f"[clinical-report] patient address not found in empi.patient_addresses "
-            f"tenant_id={tenant_id} patient_id={patient_id}",
+        logger.debug(
+            "clinical report: patient address not found tenant_id=%s patient_id=%s",
+            tenant_id,
+            patient_id,
         )
         return None
 
     for index, row in enumerate(rows):
         formatted = _format_address_row(dict(row))
-        print(
-            f"[clinical-report] patient address candidate[{index}] "
-            f"type={row.get('address_type')!r} formatted={formatted!r}",
+        logger.debug(
+            "clinical report: patient address candidate[%s] type=%r formatted=%r",
+            index,
+            row.get("address_type"),
+            formatted,
         )
         if formatted:
             return formatted
 
-    print(
-        f"[clinical-report] patient address rows exist but all fields empty "
-        f"tenant_id={tenant_id} patient_id={patient_id}",
+    logger.debug(
+        "clinical report: patient address rows empty tenant_id=%s patient_id=%s",
+        tenant_id,
+        patient_id,
     )
     return None
 
@@ -298,9 +305,10 @@ def resolve_clinical_report_context(
     if not patient_address and patient_id is not None:
         patient_address = load_patient_address_for_report(session, tenant_id, patient_id)
     else:
-        print(
-            f"[clinical-report] patient address from request context: "
-            f"{patient_address!r} patient_id={patient_id}",
+        logger.debug(
+            "clinical report: patient address from request context=%r patient_id=%s",
+            patient_address,
+            patient_id,
         )
 
     if (
@@ -324,10 +332,15 @@ def resolve_clinical_report_context(
         patient_address=patient_address,
         logo_url=logo_url,
     )
-    print(
-        f"[clinical-report] resolved context tenant_id={tenant_id} "
-        f"facility_id={resolved.facility_id!r} facility_name={resolved.facility_name!r} "
-        f"logo={'data-url' if resolved.logo_url and resolved.logo_url.startswith('data:') else resolved.logo_url!r} "
-        f"patient_address={resolved.patient_address!r}",
+    logger.debug(
+        "clinical report: resolved context tenant_id=%s facility_id=%r facility_name=%r "
+        "logo=%s patient_address=%r",
+        tenant_id,
+        resolved.facility_id,
+        resolved.facility_name,
+        "data-url"
+        if resolved.logo_url and resolved.logo_url.startswith("data:")
+        else resolved.logo_url,
+        resolved.patient_address,
     )
     return resolved

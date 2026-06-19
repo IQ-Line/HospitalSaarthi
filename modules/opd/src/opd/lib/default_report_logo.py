@@ -27,7 +27,7 @@ def _workspace_root() -> Path:
     for parent in Path(__file__).resolve().parents:
         if (parent / "nx.json").is_file():
             return parent
-    return Path(__file__).resolve().parents[4]
+    return Path(__file__).resolve().parents[5]
 
 
 def _svg_to_data_url(svg_text: str) -> str:

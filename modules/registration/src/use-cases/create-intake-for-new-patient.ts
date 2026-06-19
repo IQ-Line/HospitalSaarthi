@@ -119,16 +119,6 @@ export async function createIntakeForNewPatient(
     };
   }
 
-  if (empiAddress) {
-    await deps.empiGateway.upsertPermanentAddress(
-      tenantId,
-      empiResult.patientId,
-      empiAddress,
-      ctx.actorId,
-      ctx.bearerToken,
-    );
-  }
-
   const registrationResult = await createRegistration(
     deps,
     tenantId,

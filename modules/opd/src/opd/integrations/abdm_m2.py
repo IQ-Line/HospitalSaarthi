@@ -21,6 +21,7 @@ from hims_sdk_fhir import (
     build_op_consult_bundle,
     build_prescription_bundle,
 )
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from opd.core.config import get_service_integration_settings, get_settings
@@ -501,7 +502,15 @@ def _render_report_pdf_base64(
             )
             return None
         return base64.b64encode(result.pdf_bytes).decode("ascii")
-    except (LookupError, PermissionError, ValueError, PdfPlatformRenderError, RuntimeError, OSError) as exc:
+    except (
+        LookupError,
+        PermissionError,
+        SQLAlchemyError,
+        ValueError,
+        PdfPlatformRenderError,
+        RuntimeError,
+        OSError,
+    ) as exc:
         _log_abdm_m2(
             "visit %s clinical report PDF skipped type=%s reason=%s (bundle continues without PDF)",
             visit_id,
