@@ -53,6 +53,54 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/api-key/validate:
+    get:
+      tags: [Auth]
+      summary: Validate user API key (X-API-Key header)
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyTokenSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
+    post:
+      tags: [Auth]
+      summary: Validate user API key and issue tokens
+      description: >
+        Validates `hs_user_{live|test}_…` stored on `user_management.users`.
+        Returns short-lived `access_token` (5 min) and `refresh_token` (7 days).
+        Refresh via `GET /api/auth/token` with `Authorization: Bearer <refresh_token>`.
+      security: []
+      parameters:
+        - name: X-API-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                api_key:
+                  type: string
+      responses:
+        "200":
+          $ref: "#/components/responses/ApiKeyTokenSuccess"
+        "400":
+          description: Missing API key.
+        "401":
+          description: Invalid API key.
   /auth/principal:
     get:
       tags:
@@ -63,9 +111,11 @@ paths:
         `request.cerbosPrincipal` (no recomputation). Semantically this matches the Cerbos principal
         used on checks: `id` is `principal.id`, `roles` is `principal.roles`, and `attributes` is
         `principal.attr` (same snake_case keys as `principalAttrsForCerbos` in `@hims/ts-sdk-authz`).
+        Capability arrays are **effective** runtime keys: stored grants intersected with tenant
+        entitlement (ADR-0032). Stored DB grants are unchanged when modules are disabled.
         The HTTP body nests attrs under `attributes` (Cerbos uses `attr`). Session-only JWT fields
-        (`sessionId`, `iat`, `exp`, `iss`, …) are not included here — use the identity layer / token
-        for those. If enrichment did not run, the service responds with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
+        are not included — use the identity layer for those. If enrichment did not run, responds
+        with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -252,6 +302,13 @@ paths:
       tags:
         - Roles
       summary: List tenant-scoped roles
+      description: >
+        Tenant scope is JWT-derived for bearer sessions. Integration callers may use
+        `X-API-Key` (Configurator tenant API key with `opd_slip` purpose); the key
+        binds tenant scope — do not send a conflicting `iq_tenant_id` header.
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -595,6 +652,11 @@ paths:
         Returns users for the active tenant. Route access is gated on `user.list` (PEP); the list
         body is filtered using a single Cerbos PlanResources call for `user.read` and the returned
         query-plan AST (evaluated locally against each row), not per-row CheckResources.
+        With `X-API-Key` (tenant `opd_slip` integration key), Cerbos is bypassed and all active
+        users for the key's tenant are returned.
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       responses:
@@ -867,7 +929,10 @@ paths:
         Returns the role templates applied to the specified user (`user_roles` associations).
         Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants).
         See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities
-        until issue #60.
+        until issue #60. Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1123,10 +1188,9 @@ paths:
         - Capabilities
       summary: Get effective runtime capabilities for a user
       description: >
-        Returns the runtime-effective capability keys for Cerbos principal enrichment. Primary
-        source is active `user_capabilities` snapshot rows; delegated overlays and clearances are
-        included. Until issue #60, implementation may temporarily union live `user_roles` join
-        `role_capabilities` for active associations (hybrid PEP — see ADR-0031).
+        Returns runtime-effective capability keys for the user: stored grants intersected with
+        tenant entitlement (same semantics as `GET /auth/principal` capability arrays; ADR-0032).
+        Includes delegated overlays and clearances.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1205,6 +1269,52 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /users/{id}/activate:
+    post:
+      tags:
+        - Users
+      summary: Reactivate a tenant-scoped platform user
+      description: >
+        Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active.
+        Uses Cerbos action `user.activate` (paired with `user.deactivate`).
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+      responses:
+        "200":
+          description: User is now active (or was already active).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   responses:
     Forbidden:
@@ -1219,12 +1329,55 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorMessage"
+    ApiKeyTokenSuccess:
+      description: API key valid — tokens issued plus resolved tenant and user profile.
+      content:
+        application/json:
+          schema:
+            type: object
+            required:
+              - access_token
+              - token_type
+              - expires_in
+              - refresh_token
+              - refresh_expires_in
+              - tenant_id
+              - user
+            properties:
+              access_token:
+                type: string
+              token_type:
+                type: string
+                enum: [Bearer]
+              expires_in:
+                type: integer
+                description: access_token lifetime in seconds (300).
+              refresh_token:
+                type: string
+                description: Pass as Bearer to GET /api/auth/token for a new access JWT.
+              refresh_expires_in:
+                type: integer
+                description: refresh_token lifetime in seconds (604800).
+              tenant_id:
+                type: string
+                format: uuid
+                description: Hospital tenant (`iq_tenant_id`) for the API key owner.
+              user:
+                $ref: "#/components/schemas/User"
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: Platform JWT; runtime rejects missing/malformed bearer tokens and invalid/expired tokens.
+    tenantApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: >
+        Configurator tenant integration key (`tenant_api_keys`, purpose `opd_slip`). Tenant scope
+        is derived from the key; Cerbos PEP is skipped on supported read routes (`GET /roles`,
+        `GET /users`, `GET /users/{id}/roles`).
   parameters:
     IqTenantIdHeader:
       name: iq_tenant_id
@@ -1581,10 +1734,14 @@ components:
               type: array
               items:
                 type: string
+              description: >
+                Effective direct capability keys (stored `user_capabilities` ∩ tenant entitlement).
             delegated_capabilities:
               type: array
               items:
                 type: string
+              description: >
+                Effective delegated keys (stored grants ∩ tenant entitlement).
             clearances:
               type: object
               additionalProperties:
@@ -1597,3 +1754,8 @@ components:
               description: >
                 Highest clearance tier derived from `clearances` for comparison with
                 `resource.attr.required_clearance` on user resources in Cerbos.
+            tenant_entitlement_revision:
+              type: string
+              description: >
+                Fingerprint of tenant entitlement capability keys; changes when Configurator
+                tenant module enablement changes. SPA may compare to bust cached principal.

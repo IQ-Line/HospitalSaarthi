@@ -2,6 +2,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
+import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -10,10 +11,14 @@ import type {
   RoleCapabilityRepository,
   RoleRepository,
   PrincipalAuthorizationRepository,
+  AccessTokenIssuerPort,
+  TenantEntitlementResolverPort,
   TenantModuleEntitlementPort,
   UserAccessRepository,
   UserRepository,
 } from "./ports/index.js";
+import type { CachedTenantEntitlementResolver } from "./services/cached-tenant-entitlement-resolver.js";
+import { registerInternalEntitlementCacheHandlers } from "./rest-handlers/internal-entitlement-cache-handlers.js";
 import { TenantMismatchError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
 import {
@@ -70,6 +75,12 @@ export interface UserManagementPluginOptions {
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  tenantEntitlementResolver?: TenantEntitlementResolverPort;
+  runtimeEntitlementIntersection?: boolean;
+  /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
+  internalEntitlementCacheApiKey?: string;
+  accessTokenIssuer: AccessTokenIssuerPort;
+  authSessionRevoker?: AuthSessionRevokerPort;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -91,6 +102,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    tenantEntitlementResolver,
+    runtimeEntitlementIntersection,
+    internalEntitlementCacheApiKey,
+    accessTokenIssuer,
   } = options;
 
   const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
@@ -98,6 +113,11 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
+    const authMode = (request.routeOptions?.config as { authMode?: string } | undefined)?.authMode;
+    if (authMode === "public") {
+      return;
+    }
+
     const headerCheck = assertTenantHeaderAllowedForPrincipal(request);
     if (!headerCheck.ok) {
       return replyWithUserManagementError(
@@ -141,7 +161,12 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     },
     getUserDeps: { userRepository },
     getUserCapabilitiesDeps: { userRepository, userAccessRepository },
-    getUserEffectiveCapabilitiesDeps: { userRepository, principalAuthorizationRepository },
+    getUserEffectiveCapabilitiesDeps: {
+      userRepository,
+      principalAuthorizationRepository,
+      tenantEntitlementResolver,
+      runtimeEntitlementIntersection,
+    },
     listUserRolesDeps: { userRepository, userAccessRepository },
     listUsersAuthzDeps: { userRepository },
     replaceUserCapabilitiesDeps: {
@@ -152,7 +177,12 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       masterDataModuleCatalogPort,
     },
     updateUserDeps: { userRepository, eventBus },
-    deactivateUserDeps: { userRepository, eventBus },
+    deactivateUserDeps: {
+      userRepository,
+      eventBus,
+      authSessionRevoker: options.authSessionRevoker,
+    },
+    activateUserDeps: { userRepository, eventBus },
   });
 
   registerRoleHandlers(fastify, {
@@ -184,6 +214,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     getTenantId,
     getUserId,
     getUserDeps: { userRepository },
+    validateUserApiKeyDeps: {
+      userRepository,
+      accessTokenIssuer,
+    },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {
@@ -196,6 +230,19 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       masterDataModuleCatalogPort,
     }),
   });
+
+  if (
+    tenantEntitlementResolver !== undefined &&
+    "invalidateTenantEntitlementCache" in tenantEntitlementResolver
+  ) {
+    registerInternalEntitlementCacheHandlers(fastify, {
+      tenantEntitlementResolver: tenantEntitlementResolver as CachedTenantEntitlementResolver,
+      tenantModuleEntitlementPort: tenantModuleEntitlementPort as TenantModuleEntitlementPort & {
+        invalidateTenantModuleCache?(tenantId?: string): void;
+      },
+      internalApiKey: internalEntitlementCacheApiKey,
+    });
+  }
 };
 
 export const userManagementPlugin = fp(userManagementPluginImpl, {

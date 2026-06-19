@@ -1,3 +1,4 @@
+import type { OpdPrescriptionStatus } from '@/features/create-rx/api/opd-prescription-types';
 import { empiPatientAgeYears, empiPatientCreatedDate, type EmpiPatient } from './empi-patients';
 import type { OpdPatientEncounterApi } from './opd-module-patients';
 import { opdVisitStatusToActionLabel } from '../lib/opd-visit-status';
@@ -37,6 +38,10 @@ export function mapOpdEncounterToVisitRow(
       : encounter.created_at.slice(0, 10),
     status,
     isOwnPatient: true,
-    actionLabel: opdVisitStatusToActionLabel(status),
+    actionLabel: opdVisitStatusToActionLabel(
+      status,
+      encounter.prescription_status as OpdPrescriptionStatus | null,
+      encounter.visit_status,
+    ),
   };
 }

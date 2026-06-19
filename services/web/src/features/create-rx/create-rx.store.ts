@@ -68,6 +68,7 @@ interface CreateRxState {
   activeMainTab: CreateRxMainTab;
   activeSectionTab: CreateRxSectionTab;
   activeRightTab: CreateRxRightTab;
+  priorVisitSearch: string;
   formData: CreateRxFormData;
   visitpadFieldErrors: VisitpadFieldError[];
 
@@ -81,6 +82,7 @@ interface CreateRxState {
   setActiveMainTab: (tab: CreateRxMainTab) => void;
   setActiveSectionTab: (tab: CreateRxSectionTab) => void;
   setActiveRightTab: (tab: CreateRxRightTab) => void;
+  setPriorVisitSearch: (query: string) => void;
   setVisitpadFieldErrors: (errors: VisitpadFieldError[]) => void;
   clearVisitpadFieldErrors: () => void;
   setVital: (code: string, value: string) => void;
@@ -104,6 +106,7 @@ interface CreateRxState {
   addMedicineRow: () => void;
   removeMedicineRow: (index: number) => void;
   updateMedicineRow: (index: number, field: keyof MedicineRow, value: string) => void;
+  patchMedicineRow: (index: number, patch: Partial<MedicineRow>) => void;
   addTestRow: () => void;
   removeTestRow: (index: number) => void;
   updateTestRow: (index: number, field: keyof TestRow, value: string) => void;
@@ -113,6 +116,7 @@ interface CreateRxState {
   addProcedureRow: () => void;
   removeProcedureRow: (index: number) => void;
   updateProcedureRow: (index: number, field: keyof ProcedureRow, value: string) => void;
+  patchProcedureRow: (index: number, patch: Partial<ProcedureRow>) => void;
 }
 
 export const useCreateRxStore = create<CreateRxState>((set) => ({
@@ -122,7 +126,8 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
   loading: true,
   activeMainTab: 'visitpad',
   activeSectionTab: 'pre-consult',
-  activeRightTab: 'ai-prescription',
+  activeRightTab: 'medical-history',
+  priorVisitSearch: '',
   formData: defaultFormData(),
   visitpadFieldErrors: [],
 
@@ -134,7 +139,8 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
       loading: false,
       activeMainTab: 'visitpad',
       activeSectionTab: 'pre-consult',
-      activeRightTab: 'ai-prescription',
+      activeRightTab: 'medical-history',
+      priorVisitSearch: '',
       formData: initialFormData ?? defaultFormData(),
       visitpadFieldErrors: [],
     }),
@@ -145,6 +151,7 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
   setActiveMainTab: (tab) => set({ activeMainTab: tab }),
   setActiveSectionTab: (tab) => set({ activeSectionTab: tab }),
   setActiveRightTab: (tab) => set({ activeRightTab: tab }),
+  setPriorVisitSearch: (query) => set({ priorVisitSearch: query }),
 
   setVital: (code, value) =>
     set((s) => ({
@@ -301,6 +308,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ),
       },
     })),
+  patchMedicineRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        medicines: s.formData.medicines.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
+        ),
+      },
+    })),
 
   addTestRow: () =>
     set((s) => ({
@@ -364,6 +381,16 @@ export const useCreateRxStore = create<CreateRxState>((set) => ({
         ...s.formData,
         procedures: s.formData.procedures.map((row, i) =>
           i === index ? { ...row, [field]: value } : row,
+        ),
+      },
+    })),
+  patchProcedureRow: (index, patch) =>
+    set((s) => ({
+      visitpadFieldErrors: [],
+      formData: {
+        ...s.formData,
+        procedures: s.formData.procedures.map((row, i) =>
+          i === index ? { ...row, ...patch } : row,
         ),
       },
     })),

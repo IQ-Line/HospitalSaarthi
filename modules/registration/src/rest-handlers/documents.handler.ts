@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import type { PdfRendererPort } from "@hims/pdf-client";
+import type { OpdSlipReportRequest, PdfRendererPort } from "@hims/pdf-client";
 import type { BillingReadPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import {
   getOpdReceiptHtml,
@@ -7,7 +7,9 @@ import {
   getOpdSlipHtml,
   getOpdSlipPdf,
 } from "../use-cases/get-registration-documents.js";
+import { renderPartnerOpdSlipPdf } from "../use-cases/render-partner-opd-slip-pdf.js";
 import type { ReportDocumentContext } from "../lib/report-document-context.js";
+import { partnerOpdSlipRequestSchema } from "./partner-opd-slip-request.schema.js";
 import { paramsRegistrationIdSchema } from "./route-schemas.js";
 
 export interface DocumentsHandlerDeps {
@@ -89,6 +91,22 @@ function sendDocumentError(
   });
 }
 
+function sendPartnerOpdSlipError(
+  reply: { code: (n: number) => { send: (body: unknown) => unknown } },
+  result: { code: string; message?: string },
+) {
+  if (result.code === "VALIDATION_ERROR") {
+    return reply.code(400).send({
+      error: "validation_error",
+      message: result.message ?? "Invalid request body",
+    });
+  }
+  return reply.code(503).send({
+    error: "pdf_renderer_unavailable",
+    message: result.message ?? "Document render unavailable",
+  });
+}
+
 export function registerDocumentsHandler(app: FastifyInstance, deps: DocumentsHandlerDeps): void {
   const handlerDeps = {
     registrationRepo: deps.registrationRepo,
@@ -137,6 +155,35 @@ export function registerDocumentsHandler(app: FastifyInstance, deps: DocumentsHa
       );
       if (!result.ok) return sendDocumentError(reply, result);
       return reply.header("Content-Type", "text/html; charset=utf-8").send(result.data);
+    },
+  );
+
+  app.post<{ Body: OpdSlipReportRequest }>(
+    "/documents/opd-slip.pdf",
+    {
+      config: { authMode: "protected" as const },
+      schema: { body: partnerOpdSlipRequestSchema },
+    },
+    async (request, reply) => {
+      if (!request.authViaApiKey) {
+        return reply.code(401).send({
+          error: "API_KEY_REQUIRED",
+          message: "X-API-Key header is required",
+        });
+      }
+
+      const result = await renderPartnerOpdSlipPdf(
+        { pdfRenderer: deps.pdfRenderer },
+        request.body,
+        readRequestId(request.headers["x-request-id"]),
+      );
+      if (!result.ok) return sendPartnerOpdSlipError(reply, result);
+
+      const filename = `opd-slip-${request.body.visitId}.pdf`;
+      return reply
+        .header("Content-Type", "application/pdf")
+        .header("Content-Disposition", `inline; filename="${filename}"`)
+        .send(result.data);
     },
   );
 

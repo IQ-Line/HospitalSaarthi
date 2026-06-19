@@ -42,6 +42,45 @@ export const searchPatientsQuerySchema = {
   },
 };
 
+export const findPatientByAbhaQuerySchema = {
+  type: "object" as const,
+  required: ["abha_address"],
+  additionalProperties: false,
+  properties: {
+    abha_address: { type: "string", minLength: 1 },
+  },
+};
+
+export const findPatientByDemographicsBodySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    identifiers: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        required: ["type", "value"],
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", minLength: 1 },
+          value: { type: "string", minLength: 1 },
+        },
+      },
+    },
+    first_name: { type: "string", minLength: 1 },
+    middle_name: { type: "string" },
+    last_name: { type: "string" },
+    gender: { type: "string", enum: [...genderEnum] },
+    phone_number: { type: "string", minLength: 1 },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+    age_years: { type: "integer" },
+    age_months: { type: "integer" },
+    age_days: { type: "integer" },
+  },
+};
+
 export const paramsPatientIdSchema = {
   type: "object" as const,
   required: ["id"],
@@ -71,6 +110,20 @@ export const paramsPatientAndAddressSchema = {
   },
 };
 
+const createPatientAddressSchema = {
+  type: "object" as const,
+  required: ["address_type"],
+  additionalProperties: false,
+  properties: {
+    address_type: { type: "string", enum: [...addressTypeEnum] },
+    street: { type: "string" },
+    city: { type: "string" },
+    district: { type: "string" },
+    state: { type: "string" },
+    pincode: { type: "string" },
+  },
+} as const;
+
 export const createPatientBodySchema = {
   type: "object" as const,
   required: ["first_name", "gender", "phone_number"],
@@ -98,6 +151,8 @@ export const createPatientBodySchema = {
     emergency_contact_relationship: { type: "string" },
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    address: createPatientAddressSchema,
     registered_by: uuidParam,
     created_by: uuidParam,
     force_create: { type: "boolean" },

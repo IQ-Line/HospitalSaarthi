@@ -1,4 +1,11 @@
 import { apiClient } from '@/lib/api-client';
+import type { VisitRegistrationAddressBlock } from '@/features/frontdesk/types';
+import {
+  formatEmpiAddressForDisplay,
+  registrationAddressBlockFromForm,
+  resolveDistrictDisplayName,
+  resolveStateDisplayName,
+} from '@/features/frontdesk/utils/report-address';
 import type { OpdPatientDetails, OpdPatientsFilters, OpdVisitStatus } from '../types';
 
 const EMPI_PATIENTS_BASE = '/api/empi/v1/patients';
@@ -30,7 +37,10 @@ export interface EmpiPatientSearchResponse {
 }
 
 export interface EmpiPatientAddress {
+  id: string;
+  address_type: 'permanent' | 'current' | 'temporary';
   street: string | null;
+  city: string | null;
   district: string | null;
   state: string | null;
   pincode: string | null;
@@ -81,6 +91,24 @@ export async function fetchEmpiPatientDetail(
   patientId: string,
 ): Promise<EmpiPatientDetailResponse> {
   return apiClient<EmpiPatientDetailResponse>(`${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientId)}`);
+}
+
+/** Idempotent — links desk-verified ABHA address for M2 / consent lookup. */
+export async function ensurePatientAbhaAddressIdentifier(
+  patientId: string,
+  abhaAddress: string,
+): Promise<void> {
+  const value = abhaAddress.trim();
+  if (!value) return;
+
+  await apiClient(`${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientId)}/identifiers`, {
+    method: 'POST',
+    body: JSON.stringify({
+      identifier_type: 'abha_address',
+      identifier_value: value,
+      issuing_system: 'abdm',
+    }),
+  });
 }
 
 /** Resolve EMPI display fields per patient id (detail API; used when snapshot is insufficient). */
@@ -143,7 +171,9 @@ export function mapEmpiPatientToOpdDetails(
 ): OpdPatientDetails {
   const { patient, addresses, identifiers } = detail;
   const primaryAddress =
-    addresses.find((a) => a.street || a.district || a.state) ?? addresses[0];
+    addresses.find((a) => a.address_type === 'permanent') ??
+    addresses.find((a) => a.street || a.district || a.state) ??
+    addresses[0];
   const abhaAddress = identifiers.find((i) => i.identifier_type === 'abha_address');
 
   const age = empiPatientAgeYears(patient);
@@ -171,10 +201,72 @@ export function mapEmpiPatientToOpdDetails(
     abhaAddress: abhaAddress?.identifier_value?.trim() || 'N/A',
     phoneNumber: patient.phone_number || '-',
     streetAddress: primaryAddress?.street?.trim() || '-',
-    district: primaryAddress?.district?.trim() || '-',
-    state: primaryAddress?.state?.trim() || '-',
+    district:
+      resolveDistrictDisplayName(primaryAddress?.state, primaryAddress?.district) || '-',
+    state: resolveStateDisplayName(primaryAddress?.state) || '-',
     pinCode: primaryAddress?.pincode?.trim() || '-',
     visitCount: 0,
     lastUpdated,
   };
+}
+
+function pickPrimaryEmpiAddress(
+  addresses: EmpiPatientAddress[],
+): EmpiPatientAddress | undefined {
+  return (
+    addresses.find((row) => row.address_type === 'permanent') ??
+    addresses.find((row) => row.street || row.district || row.state || row.pincode) ??
+    addresses[0]
+  );
+}
+
+function mapRegistrationAddressToEmpiPayload(address: VisitRegistrationAddressBlock) {
+  const street = [address.line1?.trim(), address.line2?.trim()].filter(Boolean).join(', ');
+  return {
+    address_type: 'permanent' as const,
+    street: street || null,
+    city: address.city?.trim() || null,
+    district: address.district?.trim() || null,
+    state: address.state?.trim() || null,
+    pincode: address.pincode?.trim() || null,
+  };
+}
+
+/** Persist desk-captured permanent address on the EMPI patient record. */
+export async function persistEmpiPatientPermanentAddress(
+  patientId: string,
+  address: VisitRegistrationAddressBlock | undefined,
+): Promise<void> {
+  const block = registrationAddressBlockFromForm(address);
+  const patientKey = patientId.trim();
+  if (!block || !patientKey) return;
+
+  const payload = mapRegistrationAddressToEmpiPayload(block);
+  const detail = await fetchEmpiPatientDetail(patientKey);
+  const existing = pickPrimaryEmpiAddress(detail.addresses);
+
+  if (existing?.id) {
+    await apiClient<EmpiPatientAddress>(
+      `${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientKey)}/addresses/${encodeURIComponent(existing.id)}`,
+      { method: 'PATCH', body: JSON.stringify(payload) },
+    );
+    return;
+  }
+
+  await apiClient<EmpiPatientAddress>(
+    `${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientKey)}/addresses`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+}
+
+/** Load formatted patient address for clinical / registration reports. */
+export async function fetchFormattedPatientAddressForReport(
+  patientId: string,
+): Promise<string | undefined> {
+  const patientKey = patientId.trim();
+  if (!patientKey) return undefined;
+
+  const detail = await fetchEmpiPatientDetail(patientKey);
+  const formatted = formatEmpiAddressForDisplay(pickPrimaryEmpiAddress(detail.addresses));
+  return formatted || undefined;
 }

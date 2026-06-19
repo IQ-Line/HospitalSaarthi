@@ -113,6 +113,44 @@ class PrescriptionRepository:
             raise PrescriptionNotFoundError(f"Prescription for visit {visit_id} not found")
         return row
 
+    def list_status_by_visit_ids(
+        self,
+        tenant_id: UUID,
+        visit_ids: list[UUID],
+    ) -> list[PrescriptionModel]:
+        """Lean lookup of prescription status per visit (no clinical eager loads)."""
+        if not visit_ids:
+            return []
+        return list(
+            self._session.scalars(
+                self._root_query().where(
+                    PrescriptionModel.tenant_id == tenant_id,
+                    PrescriptionModel.visit_id.in_(visit_ids),
+                )
+            )
+        )
+
+    def list_detail_by_visit_ids(
+        self,
+        tenant_id: UUID,
+        visit_ids: list[UUID],
+    ) -> list[PrescriptionModel]:
+        """Full prescription rows for batch clinical report availability."""
+        if not visit_ids:
+            return []
+        return list(
+            self._session.scalars(
+                self._detail_query().where(
+                    PrescriptionModel.tenant_id == tenant_id,
+                    PrescriptionModel.visit_id.in_(visit_ids),
+                )
+            )
+        )
+
+    @property
+    def session(self) -> Session:
+        return self._session
+
     def list_by_patient(
         self,
         tenant_id: UUID,
@@ -198,6 +236,8 @@ class PrescriptionRepository:
 
         if payload.clinical is not None:
             self._clear_clinical_children(rx)
+            # Flush deletes before inserts — same line_no would violate *_line_key constraints.
+            self._session.flush()
             self._apply_clinical(rx, payload.clinical)
 
         self._session.flush()

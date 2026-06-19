@@ -22,18 +22,19 @@ function row(
 
 const ALL = [
   row('doctor', false),
+  row('admin', true),
   row('super_admin', true),
-  row('tenant_admin', true),
+  row('tenant_admin', false),
 ];
 
 describe('filterRoleTypePicklistForPrincipal', () => {
   it('returns only global types for platform super-admin', () => {
     const filtered = filterRoleTypePicklistForPrincipal(ALL, { isPlatformSuperAdmin: true });
-    expect(filtered.map((r) => r.value)).toEqual(['super_admin', 'tenant_admin']);
+    expect(filtered.map((r) => r.value)).toEqual(['admin', 'super_admin']);
   });
 
   it('returns only tenant staff types for tenant-admin and other users', () => {
     const filtered = filterRoleTypePicklistForPrincipal(ALL, { isPlatformSuperAdmin: false });
-    expect(filtered.map((r) => r.value)).toEqual(['doctor']);
+    expect(filtered.map((r) => r.value)).toEqual(['doctor', 'tenant_admin']);
   });
 });

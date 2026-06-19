@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir uv
 
 # Copy the OPD module source first so the path dependency resolves.
 COPY modules/opd /app/modules/opd
+COPY packages/py-sdk-fhir /app/packages/py-sdk-fhir
 
 # Then the service wrapper.
 COPY services/opd-svc/pyproject.toml services/opd-svc/uv.lock* /app/services/opd-svc/

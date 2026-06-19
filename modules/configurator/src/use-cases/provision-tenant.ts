@@ -69,7 +69,7 @@ export async function provisionTenant(
 
   const productModuleIds = deduplicateModuleIds(input.modules);
   const adminFullName =
-    `${input.admin.first_name.trim()} ${input.admin.last_name.trim()}`.trim();
+    `${input.admin.first_name.trim()} ${input.admin.last_name?.trim() ?? ""}`.trim();
   const adminEmail = input.admin.email.trim().toLowerCase();
   const adminUserId = randomUUID();
 
@@ -429,9 +429,6 @@ function validateInput(input: ProvisionTenantInput): void {
   }
   if (!input.admin.first_name?.trim()) {
     throw new ConfiguratorError(400, "admin.first_name is required", "VALIDATION_ERROR");
-  }
-  if (!input.admin.last_name?.trim()) {
-    throw new ConfiguratorError(400, "admin.last_name is required", "VALIDATION_ERROR");
   }
   if (!input.admin.password || input.admin.password.length < 8) {
     throw new ConfiguratorError(

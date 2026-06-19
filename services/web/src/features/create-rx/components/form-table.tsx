@@ -2,6 +2,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { cn } from '@pulse/utils';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
+import { FormTableCreatableSelect } from './form-table-creatable-select';
 import {
   Select,
   SelectContent,
@@ -18,7 +19,13 @@ import {
   TableRow,
 } from '@pulse/ui/table';
 
-export type FormTableColumnType = 'text' | 'number' | 'select' | 'date' | 'dosage-man';
+export type FormTableColumnType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'creatable-select'
+  | 'date'
+  | 'dosage-man';
 
 export interface DosageManSubKeys<T> {
   morning: keyof T & string;
@@ -81,7 +88,7 @@ function formatReadOnlyCellValue<T extends { id: string }>(
   const raw = String(row[col.key] ?? '');
   const value = raw.trim();
   if (!value) return '—';
-  if (col.type === 'select' && col.options) {
+  if ((col.type === 'select' || col.type === 'creatable-select') && col.options) {
     return col.options.find((opt) => opt.value === value)?.label ?? value;
   }
   return value;
@@ -110,6 +117,9 @@ export function FormTable<T extends { id: string }>({
 
   const isCellInvalid = (rowId: string, field: string) =>
     invalidCells?.has(`${rowId}:${field}`) ?? false;
+
+  const columnStyle = (width: string | undefined) =>
+    width ? { width, minWidth: width } : undefined;
 
   return (
     <div
@@ -164,7 +174,7 @@ export function FormTable<T extends { id: string }>({
                 <TableHead
                   key={col.key}
                   className="text-xs font-semibold text-muted-foreground"
-                  style={col.width ? { width: col.width } : undefined}
+                  style={columnStyle(col.width)}
                 >
                   {col.label}
                 </TableHead>
@@ -187,7 +197,7 @@ export function FormTable<T extends { id: string }>({
                 <TableRow key={row.id}>
                   <TableCell className="text-sm text-muted-foreground">{index + 1}</TableCell>
                   {columns.map((col) => (
-                    <TableCell key={col.key}>
+                    <TableCell key={col.key} style={columnStyle(col.width)}>
                       {readOnly ? (
                         <span className="block min-h-8 py-1.5 text-sm text-gray-900">
                           {formatReadOnlyCellValue(row, col)}
@@ -221,6 +231,17 @@ export function FormTable<T extends { id: string }>({
                             </div>
                           ))}
                         </div>
+                      ) : col.type === 'creatable-select' && col.options ? (
+                        <FormTableCreatableSelect
+                          value={(row[col.key] as string) ?? ''}
+                          onChange={(next) => onUpdate(index, col.key, next)}
+                          options={col.options}
+                          placeholder={
+                            catalogLoading ? 'Loading catalog…' : col.placeholder
+                          }
+                          disabled={catalogLoading}
+                          invalid={isCellInvalid(row.id, col.key)}
+                        />
                       ) : col.type === 'select' && col.options ? (
                         <Select
                           value={(row[col.key] as string) || '__none__'}
@@ -263,6 +284,8 @@ export function FormTable<T extends { id: string }>({
                           aria-invalid={isCellInvalid(row.id, col.key)}
                           className={cn(
                             'h-8 text-sm',
+                            col.width && 'w-full min-w-0',
+                            col.type === 'number' && 'tabular-nums',
                             isCellInvalid(row.id, col.key) &&
                               'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
                           )}

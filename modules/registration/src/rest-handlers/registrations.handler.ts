@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
+  ConfiguratorHttpPort,
   EmpiHttpPort,
   OpdHttpPort,
   PicklistReadPort,
@@ -17,12 +18,14 @@ import {
   createIntakeForNewPatient,
   createVisitForExistingPatient,
 } from "../use-cases/create-intake-for-new-patient.js";
+import { getVisitTypeDecision } from "../use-cases/get-visit-type-decision.js";
 import {
   dashboardStatsQuerySchema,
   existingPatientVisitBodySchema,
   listRegistrationsQuerySchema,
   newPatientIntakeBodySchema,
   paramsRegistrationIdSchema,
+  visitTypeDecisionBodySchema,
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
 import {
@@ -35,6 +38,7 @@ import {
   readIdempotencyKey,
   resolveActorId,
 } from "../lib/registration-helpers.js";
+import { RegistrationValidationError } from "../lib/follow-up.js";
 
 interface DashboardStatsQuery {
   days?: string;
@@ -55,6 +59,7 @@ export interface RegistrationsHandlerDeps {
   visitRepo: VisitRepo;
   allocateOpVisitId: (tenantId: string) => Promise<string>;
   empiGateway: EmpiHttpPort | undefined;
+  configuratorGateway?: ConfiguratorHttpPort;
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
   picklistReadPort?: PicklistReadPort;
@@ -92,6 +97,37 @@ export function registerRegistrationsHandler(
     },
   );
 
+  app.post<{
+    Body: {
+      department_id: string;
+      patient?: import("../domain/visit.types.js").VisitTypeDecisionPatientPayload;
+    };
+  }>(
+    "/visit-type-decision",
+    {
+      config: { authMode: "protected" as const },
+      schema: { body: visitTypeDecisionBodySchema },
+    },
+    async (request, reply) => {
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
+      const data = await getVisitTypeDecision(
+        {
+          visitRepo: deps.visitRepo,
+          registrationRepo: deps.registrationRepo,
+          configuratorGateway: deps.configuratorGateway,
+          empiGateway: deps.empiGateway,
+        },
+        request.tenantId,
+        request.body.department_id,
+        request.body.patient,
+        bearerToken,
+      );
+      return reply.send({ success: true, data });
+    },
+  );
+
   app.get<{ Querystring: ListQuery }>(
     "/registrations",
     { config: { authMode: "protected" as const }, schema: { querystring: listRegistrationsQuerySchema } },
@@ -111,6 +147,8 @@ export function registerRegistrationsHandler(
             uhid: q.uhid,
             mobile: q.mobile,
             name: q.name,
+            abha_number: q.abha_number,
+            abha_address: q.abha_address,
             patient_id: q.patient_id,
           },
         );
@@ -172,38 +210,64 @@ export function registerRegistrationsHandler(
       const authHeader = request.headers.authorization;
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
-      const result = await createVisitForExistingPatient(
-        {
-          visitRepo: deps.visitRepo,
-          allocateOpVisitId: deps.allocateOpVisitId,
-          eventBus: deps.eventBus,
-          opdGateway: deps.opdGateway,
-        },
-        request.tenantId,
-        request.body,
-        {
-          idempotencyKey,
-          actorId: resolveActorId(request),
-          bearerToken,
-        },
-      );
+      if (!deps.empiGateway) {
+        return reply.code(503).send({
+          statusCode: 503,
+          error: "Service Unavailable",
+          message: "EMPI patient gateway not configured on this service instance",
+          code: "empi_gateway_not_configured",
+        });
+      }
 
-      const registration = await deps.registrationRepo.findByPatientId(
-        request.tenantId,
-        request.body.patient_id,
-      );
-
-      const status = result.created ? 201 : 200;
-      const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
-      return reply.code(status).send(
-        serializeRegistrationWithVisit(
+      try {
+        const result = await createVisitForExistingPatient(
           {
-            registration: registration ?? null,
-            visit: result.record,
+            registrationRepo: deps.registrationRepo,
+            visitRepo: deps.visitRepo,
+            empiGateway: deps.empiGateway,
+            allocateOpVisitId: deps.allocateOpVisitId,
+            eventBus: deps.eventBus,
+            opdGateway: deps.opdGateway,
+            configuratorGateway: deps.configuratorGateway,
           },
-          labelMaps,
-        ),
-      );
+          request.tenantId,
+          request.body,
+          {
+            idempotencyKey,
+            actorId: resolveActorId(request),
+            bearerToken,
+          },
+        );
+
+        const status = result.created ? 201 : 200;
+        const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+        return reply.code(status).send(
+          serializeRegistrationWithVisit(
+            {
+              registration: result.registration,
+              visit: result.visit,
+            },
+            labelMaps,
+          ),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.message === "empi_patient_not_found") {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: "Not Found",
+            message: "Patient not found in EMPI",
+            code: "empi_patient_not_found",
+          });
+        }
+        if (err instanceof RegistrationValidationError) {
+          return reply.code(err.statusCode).send({
+            statusCode: err.statusCode,
+            error: "Bad Request",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
     },
   );
 
@@ -228,23 +292,36 @@ export function registerRegistrationsHandler(
       const authHeader = request.headers.authorization;
       const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 
-      const intake = await createIntakeForNewPatient(
-        {
-          registrationRepo: deps.registrationRepo,
-          visitRepo: deps.visitRepo,
-          empiGateway: deps.empiGateway,
-          allocateOpVisitId: deps.allocateOpVisitId,
-          eventBus: deps.eventBus,
-          opdGateway: deps.opdGateway,
-        },
-        request.tenantId,
-        request.body,
-        {
-          idempotencyKey,
-          actorId: resolveActorId(request),
-          bearerToken,
-        },
-      );
+      let intake;
+      try {
+        intake = await createIntakeForNewPatient(
+          {
+            registrationRepo: deps.registrationRepo,
+            visitRepo: deps.visitRepo,
+            empiGateway: deps.empiGateway,
+            allocateOpVisitId: deps.allocateOpVisitId,
+            eventBus: deps.eventBus,
+            opdGateway: deps.opdGateway,
+            configuratorGateway: deps.configuratorGateway,
+          },
+          request.tenantId,
+          request.body,
+          {
+            idempotencyKey,
+            actorId: resolveActorId(request),
+            bearerToken,
+          },
+        );
+      } catch (err) {
+        if (err instanceof RegistrationValidationError) {
+          return reply.code(err.statusCode).send({
+            statusCode: err.statusCode,
+            error: "Bad Request",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
 
       if (!intake.ok) {
         if (intake.kind === "duplicate") {

@@ -45,9 +45,13 @@ export const listRegistrationsQuerySchema = {
     uhid: { type: "string" },
     mobile: { type: "string" },
     name: { type: "string" },
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
     patient_id: uuidParam,
   },
 };
+
+const isoDateParam = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" } as const;
 
 export const listVisitsQuerySchema = {
   type: "object" as const,
@@ -60,8 +64,23 @@ export const listVisitsQuerySchema = {
     facility_id: uuidParam,
     department_id: uuidParam,
     doctor_id: uuidParam,
+    updated_from: isoDateParam,
+    updated_to: isoDateParam,
   },
 };
+
+const visitRegistrationAddressSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    line1: { type: "string" },
+    line2: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    district: { type: "string" },
+    pincode: { type: "string" },
+  },
+} as const;
 
 const demographicsSchema = {
   type: "object" as const,
@@ -90,6 +109,7 @@ const demographicsSchema = {
     emergency_contact_relationship: { type: "string" },
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
+    abha_address: { type: "string" },
     force_create: { type: "boolean" },
   },
 } as const;
@@ -98,13 +118,55 @@ const nullableUuid = {
   anyOf: [uuidParam, { type: "null" as const }],
 } as const;
 
+const consultationTypeEnum = ["new", "followup", "free-followup"] as const;
+
 const visitEncounterFields = {
   facility_id: nullableUuid,
   visit_type: { type: "string" },
+  consultation_type: { type: "string", enum: [...consultationTypeEnum] },
   department_id: nullableUuid,
   doctor_id: nullableUuid,
   appointment_id: nullableUuid,
   intake_completion: { type: "string", enum: [...intakeCompletionEnum] },
+} as const;
+
+export const visitTypeDecisionBodySchema = {
+  type: "object" as const,
+  required: ["department_id"],
+  additionalProperties: false,
+  properties: {
+    department_id: uuidParam,
+    patient: {
+      type: "object" as const,
+      additionalProperties: false,
+      properties: {
+        patient_id: uuidParam,
+        uhid: { type: "string" },
+        abha_number: { type: "string" },
+        abha_address: { type: "string" },
+        phone_number: { type: "string" },
+        first_name: { type: "string" },
+        middle_name: { type: "string" },
+        last_name: { type: "string" },
+        gender: { type: "string", enum: ["male", "female", "other"] },
+        date_of_birth: { type: "string" },
+        age_years: { type: "integer" },
+        age_months: { type: "integer" },
+        age_days: { type: "integer" },
+      },
+    },
+  },
+} as const;
+
+const existingPatientDemographicsOverlay = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+  },
 } as const;
 
 export const existingPatientVisitBodySchema = {
@@ -113,6 +175,10 @@ export const existingPatientVisitBodySchema = {
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    patient: existingPatientDemographicsOverlay,
+    permanent_address: visitRegistrationAddressSchema,
     ...visitEncounterFields,
   },
 } as const;
@@ -123,6 +189,7 @@ export const newPatientIntakeBodySchema = {
   additionalProperties: false,
   properties: {
     patient: demographicsSchema,
+    permanent_address: visitRegistrationAddressSchema,
     ...visitEncounterFields,
   },
 } as const;

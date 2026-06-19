@@ -1,3 +1,5 @@
+import type { OpdEncounterOverlay } from './api/opd-encounter-overlay';
+
 export type OpdVisitStatus =
   | 'registered'
   | 'pre-consulted'
@@ -33,7 +35,7 @@ export interface OpdPatientVisitRow {
   status: OpdVisitStatus;
   /** For doctor-scope tab filtering in mock mode. */
   isOwnPatient: boolean;
-  actionLabel: 'Edit RX' | 'View RX' | 'Start RX';
+  actionLabel: 'Edit RX' | 'View RX' | 'Create Rx';
 }
 
 /** Read-only patient profile shown in the row-click details dialog (reference Patients modal). */
@@ -74,4 +76,5 @@ export interface OpdPatientsListResponse {
   items: OpdPatientVisitRow[];
   total: number;
   stats: OpdPatientsStats;
+  encounterOverlaysByVisitId?: Record<string, OpdEncounterOverlay>;
 }

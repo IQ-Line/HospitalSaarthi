@@ -1,4 +1,8 @@
+import { loadWorkspaceEnv } from "./load-workspace-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
+import multipart from "@fastify/multipart";
+
+loadWorkspaceEnv();
 import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
@@ -8,13 +12,16 @@ import {
   type DbInstance,
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
+import { createRouter } from "@hims/configurator/router";
 import {
-  createRouter,
+  CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
+  configuratorPublicTenantReadAuthPlugin,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
   DrizzleTenantIntegrationProfilesRepo,
   DrizzleSequenceConfigurationRepo,
+  DrizzleTenantApiKeyRepo,
   type RunConfiguratorTransaction,
 } from "@hims/configurator";
 import {
@@ -23,6 +30,7 @@ import {
 } from "./bootstrap/development-bootstrap.js";
 import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
 import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
+import { HttpUserManagementEntitlementCacheInvalidator } from "./adapters/http-user-management-entitlement-cache-invalidator.js";
 
 const PORT = Number(
   process.env["CONFIGURATOR_PORT"] ??
@@ -98,6 +106,7 @@ async function main() {
   const tenantModuleRepo = new DrizzleTenantModuleRepo(db);
   const tenantIntegrationProfilesRepo = new DrizzleTenantIntegrationProfilesRepo(db);
   const sequenceConfigurationRepo = new DrizzleSequenceConfigurationRepo(db);
+  const tenantApiKeyRepo = new DrizzleTenantApiKeyRepo(db);
 
   const runConfiguratorTransaction: RunConfiguratorTransaction = (fn) =>
     db.transaction(async (tx) =>
@@ -130,24 +139,57 @@ async function main() {
     "MASTER_DATA_URL",
     "http://localhost:8010",
   );
+  const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";
 
   const logFn = (event: Record<string, unknown>, message: string) =>
     app.log.info(event, message);
 
+  const entitlementCacheInvalidator =
+    umInternalApiKey.length > 0
+      ? new HttpUserManagementEntitlementCacheInvalidator({
+          baseUrl: userManagementBaseUrl,
+          internalApiKey: umInternalApiKey,
+          log: logFn,
+        })
+      : undefined;
+
+  if (entitlementCacheInvalidator === undefined) {
+    app.log.warn(
+      "UM_INTERNAL_API_KEY unset — tenant entitlement cache will not be busted on module toggle",
+    );
+  }
+
+  await app.register(configuratorPublicTenantReadAuthPlugin);
+
+  if (identityAuth) {
+    const { identityPlugin } = await import("@hims/ts-sdk-identity");
+    // Register at app root so skipPathPrefixes match full request URLs (integration-hub S2S).
+    await app.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: [...CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    });
+  }
+
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
-    }
+    await api.register(multipart, {
+      limits: {
+        fileSize: 2 * 1024 * 1024,
+        files: 1,
+      },
+    });
+
     await api.register(
       createRouter({
+        db,
         organizationRepo,
         tenantRepo,
         tenantModuleRepo,
         tenantIntegrationProfilesRepo,
         sequenceConfigurationRepo,
+        tenantApiKeyRepo,
         runConfiguratorTransaction,
         eventBus,
+        entitlementCacheInvalidator,
         createInfrastructureCatalog: (authorization) =>
           new HttpModuleCapabilityResolverAdapter({
             userManagementBaseUrl,

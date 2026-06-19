@@ -33,6 +33,10 @@ export interface CreateRxVisitContext {
   visit: CreateRxVisit;
 }
 
+import type { VitalNumericRange } from './lib/vital-range';
+
+export type { VitalNumericRange };
+
 export interface VitalFieldDef {
   code: string;
   label: string;
@@ -42,6 +46,10 @@ export interface VitalFieldDef {
   placeholder?: string;
   /** Partner vital code when this row is the secondary half of a paired capture. */
   pairedWith?: string;
+  /** Configured normal range from Visitpad masters, when present. */
+  normalRange?: VitalNumericRange;
+  /** Display label derived from `normalRange` (e.g. `90–120`). */
+  rangeLabel?: string;
 }
 
 export interface ChiefComplaintRow {
@@ -126,6 +134,8 @@ export interface ImagingRow {
 
 export interface ProcedureRow {
   id: string;
+  /** Master-data visitpad procedure UUID when selected from catalog. */
+  procedureId: string;
   procedureName: string;
   advisedDate: string;
 }

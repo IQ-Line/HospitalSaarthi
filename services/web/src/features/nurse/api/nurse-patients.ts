@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchPrescriptionStatusesByVisitIds } from '@/features/create-rx/api/opd-prescription';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord, getEncounterOverlayByVisitId } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from '@/features/opd-patients/api/empi-patients';
 import { mapRegistrationVisitToOpdPatientRow } from '@/features/opd-patients/api/registration-patients-mapper';
 import { matchesAgeGroup } from '@/features/opd-patients/lib/opd-patients-list-utils';
@@ -21,8 +21,10 @@ function nurseVitalsActionLabel(
   return 'Add Vitals';
 }
 
-function vitalsLikelyRecorded(visitStatus: string): boolean {
-  const normalized = visitStatus.trim().toLowerCase().replace(/-/g, '_');
+function vitalsLikelyRecorded(registrationStatus: string, opdVisitStatus?: string): boolean {
+  const opd = opdVisitStatus?.trim().toLowerCase().replace(/-/g, '_');
+  if (opd === 'pre_consulted' || opd === 'in_progress') return true;
+  const normalized = registrationStatus.trim().toLowerCase().replace(/-/g, '_');
   return normalized === 'in_progress' || normalized === 'completed';
 }
 
@@ -66,19 +68,21 @@ export async function fetchNursePatientsList(
     ...(statusQuery ? { status: statusQuery } : {}),
   });
 
-  const [empiById, rxByVisitId] = await Promise.all([
+  const [empiById, encounterByVisitId] = await Promise.all([
     fetchEmpiPatientLookupMap(visitPage.data.map((visit) => visit.patient_id)),
-    fetchPrescriptionStatusesByVisitIds(visitPage.data.map((visit) => visit.id)),
+    fetchOpdEncounterOverlaysByVisitIds(visitPage.data.map((visit) => visit.id)),
   ]);
 
   let items: NursePatientVisitRow[] = visitPage.data.map((visit) => {
+    const encounter = getEncounterOverlayByVisitId(encounterByVisitId, visit.id);
     const row = mapRegistrationVisitToOpdPatientRow(
       visit,
       empiById.get(visit.patient_id),
-      rxByVisitId.get(visit.id),
+      encounter?.prescriptionStatus,
+      encounter?.visitStatus,
     );
     const empi = empiById.get(visit.patient_id);
-    const vitalsRecorded = vitalsLikelyRecorded(visit.status);
+    const vitalsRecorded = vitalsLikelyRecorded(visit.status, encounter?.visitStatus);
 
     return {
       id: row.id,
@@ -115,5 +119,6 @@ export async function fetchNursePatientsList(
     items,
     total,
     stats: computeNursePatientsStats(items),
+    encounterOverlaysByVisitId: encounterOverlaysToRecord(encounterByVisitId),
   };
 }

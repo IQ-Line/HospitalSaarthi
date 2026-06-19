@@ -1,14 +1,19 @@
-import { useCallback, useMemo } from 'react';
-import { findVisitpadMedicineByDisplayName } from '../../lib/visitpad-catalog-options';
+import { useCallback, useMemo, useRef } from 'react';
+import { fetchVisitpadMedicineById } from '@/features/visitpad/api';
+import {
+  findVisitpadMedicineByDisplayName,
+  findVisitpadProcedureByDisplayName,
+} from '../../lib/visitpad-catalog-options';
+import {
+  buildCatalogMedicineDefaults,
+  resolveMedicineQuantityFromRow,
+  shouldRecalculateMedicineQuantity,
+} from '../../lib/medicine-catalog-defaults';
 import {
   MEDICATION_DOSAGE_FORM_OPTIONS,
   MEDICATION_FREQUENCY_OPTIONS,
   MEDICATION_ROUTE_OPTIONS,
   MEDICATION_TOA_OPTIONS,
-  resolveMedicationDosageFormLabel,
-  resolveMedicationFrequencyLabel,
-  resolveMedicationRouteLabel,
-  resolveMedicationToaLabel,
 } from '../../lib/medication-rx-options';
 import {
   useInvalidCellsForSection,
@@ -38,25 +43,36 @@ const TEST_STATUS_OPTIONS = [
 ];
 
 export function CurrentMedication() {
-  const { isLoading: catalogLoading, diagnosisOptions, medicineOptions, medicines } =
-    useVisitpadMasters();
+  const {
+    isLoading: catalogLoading,
+    diagnosisOptions,
+    medicineOptions,
+    procedureOptions,
+    methodStrengthOptions,
+    medicines,
+    methodStrengthColumns,
+    procedures: procedureCatalog,
+  } = useVisitpadMasters();
   const isReadOnly = useCreateRxStore((s) => s.isReadOnly);
   const diagnosis = useCreateRxStore((s) => s.formData.diagnosis);
   const medicinesRows = useCreateRxStore((s) => s.formData.medicines);
   const tests = useCreateRxStore((s) => s.formData.testsRequired);
-  const procedures = useCreateRxStore((s) => s.formData.procedures);
+  const procedureRows = useCreateRxStore((s) => s.formData.procedures);
   const addDiagnosis = useCreateRxStore((s) => s.addDiagnosisRow);
   const removeDiagnosis = useCreateRxStore((s) => s.removeDiagnosisRow);
   const updateDiagnosis = useCreateRxStore((s) => s.updateDiagnosisRow);
   const addMedicine = useCreateRxStore((s) => s.addMedicineRow);
   const removeMedicine = useCreateRxStore((s) => s.removeMedicineRow);
   const updateMedicine = useCreateRxStore((s) => s.updateMedicineRow);
+  const patchMedicine = useCreateRxStore((s) => s.patchMedicineRow);
+  const medicineSelectSeq = useRef(0);
   const addTest = useCreateRxStore((s) => s.addTestRow);
   const removeTest = useCreateRxStore((s) => s.removeTestRow);
   const updateTest = useCreateRxStore((s) => s.updateTestRow);
   const addProcedure = useCreateRxStore((s) => s.addProcedureRow);
   const removeProcedure = useCreateRxStore((s) => s.removeProcedureRow);
   const updateProcedure = useCreateRxStore((s) => s.updateProcedureRow);
+  const patchProcedure = useCreateRxStore((s) => s.patchProcedureRow);
   const diagnosisInvalidCells = useInvalidCellsForSection('diagnosis');
   const medicineInvalidCells = useInvalidCellsForSection('medicines');
   const testInvalidCells = useInvalidCellsForSection('testsRequired');
@@ -71,8 +87,8 @@ export function CurrentMedication() {
       {
         key: 'notes',
         label: 'Diagnosis',
-        type: 'select',
-        placeholder: 'Select diagnosis',
+        type: 'creatable-select',
+        placeholder: 'Search or type diagnosis',
         options: diagnosisOptions,
       },
       {
@@ -86,13 +102,27 @@ export function CurrentMedication() {
     [diagnosisOptions],
   );
 
-  const medicineColumns = useMemo<FormTableColumn<MedicineRow>[]>(
-    () => [
+  const medicineColumns = useMemo<FormTableColumn<MedicineRow>[]>(() => {
+    const strengthOptionValues = new Set(methodStrengthOptions.map((opt) => opt.value));
+    for (const row of medicinesRows) {
+      const strength = row.strength?.trim();
+      if (strength && !strengthOptionValues.has(strength)) {
+        strengthOptionValues.add(strength);
+      }
+    }
+    const strengthOptions = [
+      ...methodStrengthOptions,
+      ...[...strengthOptionValues]
+        .filter((value) => !methodStrengthOptions.some((opt) => opt.value === value))
+        .map((value) => ({ label: value, value })),
+    ];
+
+    return [
       {
         key: 'medicine',
         label: 'Medicine',
-        type: 'select',
-        placeholder: 'Search or type...',
+        type: 'creatable-select',
+        placeholder: 'Search or type medicine name',
         options: medicineOptions,
       },
       {
@@ -111,7 +141,15 @@ export function CurrentMedication() {
         emptyOptionLabel: 'Route',
         options: MEDICATION_ROUTE_OPTIONS,
       },
-      { key: 'strength', label: 'Strength' },
+      {
+        key: 'strength',
+        label: 'Strength',
+        type: 'select',
+        placeholder: 'Strength',
+        emptyOptionLabel: 'Strength',
+        options: strengthOptions,
+        width: '7.5rem',
+      },
       {
         key: 'dosageMorning',
         label: 'Dosage',
@@ -123,7 +161,7 @@ export function CurrentMedication() {
           night: 'dosageNight',
         },
       },
-      { key: 'days', label: 'Days', type: 'number', width: '60px', placeholder: '0' },
+      { key: 'days', label: 'Days', type: 'number', width: '4.5rem', placeholder: '0' },
       {
         key: 'frequency',
         label: 'Frequency',
@@ -140,10 +178,9 @@ export function CurrentMedication() {
         emptyOptionLabel: 'Time',
         options: MEDICATION_TOA_OPTIONS,
       },
-      { key: 'quantity', label: 'Quantity', type: 'number', width: '80px' },
-    ],
-    [medicineOptions],
-  );
+      { key: 'quantity', label: 'Quantity', type: 'number', width: '5rem' },
+    ];
+  }, [medicineOptions, methodStrengthOptions, medicinesRows]);
 
   const testColumns = useMemo<FormTableColumn<TestRow>[]>(
     () => [
@@ -160,55 +197,83 @@ export function CurrentMedication() {
 
   const procedureColumns = useMemo<FormTableColumn<ProcedureRow>[]>(
     () => [
-      { key: 'procedureName', label: 'Procedure', placeholder: 'Procedure name' },
+      {
+        key: 'procedureName',
+        label: 'Procedure',
+        type: 'creatable-select',
+        placeholder: 'Search or type procedure',
+        options: procedureOptions,
+      },
       { key: 'advisedDate', label: 'Advised Date', type: 'date', width: '130px' },
     ],
-    [],
+    [procedureOptions],
+  );
+
+  const applyCatalogMedicine = useCallback(
+    async (index: number, displayName: string) => {
+      const selectionSeq = ++medicineSelectSeq.current;
+      const catalogFromList = findVisitpadMedicineByDisplayName(medicines, displayName);
+      if (!catalogFromList) {
+        patchMedicine(index, { medicine: displayName, medicineId: '' });
+        return;
+      }
+
+      let catalog = catalogFromList;
+      try {
+        catalog = await fetchVisitpadMedicineById(catalogFromList.id);
+      } catch {
+        // Fall back to list row when detail fetch fails.
+      }
+
+      if (selectionSeq !== medicineSelectSeq.current) return;
+
+      patchMedicine(index, {
+        medicine: catalog.display_name,
+        ...buildCatalogMedicineDefaults(catalog, methodStrengthColumns),
+      });
+    },
+    [medicines, methodStrengthColumns, patchMedicine],
   );
 
   const handleMedicineUpdate = useCallback(
     (index: number, field: keyof MedicineRow, value: string) => {
+      if (field === 'medicine') {
+        void applyCatalogMedicine(index, value);
+        return;
+      }
+
       updateMedicine(index, field, value);
-      if (field !== 'medicine') return;
 
-      const catalogMedicine = findVisitpadMedicineByDisplayName(medicines, value);
-      updateMedicine(index, 'medicineId', catalogMedicine?.id ?? '');
-      if (!catalogMedicine) return;
-
-      updateMedicine(
-        index,
-        'dosageForm',
-        resolveMedicationDosageFormLabel(catalogMedicine.dosage_form),
-      );
-      updateMedicine(
-        index,
-        'route',
-        resolveMedicationRouteLabel(
-          catalogMedicine.default_route ?? catalogMedicine.route_of_admin[0] ?? '',
-        ),
-      );
-      updateMedicine(index, 'strength', catalogMedicine.strength_display);
-      if (catalogMedicine.default_dose_value != null) {
-        updateMedicine(index, 'dosageMorning', String(catalogMedicine.default_dose_value));
-      }
-      if (catalogMedicine.default_frequency) {
-        updateMedicine(
-          index,
-          'frequency',
-          resolveMedicationFrequencyLabel(catalogMedicine.default_frequency),
-        );
-      }
-      if (catalogMedicine.default_instructions) {
-        updateMedicine(index, 'toa', resolveMedicationToaLabel(catalogMedicine.default_instructions));
-      }
-      if (catalogMedicine.default_duration_days != null) {
-        updateMedicine(index, 'days', String(catalogMedicine.default_duration_days));
-      }
-      if (catalogMedicine.typical_quantity != null) {
-        updateMedicine(index, 'quantity', String(catalogMedicine.typical_quantity));
+      if (field !== 'quantity' && shouldRecalculateMedicineQuantity(field)) {
+        const row = useCreateRxStore.getState().formData.medicines[index];
+        if (!row) return;
+        const quantity = resolveMedicineQuantityFromRow(row);
+        if (quantity) {
+          updateMedicine(index, 'quantity', quantity);
+        }
       }
     },
-    [medicines, updateMedicine],
+    [applyCatalogMedicine, updateMedicine],
+  );
+
+  const handleProcedureUpdate = useCallback(
+    (index: number, field: keyof ProcedureRow, value: string) => {
+      if (field === 'procedureName') {
+        const catalogProcedure = findVisitpadProcedureByDisplayName(procedureCatalog, value);
+        if (catalogProcedure) {
+          patchProcedure(index, {
+            procedureName: catalogProcedure.display_name,
+            procedureId: catalogProcedure.id,
+          });
+          return;
+        }
+        patchProcedure(index, { procedureName: value, procedureId: '' });
+        return;
+      }
+
+      updateProcedure(index, field, value);
+    },
+    [patchProcedure, procedureCatalog, updateProcedure],
   );
 
   return (
@@ -283,15 +348,16 @@ export function CurrentMedication() {
             addButtonLabel="Add Procedure"
             indexColumnLabel="Sl. No."
             columns={procedureColumns}
-            rows={procedures}
+            rows={procedureRows}
             readOnly={isReadOnly}
+            catalogLoading={catalogLoading}
             invalidCells={procedureInvalidCells}
             highlightSection={proceduresHasErrors}
-            emptyMessage="No procedures added."
+            emptyMessage="No procedures added. Click 'Add Procedure' to search the catalog or type a custom name."
             onAdd={addProcedure}
             onRemove={removeProcedure}
             onUpdate={(i, field, value) =>
-              updateProcedure(i, field as keyof ProcedureRow, value)
+              handleProcedureUpdate(i, field as keyof ProcedureRow, value)
             }
           />
         </div>

@@ -13,7 +13,10 @@ import {
 import { toast } from 'sonner';
 import { useTenantModules } from '@/features/configurator/api';
 import { useProvisionTenant } from '@/features/configurator/api/tenant-onboarding';
-import { branchTenantSlug } from '@/features/configurator/branch-helpers';
+import {
+  normalizeBranchCodeInput,
+  resolveBranchTenantSlug,
+} from '@/features/configurator/branch-helpers';
 import {
   BRANCH_WIZARD_DEFAULT_VALUES,
   createBranchStep1Schema,
@@ -92,16 +95,22 @@ export function CreateBranchWizard({
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = form;
 
   const watchedBranchCode = watch('branchCode');
+  const watchedBranchName = watch('branchName');
+  const watchedBranchSlug = watch('branchSlug');
 
-  const tenantSlugPreview = useMemo(() => {
-    const code = watchedBranchCode?.trim() ?? '';
-    if (code.length < 2) return '';
-    return branchTenantSlug(organizationSlug, code);
-  }, [watchedBranchCode, organizationSlug]);
+  const suggestedSlug = useMemo(() => {
+    if (watchedBranchSlug?.trim()) return '';
+    return resolveBranchTenantSlug({
+      orgSlug: organizationSlug,
+      branchName: watchedBranchName ?? '',
+      branchCode: watchedBranchCode,
+    });
+  }, [watchedBranchCode, watchedBranchName, watchedBranchSlug, organizationSlug]);
 
   useEffect(() => {
     if (!open) {
@@ -158,10 +167,6 @@ export function CreateBranchWizard({
         toast.error(firstZodMessage(parsed.error));
         return;
       }
-      if (!tenantSlugPreview || tenantSlugPreview.length < 3) {
-        toast.error('Branch code must produce a slug of at least 3 characters');
-        return;
-      }
       setActiveStep(2);
       return;
     }
@@ -185,8 +190,13 @@ export function CreateBranchWizard({
       return;
     }
 
-    const code = values.branchCode.trim().toUpperCase();
-    const slug = branchTenantSlug(organizationSlug, code);
+    const code = normalizeBranchCodeInput(values.branchCode);
+    const slug = resolveBranchTenantSlug({
+      orgSlug: organizationSlug,
+      branchName: values.branchName,
+      branchCode: values.branchCode,
+      manualSlug: values.branchSlug,
+    });
     const parts = [
       values.hqAddressLine1.trim(),
       values.locality?.trim(),
@@ -206,7 +216,7 @@ export function CreateBranchWizard({
         pin_code: values.pinCode.trim(),
       },
       address: parts.join(', '),
-      branch_code: code,
+      ...(code ? { branch_code: code } : {}),
       branch_type: DEFAULT_BRANCH_TYPE,
     };
     if (values.gstin?.trim()) meta.gstin = values.gstin.trim();
@@ -219,7 +229,7 @@ export function CreateBranchWizard({
         slug,
         parent_tenant_id: parentTenantId,
         type: 'lite',
-        branch_code: code,
+        branch_code: code || null,
         branch_type: DEFAULT_BRANCH_TYPE,
         address_line1: values.hqAddressLine1.trim(),
         city: values.locality?.trim() || null,
@@ -230,7 +240,7 @@ export function CreateBranchWizard({
       modules: [...enabledModuleIds].map((id) => ({ module_id: id, is_active: true })),
       admin: {
         first_name: values.adminFirstName.trim(),
-        last_name: values.adminLastName.trim(),
+        last_name: values.adminLastName?.trim() || null,
         email: values.adminEmail.trim(),
         password: values.password,
         phone: values.adminMobile?.trim() || null,
@@ -304,7 +314,9 @@ export function CreateBranchWizard({
                 register={register}
                 control={control}
                 errors={errors}
-                tenantSlugPreview={tenantSlugPreview}
+                setValue={setValue}
+                watch={watch}
+                suggestedSlug={suggestedSlug}
                 parentTenantName={parentTenantName}
               />
             )}

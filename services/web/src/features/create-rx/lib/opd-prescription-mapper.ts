@@ -87,6 +87,7 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     ),
     advised_procedures: lineItems(data.procedures, (row, index) => ({
       line_no: index + 1,
+      procedure_id: row.procedureId || null,
       procedure_name: row.procedureName,
       advised_date: row.advisedDate || null,
     })),
@@ -106,13 +107,32 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
   };
 }
 
+function vitalObservationsToFormVitals(
+  observations: Array<{ vital_code?: string; value_text?: string | null }> | undefined,
+): Record<string, string> {
+  if (!observations?.length) return {};
+  const out: Record<string, string> = {};
+  for (const row of observations) {
+    const code = row.vital_code?.trim();
+    const value = row.value_text?.trim();
+    if (code && value) out[code] = value;
+  }
+  return out;
+}
+
 export function clinicalToCreateRxFormData(
   clinical: OpdPrescriptionClinicalPayload | undefined,
 ): CreateRxFormData {
   const c = clinical ?? {};
+  const legacyVitals = legacyVitalsToFormVitals(
+    c.legacy_vitals as Record<string, unknown> | undefined,
+  );
+  const observationVitals = vitalObservationsToFormVitals(
+    c.vital_observations as Array<{ vital_code?: string; value_text?: string | null }> | undefined,
+  );
 
   return {
-    vitals: legacyVitalsToFormVitals(c.legacy_vitals as Record<string, unknown> | undefined),
+    vitals: { ...observationVitals, ...legacyVitals },
     chiefComplaints:
       c.chief_complaints?.map((row) => ({
         id: crypto.randomUUID(),
@@ -201,11 +221,19 @@ export function clinicalToCreateRxFormData(
         status: (row as { status?: string }).status ?? '',
       })) ?? [],
     procedures:
-      c.advised_procedures?.map((row) => ({
-        id: crypto.randomUUID(),
-        procedureName: (row as { procedure_name: string }).procedure_name,
-        advisedDate: (row as { advised_date?: string }).advised_date ?? '',
-      })) ?? [],
+      c.advised_procedures?.map((row) => {
+        const procedure = row as {
+          procedure_name: string;
+          procedure_id?: string | null;
+          advised_date?: string;
+        };
+        return {
+          id: crypto.randomUUID(),
+          procedureId: procedure.procedure_id ?? '',
+          procedureName: procedure.procedure_name,
+          advisedDate: procedure.advised_date ?? '',
+        };
+      }) ?? [],
     carePlan: {
       advice: c.care_plan?.advice ?? '',
       referTo: c.care_plan?.refer_to ?? '',

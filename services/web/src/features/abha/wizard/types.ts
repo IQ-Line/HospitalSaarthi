@@ -36,6 +36,7 @@ export interface AbhaWizardState {
     maskSeg1: boolean;
     maskSeg2: boolean;
     maskSeg3: boolean;
+    error: string | null;
   };
   consent: {
     checked: Record<number, boolean>;
@@ -58,6 +59,7 @@ export interface AbhaWizardState {
   };
   login: {
     abhaSegments: [string, string, string, string];
+    abhaNumberError: string | null;
     channel: LoginOtpChannel | null;
     otp: string;
     otpMobileLast4: string;
@@ -89,6 +91,7 @@ export type AbhaWizardAction =
   | { type: 'RESET' }
   | { type: 'SET_STEP'; step: WizardStep }
   | { type: 'SET_AADHAAR_SEG'; index: 1 | 2 | 3; value: string }
+  | { type: 'SET_AADHAAR_ERROR'; error: string | null }
   | { type: 'SET_MASK_SEG'; index: 1 | 2 | 3; masked: boolean }
   | { type: 'SET_CONSENT_ITEM'; index: number; checked: boolean }
   | { type: 'SELECT_ALL_CONSENT'; checked: boolean }
@@ -107,6 +110,7 @@ export type AbhaWizardAction =
   | { type: 'START_RESEND_COOLDOWN' }
   | { type: 'TICK_RESEND_COOLDOWN' }
   | { type: 'SET_LOGIN_ABHA_SEGMENTS'; segments: [string, string, string, string] }
+  | { type: 'SET_LOGIN_ABHA_NUMBER_ERROR'; error: string | null }
   | { type: 'SET_LOGIN_CHANNEL'; channel: LoginOtpChannel | null }
   | { type: 'SET_LOGIN_OTP'; otp: string }
   | { type: 'SET_LOGIN_OTP_MOBILE_LAST4'; last4: string }

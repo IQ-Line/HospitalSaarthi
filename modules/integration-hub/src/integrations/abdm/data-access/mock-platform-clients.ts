@@ -3,6 +3,7 @@ import type {
   CareContextRef,
   EmpiClient,
   HealthRecordBundleEntry,
+  M2PatientProfile,
   RecordFoundationClient,
 } from "../ports.js";
 
@@ -51,6 +52,19 @@ export class MockEmpiClient implements EmpiClient {
       return this.defaultAbhaAddress;
     }
     return null;
+  }
+
+  async findM2PatientProfile(input: {
+    patientId: string;
+  }): Promise<M2PatientProfile | null> {
+    if (input.patientId !== this.patientId) return null;
+    return {
+      abhaAddress: this.defaultAbhaAddress,
+      patientName: "M2 Mock Patient",
+      gender: "M",
+      yearOfBirth: 1990,
+      phoneNo: "9999999999",
+    };
   }
 }
 
@@ -190,50 +204,43 @@ function buildMockHealthDocumentBundle(opts: {
 export class MockRecordFoundationClient implements RecordFoundationClient {
   constructor(private readonly defaultAbhaAddress = "test.user@sbx") {}
 
-  private readonly contexts: CareContextRef[] = [
-    {
-      id: "visit-mock-001",
-      referenceNumber: "VISIT-MOCK-001",
-      display: "OP consultation (mock)",
-      hiType: "OPCONSULTATION",
-    },
-    {
-      id: "visit-mock-002",
-      referenceNumber: "VISIT-MOCK-002",
-      display: "Lab report (mock)",
-      hiType: "OPCONSULTATION",
-    },
-  ];
+  private readonly contextsByPatient = new Map<string, CareContextRef[]>();
 
-  async listUnlinkedCareContexts(_input: {
+  seedCareContexts(input: {
+    iqTenantId: string;
+    patientId: string;
+    contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
+  }): void {
+    const key = `${input.iqTenantId}:${input.patientId}`;
+    const existing = this.contextsByPatient.get(key) ?? [];
+    const byRef = new Map(existing.map((c) => [c.referenceNumber, c]));
+    for (const ctx of input.contexts) {
+      byRef.set(ctx.referenceNumber, {
+        id: ctx.referenceNumber,
+        referenceNumber: ctx.referenceNumber,
+        display: ctx.display,
+        hiType: ctx.hiType,
+      });
+    }
+    this.contextsByPatient.set(key, [...byRef.values()]);
+  }
+
+  async listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]> {
-    return [...this.contexts];
+    return [...(this.contextsByPatient.get(`${input.iqTenantId}:${input.patientId}`) ?? [])];
   }
 
-  async markCareContextLinked(_input: {
+  async listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void> {
-    /* no-op for mock */
-  }
-
-  async fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]> {
-    const refs =
-      input.careContextReferences?.length
-        ? input.careContextReferences
-        : this.contexts.map((ctx) => ctx.referenceNumber);
-    return refs.map((careContextReference) =>
+    return [
       buildMockHealthDocumentBundle({
         abhaAddress: this.defaultAbhaAddress,
-        careContextReference,
+        careContextReference: input.careContextId,
       }),
-    );
+    ];
   }
 }

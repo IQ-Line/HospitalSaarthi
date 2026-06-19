@@ -25,7 +25,14 @@ data:
   EMPI_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
   BILLING_URL: "http://billing-svc.himsv2.svc.cluster.local:3003"
   REGISTRATION_URL: "http://registration-svc.himsv2.svc.cluster.local:3006"
-  # registration-svc OPD slip/receipt PDFs (internal pdf-worker; not exposed via Ingress)
+  OPD_URL: "http://opd-svc.himsv2.svc.cluster.local:8020"
+  PHARMACY_URL: "http://pharmacy-svc.himsv2.svc.cluster.local:3004"
+  INTEGRATION_HUB_URL: "http://integration-hub-svc.himsv2.svc.cluster.local:3007"
+  EMPI_BASE_URL: "http://empi-svc.himsv2.svc.cluster.local:3002"
+  RECORD_FOUNDATION_BASE_URL: "http://record-foundation-svc.himsv2.svc.cluster.local:3009"
+  # Public origin for NHA callbacks (/api/v3) and M3 dataPushUrl — match AUTH_BASE_URL host
+  INTEGRATION_HUB_PUBLIC_BASE_URL: "https://hims.example.com"
+  # registration-svc OPD slip/receipt PDFs; opd-svc clinical reports (internal pdf-worker; not via Ingress)
   PDF_PLATFORM_URL: "http://pdf-worker.himsv2.svc.cluster.local:8091"
   # Public web origin for report assets (logo) inlined before PDF render — match AUTH_BASE_URL host
   REPORT_WEB_ORIGIN: "https://hims.example.com"
@@ -37,6 +44,7 @@ data:
   ABDM_GATEWAY_BASE_URL: "https://dev.abdm.gov.in"
   ABDM_ABHA_API_BASE_URL: "https://abhasbx.abdm.gov.in/abha/api"
   ABDM_X_CM_ID: "sbx"
+  CONFIGURATOR_INTERNAL_API_KEY: "ccbe8b361dd84fc160374d5a439d60adc564015ff2fd130fed8999a6b3d0252b"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -251,6 +259,26 @@ spec:
                 secretKeyRef:
                   name: hims-secrets
                   key: DATABASE_URL
+            - name: AZURE_STORAGE_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_CONNECTION_STRING
+            - name: AZURE_STORAGE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_ACCOUNT
+            - name: AZURE_STORAGE_ACCOUNT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_STORAGE_ACCOUNT_KEY
+            - name: AZURE_BLOB_CONTAINER
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: AZURE_BLOB_CONTAINER
           livenessProbe:
             httpGet:
               path: /healthz
@@ -417,6 +445,81 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: pharmacy-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pharmacy-svc
+  template:
+    metadata:
+      labels:
+        app: pharmacy-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: pharmacy-svc
+          image: acriqline.azurecr.io/pharmacy-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: PHARMACY_SVC_PORT
+              value: "3004"
+            - name: PHARMACY_SKIP_MIGRATE
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+            - name: PHARMACY_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: PHARMACY_INTERNAL_API_KEY
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pharmacy-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: pharmacy-svc
+  ports:
+    - name: http
+      port: 3004
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: registration-svc
   namespace: himsv2
 spec:
@@ -481,6 +584,151 @@ spec:
   ports:
     - name: http
       port: 3006
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: integration-hub-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: integration-hub-svc
+  template:
+    metadata:
+      labels:
+        app: integration-hub-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: integration-hub-svc
+          image: acriqline.azurecr.io/integration-hub-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3007
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: INTEGRATION_HUB_SVC_PORT
+              value: "3007"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+            - name: ABDM_TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: ABDM_TOKEN_ENCRYPTION_KEY
+            - name: CONFIGURATOR_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: CONFIGURATOR_INTERNAL_API_KEY
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /api/abdm/v1/healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /api/abdm/v1/healthz
+              port: http
+          resources:
+            requests:
+              cpu: 75m
+              memory: 256Mi
+            limits:
+              cpu: 750m
+              memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: integration-hub-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: integration-hub-svc
+  ports:
+    - name: http
+      port: 3007
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: record-foundation-svc
+  namespace: himsv2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: record-foundation-svc
+  template:
+    metadata:
+      labels:
+        app: record-foundation-svc
+    spec:
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      nodeSelector:
+       agentpool: himsv2
+      containers:
+        - name: record-foundation-svc
+          image: acriqline.azurecr.io/record-foundation-svc:dev-latest
+          ports:
+            - name: http
+              containerPort: 3009
+          envFrom:
+            - configMapRef:
+                name: hims-config
+            - secretRef:
+                name: hims-secrets
+          env:
+            - name: RECORD_FOUNDATION_SVC_PORT
+              value: "3009"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: DATABASE_URL
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: record-foundation-svc
+  namespace: himsv2
+spec:
+  selector:
+    app: record-foundation-svc
+  ports:
+    - name: http
+      port: 3009
       targetPort: http
 ---
 apiVersion: apps/v1
@@ -680,7 +928,13 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
-                  key: AZURE_BLOB_CONTAINER_REPORT                  
+                  key: AZURE_BLOB_CONTAINER_REPORT
+            - name: PHARMACY_INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hims-secrets
+                  key: PHARMACY_INTERNAL_API_KEY
+                  optional: true
           livenessProbe:
             httpGet:
               path: /api/v1/opd/health

@@ -21,22 +21,43 @@ describe("ConfiguratorHttpIntegrationProfileRepo", () => {
     vi.unstubAllGlobals();
   });
 
-  it("findActiveByTenantId returns first active profile from list", async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json({ data: [profileRow], total: 1 }),
-    );
+  it("never sends Authorization bearer on internal profile routes", async () => {
+    const fetchMock = vi.fn(async () => Response.json(profileRow));
+    const repo = new ConfiguratorHttpIntegrationProfileRepo({
+      baseUrl: "http://localhost:3001",
+      internalApiKey: "secret-key",
+      fetchImpl: fetchMock,
+    });
+
+    await repo.findActiveByTenantId(tenantId);
+    await repo.findActiveByHipId("IN3610001625");
+
+    for (const call of fetchMock.mock.calls) {
+      const init = call[1] as RequestInit | undefined;
+      const headers = (init?.headers ?? {}) as Record<string, string>;
+      expect(headers.authorization).toBeUndefined();
+      expect(headers.Authorization).toBeUndefined();
+    }
+  });
+
+  it("findActiveByTenantId uses internal by-tenant route", async () => {
+    const fetchMock = vi.fn(async () => Response.json(profileRow));
     vi.stubGlobal("fetch", fetchMock);
 
     const repo = new ConfiguratorHttpIntegrationProfileRepo({
       baseUrl: "http://localhost:3001",
+      internalApiKey: "secret-key",
       fetchImpl: fetchMock,
     });
 
     const profile = await repo.findActiveByTenantId(tenantId);
     expect(profile?.hipId).toBe("IN3610001625");
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining(`/tenants/${tenantId}/integration-profiles`),
-      expect.objectContaining({ method: "GET" }),
+      expect.stringContaining(`/integration-profiles/by-tenant/${tenantId}`),
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-configurator-internal-key": "secret-key" },
+      }),
     );
   });
 

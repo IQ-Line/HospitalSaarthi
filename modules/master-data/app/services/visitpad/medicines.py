@@ -18,6 +18,25 @@ def _norm_opt_str(v: str | None) -> str | None:
     return s if s else None
 
 
+def _derive_strength_display(
+    strength_display: str | None,
+    strength_value: float | None,
+    strength_unit: str | None,
+) -> str:
+    display = (strength_display or "").strip()
+    if display:
+        return display
+    unit = _norm_opt_str(strength_unit)
+    if strength_value is not None and unit:
+        value = int(strength_value) if strength_value == int(strength_value) else strength_value
+        return f"{value} {unit}"
+    if strength_value is not None:
+        return str(strength_value)
+    if unit:
+        return unit
+    return ""
+
+
 def list_visitpad_medicines(
     repository: VisitpadMedicineRepository,
     *,
@@ -55,7 +74,11 @@ def create_visitpad_medicine(
         route_of_admin=list(payload.route_of_admin),
         strength_value=payload.strength_value,
         strength_unit=_norm_opt_str(payload.strength_unit),
-        strength_display=(payload.strength_display or "").strip(),
+        strength_display=_derive_strength_display(
+            payload.strength_display,
+            payload.strength_value,
+            payload.strength_unit,
+        ),
         concentration_value=payload.concentration_value,
         concentration_unit=_norm_opt_str(payload.concentration_unit),
         volume_per_unit=payload.volume_per_unit,
@@ -148,8 +171,12 @@ def update_visitpad_medicine(
         row.strength_value = payload.strength_value
     if "strength_unit" in dump:
         row.strength_unit = _norm_opt_str(payload.strength_unit)
-    if "strength_display" in dump:
-        row.strength_display = (payload.strength_display or "").strip()
+    if "strength_display" in dump or "strength_value" in dump or "strength_unit" in dump:
+        row.strength_display = _derive_strength_display(
+            payload.strength_display if "strength_display" in dump else row.strength_display,
+            payload.strength_value if "strength_value" in dump else row.strength_value,
+            payload.strength_unit if "strength_unit" in dump else row.strength_unit,
+        )
     if "concentration_value" in dump:
         row.concentration_value = payload.concentration_value
     if "concentration_unit" in dump:

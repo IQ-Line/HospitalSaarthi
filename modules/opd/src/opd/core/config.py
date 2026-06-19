@@ -46,6 +46,41 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1/opd"
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:4200,http://localhost:5173"
+    abdm_m2_enabled: bool = Field(
+        default=False,
+        description="When true, end-consultation triggers integration-hub M2 orchestration.",
+    )
+    integration_hub_base_url: str = Field(
+        default="http://localhost:3007",
+        description="integration-hub-svc origin (no trailing path).",
+    )
+    record_foundation_base_url: str = Field(
+        default="http://localhost:3009",
+        description="record-foundation-svc origin (no trailing path).",
+        validation_alias="RECORD_FOUNDATION_BASE_URL",
+    )
+    pdf_platform_url: str = Field(
+        default="http://localhost:8091",
+        description="pdf-platform worker origin (no trailing path).",
+        validation_alias="PDF_PLATFORM_URL",
+    )
+    pdf_platform_api_key: str = Field(
+        default="",
+        description="Optional bearer token for pdf-platform.",
+        validation_alias="PDF_PLATFORM_API_KEY",
+    )
+    pdf_platform_timeout_seconds: int = Field(
+        default=125,
+        description="HTTP timeout for pdf-platform render requests.",
+    )
+    master_data_url: str = Field(
+        default="http://localhost:8010",
+        description="master-data-svc origin for visitpad catalog lookups.",
+    )
+    master_data_timeout_seconds: int = Field(
+        default=15,
+        description="HTTP timeout for master-data catalog requests.",
+    )
 
 
 class AzureBlobSettings(BaseSettings):
@@ -73,10 +108,42 @@ def get_azure_blob_settings() -> AzureBlobSettings:
     return AzureBlobSettings()
 
 
+class ServiceIntegrationSettings(BaseSettings):
+    """Cross-service URLs and internal keys loaded from workspace root / package ``.env``."""
+
+    model_config = SettingsConfigDict(
+        env_file=_opd_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    pharmacy_url: str = Field(default="", validation_alias="PHARMACY_URL")
+    pharmacy_internal_api_key: str = Field(default="", validation_alias="PHARMACY_INTERNAL_API_KEY")
+    user_management_url: str = Field(
+        default="http://localhost:3005",
+        validation_alias="USER_MANAGEMENT_URL",
+    )
+    pdf_platform_url: str = Field(default="", validation_alias="PDF_PLATFORM_URL")
+    pdf_platform_api_key: str = Field(default="", validation_alias="PDF_PLATFORM_API_KEY")
+    report_web_origin: str = Field(default="", validation_alias="REPORT_WEB_ORIGIN")
+    report_logo_url: str = Field(default="/reportLogo.svg", validation_alias="REPORT_LOGO_URL")
+    facility_id: str = Field(
+        default="",
+        description="NDHM/HFR facility id (IN…) fallback when configurator profile is absent.",
+        validation_alias="FACILITY_ID",
+    )
+
+
+@lru_cache
+def get_service_integration_settings() -> ServiceIntegrationSettings:
+    return ServiceIntegrationSettings()
+
+
 def reset_settings_cache_for_tests() -> None:
-    """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
+    """Clear cached settings (tests / after ``.env`` changes in long-lived shells)."""
     get_settings.cache_clear()
     get_azure_blob_settings.cache_clear()
+    get_service_integration_settings.cache_clear()
     from opd.core.database import reset_database_engine
     from opd.lib import azure_blob_storage
 

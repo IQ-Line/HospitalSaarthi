@@ -11,6 +11,13 @@ export {
 export type {
   PrincipalRoleEnricherPluginOptions,
 } from "./principal-role-enricher-plugin.js";
+export { tenantApiKeyAuthPlugin } from "./http/tenant-api-key-auth-plugin.js";
+export type { TenantApiKeyAuthPluginOptions } from "./http/tenant-api-key-auth-plugin.js";
+export type {
+  TenantApiKeyValidationResult,
+  TenantApiKeyValidatorPort,
+} from "./ports/tenant-api-key-validator.js";
+export type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
@@ -25,6 +32,8 @@ export type {
   ModuleCatalogPort,
   ModuleEntitlementRequestContext,
   TenantEntitlementPort,
+  TenantEntitlementResolverPort,
+  TenantEntitlementResolution,
   TenantModuleEntitlementPort,
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
@@ -42,12 +51,14 @@ export type {
   UserCapabilityGrant,
   UserEffectiveCapabilities,
   UserWithTenant,
+  AccessTokenIssuerPort,
 } from "./ports/index.js";
 export {
   loadIdentityJwtClaims,
   type IdentityJwtClaims,
   type IdentityJwtClaimsDeps,
 } from "./authn/identity-jwt-claims.js";
+export { assertUserCanAuthenticate } from "./authn/assert-user-can-authenticate.js";
 export {
   compareCanonicalRoleCodes,
   normalizeRoleCode,
@@ -85,6 +96,7 @@ export {
   TenantMismatchError,
   UnexpectedPersistenceError,
   UserRoleTemplateNotFoundError,
+  UserAccountDisabledError,
   UserManagementError,
   UserNotFoundError,
   ValidationError,
@@ -131,6 +143,38 @@ export { createDefaultPrincipalService } from "./services/default-principal-serv
 export type { DefaultPrincipalServiceDeps } from "./services/default-principal-service.js";
 export { DefaultPrincipalService } from "./services/default-principal-service.js";
 export {
+  CachedTenantEntitlementResolver,
+  isRuntimeEntitlementIntersectionEnabled,
+} from "./services/cached-tenant-entitlement-resolver.js";
+export { createRuntimeEntitlementPrincipalWiring } from "./services/create-runtime-entitlement-principal-wiring.js";
+export type {
+  CreateRuntimeEntitlementPrincipalWiringInput,
+  RuntimeEntitlementPrincipalWiring,
+} from "./services/create-runtime-entitlement-principal-wiring.js";
+export {
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
+} from "./services/create-pep-runtime-auth-from-urls.js";
+export type {
+  CreatePepRuntimeAuthFromUrlsInput,
+  PepRuntimeAuthWiring,
+} from "./services/create-pep-runtime-auth-from-urls.js";
+export {
+  HttpConfiguratorTenantModuleEntitlementAdapter,
+  HttpConfiguratorTenantModulesAdapter,
+} from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
+export type { HttpConfiguratorTenantModuleEntitlementAdapterOptions } from "./adapters/http-configurator-tenant-module-entitlement-adapter.js";
+export { HttpMasterDataModuleCatalogAdapter } from "./adapters/http-master-data-module-catalog-adapter.js";
+export type { HttpMasterDataModuleCatalogAdapterOptions } from "./adapters/http-master-data-module-catalog-adapter.js";
+export { intersectCapabilityKeys } from "./domain/intersect-capability-keys.js";
+export { resolveTenantEntitledCapabilityKeys } from "./use-cases/resolve-tenant-entitled-capability-keys.js";
+export {
+  computeEffectivePrincipalCapabilities,
+  computeStoredPrincipalCapabilities,
+  entitlementIntersectionMetrics,
+} from "./use-cases/compute-effective-principal-capabilities.js";
+export { registerTenantEntitlementCacheEventConsumers } from "./events/consumers/tenant-entitlement-cache-consumer.js";
+export {
   capabilities,
   delegated_capability_grants,
   role_capabilities,
@@ -157,6 +201,8 @@ export { applyRoleTemplate } from "./use-cases/apply-role-template.js";
 export type { ApplyRoleTemplateDeps } from "./use-cases/apply-role-template.js";
 export { deactivateUser } from "./use-cases/deactivate-user.js";
 export type { DeactivateUserDeps } from "./use-cases/deactivate-user.js";
+export { activateUser } from "./use-cases/activate-user.js";
+export type { ActivateUserDeps } from "./use-cases/activate-user.js";
 export { deleteRole } from "./use-cases/delete-role.js";
 export type { DeleteRoleDeps } from "./use-cases/delete-role.js";
 export { detachRoleTemplate } from "./use-cases/detach-role-template.js";

@@ -1,10 +1,13 @@
-import { apiClient } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { executeVisitRegistrationBilling } from '@/features/frontdesk/api/visit-registration-billing';
 import {
   mapVisitRegistrationToAppointmentBody,
+  mapVisitRegistrationToExistingPatientIntakeBody,
   mapVisitRegistrationToNewPatientIntakeBody,
+  resolveRegistrationPatientId,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
 import { formatPatientAddressForReport } from '@/features/frontdesk/utils/report-address';
+import { persistEmpiPatientPermanentAddress } from '@/features/opd-patients/api/empi-patients';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import type {
   CreateNewPatientRegistrationResponse,
@@ -40,6 +43,11 @@ export interface ListRegistrationsParams {
   /** Substring match on snapshot UHID, phone, or patient name. */
   q?: string;
   patient_id?: string;
+  mobile?: string;
+  uhid?: string;
+  name?: string;
+  abha_number?: string;
+  abha_address?: string;
 }
 
 export interface ListRegistrationVisitsParams {
@@ -50,6 +58,10 @@ export interface ListRegistrationVisitsParams {
   facility_id?: string;
   department_id?: string;
   doctor_id?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_from?: string;
+  /** Inclusive calendar-date filter on visit `updated_at` (YYYY-MM-DD). */
+  updated_to?: string;
 }
 
 export async function listRegistrations(
@@ -60,6 +72,11 @@ export async function listRegistrations(
   if (params.limit != null) sp.set('limit', String(params.limit));
   if (params.q?.trim()) sp.set('q', params.q.trim());
   if (params.patient_id?.trim()) sp.set('patient_id', params.patient_id.trim());
+  if (params.mobile?.trim()) sp.set('mobile', params.mobile.trim());
+  if (params.uhid?.trim()) sp.set('uhid', params.uhid.trim());
+  if (params.name?.trim()) sp.set('name', params.name.trim());
+  if (params.abha_number?.trim()) sp.set('abha_number', params.abha_number.trim());
+  if (params.abha_address?.trim()) sp.set('abha_address', params.abha_address.trim());
   const qs = sp.toString();
   return apiClient<RegistrationListPageResponse>(
     `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
@@ -78,6 +95,8 @@ export async function listRegistrationVisits(
   if (params.facility_id?.trim()) sp.set('facility_id', params.facility_id.trim());
   if (params.department_id?.trim()) sp.set('department_id', params.department_id.trim());
   if (params.doctor_id?.trim()) sp.set('doctor_id', params.doctor_id.trim());
+  if (params.updated_from?.trim()) sp.set('updated_from', params.updated_from.trim());
+  if (params.updated_to?.trim()) sp.set('updated_to', params.updated_to.trim());
   const qs = sp.toString();
   return apiClient<RegistrationVisitListPageResponse>(
     `${registrationApiBase()}/visits${qs ? `?${qs}` : ''}`,
@@ -102,6 +121,99 @@ export async function createNewPatientRegistration(
       body: JSON.stringify(body),
     },
   );
+}
+
+export async function createExistingPatientRegistration(
+  body: Record<string, unknown>,
+  options?: { idempotencyKey?: string },
+): Promise<CreateNewPatientRegistrationResponse> {
+  return apiClient<CreateNewPatientRegistrationResponse>(
+    `${registrationApiBase()}/workflows/existing-patient/registrations`,
+    {
+      method: 'POST',
+      headers: {
+        'Idempotency-Key': options?.idempotencyKey ?? newIdempotencyKey(),
+      },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+import type { VisitTypeDecisionPatientPayload } from '@/features/frontdesk/utils/visit-registration-helpers';
+
+export type VisitTypeDecisionResult = {
+  consultation_type: 'new' | 'followup' | 'free-followup';
+  visit_type_code: string;
+  fee: 0 | 1;
+  is_locked: boolean;
+  resolved_patient_id: string | null;
+  valid_till: string | null;
+  free_follow_up_visit_count: number;
+  free_follow_up_visits_allowed: number;
+  free_follow_up_visits_remaining: number;
+};
+
+export async function fetchVisitTypeDecision(input: {
+  department_id: string;
+  patient?: VisitTypeDecisionPatientPayload;
+}): Promise<VisitTypeDecisionResult> {
+  const res = await apiClient<{ success: true; data: VisitTypeDecisionResult }>(
+    `${registrationApiBase()}/visit-type-decision`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  );
+  return res.data;
+}
+
+const PATIENT_ID_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function patientIdFromAlreadyExistsError(err: ApiError): string | undefined {
+  if (err.status !== 409) return undefined;
+  try {
+    const parsed = JSON.parse(err.body) as { patient_id?: unknown; code?: unknown };
+    if (parsed.code !== 'patient_already_exists') return undefined;
+    const id = typeof parsed.patient_id === 'string' ? parsed.patient_id.trim() : '';
+    return PATIENT_ID_UUID.test(id) ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function registerVisitIntake(
+  form: CreateVisitRequestBody,
+  options: {
+    idempotencyKey: string;
+    existingPatientId?: string;
+    resolvedPatientId?: string | null;
+  },
+): Promise<CreateNewPatientRegistrationResponse> {
+  const patientId = resolveRegistrationPatientId(
+    options.resolvedPatientId,
+    options.existingPatientId,
+  );
+  if (patientId) {
+    return createExistingPatientRegistration(
+      mapVisitRegistrationToExistingPatientIntakeBody(form, patientId),
+      { idempotencyKey: options.idempotencyKey },
+    );
+  }
+  try {
+    return await createNewPatientRegistration(
+      mapVisitRegistrationToNewPatientIntakeBody(form),
+      { idempotencyKey: options.idempotencyKey },
+    );
+  } catch (err) {
+    if (!(err instanceof ApiError)) throw err;
+    const duplicateId = patientIdFromAlreadyExistsError(err);
+    if (!duplicateId) throw err;
+    return createExistingPatientRegistration(
+      mapVisitRegistrationToExistingPatientIntakeBody(form, duplicateId),
+      { idempotencyKey: options.idempotencyKey },
+    );
+  }
 }
 
 export interface StubAppointmentResponse {
@@ -156,19 +268,25 @@ export interface CreateVisitFlowResult extends CreateNewPatientRegistrationRespo
 /**
  * Desk **Create Visit** orchestration (sequential).
  *
- * 1. registration-svc — `POST .../workflows/new-patient/registrations` (real)
+ * 1. registration-svc — new-patient or existing-patient workflow (real)
  * 2. appointment-svc — stub
  * 3. billing-svc — charges, discount, finalize, payment (real)
  * 4. registration-svc — `POST .../visits/:id/complete` (real)
  */
 export async function executeCreateVisitFlow(
   form: CreateVisitRequestBody,
-  options: { idempotencyKey: string; reportMeta?: RegistrationReportMeta },
+  options: {
+    idempotencyKey: string;
+    reportMeta?: RegistrationReportMeta;
+    existingPatientId?: string;
+    resolvedPatientId?: string | null;
+  },
 ): Promise<CreateVisitFlowResult> {
-  const registration = await createNewPatientRegistration(
-    mapVisitRegistrationToNewPatientIntakeBody(form),
-    { idempotencyKey: options.idempotencyKey },
-  );
+  const registration = await registerVisitIntake(form, {
+    idempotencyKey: options.idempotencyKey,
+    existingPatientId: options.existingPatientId,
+    resolvedPatientId: options.resolvedPatientId,
+  });
 
   await createAppointmentStub(form, registration);
   const billing = await executeVisitRegistrationBilling(form, {
@@ -179,11 +297,21 @@ export async function executeCreateVisitFlow(
   });
 
   const completed = await completeVisitIntake(registration.id!);
-  const patientAddress = formatPatientAddressForReport(
+  const addressBlock =
     form.residential_address?.line1?.trim()
       ? form.residential_address
-      : form.permanent_address,
-  );
+      : form.permanent_address;
+
+  try {
+    await persistEmpiPatientPermanentAddress(registration.patient_id, addressBlock);
+  } catch (err) {
+    console.warn('[registration] EMPI patient address persist failed', {
+      patientId: registration.patient_id,
+      err,
+    });
+  }
+
+  const patientAddress = formatPatientAddressForReport(addressBlock);
 
   return {
     ...completed,

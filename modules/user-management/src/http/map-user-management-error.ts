@@ -2,6 +2,7 @@ import type { FastifyReply } from "fastify";
 import {
   DuplicateRoleCodeError,
   InvalidRoleSeedError,
+  ModuleEntitlementLookupError,
   RoleInUseError,
   UnexpectedPersistenceError,
   UserManagementError,
@@ -11,6 +12,10 @@ export type UserManagementErrorBody = {
   code: string;
   message: string;
   correlation_id: string;
+  /** Present for `MODULE_ENTITLEMENT_LOOKUP_FAILED` — upstream that failed closed. */
+  source?: "configurator" | "master_data";
+  /** Enabled Configurator module ids with no Master Data catalog row. */
+  unknown_module_ids?: string[];
 };
 
 export type ResolvedUserManagementHttpError = {
@@ -26,6 +31,7 @@ const HTTP_STATUS_BY_DOMAIN_CODE: Readonly<Record<string, number>> = {
   PASSWORD_REQUIRED: 422,
   PASSWORD_TOO_SHORT: 422,
   USER_NOT_FOUND: 404,
+  USER_ACCOUNT_DISABLED: 403,
   ROLE_NOT_FOUND: 404,
   CAPABILITY_NOT_FOUND: 404,
   CAPABILITY_NOT_ENTITLED_FOR_TENANT: 400,
@@ -41,6 +47,7 @@ const HTTP_STATUS_BY_DOMAIN_CODE: Readonly<Record<string, number>> = {
   AUTH_ACCOUNT_PROVISIONING_FAILED: 500,
   AUTH_ACCOUNT_IDENTITY_MISMATCH: 500,
   USERNAME_CONFLICT: 409,
+  API_KEY_INVALID: 401,
   TENANT_CONTEXT_MISMATCH: 403,
   RBAC_INTEGRITY_VIOLATION: 500,
   CERBOS_PRINCIPAL_UNAVAILABLE: 500,
@@ -88,14 +95,18 @@ export function resolveUserManagementHttpError(
 
   if (err instanceof UserManagementError) {
     const status = HTTP_STATUS_BY_DOMAIN_CODE[err.code] ?? 500;
-    return {
-      status,
-      body: {
-        code: err.code,
-        message: err.message,
-        correlation_id: correlationId,
-      },
+    const body: UserManagementErrorBody = {
+      code: err.code,
+      message: err.message,
+      correlation_id: correlationId,
     };
+    if (err instanceof ModuleEntitlementLookupError) {
+      body.source = err.source;
+      if (err.unknownModuleIds !== undefined && err.unknownModuleIds.length > 0) {
+        body.unknown_module_ids = [...err.unknownModuleIds];
+      }
+    }
+    return { status, body };
   }
 
   return internalMaskedResponse(correlationId);

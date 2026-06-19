@@ -68,6 +68,67 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     return rows[0] ? mapRow(rows[0]) : undefined;
   }
 
+  async findPatientIdByAbhaAddress(
+    tenantId: string,
+    abhaAddress: string,
+  ): Promise<string | undefined> {
+    const value = abhaAddress.trim();
+    if (!value) return undefined;
+    const rows = await this.db
+      .select({ patient_id: registrations.patient_id })
+      .from(registrations)
+      .where(
+        and(
+          eq(registrations.iq_tenant_id, tenantId),
+          sql`trim(${registrations.patient_abha_address}) = ${value}`,
+        ),
+      )
+      .limit(1);
+    return rows[0]?.patient_id;
+  }
+
+  /** Refresh desk-captured ABHA / DOB on an existing registration row (re-intake). */
+  async patchSnapshotDemographics(
+    tenantId: string,
+    patientId: string,
+    snapshot: ReturnType<typeof snapshotValues>,
+    actorId: string,
+  ): Promise<RegistrationRecord | undefined> {
+    const hasAbha =
+      snapshot.patient_abha_address?.trim() || snapshot.patient_abha_number?.trim();
+    const hasYob = snapshot.patient_year_of_birth != null;
+    if (!hasAbha && !hasYob) {
+      return this.findByPatientId(tenantId, patientId);
+    }
+
+    const patch: Record<string, unknown> = {
+      updated_by: actorId,
+      updated_at: sql`now()`,
+    };
+    const abhaAddr = snapshot.patient_abha_address?.trim();
+    if (abhaAddr) patch.patient_abha_address = abhaAddr;
+    const abhaNum = snapshot.patient_abha_number?.trim();
+    if (abhaNum) patch.patient_abha_number = abhaNum;
+    if (snapshot.patient_year_of_birth != null) {
+      patch.patient_year_of_birth = snapshot.patient_year_of_birth;
+    }
+    if (snapshot.patient_date_of_birth) {
+      patch.patient_date_of_birth = snapshot.patient_date_of_birth;
+    }
+
+    const rows = await this.db
+      .update(registrations)
+      .set(patch as typeof registrations.$inferInsert)
+      .where(
+        and(
+          eq(registrations.iq_tenant_id, tenantId),
+          eq(registrations.patient_id, patientId),
+        ),
+      )
+      .returning();
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
   async insert(
     tenantId: string,
     input: CreateRegistrationInput,
@@ -81,7 +142,14 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
 
     const existingPatient = await this.findByPatientId(tenantId, input.patient_id);
     if (existingPatient) {
-      return { record: existingPatient, created: false as const };
+      const snapshot = snapshotValues(input);
+      const patched = await this.patchSnapshotDemographics(
+        tenantId,
+        input.patient_id,
+        snapshot,
+        actorId,
+      );
+      return { record: patched ?? existingPatient, created: false as const };
     }
 
     try {
@@ -144,20 +212,38 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
       conditions.push(eq(registrations.patient_id, params.patient_id));
     }
 
-    const q = params.q?.trim() || params.uhid?.trim() || params.mobile?.trim();
+    const q = params.q?.trim();
+    const uhid = params.uhid?.trim();
+    const mobile = params.mobile?.trim();
     const name = params.name?.trim();
+    const abhaNumber = params.abha_number?.trim();
+    const abhaAddress = params.abha_address?.trim();
 
-    if (q) {
+    if (abhaNumber) {
+      conditions.push(ilike(registrations.patient_abha_number, `%${abhaNumber}%`));
+    } else if (abhaAddress) {
+      conditions.push(ilike(registrations.patient_abha_address, `%${abhaAddress}%`));
+    } else if (uhid) {
+      conditions.push(ilike(registrations.patient_uhid, `%${uhid}%`));
+    } else if (mobile) {
+      const digits = mobile.replace(/\D/g, "");
+      const tail = digits.slice(-10);
+      if (tail.length === 10) {
+        conditions.push(ilike(registrations.patient_phone_number, `%${tail}`));
+      }
+    } else if (name && name.length >= 2) {
+      conditions.push(ilike(registrations.patient_full_name, `%${name}%`));
+    } else if (q) {
       const pattern = `%${q}%`;
       conditions.push(
         or(
           ilike(registrations.patient_uhid, pattern),
           ilike(registrations.patient_phone_number, pattern),
           ilike(registrations.patient_full_name, pattern),
+          ilike(registrations.patient_abha_number, pattern),
+          ilike(registrations.patient_abha_address, pattern),
         )!,
       );
-    } else if (name && name.length >= 2) {
-      conditions.push(ilike(registrations.patient_full_name, `%${name}%`));
     }
 
     const where = and(...conditions);

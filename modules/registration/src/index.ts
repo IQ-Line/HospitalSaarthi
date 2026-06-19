@@ -51,10 +51,21 @@ export { VISIT_EVENT_VISIT_CREATED } from "./events/publish-visit-created.js";
 export { publishRegistrationCreated } from "./events/publish-registration-created.js";
 export { publishVisitCreated } from "./events/publish-visit-created.js";
 
-export type { RegistrationRepo, VisitRepo, EmpiHttpPort, BillingReadPort, BillingBillSummary } from "./ports.js";
+export type {
+  RegistrationRepo,
+  VisitRepo,
+  EmpiHttpPort,
+  BillingReadPort,
+  BillingBillSummary,
+  ApiKeyValidatorPort,
+  ApiKeyValidationResult,
+} from "./ports.js";
+
+export { apiKeyAuthPlugin, type ApiKeyAuthPluginOptions } from "./http/api-key-auth-plugin.js";
 
 export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { DrizzleVisitRepo } from "./data-access/visit.repo.js";
+export { HttpConfiguratorGateway } from "./lib/http-configurator-gateway.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
 export { HttpOpdGateway } from "./lib/http-opd-gateway.js";
 export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
@@ -65,3 +76,4 @@ export { registrationSchema, registrations, visits } from "./schema/tables.js";
 export { applyRegistrationSchemaMigration } from "./schema/apply-migration.js";
 
 export { createRegistrationAuthzTargetResolver } from "./authz/registration-authz-target-resolver.js";
+export { registerInternalHandlers } from "./rest-handlers/internal.handler.js";

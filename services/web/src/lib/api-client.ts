@@ -1,6 +1,6 @@
 import type { ApiClientContext } from '@/lib/api-client-context';
 import { resolveBrowserApiBaseUrl } from '@/lib/api-base-url';
-import { refreshAccessToken } from '@/lib/auth-session';
+import { refreshAccessToken, forceLogoutDueToAccountDisabled } from '@/lib/auth-session';
 import {
   billingIqTenantHeaderValue,
   catalogIqTenantHeaderValue,
@@ -19,6 +19,7 @@ const USER_MANAGEMENT_API_PREFIX = '/api/user-management';
 const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
 const OPD_API_PREFIX = '/api/v1/opd/';
+const PHARMACY_API_PREFIX = '/api/pharmacy/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -72,7 +73,8 @@ function pathRequiresTenantHeader(path: string): boolean {
     path.startsWith(EMPI_API_PREFIX) ||
     isRegistrationApiPath(path) ||
     path.startsWith(CONFIGURATOR_API_PREFIX) ||
-    path.startsWith(OPD_API_PREFIX)
+    path.startsWith(OPD_API_PREFIX) ||
+    path.startsWith(PHARMACY_API_PREFIX)
   );
 }
 
@@ -121,7 +123,8 @@ function buildRequestHeaders(
   const tenantId = resolveEffectiveTenantId(context);
   const headers = new Headers(options.headers);
   // FormData uploads must omit Content-Type so the browser sets multipart boundary.
-  if (!(options.body instanceof FormData)) {
+  // Bodyless writes must omit Content-Type — Fastify 5 rejects empty JSON bodies.
+  if (options.body != null && !(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -277,6 +280,14 @@ function isInvalidOrExpiredTokenResponse(status: number, body: string): boolean 
   return parsed?.code === 'AUTH_INVALID_TOKEN';
 }
 
+function isAccountDisabledResponse(status: number, body: string): boolean {
+  if (status !== 403) {
+    return false;
+  }
+  const parsed = parseApiErrorBody(body);
+  return parsed?.code === 'USER_ACCOUNT_DISABLED';
+}
+
 async function fetchWithAuthRetry(
   path: string,
   options: RequestInit,
@@ -333,6 +344,10 @@ async function fetchWithAuthRetry(
   }
 
   const body = await response.text();
+  if (isAccountDisabledResponse(response.status, body)) {
+    await forceLogoutDueToAccountDisabled();
+    throw new ApiError(response.status, body);
+  }
   if (isInvalidOrExpiredTokenResponse(response.status, body)) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
@@ -345,7 +360,11 @@ async function fetchWithAuthRetry(
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    throw new ApiError(response.status, await response.text());
+    const body = await response.text();
+    if (isAccountDisabledResponse(response.status, body)) {
+      await forceLogoutDueToAccountDisabled();
+    }
+    throw new ApiError(response.status, body);
   }
 
   if (response.status === 204) {

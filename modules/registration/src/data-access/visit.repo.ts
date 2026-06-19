@@ -11,6 +11,7 @@ import type {
   UpdateVisitInput,
   VisitRecord,
 } from "../domain/visit.types.js";
+import type { ConsultationType } from "../lib/follow-up.js";
 import type { VisitStatus } from "../lib/visit-helpers.js";
 
 const visitNorm = sql`regexp_replace(lower(trim(coalesce(${visits.visit_type}, ''))), '[^a-z0-9]', '', 'g')`;
@@ -22,6 +23,12 @@ const todayStartIst = sql`(date_trunc('day', CURRENT_TIMESTAMP AT TIME ZONE 'Asi
 function mapRow(row: typeof visits.$inferSelect): VisitRecord {
   return {
     ...row,
+    consultation_type: (row.consultation_type ?? "new") as ConsultationType,
+    is_free_follow_up: row.is_free_follow_up ?? false,
+    free_follow_up_visit_count: row.free_follow_up_visit_count ?? 0,
+    free_follow_up_valid_till: row.free_follow_up_valid_till ?? null,
+    free_follow_up_details: (row.free_follow_up_details as VisitRecord["free_follow_up_details"]) ?? null,
+    parent_visit_id: row.parent_visit_id ?? null,
     status: row.status as VisitStatus,
   };
 }
@@ -68,6 +75,12 @@ export class DrizzleVisitRepo implements VisitRepo {
           visit_id: formattedVisitId,
           patient_id: input.patient_id,
           visit_type: input.visit_type ?? null,
+          consultation_type: input.consultation_type ?? "new",
+          is_free_follow_up: input.is_free_follow_up ?? false,
+          free_follow_up_visit_count: input.free_follow_up_visit_count ?? 0,
+          free_follow_up_valid_till: input.free_follow_up_valid_till ?? null,
+          free_follow_up_details: input.free_follow_up_details ?? null,
+          parent_visit_id: input.parent_visit_id ?? null,
           facility_id: input.facility_id ?? null,
           department_id: input.department_id ?? null,
           doctor_id: input.doctor_id ?? null,
@@ -126,6 +139,12 @@ export class DrizzleVisitRepo implements VisitRepo {
     }
     if (params.doctor_id) {
       conditions.push(eq(visits.doctor_id, params.doctor_id));
+    }
+    if (params.updated_from) {
+      conditions.push(sql`date(${visits.updated_at}) >= ${params.updated_from}::date`);
+    }
+    if (params.updated_to) {
+      conditions.push(sql`date(${visits.updated_at}) <= ${params.updated_to}::date`);
     }
 
     const where = and(...conditions);
@@ -238,6 +257,46 @@ export class DrizzleVisitRepo implements VisitRepo {
       }
     }
     return latestByPatient;
+  }
+
+  async findLatestByPatientAndDepartment(
+    tenantId: string,
+    patientId: string,
+    departmentId: string,
+  ): Promise<VisitRecord | undefined> {
+    const rows = await this.db
+      .select()
+      .from(visits)
+      .where(
+        and(
+          eq(visits.iq_tenant_id, tenantId),
+          eq(visits.patient_id, patientId),
+          eq(visits.department_id, departmentId),
+        ),
+      )
+      .orderBy(desc(visits.created_at))
+      .limit(1);
+    return rows[0] ? mapRow(rows[0]) : undefined;
+  }
+
+  async countFreeFollowUpVisits(
+    tenantId: string,
+    patientId: string,
+    departmentId: string,
+  ): Promise<number> {
+    const rows = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(visits)
+      .where(
+        and(
+          eq(visits.iq_tenant_id, tenantId),
+          eq(visits.patient_id, patientId),
+          eq(visits.department_id, departmentId),
+          eq(visits.consultation_type, "free-followup"),
+          sql`${visits.status} <> 'cancelled'`,
+        ),
+      );
+    return Number(rows[0]?.count ?? 0);
   }
 
   async getDashboardMetrics(tenantId: string, days: number): Promise<DashboardRepoMetrics> {

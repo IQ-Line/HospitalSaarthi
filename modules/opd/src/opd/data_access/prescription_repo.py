@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from opd.data_access import prescription_bundle as bundle_api
-from opd.data_access.prescription_form_data import persist_normalized_from_form_data
+from opd.data_access.prescription_form_data import (
+    persist_normalized_from_form_data,
+    prescription_form_data_has_content,
+)
+from opd.data_access.visit_status import effective_encounter_status
 from opd.models.prescription_row import Prescription
 from opd.models.visit import Visit
 
@@ -25,31 +29,13 @@ class PatientEncounterRow:
     created_at: datetime
 
 
-def effective_encounter_status(visit: Visit | None, rx: Prescription | None) -> str:
-    """Resolve UI status from visit row and/or prescription row (handles legacy rows)."""
-    if visit is not None:
-        if visit.status == "completed":
-            return "completed"
-        if rx is not None and rx.status == "final":
-            return "completed"
-        if visit.status == "cancelled":
-            return "cancelled"
-        if visit.status == "pre_consulted":
-            return "pre_consulted"
-        if visit.status in ("in_progress", "registered"):
-            return "in_progress"
-        return visit.status
-    if rx is not None:
-        if rx.status == "final":
-            return "completed"
-        if rx.status == "cancelled":
-            return "cancelled"
-        return "in_progress"
-    return "registered"
-
-
 class PrescriptionRepository:
-    def __init__(self, session: Session, tenant_id: UUID, doctor_id: UUID) -> None:
+    def __init__(
+        self,
+        session: Session,
+        tenant_id: UUID,
+        doctor_id: UUID | None = None,
+    ) -> None:
         self._session = session
         self._tenant_id = tenant_id
         self._doctor_id = doctor_id
@@ -62,6 +48,8 @@ class PrescriptionRepository:
         form_data: dict[str, Any] | None = None,
         status: str = "draft",
     ) -> Prescription:
+        if self._doctor_id is None:
+            raise ValueError("doctor_id is required to create prescriptions")
         now = datetime.now(UTC)
         return Prescription(
             tenant_id=self._tenant_id,
@@ -216,7 +204,12 @@ class PrescriptionRepository:
                 raise PermissionError("visit tenant mismatch")
             if visit.patient_id != patient_id:
                 raise ValueError("visit patient mismatch")
-            if visit.status not in ("completed", "cancelled"):
+            if visit.status not in (
+                "completed",
+                "cancelled",
+                "pre_consulted",
+                "in_progress",
+            ):
                 visit.status = "registered"
                 visit.updated_at = now
                 self._session.flush()
@@ -227,7 +220,20 @@ class PrescriptionRepository:
         )
         rx = self._session.scalars(stmt).first()
         if rx is not None:
+            if (
+                visit.status == "in_progress"
+                and rx.status == "draft"
+                and not prescription_form_data_has_content(rx)
+            ):
+                visit.status = "registered"
+                visit.updated_at = now
+                self._session.flush()
             return visit, rx
+
+        if visit.status == "in_progress":
+            visit.status = "registered"
+            visit.updated_at = now
+            self._session.flush()
 
         rx = Prescription(
             tenant_id=self._tenant_id,
@@ -376,7 +382,12 @@ class PrescriptionRepository:
         patient_id: UUID,
         form_data: dict[str, Any],
     ) -> tuple[Visit, Prescription]:
-        return self.finalize_prescription_for_visit(visit_id, patient_id, form_data)
+        visit, rx = self.finalize_prescription_for_visit(visit_id, patient_id, form_data)
+        now = datetime.now(UTC)
+        visit.status = "completed"
+        visit.updated_at = now
+        self._session.flush()
+        return visit, rx
 
     def get_or_create_active_visit(self, patient_id: UUID) -> tuple[Visit, Prescription]:
         existing = self.get_latest_prescription(patient_id)

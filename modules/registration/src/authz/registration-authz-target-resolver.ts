@@ -62,6 +62,10 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
       return readTarget(req, id ?? "registration-document", "registration.read");
     }
 
+    if (method === "POST" && path === "/documents/opd-slip.pdf") {
+      return readTarget(req, "partner-opd-slip", "registration.read");
+    }
+
     if (method === "GET" && path === "/dashboard/stats") {
       return readTarget(req, "dashboard", "registration.read");
     }
@@ -73,6 +77,10 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
     if (method === "GET" && path === "/registrations/:registrationId") {
       const id = resolvePathParam(request, "registrationId");
       return readTarget(req, id ?? "detail", "registration.read");
+    }
+
+    if (method === "POST" && path === "/visit-type-decision") {
+      return readTarget(req, "visit-type-decision", "registration.read");
     }
 
     if (method === "GET" && path === "/visits") {

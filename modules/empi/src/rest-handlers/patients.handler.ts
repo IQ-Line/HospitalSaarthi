@@ -15,13 +15,16 @@ import type {
   UpdateAddressRequestBody,
   UpdatePatientRequestBody,
 } from "../domain/api.types.js";
-import { registerPatient } from "../use-cases/register-patient.js";
+import { findPatientByDedupDemographics, registerPatient } from "../use-cases/register-patient.js";
+import { normalizeIndianPhoneForEmpi } from "../lib/indian-phone.js";
 import { isDuplicateRegistrationResult } from "../use-cases/register-patient.types.js";
 import { updatePatient } from "../use-cases/update-patient.js";
 import { searchPatients } from "../use-cases/search-patients.js";
 import { getPatient } from "../use-cases/get-patient.js";
+import { findPatientByAbhaAddress } from "../use-cases/find-patient-by-abha-address.js";
 import { changePatientStatus } from "../use-cases/change-patient-status.js";
 import { linkIdentifier } from "../use-cases/link-identifier.js";
+import { ensurePatientAbhaAddress } from "../use-cases/ensure-patient-abha-address.js";
 import {
   changePatientStatusBodySchema,
   createAddressBodySchema,
@@ -30,10 +33,23 @@ import {
   paramsPatientAndAddressSchema,
   paramsPatientAndIdentifierSchema,
   paramsPatientIdSchema,
+  findPatientByAbhaQuerySchema,
+  findPatientByDemographicsBodySchema,
   searchPatientsQuerySchema,
   updateAddressBodySchema,
   updatePatientBodySchema,
 } from "./patient-schemas.js";
+
+function hasAddressContent(
+  address: Pick<
+    CreateAddressRequestBody,
+    "street" | "city" | "district" | "state" | "pincode"
+  >,
+): boolean {
+  return [address.street, address.city, address.district, address.state, address.pincode].some(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+}
 
 interface SearchPatientsQuerystring {
   name?: string;
@@ -66,7 +82,12 @@ export function registerPatientsHandler(
     },
     async (request, reply) => {
       const tenantId = request.tenantId;
-      const body = request.body;
+      const {
+        abha_address: abhaAddressRaw,
+        address: addressInput,
+        ...registerBody
+      } = request.body;
+      const abhaAddress = abhaAddressRaw?.trim();
 
       try {
         const result = await registerPatient(
@@ -75,12 +96,47 @@ export function registerPatientsHandler(
             allocatePatientUhid: deps.allocatePatientUhid,
             eventBus: deps.eventBus,
           },
-          { ...body, iq_tenant_id: tenantId },
+          { ...registerBody, iq_tenant_id: tenantId },
         );
 
         if (isDuplicateRegistrationResult(result)) {
           return reply.code(409).send(result);
         }
+
+        if (addressInput && hasAddressContent(addressInput)) {
+          await deps.addressRepo.create({
+            iq_tenant_id: tenantId,
+            patient_id: result.id,
+            address_type: addressInput.address_type ?? "permanent",
+            street: addressInput.street ?? null,
+            city: addressInput.city ?? null,
+            district: addressInput.district ?? null,
+            state: addressInput.state ?? null,
+            pincode: addressInput.pincode ?? null,
+            created_by: registerBody.created_by ?? null,
+          });
+        }
+
+        if (abhaAddress) {
+          const ensured = await ensurePatientAbhaAddress(
+            { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
+            tenantId,
+            result.id,
+            abhaAddress,
+            registerBody.created_by ?? null,
+          );
+          if (ensured.status === "conflict") {
+            request.log.warn(
+              {
+                patientId: result.id,
+                existingPatientId: ensured.existingPatientId,
+                abhaAddress,
+              },
+              "ABHA address already linked to another patient",
+            );
+          }
+        }
+
         return reply.code(201).send(result);
       } catch (err) {
         request.log.error({ err }, "registerPatient failed");
@@ -117,6 +173,85 @@ export function registerPatientsHandler(
       );
 
       return reply.send(result);
+    },
+  );
+
+  app.get<{ Querystring: { abha_address: string } }>(
+    "/patients/find",
+    {
+      schema: {
+        querystring: findPatientByAbhaQuerySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const match = await findPatientByAbhaAddress(
+        { identifierRepo: deps.identifierRepo },
+        tenantId,
+        request.query.abha_address,
+      );
+      if (!match) return reply.code(404).send({ error: "Patient not found" });
+      return reply.send({ patientId: match.patientId, id: match.patientId });
+    },
+  );
+
+  app.post<{
+    Body: {
+      identifiers?: Array<{ type: string; value: string }>;
+      first_name?: string;
+      middle_name?: string;
+      last_name?: string;
+      gender?: import("../domain/patient.types.js").Gender;
+      phone_number?: string;
+      date_of_birth?: string;
+      year_of_birth?: number;
+      age_years?: number;
+      age_months?: number;
+      age_days?: number;
+    };
+  }>(
+    "/patients/find-by-demographics",
+    {
+      schema: {
+        body: findPatientByDemographicsBodySchema,
+      },
+    },
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const body = request.body;
+
+      if (body.first_name?.trim() && body.gender && body.phone_number?.trim()) {
+        const phone = normalizeIndianPhoneForEmpi(body.phone_number);
+        if (!phone) return reply.code(404).send({ error: "Patient not found" });
+
+        const dob = body.date_of_birth?.trim();
+        let yearOfBirth = body.year_of_birth ?? null;
+        if (!yearOfBirth && dob) {
+          const y = new Date(dob).getFullYear();
+          if (!Number.isNaN(y) && y > 1900) yearOfBirth = y;
+        }
+
+        const match = await findPatientByDedupDemographics(
+          { patientRepo: deps.patientRepo },
+          tenantId,
+          {
+            first_name: body.first_name.trim(),
+            middle_name: body.middle_name?.trim() || null,
+            last_name: body.last_name?.trim() || null,
+            gender: body.gender,
+            phone_number: phone,
+            date_of_birth: dob || null,
+            year_of_birth: yearOfBirth,
+            age_years: body.age_years ?? null,
+            age_months: body.age_months ?? null,
+            age_days: body.age_days ?? null,
+          },
+        );
+        if (!match) return reply.code(404).send({ error: "Patient not found" });
+        return reply.send({ patientId: match.id, id: match.id, score: 1 });
+      }
+
+      return reply.code(404).send({ error: "Patient not found" });
     },
   );
 
@@ -223,6 +358,26 @@ export function registerPatientsHandler(
       const tenantId = request.tenantId;
       const { id: patientId } = request.params;
       const body = request.body;
+
+      if (body.identifier_type === "abha_address") {
+        const ensured = await ensurePatientAbhaAddress(
+          { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },
+          tenantId,
+          patientId,
+          body.identifier_value,
+          body.created_by ?? null,
+        );
+        if (ensured.status === "conflict") {
+          return reply.code(409).send({
+            error: "identifier_conflict",
+            existing_patient_id: ensured.existingPatientId,
+          });
+        }
+        if (ensured.status === "already_linked") {
+          return reply.code(200).send({ status: "already_linked" });
+        }
+        return reply.code(201).send(ensured.identifier);
+      }
 
       const identifier = await linkIdentifier(
         { identifierRepo: deps.identifierRepo, eventBus: deps.eventBus },

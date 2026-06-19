@@ -75,7 +75,7 @@ describe("HttpMasterDataModuleCatalogAdapter", () => {
     });
   });
 
-  it("skips duplicate normalized slugs in catalog rows", async () => {
+  it("maps duplicate normalized slugs so every catalog id resolves for entitlement", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -95,7 +95,7 @@ describe("HttpMasterDataModuleCatalogAdapter", () => {
 
     const result = await adapter.resolveModuleSlugsByIds(["mod-a", "mod-b"]);
     expect(result.get("mod-a")).toBe("visitpad");
-    expect(result.has("mod-b")).toBe(false);
+    expect(result.get("mod-b")).toBe("visitpad");
   });
 
   it("expandEnabledModuleSlugs walks the catalog tree from Master Data", async () => {

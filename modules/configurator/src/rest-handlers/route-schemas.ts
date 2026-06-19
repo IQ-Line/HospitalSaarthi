@@ -129,6 +129,8 @@ export const patchTenantBodySchema = {
     pin_code: { type: "string" },
     contact_phone: { type: "string" },
     contact_email: { type: "string" },
+    free_follow_up_days: { type: "integer", minimum: 0 },
+    free_follow_up_visits: { type: "integer", minimum: 0 },
   },
 } as const;
 
@@ -159,7 +161,13 @@ export const patchTenantModuleBodySchema = {
   properties: {
     is_active: { type: "boolean" },
     is_core_override: { type: "boolean" },
-    updated_by: { anyOf: [uuidString, { type: "null" }] },
+    updated_by: {
+      type: ["string", "null"],
+      minLength: 36,
+      maxLength: 36,
+      pattern:
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    },
   },
 } as const;
 

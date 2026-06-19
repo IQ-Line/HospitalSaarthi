@@ -11,6 +11,7 @@ import {
   primaryKey,
   tenantColumn,
   timestamp,
+  smallint,
   sql,
 } from "@hims/ts-sdk-db";
 
@@ -73,6 +74,8 @@ export const tenants = configuratorSchema.table(
     contact_phone: text("contact_phone"),
     contact_email: text("contact_email"),
     tenant_numeric_code: text("tenant_numeric_code"),
+    free_follow_up_days: smallint("free_follow_up_days").notNull().default(15),
+    free_follow_up_visits: smallint("free_follow_up_visits").notNull().default(1),
     ...auditColumns(),
   },
   (t) => [
@@ -151,6 +154,34 @@ export const tenantIntegrationProfiles = configuratorSchema.table(
     check(
       "chk_tenant_integration_profiles_kind",
       sql`${t.integration_kind} IN ('abdm')`,
+    ),
+  ],
+);
+
+export const tenantApiKeys = configuratorSchema.table(
+  "tenant_api_keys",
+  {
+    api_key_id: uuid("api_key_id").notNull().defaultRandom().primaryKey(),
+    ...tenantColumn(),
+    key_prefix: text("key_prefix").notNull(),
+    key_hash: text("key_hash").notNull(),
+    label: text("label"),
+    purpose: text("purpose").notNull().default("opd_slip"),
+    environment: text("environment").notNull(),
+    status: text("status").notNull().default("active"),
+    expires_at: timestamp("expires_at", { withTimezone: true }),
+    last_used_at: timestamp("last_used_at", { withTimezone: true }),
+    ...auditColumns(),
+  },
+  (t) => [
+    uniqueIndex("idx_tenant_api_keys_prefix").on(t.key_prefix),
+    index("idx_tenant_api_keys_tenant").on(t.iq_tenant_id),
+    index("idx_tenant_api_keys_tenant_status").on(t.iq_tenant_id, t.status),
+    check("chk_tenant_api_keys_purpose", sql`${t.purpose} IN ('opd_slip')`),
+    check("chk_tenant_api_keys_environment", sql`${t.environment} IN ('live', 'test')`),
+    check(
+      "chk_tenant_api_keys_status",
+      sql`${t.status} IN ('active', 'disabled', 'revoked')`,
     ),
   ],
 );

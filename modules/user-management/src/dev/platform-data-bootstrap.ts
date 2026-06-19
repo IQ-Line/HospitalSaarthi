@@ -5,9 +5,10 @@ import {
   DEVELOPMENT_BOOTSTRAP_ORG_ID,
   DEVELOPMENT_PLATFORM_OPERATOR,
   DEVELOPMENT_SEED_TENANT_ID,
+  DEVELOPMENT_SEED_USERS,
 } from "../../../../packages/dev-bootstrap/src/index.js";
 import { authUser } from "../../../../services/user-management-svc/src/auth/auth-schema.js";
-import { roles, user_roles, users } from "../schema/tables.js";
+import { capabilities, roles, user_roles, users } from "../schema/tables.js";
 import { resolveMasterDataModuleCatalog } from "./resolve-master-data-module-catalog.js";
 import { seedDevConfigurator } from "./seed-dev-configurator.js";
 import { syncCapabilitiesFromMasterDataCatalog } from "./sync-capabilities-from-master-data-catalog.js";
@@ -235,6 +236,21 @@ export async function applyPlatformDataBootstrap(input: {
       .update(users)
       .set({ auth_user_id: authUserId, updated_at: new Date() })
       .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.id, platformUserId)));
+
+    const { seedDevelopmentUser } = await import(
+      "../../../../tools/seed-user-management-dev/seed-development-users.js"
+    );
+    const capabilityRows = await db
+      .select({ id: capabilities.id, capability_key: capabilities.capability_key })
+      .from(capabilities)
+      .where(eq(capabilities.is_active, true));
+
+    for (const seedUser of DEVELOPMENT_SEED_USERS) {
+      if (seedUser.persona === "platformOperator") {
+        continue;
+      }
+      await seedDevelopmentUser(db, auth, seedUser, capabilityRows);
+    }
   }
 
   return {

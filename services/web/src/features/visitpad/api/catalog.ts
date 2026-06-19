@@ -92,6 +92,14 @@ function listUrl(
   return buildVisitpadCatalogListUrl(path, params, page);
 }
 
+/** Fresh medicine row for Rx autofill (avoids stale list cache after admin edits). */
+export async function fetchVisitpadMedicineById(medicineId: string): Promise<VisitpadMedicine> {
+  const response = await apiClient<{ data: VisitpadMedicine }>(
+    `${MD}/medicines/${encodeURIComponent(medicineId)}`,
+  );
+  return response.data;
+}
+
 /**
  * React Query segment so tenant vs platform lists do not share cache when switching sessions.
  * Uses the Zustand hook (not `getState()` alone) so components re-render when the persisted tenant
@@ -291,13 +299,19 @@ export function useVisitpadRxColumns(search?: string, section?: string, page?: V
   });
 }
 
-export function useVisitpadMedicines(search?: string, schedule?: string, page?: VisitpadCatalogPageParams) {
+export function useVisitpadMedicines(
+  search?: string,
+  schedule?: string,
+  page?: VisitpadCatalogPageParams,
+  options?: { enabled?: boolean },
+) {
   const scopeKey = useVisitpadCatalogScopeKey();
   const pk = pageKey(page);
   return useQuery({
     queryKey: [...visitpadKeys.medicines(), scopeKey, search ?? '', schedule ?? '', ...pk],
     queryFn: () =>
       apiClient<VisitpadListResponse<VisitpadMedicine>>(listUrl('/medicines', { search, schedule }, page)),
+    enabled: options?.enabled ?? true,
   });
 }
 

@@ -1,5 +1,5 @@
 import { listRegistrationVisits } from '@/features/frontdesk/api/registrations';
-import { fetchPrescriptionStatusesByVisitIds } from '@/features/create-rx/api/opd-prescription';
+import { fetchOpdEncounterOverlaysByVisitIds, encounterOverlaysToRecord, getEncounterOverlayByVisitId } from './opd-encounter-overlay';
 import { fetchEmpiPatientLookupMap } from './empi-patients';
 import { computeOpdPatientsStats, filterOpdPatientRows } from '../lib/opd-patients-list-utils';
 import { opdUiStatusToRegistrationVisitQuery } from '../lib/registration-visit-status';
@@ -61,18 +61,20 @@ export async function fetchOpdPatientsList(
     ...(params.filters.doctorId.trim() ? { doctor_id: params.filters.doctorId.trim() } : {}),
   });
 
-  const [empiById, rxByVisitId] = await Promise.all([
+  const [empiById, encounterByVisitId] = await Promise.all([
     fetchEmpiPatientLookupMap(visitPage.data.map((visit) => visit.patient_id)),
-    fetchPrescriptionStatusesByVisitIds(visitPage.data.map((visit) => visit.id)),
+    fetchOpdEncounterOverlaysByVisitIds(visitPage.data.map((visit) => visit.id)),
   ]);
 
-  let items = visitPage.data.map((visit) =>
-    mapRegistrationVisitToOpdPatientRow(
+  let items = visitPage.data.map((visit) => {
+    const encounter = getEncounterOverlayByVisitId(encounterByVisitId, visit.id);
+    return mapRegistrationVisitToOpdPatientRow(
       visit,
       empiById.get(visit.patient_id),
-      rxByVisitId.get(visit.id),
-    ),
-  );
+      encounter?.prescriptionStatus,
+      encounter?.visitStatus,
+    );
+  });
 
   const search = params.filters.search.trim();
   if (search.length >= 2) {
@@ -94,5 +96,6 @@ export async function fetchOpdPatientsList(
     items,
     total,
     stats: computeOpdPatientsStats(items),
+    encounterOverlaysByVisitId: encounterOverlaysToRecord(encounterByVisitId),
   };
 }

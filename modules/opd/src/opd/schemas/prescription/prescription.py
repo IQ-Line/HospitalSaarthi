@@ -236,6 +236,8 @@ class PrescriptionDetailResponse(BaseModel):
     doctor_id: UUID
     vitals_schema_version: int
     status: PrescriptionStatus
+    # OPD visit queue status from opd.visits (e.g. pre_consulted, in_progress).
+    visit_status: str | None = None
     finalized_at: datetime | None
     cancelled_at: datetime | None
     deleted_at: datetime | None
@@ -268,3 +270,18 @@ class PrescriptionListResponse(BaseModel):
 
 class PrescriptionSingleResponse(BaseModel):
     data: PrescriptionDetailResponse
+
+
+class ClinicalReportAvailabilityItem(BaseModel):
+    available: bool
+    reason: str | None = None
+
+
+class PrescriptionEncounterOverlay(BaseModel):
+    status: PrescriptionStatus
+    visit_status: str
+    reports: dict[str, ClinicalReportAvailabilityItem] | None = None
+
+
+class PrescriptionEncounterOverlayBatchResponse(BaseModel):
+    data: dict[str, PrescriptionEncounterOverlay]

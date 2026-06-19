@@ -1,3 +1,4 @@
+import type { DbInstance } from "@hims/ts-sdk-db";
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import fp from "fastify-plugin";
@@ -7,6 +8,7 @@ import type {
   TenantModuleRepo,
   TenantIntegrationProfilesRepo,
   SequenceConfigurationRepo,
+  TenantApiKeyRepo,
   RunConfiguratorTransaction,
   InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
@@ -15,17 +17,22 @@ import type {
 import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
+import { registerInternalTenantEntitlementHandler } from "./rest-handlers/internal-tenant-entitlement.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
 import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
 import { registerSequenceConfigurationHandler } from "./rest-handlers/sequence-configuration.handler.js";
+import { registerBrandingLogosHandler } from "./rest-handlers/branding-logos.handler.js";
+import { registerTenantApiKeysHandler } from "./rest-handlers/tenant-api-keys.handler.js";
 
 export interface ConfiguratorRouterOptions {
+  db: DbInstance;
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
   tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
   sequenceConfigurationRepo: SequenceConfigurationRepo;
+  tenantApiKeyRepo: TenantApiKeyRepo;
   runConfiguratorTransaction: RunConfiguratorTransaction;
   createInfrastructureCatalog?: (
     authorization?: string,
@@ -37,6 +44,7 @@ export interface ConfiguratorRouterOptions {
     authorization?: string,
   ) => TenantAdminProvisioningPort;
   eventBus?: EventBus;
+  entitlementCacheInvalidator?: import("./rest-handlers/tenant-modules.handler.js").TenantModuleEntitlementCacheInvalidator;
 }
 
 async function configuratorRouter(
@@ -77,6 +85,11 @@ async function configuratorRouter(
   registerTenantModulesHandler(app, {
     tenantModuleRepo: options.tenantModuleRepo,
     tenantRepo: options.tenantRepo,
+    eventBus: options.eventBus,
+    entitlementCacheInvalidator: options.entitlementCacheInvalidator,
+  });
+  registerInternalTenantEntitlementHandler(app, {
+    db: options.db,
   });
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,
@@ -85,6 +98,11 @@ async function configuratorRouter(
   registerSequenceConfigurationHandler(app, {
     tenantRepo: options.tenantRepo,
     sequenceConfigurationRepo: options.sequenceConfigurationRepo,
+  });
+  registerBrandingLogosHandler(app);
+  registerTenantApiKeysHandler(app, {
+    tenantApiKeyRepo: options.tenantApiKeyRepo,
+    tenantRepo: options.tenantRepo,
   });
 
   if (

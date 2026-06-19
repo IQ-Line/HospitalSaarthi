@@ -11,6 +11,10 @@ import {
   sql,
   date,
   smallint,
+  boolean,
+  integer,
+  jsonb,
+  timestamp,
 } from "@hims/ts-sdk-db";
 
 export const registrationSchema = pgSchema("registration");
@@ -59,6 +63,12 @@ export const visits = registrationSchema.table(
     doctor_id: uuid("doctor_id"),
     appointment_id: uuid("appointment_id"),
     idempotency_key: text("idempotency_key"),
+    consultation_type: varchar("consultation_type", { length: 32 }).notNull().default("new"),
+    is_free_follow_up: boolean("is_free_follow_up").notNull().default(false),
+    free_follow_up_visit_count: integer("free_follow_up_visit_count").notNull().default(0),
+    free_follow_up_valid_till: timestamp("free_follow_up_valid_till", { withTimezone: true }),
+    free_follow_up_details: jsonb("free_follow_up_details"),
+    parent_visit_id: uuid("parent_visit_id"),
     ...auditColumns(),
   },
   (t) => [

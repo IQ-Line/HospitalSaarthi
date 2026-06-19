@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: user_cross_tenant_platform_operator_test
+description: >-
+  Platform super-admin manages hospital-tenant users via iq_tenant_id header.
+  user.read/create already allow cross-tenant; update and deactivate must too.
+
+principals:
+  platform_operator_pep:
+    id: platform-user
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      org_id: null
+      department: null
+      role_codes:
+        - "super-admin"
+      capabilities:
+        - "users:users:create"
+        - "users:users:read"
+        - "users:users:update"
+        - "users:users:delete"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  platform_operator_role_codes_only:
+    id: platform-user-2
+    roles:
+      - "__hims_authenticated__"
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      org_id: null
+      department: null
+      role_codes:
+        - "super-admin"
+      capabilities:
+        - "users:users:create"
+        - "users:users:read"
+        - "users:users:update"
+        - "users:users:delete"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  hospital_user:
+    id: hospital-admin
+    kind: user
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      department: null
+      required_clearance: 0
+
+tests:
+  - name: user.deactivate — cross-tenant ALLOW for platform super-admin role
+    input:
+      principals: [platform_operator_pep]
+      resources: [hospital_user]
+      actions: [user.deactivate]
+    expected:
+      - principal: platform_operator_pep
+        resource: hospital_user
+        actions:
+          user.deactivate: EFFECT_ALLOW
+
+  - name: user.update — cross-tenant ALLOW for platform super-admin role
+    input:
+      principals: [platform_operator_pep]
+      resources: [hospital_user]
+      actions: [user.update]
+    expected:
+      - principal: platform_operator_pep
+        resource: hospital_user
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.deactivate — cross-tenant ALLOW via role_codes when Cerbos role is generic
+    input:
+      principals: [platform_operator_role_codes_only]
+      resources: [hospital_user]
+      actions: [user.deactivate]
+    expected:
+      - principal: platform_operator_role_codes_only
+        resource: hospital_user
+        actions:
+          user.deactivate: EFFECT_ALLOW
+
+  - name: user.update — cross-tenant ALLOW via role_codes when Cerbos role is generic
+    input:
+      principals: [platform_operator_role_codes_only]
+      resources: [hospital_user]
+      actions: [user.update]
+    expected:
+      - principal: platform_operator_role_codes_only
+        resource: hospital_user
+        actions:
+          user.update: EFFECT_ALLOW
+
+  - name: user.activate — cross-tenant ALLOW for platform super-admin role
+    input:
+      principals: [platform_operator_pep]
+      resources: [hospital_user]
+      actions: [user.activate]
+    expected:
+      - principal: platform_operator_pep
+        resource: hospital_user
+        actions:
+          user.activate: EFFECT_ALLOW
+
+  - name: user.activate — cross-tenant ALLOW via role_codes when Cerbos role is generic
+    input:
+      principals: [platform_operator_role_codes_only]
+      resources: [hospital_user]
+      actions: [user.activate]
+    expected:
+      - principal: platform_operator_role_codes_only
+        resource: hospital_user
+        actions:
+          user.activate: EFFECT_ALLOW

@@ -58,6 +58,7 @@ export async function handleOnFetchCallback(
       iqTenantId: input.iqTenantId,
       abhaAddress,
       empi: deps.empi,
+      registration: deps.registration,
     });
   } catch {
     patientId = "00000000-0000-0000-0000-000000000099";

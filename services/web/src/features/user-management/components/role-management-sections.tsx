@@ -5,7 +5,6 @@ import { useCapability } from '@/hooks/use-capability';
 import {
   UM_CAPABILITY_READ,
   UM_ROLE_CREATE,
-  UM_ROLE_DELETE,
   UM_ROLE_UPDATE,
 } from '@/lib/runtime-capability-keys';
 import { Badge } from '@pulse/ui/badge';
@@ -448,7 +447,6 @@ type RoleEditorDialogProps = {
   isDirty: boolean;
   savePending: boolean;
   saveDisabled: boolean;
-  deletePending: boolean;
   assignedCapabilitiesPending: boolean;
   assignedCapabilitiesError: boolean;
   assignableCatalogPending: boolean;
@@ -466,7 +464,6 @@ type RoleEditorDialogProps = {
   onRetryAssignableCatalog: () => void;
   onReset: () => void;
   onSave: () => void;
-  onDelete: () => void;
   /** When true, shows catalog provenance metadata on capability rows (admin operators). */
   showCapabilityProvenance?: boolean;
   /** When true, only product modules are shown in the permission tree (excludes platform modules). */
@@ -489,7 +486,6 @@ export function RoleEditorDialog({
   isDirty,
   savePending,
   saveDisabled,
-  deletePending,
   assignedCapabilitiesPending,
   assignedCapabilitiesError,
   assignableCatalogPending,
@@ -507,7 +503,6 @@ export function RoleEditorDialog({
   onRetryAssignableCatalog,
   onReset,
   onSave,
-  onDelete,
   showCapabilityProvenance = false,
   productOnly = false,
 }: RoleEditorDialogProps) {
@@ -589,13 +584,6 @@ export function RoleEditorDialog({
             <DialogTitle>
               {isCreate ? 'New role template' : isView ? 'View role' : 'Edit role'}
             </DialogTitle>
-            {/* <DialogDescription>
-              {isCreate
-                ? 'Give the role a name and choose what people with this role can do.'
-                : isView
-                  ? 'See what this role allows. You cannot make changes with your account.'
-                  : 'Update the name or change what this role allows.'}
-            </DialogDescription> */}
           </DialogHeader>
         </div>
 
@@ -615,9 +603,6 @@ export function RoleEditorDialog({
                   )}
                   {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
                 </div>
-                {/* <p className="text-sm text-muted-foreground">
-                  Give the role a name, then choose what it allows on the right.
-                </p> */}
               </div>
 
               <div className="space-y-2">
@@ -826,22 +811,7 @@ export function RoleEditorDialog({
             </section>
         </div>
 
-        <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
-          <div>
-            {!isCreate && !isView ? (
-              <CapabilityGate capability={UM_ROLE_DELETE}>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={deletePending}
-                  onClick={onDelete}
-                >
-                  {deletePending ? 'Deleting...' : 'Delete role'}
-                </Button>
-              </CapabilityGate>
-            ) : null}
-          </div>
-
+        <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-end border-t px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {isView ? 'Close' : 'Cancel'}

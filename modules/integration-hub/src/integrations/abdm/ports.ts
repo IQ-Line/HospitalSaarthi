@@ -130,6 +130,20 @@ export interface CareContextRef {
   hiType?: string;
 }
 
+/** Tracks care contexts already linked to an ABHA in the CM (ABDM protocol state). */
+export interface CareContextLinkStatePort {
+  listLinkedReferences(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<ReadonlySet<string>>;
+
+  markLinked(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+    careContextReferences: string[];
+  }): Promise<void>;
+}
+
 export interface SmsClient {
   sendOtp(input: { phoneNo: string; message: string }): Promise<void>;
 }
@@ -162,6 +176,32 @@ export interface EmpiClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<string | null>;
+  /** Demographics for M2 HIP-initiated link after consultation / care-context registration. */
+  findM2PatientProfile(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<M2PatientProfile | null>;
+}
+
+export interface M2PatientProfile {
+  abhaAddress: string;
+  abhaNumber?: string;
+  patientName: string;
+  gender: "M" | "F" | "O" | "D";
+  yearOfBirth: number;
+  phoneNo?: string;
+}
+
+/** Frozen registration snapshot — fallback when EMPI has no `abha_address` identifier yet. */
+export interface RegistrationClient {
+  findM2PatientProfile(input: {
+    iqTenantId: string;
+    patientId: string;
+  }): Promise<M2PatientProfile | null>;
+  findPatientIdByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null>;
 }
 
 export interface HealthRecordBundleEntry {
@@ -171,22 +211,14 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
-  listUnlinkedCareContexts(input: {
+  listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]>;
-  markCareContextLinked(input: {
+
+  listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void>;
-  /** Bundles to encrypt and push under consent (M3 §6.3.5). */
-  fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    dateRange?: { from: string; to: string };
-    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
@@ -473,7 +505,9 @@ export interface AbdmAdapterDeps {
   m3ConsentArtefactsHiu: M3ConsentArtefactsHiuPort;
   m3DataTransfers: M3DataTransfersPort;
   empi: EmpiClient;
+  registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
+  careContextLinkState: CareContextLinkStatePort;
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;
   eventBus?: EventBus;

@@ -9,6 +9,20 @@ import type {
 
 const TENANT_TYPES = new Set<TenantType>(["full_platform", "fragmented", "lite"]);
 const BRANCH_TYPES = new Set<BranchType>(["hub_lab", "hub", "satellite"]);
+const BRANCH_CODE_PATTERN = /^[A-Z0-9_-]{2,10}$/;
+
+function normalizeBranchCode(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/[\u2010-\u2015\u2212]/g, "-").toUpperCase();
+  if (!BRANCH_CODE_PATTERN.test(normalized)) {
+    throw new ConfiguratorError(
+      400,
+      "branch_code must be 2–10 characters (uppercase letters, digits, hyphen, underscore)",
+    );
+  }
+  return normalized;
+}
 
 export async function createTenant(
   tenantRepo: TenantRepo,
@@ -38,19 +52,15 @@ export async function createTenant(
     if (!parent || parent.org_id !== data.org_id) {
       throw new ConfiguratorError(400, "parent tenant not found for this organization");
     }
-    const bc = (data.branch_code ?? "").trim().toUpperCase();
-    if (!/^[A-Z0-9-]{2,10}$/.test(bc)) {
-      throw new ConfiguratorError(
-        400,
-        "branch_code must be 2–10 characters (uppercase letters, digits, hyphen)",
-      );
-    }
+    const bc = normalizeBranchCode(data.branch_code);
     if (!data.branch_type || !BRANCH_TYPES.has(data.branch_type)) {
       throw new ConfiguratorError(400, "branch_type is required for branch tenants");
     }
-    const dupBranch = await tenantRepo.findByOrgIdAndBranchCode(data.org_id, bc);
-    if (dupBranch) {
-      throw new ConfiguratorError(409, "branch_code already exists for this organization", "CONFLICT");
+    if (bc) {
+      const dupBranch = await tenantRepo.findByOrgIdAndBranchCode(data.org_id, bc);
+      if (dupBranch) {
+        throw new ConfiguratorError(409, "branch_code already exists for this organization", "CONFLICT");
+      }
     }
   }
 
@@ -72,9 +82,7 @@ export async function createTenant(
     slug,
     cerbos_scope_key,
     provisioning_status: "provisioning",
-    branch_code: data.parent_tenant_id
-      ? (data.branch_code ?? "").trim().toUpperCase()
-      : null,
+    branch_code: data.parent_tenant_id ? normalizeBranchCode(data.branch_code) : null,
     branch_type: data.parent_tenant_id ? (data.branch_type ?? null) : null,
   });
 }

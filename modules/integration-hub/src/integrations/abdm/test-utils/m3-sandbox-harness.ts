@@ -7,7 +7,7 @@ import { DrizzleM3ConsentRequestsRepo } from "../data-access/abdm-m3-consent-req
 import { DrizzleM3ConsentArtefactsHiuRepo } from "../data-access/abdm-m3-consent-artefacts-hiu.repo.js";
 import { DrizzleM3DataTransfersRepo } from "../data-access/abdm-m3-data-transfers.repo.js";
 import { DrizzleLinkTokensRepo } from "../data-access/abdm-link-tokens.repo.js";
-import { DrizzleLinkOtpsRepo } from "../data-access/abdm-link-otps.repo.js";
+import { DrizzleCareContextLinkStateRepo } from "../data-access/abdm-care-context-link-state.repo.js";
 import {
   MockEmpiClient,
   MockRecordFoundationClient,
@@ -16,6 +16,7 @@ import { createFideliusEncryptorFromEnv } from "../data-access/fidelius.js";
 import { createPayloadEncryptorFromEnv } from "../lib/payload-encryptor.js";
 import { LoggingSmsClient } from "../data-access/sms-client.js";
 import { EnvSecretsClient } from "../data-access/env-secrets.client.js";
+import { NoOpRegistrationClient } from "../data-access/registration-client.http.js";
 import { InMemoryLinkOtpStore } from "../lib/link-otp-store.js";
 import type { AbdmAdapterDeps } from "../ports.js";
 import type { AbdmSession } from "../domain/session.js";
@@ -53,9 +54,11 @@ export function buildM3SandboxDeps(databaseUrl: string): AbdmAdapterDeps {
     linkTokens: new DrizzleLinkTokensRepo(db),
     consentArtefacts: new DrizzleConsentArtefactsRepo(db),
     empi: new MockEmpiClient(M3_SANDBOX_ABHA),
+    registration: new NoOpRegistrationClient(),
     recordFoundation: new MockRecordFoundationClient(
       process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx",
     ),
+    careContextLinkState: new DrizzleCareContextLinkStateRepo(db),
     payloadEncryptor: createPayloadEncryptorFromEnv(),
     linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),

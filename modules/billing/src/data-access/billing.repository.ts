@@ -176,8 +176,7 @@ class DrizzleBillingRepo implements BillingRepo {
 
   async insertPayment(input: NewPaymentRow) {
     const payment_number = await allocatePaymentNumber(this.db, input.iq_tenant_id);
-    const receipt_number =
-      input.receipt_number ?? (await allocateReceiptNumber(this.db, input.iq_tenant_id));
+    const receipt_number = await allocateReceiptNumber(this.db, input.iq_tenant_id);
     const [row] = await this.db
       .insert(payments)
       .values({

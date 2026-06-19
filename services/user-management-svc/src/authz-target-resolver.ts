@@ -261,6 +261,17 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
+    if (method === "POST" && path === "/users/:id/activate") {
+      const id = resolvePathParam(request);
+      if (id === null) return null;
+      return {
+        kind: "user",
+        id,
+        action: "user.activate",
+        attr: await userResourceAttr(deps, request, id),
+      };
+    }
+
     if (method === "GET" && path === "/providers") {
       return { kind: "auth", id: "provider-list", action: "auth.read", attr: tenantAttr(request) };
     }

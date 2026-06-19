@@ -6,7 +6,7 @@ NX := npx nx
 
 # Services that ship a .env.example to seed a personal .env (kept in sync with
 # the actual services/ tree; see docs/dev/port-allocation.md for ports).
-SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc integration-hub-svc web
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc pharmacy-svc integration-hub-svc record-foundation-svc web
 
 # --- Setup -------------------------------------------------------------------
 
@@ -52,7 +52,11 @@ env-init: ## Copy every .env.example to .env (skips files that already exist)
 
 .PHONY: dev
 dev: ## Start all services via Nx
-	$(NX) run-many -t serve --parallel=10
+	$(NX) run-many -t serve --parallel=12
+
+.PHONY: dev-pharmacy
+dev-pharmacy: ## Start web + BFF + OPD + pharmacy counter stack
+	pnpm dev:pharmacy-stack
 
 .PHONY: dev-module
 dev-module: ## Start a single module service (usage: make dev-module m=empi-svc)
@@ -84,11 +88,15 @@ db-migrate: ## Run all pending migrations
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
 	$(NX) run master-data:migrate
+	# 005 backfill joins global_master.modules (Citus reference table) — re-run after master-data.
+	$(NX) run configurator:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
+	$(NX) run record-foundation:db-migrate
 	$(NX) run opd:db-migrate
 	$(NX) run billing:db-migrate
-	$(NX) run integration-hub-svc:db-migrate
+	$(NX) run pharmacy:db-migrate
+	$(NX) run integration-hub:db-migrate
 
 .PHONY: seed
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)

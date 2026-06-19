@@ -8,10 +8,22 @@ function truncateMessage(text: string, max = 400): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+function isNginxPayloadTooLargeBody(body: string): boolean {
+  const lower = body.toLowerCase();
+  return (
+    lower.includes('request entity too large') ||
+    lower.includes('payload too large') ||
+    (lower.includes('<title>413') && lower.includes('nginx'))
+  );
+}
+
 /** Parse JSON API error bodies (FastAPI `detail`, Fastify `error`, generic `message`). */
 export function formatApiErrorBody(status: number, body: string): string {
   const raw = body?.trim();
   if (!raw) return `Request failed (${status})`;
+  if (status === 413 || isNginxPayloadTooLargeBody(raw)) {
+    return 'File is too large to upload. Use an image of 2 MB or smaller.';
+  }
   try {
     const parsed = JSON.parse(raw) as ApiErrorJson;
     const d = parsed.detail;

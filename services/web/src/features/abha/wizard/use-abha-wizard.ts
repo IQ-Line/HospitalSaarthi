@@ -45,6 +45,13 @@ import {
   mapAbhaProfileDisplay,
   mapAbhaProfileToFormPrefill,
 } from '@/features/abha/utils/map-abha-profile';
+import {
+  isClientInvalidAadhaar,
+  MSG_VALID_AADHAAR,
+  MSG_VALID_ABHA_NUMBER,
+  resolveAadhaarWizardError,
+  resolveAbhaNumberWizardError,
+} from '@/features/abha/utils/abha-user-errors';
 import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 
@@ -171,6 +178,35 @@ export function useAbhaWizard({
     toast.success('OTP Sent', {
       description: `OTP sent to mobile number ending with ******${last4}`,
     });
+  }, []);
+
+  const reportAadhaarFieldError = useCallback((message: string) => {
+    dispatch({ type: 'SET_AADHAAR_ERROR', error: message });
+    toast.error('Error', { description: message });
+  }, []);
+
+  const failAadhaarOtpRequest = useCallback(
+    (fullAadhaar: string, err?: unknown) => {
+      if (isClientInvalidAadhaar(fullAadhaar)) {
+        reportAadhaarFieldError(MSG_VALID_AADHAAR);
+        return;
+      }
+      const message = err !== undefined ? resolveAadhaarWizardError(err) : MSG_VALID_AADHAAR;
+      if (message === MSG_VALID_AADHAAR) {
+        reportAadhaarFieldError(message);
+        return;
+      }
+      toast.error('Error', { description: message });
+    },
+    [reportAadhaarFieldError],
+  );
+
+  const failAbhaNumberOtpRequest = useCallback((err: unknown) => {
+    const message = resolveAbhaNumberWizardError(err);
+    if (message === MSG_VALID_ABHA_NUMBER) {
+      dispatch({ type: 'SET_LOGIN_ABHA_NUMBER_ERROR', error: message });
+    }
+    toast.error('Error', { description: message });
   }, []);
 
   const enterLoginOtpStep = useCallback(
@@ -364,7 +400,7 @@ export function useAbhaWizard({
         dispatch({ type: 'SET_LOGIN_CHANNEL', channel });
         enterLoginOtpStep(res.message, derived.loginAbhaNumberDigits.slice(-4));
       } catch (err) {
-        toast.error(mutationErrorMessage(err));
+        failAbhaNumberOtpRequest(err);
       } finally {
         dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
       }
@@ -374,6 +410,7 @@ export function useAbhaWizard({
       derived.loginAbhaNumberDigits,
       derived.loginAbhaNumberValid,
       enterLoginOtpStep,
+      failAbhaNumberOtpRequest,
       state.isSubmitting,
     ],
   );
@@ -477,6 +514,11 @@ export function useAbhaWizard({
 
   const handleLoginAadhaarOtpSend = useCallback(async () => {
     if (!derived.consentStepValid || state.isSubmitting) return;
+    if (isClientInvalidAadhaar(derived.fullAadhaar)) {
+      failAadhaarOtpRequest(derived.fullAadhaar);
+      return;
+    }
+    dispatch({ type: 'SET_AADHAAR_ERROR', error: null });
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
     try {
       const res = await sendLoginAadhaarOtp(derived.fullAadhaar);
@@ -484,11 +526,17 @@ export function useAbhaWizard({
       dispatch({ type: 'SET_LOGIN_MODE', mode: 'aadhaar' });
       enterLoginOtpStep(res.message, derived.fullAadhaar.slice(-4));
     } catch (err) {
-      toast.error(mutationErrorMessage(err));
+      failAadhaarOtpRequest(derived.fullAadhaar, err);
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
-  }, [derived.consentStepValid, derived.fullAadhaar, enterLoginOtpStep, state.isSubmitting]);
+  }, [
+    derived.consentStepValid,
+    derived.fullAadhaar,
+    enterLoginOtpStep,
+    failAadhaarOtpRequest,
+    state.isSubmitting,
+  ]);
 
   const handleLoginResendOtp = useCallback(async () => {
     const { mode, channel, abhaAddressChannel, mobile } = state.login;
@@ -535,13 +583,21 @@ export function useAbhaWizard({
         description: `OTP sent to mobile number ending with ******${last4}`,
       });
     } catch (err) {
-      toast.error(mutationErrorMessage(err));
+      if (mode === 'aadhaar') {
+        failAadhaarOtpRequest(derived.fullAadhaar, err);
+      } else if (mode === 'abha-number') {
+        failAbhaNumberOtpRequest(err);
+      } else {
+        toast.error('Error', { description: mutationErrorMessage(err) });
+      }
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
   }, [
     derived.canResendLoginOtp,
     derived.fullAadhaar,
+    failAadhaarOtpRequest,
+    failAbhaNumberOtpRequest,
     derived.isFrontdeskVerify,
     derived.loginAbhaAddressValid,
     derived.loginAbhaNumberDigits,
@@ -557,6 +613,11 @@ export function useAbhaWizard({
       await handleLoginAadhaarOtpSend();
       return;
     }
+    if (isClientInvalidAadhaar(derived.fullAadhaar)) {
+      failAadhaarOtpRequest(derived.fullAadhaar);
+      return;
+    }
+    dispatch({ type: 'SET_AADHAAR_ERROR', error: null });
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
     try {
       const res = await sendAadhaarOtp(derived.fullAadhaar);
@@ -570,13 +631,14 @@ export function useAbhaWizard({
       dispatch({ type: 'SET_STEP', step: 'otp' });
       showEnrolOtpToast(res.message, derived.fullAadhaar.slice(-4));
     } catch (err) {
-      toast.error(mutationErrorMessage(err));
+      failAadhaarOtpRequest(derived.fullAadhaar, err);
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
   }, [
     derived.consentStepValid,
     derived.fullAadhaar,
+    failAadhaarOtpRequest,
     handleLoginAadhaarOtpSend,
     showEnrolOtpToast,
     state.consent.isLoginAadhaarConsent,
@@ -593,11 +655,17 @@ export function useAbhaWizard({
       dispatch({ type: 'START_RESEND_COOLDOWN' });
       showEnrolOtpToast(res.message, aadhaarNumber.slice(-4));
     } catch (err) {
-      toast.error(mutationErrorMessage(err));
+      failAadhaarOtpRequest(aadhaarNumber, err);
     } finally {
       dispatch({ type: 'SET_SUBMITTING', isSubmitting: false });
     }
-  }, [derived.canResendOtp, showEnrolOtpToast, state.otpSession, state.isSubmitting]);
+  }, [
+    derived.canResendOtp,
+    failAadhaarOtpRequest,
+    showEnrolOtpToast,
+    state.otpSession,
+    state.isSubmitting,
+  ]);
 
   const handleOtpNext = useCallback(async () => {
     const { sessionId, otp, mobile, aadhaarLinkedMobile } = state.otpSession;

@@ -66,6 +66,37 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /visit-type-decision:
+    post:
+      operationId: getVisitTypeDecision
+      summary: Resolve OPD visit type before registration submit
+      description: |
+        Advisory endpoint for the registration desk. Resolves the patient (local snapshot or EMPI),
+        loads tenant free follow-up policy from Configurator, and returns the visit type code,
+        consultation fee (0 or 1), and whether the UI should lock the visit-type dropdown.
+
+        Decision uses **patient + department only** (doctor does not affect visit type).
+      tags: [EncounterRegistrations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisitTypeDecisionRequest"
+      responses:
+        "200":
+          description: Visit type decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisitTypeDecisionResponse"
+        "400":
+          description: Invalid request body
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
   /registrations:
     get:
       operationId: listRegistrations
@@ -151,10 +182,18 @@ paths:
       description: |
         Returns a PDF generated server-side for desk preview and print once the registration row exists
         (`pending`, `in_progress`, or `completed` visit). Cancelled visits return 409.
+
+        Staff callers use Bearer JWT plus tenant headers. External integrations (e.g. Smart Report) may
+        call with `X-API-Key` (tenant-scoped key with purpose `opd_slip` from Configurator) instead of JWT.
       tags: [EncounterRegistrations]
+      security:
+        - bearerAuth: []
+        - opdSlipApiKey: []
       parameters:
         - $ref: "#/components/parameters/RegistrationId"
       responses:
+        "401":
+          description: Missing or invalid credentials (JWT or API key)
         "200":
           description: OPD slip PDF
           content:
@@ -169,13 +208,48 @@ paths:
         "503":
           description: PDF renderer unavailable
 
+  /documents/opd-slip.pdf:
+    post:
+      operationId: renderPartnerOpdSlipPdf
+      summary: Generate OPD slip PDF from partner payload
+      description: |
+        External integrations (e.g. Smart Report) send visit/patient/doctor/facility details in the
+        request body and receive a PDF. No registration row lookup is performed.
+
+        Requires `X-API-Key` (tenant-scoped key with purpose `opd_slip` from Configurator).
+        Include `smartParchaPages` when Smart Parcha canvas images are available.
+      tags: [EncounterRegistrations]
+      security:
+        - opdSlipApiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartnerOpdSlipRequest"
+      responses:
+        "200":
+          description: OPD slip PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid request body
+        "401":
+          description: Missing or invalid API key
+        "503":
+          description: PDF renderer unavailable
+
   /visits:
     get:
       operationId: listVisits
       summary: List visits (paginated)
       description: |
         Tenant-scoped encounter rows newest first. Filter by `status`, `patient_id`,
-        `facility_id`, `department_id`, or `doctor_id`.
+        `facility_id`, `department_id`, `doctor_id`, or inclusive `updated_from` /
+        `updated_to` calendar dates on `updated_at`.
 
         Defaults: `page=1`, `limit=20` (max `limit` 100).
       tags: [Visits]
@@ -201,6 +275,14 @@ paths:
         - name: doctor_id
           in: query
           schema: { type: string, format: uuid }
+        - name: updated_from
+          in: query
+          schema: { type: string, format: date }
+          description: Inclusive lower bound on visit `updated_at` (calendar date).
+        - name: updated_to
+          in: query
+          schema: { type: string, format: date }
+          description: Inclusive upper bound on visit `updated_at` (calendar date).
       responses:
         "200":
           description: Paginated visit list
@@ -449,6 +531,16 @@ paths:
           $ref: "#/components/responses/Forbidden"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    opdSlipApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Tenant API key with purpose `opd_slip` (Configurator). Required for `POST /documents/opd-slip.pdf`; alternative to Bearer JWT on `GET .../opd-slip.pdf`.
   parameters:
     IdempotencyKeyHeader:
       name: Idempotency-Key
@@ -503,6 +595,90 @@ components:
         error: { type: string }
         message: { type: string }
         code: { type: string }
+
+    PartnerOpdSlipRequest:
+      type: object
+      additionalProperties: false
+      required: [patientId, visitId, patient, visit, doctor, facility]
+      properties:
+        patientId: { type: string, minLength: 1 }
+        visitId: { type: string, minLength: 1 }
+        doctorId: { type: string, minLength: 1 }
+        patient:
+          type: object
+          additionalProperties: false
+          required: [name, uhid]
+          properties:
+            name: { type: string, minLength: 1 }
+            uhid: { type: string, minLength: 1 }
+            phoneNumber: { type: string }
+            dateOfBirth: { type: string }
+            yearOfBirth: { type: integer }
+            gender: { type: string }
+            salutation: { type: string }
+            abhaNumber: { type: string }
+            abhaAddress: { type: string }
+            address: { type: string }
+        visit:
+          type: object
+          additionalProperties: false
+          required: [createdAt]
+          properties:
+            visitNumber: { type: string }
+            createdAt: { type: string, minLength: 1 }
+            visitType: { type: string }
+            status: { type: string }
+            departmentName: { type: string }
+            roomNumber: { type: string }
+            tokenNumber: { type: integer }
+            fees: { type: string }
+            visitValidTill: { type: string }
+            consultationType: { type: string }
+            priority: { type: string }
+        doctor:
+          type: object
+          additionalProperties: false
+          required: [name]
+          properties:
+            name: { type: string, minLength: 1 }
+            qualification: { type: string }
+            specialization: { type: string }
+            hprId: { type: string }
+            regNumber: { type: string }
+            signature: { type: string }
+        facility:
+          type: object
+          additionalProperties: false
+          required: [name]
+          properties:
+            name: { type: string, minLength: 1 }
+            address: { type: string }
+            phone: { type: string }
+            email: { type: string }
+            facilityId: { type: string }
+            logoUrl: { type: string }
+            footerText: { type: string }
+        smartParchaEnabled: { type: boolean }
+        smartParchaPages:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [pageNumber, content]
+            properties:
+              pageNumber: { type: integer, minimum: 1 }
+              content: { type: string, minLength: 1 }
+        showDoctorSignature: { type: boolean }
+        options:
+          type: object
+          additionalProperties: false
+          properties:
+            landscape: { type: boolean }
+            format: { type: string, enum: [A4, Letter] }
+            marginTop: { type: string, maxLength: 32 }
+            marginBottom: { type: string, maxLength: 32 }
+            marginLeft: { type: string, maxLength: 32 }
+            marginRight: { type: string, maxLength: 32 }
 
     VisitStatus:
       type: string
@@ -581,12 +757,96 @@ components:
         facility_id: { type: string, format: uuid, nullable: true }
         visit_type:
           type: string
-          description: Phase 1 free string; align with Master Data visit_types catalog later.
+          description: Master Data visit_types picklist code (e.g. `opd_first`, `opd_free_follow_up`).
+        consultation_type:
+          type: string
+          enum: [new, followup, free-followup]
+          description: Derived consultation category; server validates on free follow-up create.
         department_id: { type: string, format: uuid, nullable: true }
         doctor_id: { type: string, format: uuid, nullable: true }
         appointment_id: { type: string, format: uuid, nullable: true }
         intake_completion:
           $ref: "#/components/schemas/IntakeCompletion"
+
+    VisitTypeDecisionPatient:
+      type: object
+      additionalProperties: false
+      properties:
+        patient_id: { type: string, format: uuid }
+        uhid: { type: string }
+        abha_number: { type: string }
+        abha_address: { type: string }
+        phone_number: { type: string }
+        first_name: { type: string }
+        middle_name: { type: string }
+        last_name: { type: string }
+        gender:
+          type: string
+          enum: [male, female, other]
+        date_of_birth: { type: string }
+        age_years: { type: integer }
+        age_months: { type: integer }
+        age_days: { type: integer }
+
+    VisitTypeDecisionRequest:
+      type: object
+      required: [department_id]
+      additionalProperties: false
+      properties:
+        department_id:
+          type: string
+          format: uuid
+        patient:
+          $ref: "#/components/schemas/VisitTypeDecisionPatient"
+
+    VisitTypeDecisionResult:
+      type: object
+      required:
+        - consultation_type
+        - visit_type_code
+        - fee
+        - is_locked
+        - resolved_patient_id
+        - free_follow_up_visit_count
+        - free_follow_up_visits_allowed
+        - free_follow_up_visits_remaining
+        - valid_till
+      additionalProperties: false
+      properties:
+        consultation_type:
+          type: string
+          enum: [new, followup, free-followup]
+        visit_type_code:
+          type: string
+          description: Picklist code to set on the registration form.
+        fee:
+          type: integer
+          enum: [0, 1]
+          description: Consultation fee in rupees (0 = free follow-up).
+        is_locked:
+          type: boolean
+        resolved_patient_id:
+          type: string
+          format: uuid
+          nullable: true
+        free_follow_up_visit_count: { type: integer, minimum: 0 }
+        free_follow_up_visits_allowed: { type: integer, minimum: 0 }
+        free_follow_up_visits_remaining: { type: integer, minimum: 0 }
+        valid_till:
+          type: string
+          format: date-time
+          nullable: true
+
+    VisitTypeDecisionResponse:
+      type: object
+      required: [success, data]
+      additionalProperties: false
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          $ref: "#/components/schemas/VisitTypeDecisionResult"
 
     ExistingPatientVisitRequest:
       type: object

@@ -12,6 +12,7 @@ function asSingleHeaderValue(
 declare module "fastify" {
   interface FastifyRequest {
     tenantId: string;
+    authViaApiKey?: boolean;
   }
 }
 
@@ -20,7 +21,9 @@ function tenantPluginImpl(
   _opts: FastifyPluginOptions,
   done: (err?: Error) => void,
 ) {
-  app.decorateRequest("tenantId", "");
+  if (!app.hasRequestDecorator("tenantId")) {
+    app.decorateRequest("tenantId", "");
+  }
 
   // enterWith() transitions the current async context into the store,
   // so all downstream hooks and the route handler inherit it automatically.
@@ -37,6 +40,11 @@ function tenantPluginImpl(
       /\/configurator\/v1\/tenants\/?$/.test(path) ||
       /\/configurator\/v1\/tenants\/[^/]+\/?$/.test(path)
     ) {
+      return;
+    }
+
+    if (request.authViaApiKey === true && request.tenantId) {
+      tenantStorage.enterWith({ tenantId: request.tenantId });
       return;
     }
 

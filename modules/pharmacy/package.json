@@ -1,0 +1,20 @@
+{
+  "name": "@hims/pharmacy",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@hims/ts-sdk-authz": "workspace:*",
+    "@hims/ts-sdk-db": "workspace:*",
+    "drizzle-orm": "^0.45.2"
+  },
+  "peerDependencies": {
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1"
+  },
+  "devDependencies": {
+    "fastify": "^5.3.3",
+    "fastify-plugin": "^5.0.1",
+    "vitest": "^3.1.3"
+  }
+}

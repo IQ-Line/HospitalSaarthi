@@ -1,7 +1,14 @@
-export { createRouter } from "./router.js";
-export type { ConfiguratorRouterOptions } from "./router.js";
+export { applyConfiguratorSchemaMigration } from "./schema/apply-migration.js";
 
 export { ConfiguratorError } from "./errors.js";
+export {
+  CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
+  CONFIGURATOR_INTERNAL_INTEGRATION_PROFILE_PATHS,
+} from "./http/configurator-identity-skip-paths.js";
+export {
+  configuratorPublicTenantReadAuthPlugin,
+  isConfiguratorPublicTenantRead,
+} from "./http/configurator-public-tenant-read-auth-plugin.js";
 
 export { createOrganization } from "./use-cases/create-organization.js";
 export { createOrganizationWithDefaultTenant } from "./use-cases/create-organization-with-default-tenant.js";
@@ -65,10 +72,23 @@ export type {
 } from "./domain/tenant-integration-profile.types.js";
 
 export type {
+  TenantApiKey,
+  TenantApiKeyCreateResult,
+  TenantApiKeyEnvironment,
+  TenantApiKeyPurpose,
+  TenantApiKeyStatus,
+} from "./domain/tenant-api-key.types.js";
+
+export { listTenantApiKeys } from "./use-cases/list-tenant-api-keys.js";
+export { createTenantApiKey } from "./use-cases/create-tenant-api-key.js";
+export { updateTenantApiKeyStatus } from "./use-cases/update-tenant-api-key-status.js";
+
+export type {
   OrganizationRepo,
   TenantRepo,
   TenantModuleRepo,
   TenantIntegrationProfilesRepo,
+  TenantApiKeyRepo,
   SequenceConfigurationRepo,
   ConfiguratorTransactionRepos,
   RunConfiguratorTransaction,
@@ -82,6 +102,7 @@ export { DrizzleTenantRepo } from "./data-access/tenant.repo.js";
 export { DrizzleTenantModuleRepo } from "./data-access/tenant-module.repo.js";
 export { DrizzleTenantIntegrationProfilesRepo } from "./data-access/tenant-integration-profile.repo.js";
 export { DrizzleSequenceConfigurationRepo } from "./data-access/sequence-configuration.repo.js";
+export { DrizzleTenantApiKeyRepo } from "./data-access/tenant-api-key.repo.js";
 
 export {
   configuratorSchema,
@@ -90,6 +111,7 @@ export {
   tenantModules,
   tenantIntegrationProfiles,
   sequenceConfiguration,
+  tenantApiKeys,
 } from "./schema/tables.js";
 
 export { provisionTenant } from "./use-cases/provision-tenant.js";
@@ -99,6 +121,13 @@ export {
   TENANT_ONBOARDING_EVENT_CONTRACT_VERSION,
 } from "./use-cases/provision-tenant.js";
 export type { TenantOnboardingCompletedPayload } from "./use-cases/provision-tenant.js";
+
+export {
+  MODULE_DISABLED_EVENT,
+  MODULE_ENABLED_EVENT,
+  publishTenantModuleLifecycleEvent,
+} from "./events/publish-tenant-module-lifecycle-event.js";
+export type { TenantModuleLifecyclePayload } from "./events/publish-tenant-module-lifecycle-event.js";
 
 export type {
   ProvisionTenantInput,

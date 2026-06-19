@@ -40,7 +40,9 @@ export function mapCapabilityRowFromDb(row: CapabilityDbRow): Capability {
     is_active: projected.is_active,
     ...provenance,
   };
-  assertValidRuntimeCapabilityRow(capability, `capabilities.id=${row.id}`);
+  if (capability.is_active) {
+    assertValidRuntimeCapabilityRow(capability, `capabilities.id=${row.id}`);
+  }
   return capability;
 }
 

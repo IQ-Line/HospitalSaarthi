@@ -83,6 +83,85 @@ def test_effective_form_data_loads_legacy_chief_complaints() -> None:
     assert form["chiefComplaints"][0]["durationUnit"] == "days"
 
 
+def test_effective_form_data_loads_medicine_catalog_ids() -> None:
+    med_id = uuid.uuid4()
+    rx_id = uuid.uuid4()
+    rx = Prescription(
+        id=rx_id,
+        tenant_id=uuid.uuid4(),
+        visit_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
+        doctor_id=uuid.uuid4(),
+        status="final",
+        form_data={},
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    session = MagicMock()
+
+    def execute_side_effect(*_args, **_kwargs):
+        result = MagicMock()
+        sql = str(_args[0]) if _args else ""
+        if "prescription_medicines" in sql:
+            result.mappings.return_value.all.return_value = [
+                {
+                    "line_no": 1,
+                    "medicine_id": med_id,
+                    "name": "Paracetamol",
+                    "strength": "500mg",
+                    "dosage": "1-0-1",
+                    "duration": "5",
+                    "frequency": "BD",
+                    "quantity": 10,
+                    "route": "Oral",
+                }
+            ]
+            result.mappings.return_value.first.return_value = None
+        else:
+            result.mappings.return_value.all.return_value = []
+            result.mappings.return_value.first.return_value = None
+        return result
+
+    session.execute.side_effect = execute_side_effect
+
+    form = effective_form_data(session, rx)
+
+    assert form["medicines"][0]["medicine"] == "Paracetamol"
+    assert form["medicines"][0]["medicineId"] == str(med_id)
+    assert form["medicines"][0]["medicine_id"] == str(med_id)
+
+
+def test_merge_enriches_stored_medicines_missing_catalog_ids() -> None:
+    from opd.data_access.prescription_form_data import _merge_form_data
+
+    med_id = uuid.uuid4()
+    merged = _merge_form_data(
+        {
+            "medicines": [
+                {
+                    "id": "row-1",
+                    "medicineId": str(med_id),
+                    "medicine_id": str(med_id),
+                    "medicine": "Paracetamol",
+                }
+            ]
+        },
+        {
+            "medicines": [
+                {
+                    "id": "stored-1",
+                    "medicine": "Paracetamol",
+                    "strength": "500mg",
+                }
+            ],
+        },
+    )
+
+    assert merged["medicines"][0]["medicineId"] == str(med_id)
+    assert merged["medicines"][0]["medicine_id"] == str(med_id)
+
+
 def test_effective_form_data_loads_vaccines_required_as_immunizations() -> None:
     row = _vaccine_db_to_immunization_row(
         {
@@ -119,3 +198,82 @@ def test_persist_normalized_writes_vaccines_required() -> None:
     assert session.execute.call_count >= 2
     insert_sql = str(session.execute.call_args_list[-1][0][0])
     assert "prescription_vaccines_required" in insert_sql
+
+
+def test_effective_form_data_prefers_stored_json_clinical_sections() -> None:
+    """Visit end-consult saves full form_data JSON; normalized sync is vitals/immunizations only."""
+    rx_id = uuid.uuid4()
+    rx = Prescription(
+        id=rx_id,
+        tenant_id=uuid.uuid4(),
+        visit_id=uuid.uuid4(),
+        patient_id=uuid.uuid4(),
+        doctor_id=uuid.uuid4(),
+        status="final",
+        form_data={
+            "vitals": {"systolic_bp": "120", "diastolic_bp": "80"},
+            "chiefComplaints": [{"id": "1", "complaint": "Fever", "severity": "mild"}],
+            "diagnosis": [{"id": "1", "notes": "Viral fever", "certainty": "presumed"}],
+            "medicines": [
+                {
+                    "id": "1",
+                    "medicine": "Paracetamol",
+                    "dosageMorning": "1",
+                    "dosageAfternoon": "0",
+                    "dosageNight": "1",
+                    "days": "3",
+                }
+            ],
+            "testsRequired": [{"id": "1", "testName": "CBC"}],
+        },
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+    session = MagicMock()
+
+    def execute_side_effect(*_args, **_kwargs):
+        result = MagicMock()
+        sql = str(_args[0]) if _args else ""
+        if "prescription_vaccines_required" in sql:
+            result.mappings.return_value.all.return_value = [
+                {
+                    "line_no": 1,
+                    "name": "Hepatitis B",
+                    "vaccine_code": None,
+                    "instructions": None,
+                    "due_by": None,
+                    "status": "pending",
+                }
+            ]
+            result.mappings.return_value.first.return_value = None
+        elif "prescription_legacy_vitals" in sql:
+            result.mappings.return_value.all.return_value = []
+            result.mappings.return_value.first.return_value = {
+                "height_cm": None,
+                "weight_kg": None,
+                "bmi": None,
+                "temperature_c": None,
+                "pulse_bpm": 72,
+                "respiratory_rate": None,
+                "bp_systolic": 118,
+                "bp_diastolic": 78,
+                "spo2_percent": None,
+                "blood_sugar_mg_dl": None,
+            }
+        else:
+            result.mappings.return_value.all.return_value = []
+            result.mappings.return_value.first.return_value = None
+        return result
+
+    session.execute.side_effect = execute_side_effect
+
+    form = effective_form_data(session, rx)
+
+    assert form["chiefComplaints"][0]["complaint"] == "Fever"
+    assert form["diagnosis"][0]["notes"] == "Viral fever"
+    assert form["medicines"][0]["medicine"] == "Paracetamol"
+    assert form["medicines"][0]["dosageMorning"] == "1"
+    assert form["testsRequired"][0]["testName"] == "CBC"
+    assert form["immunizations"][0]["vaccineName"] == "Hepatitis B"
+    assert form["vitals"]["systolic_bp"] == "120"

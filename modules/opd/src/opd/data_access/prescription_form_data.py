@@ -3,14 +3,19 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import exists, or_, select, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from opd.models.prescription_row import Prescription
+
+if TYPE_CHECKING:
+    from opd.models.prescription import PrescriptionModel
+
+_FORM_DATA_ATTR = object()
 
 IMMUNIZATION_META_PREFIX = "__hims_immunization_v1:"
 
@@ -66,6 +71,16 @@ def _list_has_content(items: Any) -> bool:
     return isinstance(items, list) and len(items) > 0
 
 
+def _immunization_list_has_content(items: Any) -> bool:
+    if not isinstance(items, list):
+        return False
+    return any(
+        isinstance(row, dict)
+        and _text(row.get("vaccineName") or row.get("vaccine_name") or row.get("name"))
+        for row in items
+    )
+
+
 def _vitals_has_content(vitals: Any) -> bool:
     if not isinstance(vitals, dict):
         return False
@@ -84,6 +99,107 @@ def _stored_form_data_has_content(stored: dict[str, Any]) -> bool:
     if _vitals_has_content(stored.get("vitals")):
         return True
     return False
+
+
+def _prescription_form_data_column(
+    session: Session,
+    prescription_id: UUID,
+    tenant_id: UUID,
+) -> dict[str, Any]:
+    """Read JSONB form_data for normalized PrescriptionModel rows (same table, legacy column)."""
+    try:
+        table = _qualified_table(session, "prescriptions")
+        raw = session.execute(
+            text(
+                f"""
+                SELECT form_data
+                FROM {table}
+                WHERE id = :pid AND tenant_id = :tenant
+                LIMIT 1
+                """
+            ),
+            {"pid": str(prescription_id), "tenant": str(tenant_id)},
+        ).scalar_one_or_none()
+    except (OperationalError, ProgrammingError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _prescription_model_has_normalized_clinical_content(
+    session: Session,
+    rx: PrescriptionModel,
+) -> bool:
+    """True when normalized child tables carry clinical input for this prescription."""
+    from opd.models.prescription.children import (
+        PrescriptionChiefComplaintModel,
+        PrescriptionLegacyVitalsModel,
+        PrescriptionMedicineModel,
+        PrescriptionVaccineRequiredModel,
+        PrescriptionVitalObservationModel,
+    )
+
+    pid = rx.id
+    tid = rx.tenant_id
+    child_exists = or_(
+        exists(
+            select(PrescriptionChiefComplaintModel.id).where(
+                PrescriptionChiefComplaintModel.prescription_id == pid,
+                PrescriptionChiefComplaintModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionMedicineModel.id).where(
+                PrescriptionMedicineModel.prescription_id == pid,
+                PrescriptionMedicineModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionVaccineRequiredModel.id).where(
+                PrescriptionVaccineRequiredModel.prescription_id == pid,
+                PrescriptionVaccineRequiredModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionVitalObservationModel.id).where(
+                PrescriptionVitalObservationModel.prescription_id == pid,
+                PrescriptionVitalObservationModel.tenant_id == tid,
+            )
+        ),
+        exists(
+            select(PrescriptionLegacyVitalsModel.prescription_id).where(
+                PrescriptionLegacyVitalsModel.prescription_id == pid,
+                PrescriptionLegacyVitalsModel.tenant_id == tid,
+            )
+        ),
+    )
+    return bool(session.scalar(select(child_exists)))
+
+
+def prescription_form_data_has_content(
+    rx: Prescription | PrescriptionModel | None,
+    *,
+    session: Session | None = None,
+) -> bool:
+    """True when a draft prescription carries nurse/doctor clinical input (not an empty shell)."""
+    if rx is None:
+        return False
+
+    form_data = getattr(rx, "form_data", _FORM_DATA_ATTR)
+    if form_data is not _FORM_DATA_ATTR:
+        return _stored_form_data_has_content(form_data or {})
+
+    from opd.models.prescription import PrescriptionModel
+
+    if not isinstance(rx, PrescriptionModel):
+        return False
+    if session is None:
+        return False
+
+    if _stored_form_data_has_content(
+        _prescription_form_data_column(session, rx.id, rx.tenant_id)
+    ):
+        return True
+    return _prescription_model_has_normalized_clinical_content(session, rx)
 
 
 def _coerce_vital_number(raw: str) -> int | float:
@@ -266,7 +382,7 @@ def _load_normalized_clinical_impl(session: Session, prescription_id: UUID) -> d
     med_rows = session.execute(
         text(
             f"""
-            SELECT line_no, name, strength, dosage, duration, frequency, quantity, route
+            SELECT line_no, medicine_id, name, strength, dosage, duration, frequency, quantity, route
             FROM {medicines_table}
             WHERE prescription_id = :pid
             ORDER BY line_no
@@ -342,20 +458,58 @@ def _clinical_to_form_data(clinical: dict[str, Any]) -> dict[str, Any]:
         }
 
     for row in clinical.get("medicines") or []:
-        form["medicines"].append(
-            {
-                "id": str(uuid.uuid4()),
-                "medicine": row.get("name") or "",
-                "strength": row.get("strength") or "",
-                "dosage": row.get("dosage") or "",
-                "days": row.get("duration") or "",
-                "frequency": row.get("frequency") or "",
-                "quantity": row.get("quantity") or "",
-                "route": row.get("route") or "",
-            }
-        )
+        medicine_id = row.get("medicine_id")
+        catalog_id = str(medicine_id).strip() if medicine_id is not None else ""
+        medicine_row: dict[str, Any] = {
+            "id": str(uuid.uuid4()),
+            "medicine": row.get("name") or "",
+            "strength": row.get("strength") or "",
+            "dosage": row.get("dosage") or "",
+            "days": row.get("duration") or "",
+            "frequency": row.get("frequency") or "",
+            "quantity": row.get("quantity") or "",
+            "route": row.get("route") or "",
+        }
+        if catalog_id:
+            medicine_row["medicineId"] = catalog_id
+            medicine_row["medicine_id"] = catalog_id
+        form["medicines"].append(medicine_row)
 
     return form
+
+
+def _medicine_row_catalog_id(row: dict[str, Any]) -> str | None:
+    for key in ("medicineId", "medicine_id"):
+        raw = row.get(key)
+        if raw is not None and str(raw).strip():
+            return str(raw).strip()
+    return None
+
+
+def _enrich_medicines_with_catalog_ids(
+    medicines: list[Any],
+    catalog_source: list[Any],
+) -> list[Any]:
+    """Fill missing catalog ids on stored JSON rows from normalized prescription_medicines."""
+    if not isinstance(medicines, list) or not isinstance(catalog_source, list):
+        return medicines
+
+    enriched: list[Any] = []
+    for index, row in enumerate(medicines):
+        if not isinstance(row, dict):
+            enriched.append(row)
+            continue
+        if _medicine_row_catalog_id(row):
+            enriched.append(row)
+            continue
+        source = catalog_source[index] if index < len(catalog_source) else None
+        if isinstance(source, dict):
+            catalog_id = _medicine_row_catalog_id(source)
+            if catalog_id:
+                enriched.append({**row, "medicineId": catalog_id, "medicine_id": catalog_id})
+                continue
+        enriched.append(row)
+    return enriched
 
 
 def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, Any]:
@@ -367,7 +521,9 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
         if key not in merged:
             merged[key] = value
             continue
-        if isinstance(merged[key], list) and _list_has_content(value):
+        if isinstance(merged[key], list) and key == "immunizations" and _immunization_list_has_content(value):
+            merged[key] = value
+        elif isinstance(merged[key], list) and key != "immunizations" and _list_has_content(value):
             merged[key] = value
         elif key == "vitals" and _vitals_has_content(value):
             merged[key] = value
@@ -388,11 +544,23 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
         "physicalActivity",
     )
     for key in list_keys:
+        if key == "immunizations":
+            if not _immunization_list_has_content(merged.get(key)) and _immunization_list_has_content(
+                base.get(key)
+            ):
+                merged[key] = base[key]
+            continue
         if not _list_has_content(merged.get(key)) and _list_has_content(base.get(key)):
             merged[key] = base[key]
 
     if not _vitals_has_content(merged.get("vitals")) and _vitals_has_content(base.get("vitals")):
         merged["vitals"] = base["vitals"]
+
+    if _list_has_content(merged.get("medicines")):
+        merged["medicines"] = _enrich_medicines_with_catalog_ids(
+            merged.get("medicines") or [],
+            base.get("medicines") or [],
+        )
 
     return merged
 
@@ -407,6 +575,25 @@ def effective_form_data(session: Session, rx: Prescription) -> dict[str, Any]:
         return from_normalized if clinical else stored or _empty_form_data()
 
     return _merge_form_data(from_normalized, stored)
+
+
+def effective_form_data_for_prescription(
+    session: Session,
+    tenant_id: UUID,
+    prescription_id: UUID,
+) -> dict[str, Any]:
+    """Load merged Create-RX form_data for a prescription id (JSON + normalized tables)."""
+    from sqlalchemy import select
+
+    rx = session.scalar(
+        select(Prescription).where(
+            Prescription.tenant_id == tenant_id,
+            Prescription.id == prescription_id,
+        )
+    )
+    if rx is None:
+        return _empty_form_data()
+    return effective_form_data(session, rx)
 
 
 def persist_normalized_from_form_data(
@@ -467,7 +654,9 @@ def _persist_normalized_from_form_data_impl(
     for row in form_data.get("immunizations") or []:
         if not isinstance(row, dict):
             continue
-        vaccine_name = _text(row.get("vaccineName"))
+        vaccine_name = _text(
+            row.get("vaccineName") or row.get("vaccine_name") or row.get("name")
+        )
         if not vaccine_name:
             continue
         line_no += 1

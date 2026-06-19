@@ -11,7 +11,9 @@ loadWorkspaceEnv();
 const { applyPlatformDataBootstrap } = await import(
   "../../modules/user-management/src/dev/platform-data-bootstrap.ts"
 );
-const { DEVELOPMENT_PLATFORM_OPERATOR } = await import("../../packages/dev-bootstrap/src/index.ts");
+const { DEVELOPMENT_PLATFORM_OPERATOR, DEVELOPMENT_PHARMACIST } = await import(
+  "../../packages/dev-bootstrap/src/index.ts"
+);
 const { validateCerbosForBootstrapUser } = await import("./validate-cerbos.ts");
 const { createDb } = await import("../../packages/ts-sdk-db/src/index.ts");
 const { DrizzleUserRepository } = await import(
@@ -63,6 +65,9 @@ if (!cerbos.ok) {
 
 console.log("[seed] platform bootstrap:", bootstrap);
 console.log(
-  `[seed] sign-in: ${DEVELOPMENT_PLATFORM_OPERATOR.email} / ${DEVELOPMENT_PLATFORM_OPERATOR.password}`,
+  `[seed] sign-in (platform): ${DEVELOPMENT_PLATFORM_OPERATOR.email} / ${DEVELOPMENT_PLATFORM_OPERATOR.password}`,
+);
+console.log(
+  `[seed] sign-in (pharmacy): ${DEVELOPMENT_PHARMACIST.email} / ${DEVELOPMENT_PHARMACIST.password}`,
 );
 console.log("[seed] cerbos: user.create, role.create, role.assign — OK");

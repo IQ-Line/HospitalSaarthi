@@ -10,6 +10,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
 
 
+def _derive_strength_display_for_response(
+    strength_display: str,
+    strength_value: float | None,
+    strength_unit: str | None,
+) -> str:
+    display = (strength_display or "").strip()
+    if display:
+        return display
+    unit = (strength_unit or "").strip() or None
+    if strength_value is not None and unit:
+        value = int(strength_value) if strength_value == int(strength_value) else strength_value
+        return f"{value} {unit}"
+    if strength_value is not None:
+        return str(strength_value)
+    if unit:
+        return unit
+    return ""
+
+
 class VisitpadMedicineSchedule(StrEnum):
     otc = "otc"
     h = "h"
@@ -82,6 +101,17 @@ class VisitpadMedicineResponse(BaseModel):
     updated_by: UUID | None = None
     created_at: datetime
     updated_at: datetime
+
+    @model_validator(mode="after")
+    def _derive_strength_display_on_read(self) -> Self:
+        derived = _derive_strength_display_for_response(
+            self.strength_display,
+            self.strength_value,
+            self.strength_unit,
+        )
+        if derived != self.strength_display:
+            object.__setattr__(self, "strength_display", derived)
+        return self
 
 
 class VisitpadMedicineListResponse(BaseModel):

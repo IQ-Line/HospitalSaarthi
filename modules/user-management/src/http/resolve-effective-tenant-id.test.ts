@@ -54,6 +54,16 @@ describe("resolveEffectiveTenantId", () => {
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
+  it("uses tenantId from API key auth without JWT", () => {
+    const request = {
+      authViaApiKey: true,
+      tenantId: "983934e8-f61c-4514-b8ec-df5ac7a6f02b",
+      headers: { iq_tenant_id: "other-tenant" },
+    } as unknown as FastifyRequest;
+    expect(resolveEffectiveTenantId(request)).toBe("983934e8-f61c-4514-b8ec-df5ac7a6f02b");
+    expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
+  });
+
   it("allows cross-tenant header when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
     const request = mockRequest({ tenantId: "tenant-home", roles: [] });
     (

@@ -14,11 +14,13 @@ import type {
   AbdmSessionsPort,
   ConsentArtefactsPort,
   EmpiClient,
+  RegistrationClient,
   FideliusEncryptor,
   HipDataPushClient,
   InboundMessagesPort,
   LinkOtpStorePort,
   LinkTokensPort,
+  CareContextLinkStatePort,
   M3ConsentArtefactsHiuPort,
   M3ConsentRequestsPort,
   M3DataTransfersPort,
@@ -46,7 +48,9 @@ export interface IntegrationHubSharedInfra {
   m3ConsentArtefactsHiu: M3ConsentArtefactsHiuPort;
   m3DataTransfers: M3DataTransfersPort;
   empi: EmpiClient;
+  registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
+  careContextLinkState: CareContextLinkStatePort;
   fidelius: FideliusEncryptor;
   payloadEncryptor: PayloadEncryptor;
   linkOtpStore: LinkOtpStorePort;
@@ -139,7 +143,9 @@ export async function buildAbdmDepsForTenant(
     m3ConsentArtefactsHiu: shared.m3ConsentArtefactsHiu,
     m3DataTransfers: shared.m3DataTransfers,
     empi: shared.empi,
+    registration: shared.registration,
     recordFoundation: shared.recordFoundation,
+    careContextLinkState: shared.careContextLinkState,
     fidelius: shared.fidelius,
     payloadEncryptor: shared.payloadEncryptor,
     dataPush: shared.dataPush,

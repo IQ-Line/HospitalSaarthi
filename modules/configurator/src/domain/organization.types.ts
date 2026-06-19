@@ -10,7 +10,10 @@ export type OrganizationStatus = "active" | "suspended" | "decommissioned";
  * Optional structured payload stored in `Organization.metadata` when provisioning
  * via the tenant wizard (until dedicated columns or events exist).
  */
+import type { BrandingLogoMetadata } from "./branding-logo.types.js";
+
 export interface TenantOrganizationWizardMetadata {
+  logo?: BrandingLogoMetadata | null;
   gstin?: string | null;
   pan?: string | null;
   website?: string | null;

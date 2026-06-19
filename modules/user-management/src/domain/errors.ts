@@ -162,6 +162,13 @@ export class UserNotFoundError extends UserManagementError {
   }
 }
 
+/** Inactive or suspended users must not sign in or receive access tokens. */
+export class UserAccountDisabledError extends UserManagementError {
+  constructor(message = "This account has been deactivated.") {
+    super("USER_ACCOUNT_DISABLED", message);
+  }
+}
+
 /** PEP did not attach `request.cerbosPrincipal` before /auth/principal (mis-ordered plugins or missing enrichment). */
 export class CerbosPrincipalUnavailableError extends UserManagementError {
   constructor() {
@@ -215,17 +222,34 @@ export class InvalidCapabilityKeyError extends UserManagementError {
   }
 }
 
+export type ModuleEntitlementLookupErrorOptions = Readonly<{
+  cause?: unknown;
+  /** Tenant-enabled Configurator `module_id` values with no Master Data catalog row. */
+  unknownModuleIds?: readonly string[];
+}>;
+
 /** Configurator or Master Data module integration lookup failed; callers must fail closed. */
 export class ModuleEntitlementLookupError extends UserManagementError {
+  public readonly unknownModuleIds?: readonly string[];
+
   constructor(
     public readonly source: "configurator" | "master_data",
-    options?: Readonly<{ cause?: unknown }>,
+    options?: ModuleEntitlementLookupErrorOptions,
   ) {
-    super(
-      "MODULE_ENTITLEMENT_LOOKUP_FAILED",
-      "Tenant-enabled module entitlement could not be resolved.",
-      { retryable: true, ...options },
+    const unknownModuleIds = options?.unknownModuleIds?.filter(
+      (id) => typeof id === "string" && id.trim().length > 0,
     );
+    const message =
+      unknownModuleIds !== undefined && unknownModuleIds.length > 0
+        ? `Tenant-enabled module entitlement could not be resolved: ${unknownModuleIds.length} enabled module id(s) are missing from the Master Data catalog.`
+        : "Tenant-enabled module entitlement could not be resolved.";
+    super("MODULE_ENTITLEMENT_LOOKUP_FAILED", message, {
+      retryable: true,
+      cause: options?.cause,
+    });
+    if (unknownModuleIds !== undefined && unknownModuleIds.length > 0) {
+      this.unknownModuleIds = unknownModuleIds;
+    }
   }
 }
 
@@ -290,6 +314,12 @@ export class UserRoleTemplateNotFoundError extends UserManagementError {
 export class TenantMismatchError extends UserManagementError {
   constructor() {
     super("TENANT_CONTEXT_MISMATCH", "iq_tenant_id header must match JWT tenant claim");
+  }
+}
+
+export class ApiKeyInvalidError extends UserManagementError {
+  constructor() {
+    super("API_KEY_INVALID", "Invalid API key");
   }
 }
 

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildCreateUserRequestBody } from './create-user-form.js';
+import {
+  buildCreateUserRequestBody,
+  buildUserProfileNavigateSearch,
+} from './create-user-form.js';
 import type { CreateUserFormValues } from './create-user-form-sections.js';
 
 const baseValues: CreateUserFormValues = {
@@ -55,5 +58,18 @@ describe('buildCreateUserRequestBody', () => {
 
     expect(body.role_template_ids).toEqual([]);
     expect(body.role_template_capability_ids).toBeUndefined();
+  });
+});
+
+describe('buildUserProfileNavigateSearch', () => {
+  it('includes tenant when creating users in another hospital', () => {
+    expect(buildUserProfileNavigateSearch('a07c8117-7aa0-42b3-a76c-9c35a9e20c59')).toEqual({
+      tenant: 'a07c8117-7aa0-42b3-a76c-9c35a9e20c59',
+    });
+  });
+
+  it('omits tenant for same-tenant creates', () => {
+    expect(buildUserProfileNavigateSearch(undefined)).toEqual({});
+    expect(buildUserProfileNavigateSearch('')).toEqual({});
   });
 });

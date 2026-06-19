@@ -12,6 +12,10 @@ import {
 } from '@pulse/ui/dialog';
 import { toast } from 'sonner';
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
+import {
+  uploadOrganizationBrandingLogo,
+  uploadTenantBrandingLogo,
+} from '@/features/configurator/api/branding-logos';
 import { useQuery } from '@tanstack/react-query';
 import { organizationsQueryOptions, tenantsQueryOptions } from '@/features/configurator/api/catalog';
 import { useOrganization } from '@/features/configurator/api';
@@ -47,6 +51,7 @@ import {
   firstZodMessage,
   setModuleSubtreeSelection,
 } from './wizard-helpers';
+import { mutationErrorMessage } from '@/lib/mutation-error';
 
 const STEPS = [
   { step: 1 as const, label: 'Organisation' },
@@ -90,6 +95,8 @@ export function CreateTenantWizard({
 
   const [activeStep, setActiveStep] = useState(firstStep);
   const [enabledModuleIds, setEnabledModuleIds] = useState<Set<string>>(() => new Set());
+  const [organisationLogoFile, setOrganisationLogoFile] = useState<File | null>(null);
+  const [tenantLogoFile, setTenantLogoFile] = useState<File | null>(null);
   const orgSlugUserEdited = useRef(false);
   const tenantSlugUserEdited = useRef(false);
   const modulesDefaultsApplied = useRef(false);
@@ -206,6 +213,8 @@ export function CreateTenantWizard({
     reset(WIZARD_DEFAULT_VALUES);
     setActiveStep(firstStep);
     setEnabledModuleIds(new Set());
+    setOrganisationLogoFile(null);
+    setTenantLogoFile(null);
     orgSlugUserEdited.current = false;
     tenantSlugUserEdited.current = false;
     modulesDefaultsApplied.current = false;
@@ -306,6 +315,7 @@ export function CreateTenantWizard({
     (selectionId: string) => {
       orgSlugUserEdited.current = false;
       appliedOrganisationIdRef.current = null;
+      setOrganisationLogoFile(null);
       if (selectionId === NEW_ORGANISATION_VALUE) {
         setValue('organisationId', '');
         setValue('organisationName', '');
@@ -433,6 +443,30 @@ export function CreateTenantWizard({
       (values.organisationSelectionId !== NEW_ORGANISATION_VALUE && !!values.organisationId?.trim());
 
     const orgName = values.organisationName?.trim() ?? '';
+    const organisationSlug = values.organisationSlug.trim().toLowerCase();
+    const tenantSlug = values.tenantSlug.trim().toLowerCase();
+
+    let organisationLogoMetadata: Record<string, unknown> | undefined;
+    if (!isExistingOrg && organisationLogoFile) {
+      try {
+        const logo = await uploadOrganizationBrandingLogo(organisationSlug, organisationLogoFile);
+        organisationLogoMetadata = { logo };
+      } catch (error) {
+        toast.error(mutationErrorMessage(error));
+        return;
+      }
+    }
+
+    let tenantLogoMetadata: Record<string, unknown> | undefined;
+    if (tenantLogoFile) {
+      try {
+        const logo = await uploadTenantBrandingLogo(tenantSlug, tenantLogoFile);
+        tenantLogoMetadata = { logo };
+      } catch (error) {
+        toast.error(mutationErrorMessage(error));
+        return;
+      }
+    }
 
     const payload: TenantOnboardingInput = {
       organization: {
@@ -440,14 +474,15 @@ export function CreateTenantWizard({
           ? { id: (showOrganisationStep ? values.organisationId : scopedOrgId)!.trim() }
           : {}),
         name: orgName,
-        slug: values.organisationSlug.trim().toLowerCase(),
+        slug: organisationSlug,
         type: values.organisationType,
         contact_email: values.organisationEmail?.trim() || null,
         website: values.organisationWebsite?.trim() || null,
+        ...(organisationLogoMetadata ? { metadata: organisationLogoMetadata } : {}),
       },
       tenant: {
         name: values.tenantName.trim(),
-        slug: values.tenantSlug.trim().toLowerCase(),
+        slug: tenantSlug,
         metadata: {
           gstin: values.gstin?.trim() || null,
           pan: values.pan?.trim()?.toUpperCase() || null,
@@ -460,6 +495,7 @@ export function CreateTenantWizard({
             pin_code: values.pinCode.trim(),
           },
           address: parts.join(', '),
+          ...(tenantLogoMetadata ?? {}),
         },
       },
       plan: {
@@ -471,7 +507,7 @@ export function CreateTenantWizard({
       })),
       admin: {
         first_name: values.adminFirstName.trim(),
-        last_name: values.adminLastName.trim(),
+        last_name: values.adminLastName?.trim() || null,
         email: values.adminEmail.trim(),
         password: values.password,
         phone: values.adminMobile?.trim() || null,
@@ -550,6 +586,8 @@ export function CreateTenantWizard({
                 organisationsLoading={organisationCatalogLoading}
                 organisationSlugInputProps={organisationSlugInputProps}
                 onOrganisationSelectionChange={onOrganisationSelectionChange}
+                organisationLogoFile={organisationLogoFile}
+                onOrganisationLogoFileChange={setOrganisationLogoFile}
               />
             )}
             {activeStep === 2 && (
@@ -557,7 +595,11 @@ export function CreateTenantWizard({
                 register={register}
                 control={control}
                 errors={errors}
+                setValue={setValue}
+                watch={watch}
                 tenantSlugInputProps={tenantSlugInputProps}
+                tenantLogoFile={tenantLogoFile}
+                onTenantLogoFileChange={setTenantLogoFile}
               />
             )}
             {activeStep === 3 && (

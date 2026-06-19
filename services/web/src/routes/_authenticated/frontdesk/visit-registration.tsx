@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,8 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
-import { executeCreateVisitFlow, listRegistrations } from '@/features/frontdesk/api/registrations';
+import { executeCreateVisitFlow, fetchVisitTypeDecision, listRegistrations, type VisitTypeDecisionResult } from '@/features/frontdesk/api/registrations';
+import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
 import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
@@ -31,6 +32,7 @@ import {
   type RegistrationAbhaContext,
 } from '@/features/frontdesk/components/registration-patient-section';
 import { getAbhaCard } from '@/features/abha/api/m1-enrolment';
+import { ensurePatientAbhaAddressIdentifier } from '@/features/opd-patients/api/empi-patients';
 import { downloadAbhaCardFile } from '@/features/abha/utils/download-abha-card';
 import {
   VisitRegistrationAppointmentSection,
@@ -43,19 +45,29 @@ import type { CreateVisitRequestBody, RegistrationListItemResponse } from '@/fea
 import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
+  buildVisitTypeDecisionPatientPayload,
   computeBillingGrandTotal,
+  FIRST_VISIT_TYPE_CODE,
+  FOLLOW_UP_VISIT_TYPE_CODE,
   hasEnteredAgeYmd,
+  isFollowUpVisitType,
   isVisitRegistrationFormComplete,
   visitRegistrationBlockHint,
   visitRegistrationFormBlockers,
+  visitTypeDecisionRequestKey,
   defaultVisitRegistrationAddress,
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
+import {
+  effectiveOpdQueueStatus,
+  queueStatusLabel,
+} from '@/features/opd-patients/lib/registration-visit-status';
 import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
+import { useSyncRegistrationAppointmentRoom } from '@/features/frontdesk/hooks/use-sync-registration-appointment-room';
 import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useProviderList } from '@/features/user-management/api/queries';
@@ -73,6 +85,8 @@ type ReportsModalConfig = {
 };
 
 type FormValues = CreateVisitRequestBody;
+
+type VisitSubmitPayload = CreateVisitRequestBody & { existingPatientId?: string };
 
 function VisitRegistrationRoute() {
   const [abhaDialogOpen, setAbhaDialogOpen] = useState(false);
@@ -94,6 +108,10 @@ function VisitRegistrationRoute() {
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
+  const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
+  const abhaIdentifierSyncKeyRef = useRef<string | null>(null);
+  const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
+  const [isVisitTypeLocked, setIsVisitTypeLocked] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [reportsModal, setReportsModal] = useState<ReportsModalConfig | null>(null);
@@ -122,6 +140,22 @@ function VisitRegistrationRoute() {
     enabled: phase === 'list',
   });
 
+  const listVisitIds = useMemo(
+    () =>
+      (listQuery.data?.data ?? [])
+        .map((row) => row.id?.trim())
+        .filter((id): id is string => Boolean(id)),
+    [listQuery.data?.data],
+  );
+
+  const encounterOverlayQuery = useQuery({
+    queryKey: ['registrations', 'encounter-overlay', listVisitIds],
+    queryFn: () => fetchOpdEncounterOverlaysByVisitIds(listVisitIds),
+    enabled: phase === 'list' && listVisitIds.length > 0,
+    retry: false,
+    staleTime: 30_000,
+  });
+
   const openSlipPreview = (row: RegistrationListItemResponse) => {
     setReportsModal({
       registrationId: row.registration_id,
@@ -130,6 +164,41 @@ function VisitRegistrationRoute() {
       footerMode: 'list',
     });
     setReportsModalOpen(true);
+  };
+
+  const openFollowUpVisit = (row: RegistrationListItemResponse) => {
+    setExistingPatientId(row.patient_id);
+    const digits = (row.patient_phone_number ?? '').replace(/\D/g, '');
+    const phone = digits.length >= 10 ? digits.slice(-10) : '';
+    form.setValue('patient.phone', phone, { shouldValidate: true });
+    form.setValue('patient.first_name', row.patient_full_name?.trim() ?? '', { shouldValidate: true });
+    const genderRaw = (row.patient_gender ?? '').trim().toLowerCase();
+    const gender =
+      genderRaw === 'male' || genderRaw === 'm'
+        ? 'male'
+        : genderRaw === 'female' || genderRaw === 'f'
+          ? 'female'
+          : genderRaw === 'other'
+            ? 'other'
+            : '';
+    if (gender) form.setValue('patient.gender', gender, { shouldValidate: true });
+    if (row.patient_date_of_birth) {
+      form.setValue('patient.date_of_birth', row.patient_date_of_birth);
+    }
+    const abhaNumber = row.patient_abha_number?.trim() ?? '';
+    const abhaAddress = row.patient_abha_address?.trim() ?? '';
+    form.setValue('patient.abha_number', abhaNumber);
+    form.setValue('patient.abha_address', abhaAddress);
+    form.setValue('appointment.visit_type_code', FOLLOW_UP_VISIT_TYPE_CODE);
+    form.setValue('appointment.department_id', '');
+    form.setValue('appointment.department_name', '');
+    form.setValue('appointment.provider_id', '');
+    setAbhaRegistration(
+      abhaNumber || abhaAddress
+        ? { sessionId: '', abhaNumber, abhaAddress }
+        : null,
+    );
+    setPhase('form');
   };
 
   const openInvoicePreview = async (row: RegistrationListItemResponse) => {
@@ -234,7 +303,11 @@ function VisitRegistrationRoute() {
     billingAmountPaid,
     patientPhone,
     patientFirstName,
+    patientMiddleName,
+    patientLastName,
     patientGender,
+    patientAbhaNumber,
+    patientAbhaAddress,
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
@@ -253,7 +326,11 @@ function VisitRegistrationRoute() {
       'billing.amount_paid',
       'patient.phone',
       'patient.first_name',
+      'patient.middle_name',
+      'patient.last_name',
       'patient.gender',
+      'patient.abha_number',
+      'patient.abha_address',
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
@@ -278,7 +355,121 @@ function VisitRegistrationRoute() {
     tariffs.registrationFeeLine,
     tariffs.consultationFeeLine,
     hasProvider,
+    visitDecisionMeta?.fee === 0,
   );
+
+  useSyncRegistrationAppointmentRoom(
+    departmentId,
+    appointmentProviderId?.trim() || null,
+    tariffs.consultationRoomNumber,
+    form.setValue,
+  );
+  const resolvedDeskPatientId =
+    existingPatientId ?? visitDecisionMeta?.resolved_patient_id ?? null;
+
+  const syncAbhaIdentifierToEmpi = useCallback(async (patientId: string, abhaAddress: string) => {
+    const value = abhaAddress.trim();
+    if (!value) return;
+    const syncKey = `${patientId}:${value}`;
+    if (abhaIdentifierSyncKeyRef.current === syncKey) return;
+    try {
+      await ensurePatientAbhaAddressIdentifier(patientId, value);
+      abhaIdentifierSyncKeyRef.current = syncKey;
+    } catch {
+      // Best-effort — visit submit and visit-type-decision also link.
+    }
+  }, []);
+
+  const visitTypeDecisionPatient = useMemo(
+    () =>
+      buildVisitTypeDecisionPatientPayload({
+        patientId: resolvedDeskPatientId,
+        phone: patientPhone,
+        firstName: patientFirstName,
+        middleName: patientMiddleName,
+        lastName: patientLastName,
+        gender: patientGender,
+        dateOfBirth,
+        ageYears,
+        ageMonths,
+        ageDays,
+        abhaNumber: patientAbhaNumber,
+        abhaAddress: patientAbhaAddress,
+      }),
+    [
+      resolvedDeskPatientId,
+      patientPhone,
+      patientFirstName,
+      patientMiddleName,
+      patientLastName,
+      patientGender,
+      dateOfBirth,
+      ageYears,
+      ageMonths,
+      ageDays,
+      patientAbhaNumber,
+      patientAbhaAddress,
+    ],
+  );
+
+  useEffect(() => {
+    if (!resolvedDeskPatientId || !patientAbhaAddress?.trim()) return;
+    void syncAbhaIdentifierToEmpi(resolvedDeskPatientId, patientAbhaAddress);
+  }, [resolvedDeskPatientId, patientAbhaAddress, syncAbhaIdentifierToEmpi]);
+
+  const visitTypeDecisionKey = useMemo(
+    () =>
+      visitTypeDecisionRequestKey(
+        (appointmentDepartmentId ?? '').trim(),
+        visitTypeDecisionPatient,
+      ),
+    [appointmentDepartmentId, visitTypeDecisionPatient],
+  );
+  const debouncedVisitTypeDecisionKey = useDebouncedValue(visitTypeDecisionKey, 300);
+
+  useEffect(() => {
+    if (phase !== 'form') return;
+
+    const departmentId = (appointmentDepartmentId ?? '').trim();
+    if (!departmentId) {
+      setVisitDecisionMeta(null);
+      setIsVisitTypeLocked(false);
+      form.setValue('appointment.visit_type_code', FIRST_VISIT_TYPE_CODE, { shouldValidate: true });
+      return;
+    }
+
+    const stableKey = visitTypeDecisionRequestKey(departmentId, visitTypeDecisionPatient);
+    if (debouncedVisitTypeDecisionKey !== stableKey) return;
+
+    let cancelled = false;
+    void fetchVisitTypeDecision({
+      department_id: departmentId,
+      patient: visitTypeDecisionPatient,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setVisitDecisionMeta(data);
+        setIsVisitTypeLocked(data.is_locked);
+        form.setValue('appointment.visit_type_code', data.visit_type_code, { shouldValidate: true });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setVisitDecisionMeta(null);
+        setIsVisitTypeLocked(false);
+        form.setValue('appointment.visit_type_code', FIRST_VISIT_TYPE_CODE, { shouldValidate: true });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [phase, debouncedVisitTypeDecisionKey, appointmentDepartmentId, visitTypeDecisionPatient, form]);
+
+  const visitTypeHint =
+    visitDecisionMeta?.consultation_type === 'free-followup' && visitDecisionMeta.valid_till
+      ? `Free follow-up valid till ${new Date(visitDecisionMeta.valid_till).toLocaleDateString()} · fee ₹${visitDecisionMeta.fee}`
+      : visitDecisionMeta
+        ? `Consultation fee ₹${visitDecisionMeta.fee}`
+        : null;
 
   const formGate = {
     phone: patientPhone,
@@ -363,19 +554,6 @@ function VisitRegistrationRoute() {
   } = form.register('patient.phone', indianMobileRegisterOptions());
 
   const submitIdempotencyKeyRef = useRef<string | undefined>(undefined);
-  const pendingAbhaDistrictRef = useRef<string | null>(null);
-  const permanentState = useWatch({ control: form.control, name: 'permanent_address.state' });
-
-  const applyPendingAbhaDistrict = () => {
-    const districtCode = pendingAbhaDistrictRef.current;
-    if (!districtCode || !form.getValues('permanent_address.state')) return;
-    form.setValue('permanent_address.district', districtCode, { shouldValidate: true });
-    pendingAbhaDistrictRef.current = null;
-  };
-
-  useEffect(() => {
-    applyPendingAbhaDistrict();
-  }, [permanentState, form]);
 
   const applyAbhaPayloadToForm = (payload: AbhaCreatedPayload) => {
     if (payload.abhaNumber) {
@@ -406,18 +584,15 @@ function VisitRegistrationRoute() {
       if (line1) {
         form.setValue('permanent_address.line1', line1, { shouldValidate: true });
       }
-      if (state) {
-        form.setValue('permanent_address.state', state, { shouldValidate: true });
-        if (district) {
-          pendingAbhaDistrictRef.current = district;
-        }
-      } else if (district) {
-        form.setValue('permanent_address.district', district, { shouldValidate: true });
-      }
       if (pincode) {
         form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
       }
-      applyPendingAbhaDistrict();
+      if (state) {
+        form.setValue('permanent_address.state', state, { shouldValidate: true });
+        if (district) {
+          form.setValue('permanent_address.district', district, { shouldValidate: true });
+        }
+      }
     }
   };
 
@@ -434,13 +609,16 @@ function VisitRegistrationRoute() {
         abhaAddress,
       });
     }
+    const patientId = existingPatientId ?? visitDecisionMeta?.resolved_patient_id ?? null;
+    if (patientId && abhaAddress) {
+      void syncAbhaIdentifierToEmpi(patientId, abhaAddress);
+    }
     toast.success('ABHA details applied to registration form');
   };
 
   const handleClearAbhaRegistration = () => {
     form.setValue('patient.abha_number', '', { shouldValidate: false });
     form.setValue('patient.abha_address', '', { shouldValidate: false });
-    pendingAbhaDistrictRef.current = null;
     setAbhaRegistration(null);
     toast.message('ABHA details cleared');
   };
@@ -464,17 +642,19 @@ function VisitRegistrationRoute() {
   };
 
   const mutation = useMutation({
-    mutationFn: (data: CreateVisitRequestBody) => {
+    mutationFn: (data: VisitSubmitPayload) => {
+      const { existingPatientId: patientId, ...formData } = data;
       const idempotencyKey = submitIdempotencyKeyRef.current ?? crypto.randomUUID();
       submitIdempotencyKeyRef.current = idempotencyKey;
-      const providerId = data.appointment?.provider_id?.trim();
+      const providerId = formData.appointment?.provider_id?.trim();
       const doctorName = providerId
         ? providersQuery.data?.find((provider) => provider.id === providerId)?.full_name
         : undefined;
-      return executeCreateVisitFlow(data, {
+      return executeCreateVisitFlow(formData, {
         idempotencyKey,
+        existingPatientId: patientId,
         reportMeta: {
-          departmentName: data.appointment?.department_name,
+          departmentName: formData.appointment?.department_name,
           doctorName,
           facilityName: branchLabel,
         },
@@ -483,14 +663,24 @@ function VisitRegistrationRoute() {
     onSettled: () => {
       submitIdempotencyKeyRef.current = undefined;
     },
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       void queryClient.invalidateQueries({ queryKey: ['registrations', 'list'] });
-      if (res.patient_uhid) {
+      const isFollowUp =
+        Boolean(variables.existingPatientId) ||
+        isFollowUpVisitType(variables.appointment?.visit_type_code);
+      if (isFollowUp) {
+        toast.success(
+          res.visit_id
+            ? `Follow-up visit saved — ${res.visit_id}`
+            : 'Follow-up visit saved.',
+        );
+      } else if (res.patient_uhid) {
         toast.success(`Registration saved — UHID ${res.patient_uhid}`);
       } else {
         toast.success('Registration saved.');
       }
       form.reset();
+      setExistingPatientId(null);
       setAbhaRegistration(null);
       setReportsModal({
         registrationId: res.registration_id,
@@ -575,6 +765,10 @@ function VisitRegistrationRoute() {
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
       return;
     }
+    if (isFollowUpVisitType(data.appointment?.visit_type_code) && !visitDecisionMeta?.resolved_patient_id && !existingPatientId) {
+      toast.error('Use Follow-up on the registrations list for an existing patient.');
+      return;
+    }
     form.clearErrors([
       'patient.phone',
       'patient.first_name',
@@ -592,7 +786,10 @@ function VisitRegistrationRoute() {
         ? { ...data.permanent_address }
         : data.residential_address,
     };
-    mutation.mutate(payload);
+    mutation.mutate({
+      ...payload,
+      existingPatientId: visitDecisionMeta?.resolved_patient_id ?? existingPatientId ?? undefined,
+    });
   };
 
   return (
@@ -607,7 +804,15 @@ function VisitRegistrationRoute() {
           {phase === 'list' ? (
           <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-2xl font-semibold tracking-tight">Registration</h1>
-            <Button type="button" size="sm" onClick={() => setPhase('form')}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                setExistingPatientId(null);
+                setAbhaRegistration(null);
+                setPhase('form');
+              }}
+            >
               + New registration
             </Button>
           </header>
@@ -660,6 +865,7 @@ function VisitRegistrationRoute() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>UHID</TableHead>
+                          <TableHead>Visit ID</TableHead>
                           <TableHead>Patient</TableHead>
                           <TableHead>Phone</TableHead>
                           <TableHead>Status</TableHead>
@@ -671,7 +877,7 @@ function VisitRegistrationRoute() {
                       <TableBody>
                         {listQuery.data.data.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground">
+                            <TableCell colSpan={8} className="text-center text-muted-foreground">
                               No registrations match your search.
                             </TableCell>
                           </TableRow>
@@ -679,20 +885,43 @@ function VisitRegistrationRoute() {
                           listQuery.data.data.map((row) => {
                             const invoiceLoading =
                               invoiceLookupRegistrationId === row.registration_id;
+                            const overlay = row.id
+                              ? encounterOverlayQuery.data?.get(row.id)
+                              : undefined;
+                            const visitStatus = effectiveOpdQueueStatus(
+                              row.registration_status,
+                              overlay?.prescriptionStatus,
+                              overlay?.visitStatus,
+                            );
+                            const statusLabel = queueStatusLabel(visitStatus);
                             return (
                             <TableRow key={row.registration_id}>
                               <TableCell className="font-medium tabular-nums">
                                 {row.patient_uhid ?? '—'}
                               </TableCell>
+                              <TableCell className="font-medium tabular-nums">
+                                {row.visit_id ?? '—'}
+                              </TableCell>
                               <TableCell>{row.patient_full_name ?? '—'}</TableCell>
                               <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
-                              <TableCell>{row.registration_status_label ?? row.registration_status}</TableCell>
+                              <TableCell>{statusLabel}</TableCell>
                               <TableCell>{row.visit_type_label ?? row.visit_type ?? '—'}</TableCell>
                               <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
                                 {new Date(row.created_at).toLocaleString()}
                               </TableCell>
                               <TableCell className="relative text-right">
                                 <div className="flex flex-wrap justify-end gap-2">
+                                  {canCreate ? (
+                                    <Button
+                                      type="button"
+                                      variant="default"
+                                      size="sm"
+                                      title="Open follow-up visit for this patient"
+                                      onClick={() => openFollowUpVisit(row)}
+                                    >
+                                      Follow-up
+                                    </Button>
+                                  ) : null}
                                   <Button
                                     type="button"
                                     variant="outline"
@@ -803,6 +1032,8 @@ function VisitRegistrationRoute() {
                     setValue={form.setValue}
                     tariffsLoading={tariffs.isLoading}
                     tariffsError={tariffs.isError}
+                    isVisitTypeLocked={isVisitTypeLocked}
+                    visitTypeHint={visitTypeHint}
                   />
                 ) : null}
 

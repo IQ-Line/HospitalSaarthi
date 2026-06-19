@@ -1,6 +1,4 @@
-import type { ComponentProps } from 'react';
-import { Controller } from 'react-hook-form';
-import type { Control, FieldErrors, UseFormRegister } from 'react-hook-form';
+import type { Control, FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Input } from '@pulse/ui/input';
 import {
   Field,
@@ -10,21 +8,16 @@ import {
   FieldGroup,
   FieldLabel,
 } from '@pulse/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
 import type { BranchWizardFormValues } from '@/features/configurator/create-branch-wizard-schema';
-import { INDIAN_STATE_OPTIONS } from '@/features/configurator/create-tenant-wizard-schema';
+import { ConfiguratorAddressPincodeFields } from '@/features/configurator/components/configurator-address-pincode-fields';
 
 export interface WizardStepBranchDetailsProps {
   register: UseFormRegister<BranchWizardFormValues>;
   control: Control<BranchWizardFormValues>;
   errors: FieldErrors<BranchWizardFormValues>;
-  tenantSlugPreview: string;
+  setValue: UseFormSetValue<BranchWizardFormValues>;
+  watch: UseFormWatch<BranchWizardFormValues>;
+  suggestedSlug: string;
   parentTenantName: string;
 }
 
@@ -32,10 +25,11 @@ export function WizardStepBranchDetails({
   register,
   control,
   errors,
-  tenantSlugPreview,
+  setValue,
+  watch,
+  suggestedSlug,
   parentTenantName,
-}: WizardStepBranchDetailsProps) {
-  return (
+}: WizardStepBranchDetailsProps) {  return (
     <FieldGroup className="@container/field-group mx-auto max-w-none gap-4">
       <Field className="rounded-md border border-dashed bg-muted/30 px-3 py-2">
         <FieldDescription className="text-xs">
@@ -58,9 +52,7 @@ export function WizardStepBranchDetails({
           </FieldContent>
         </Field>
         <Field>
-          <FieldLabel htmlFor="br-wiz-code">
-            Branch code <span className="text-destructive">*</span>
-          </FieldLabel>
+          <FieldLabel htmlFor="br-wiz-code">Branch code (optional)</FieldLabel>
           <FieldContent>
             <Input
               id="br-wiz-code"
@@ -68,20 +60,24 @@ export function WizardStepBranchDetails({
               placeholder="MUM-01"
               {...register('branchCode')}
             />
-            <FieldDescription>Uppercase alphanumeric + hyphen, 2–10 characters.</FieldDescription>
+            <FieldDescription>Uppercase letters, digits, hyphens, and underscores; 2–10 characters.</FieldDescription>
             <FieldError errors={errors.branchCode ? [errors.branchCode] : undefined} />
           </FieldContent>
         </Field>
         <Field>
-          <FieldLabel htmlFor="br-wiz-slug-preview">Slug (auto)</FieldLabel>
+          <FieldLabel htmlFor="br-wiz-slug">Tenant slug (optional)</FieldLabel>
           <FieldContent>
             <Input
-              id="br-wiz-slug-preview"
+              id="br-wiz-slug"
               className="h-9 font-mono text-sm"
-              readOnly
-              disabled
-              value={tenantSlugPreview}
+              placeholder={suggestedSlug || 'e.g., org-slug-branch-name'}
+              {...register('branchSlug')}
             />
+            <FieldDescription>
+              Leave blank to auto-generate from branch name
+              {suggestedSlug ? ` (suggested: ${suggestedSlug})` : ''}.
+            </FieldDescription>
+            <FieldError errors={errors.branchSlug ? [errors.branchSlug] : undefined} />
           </FieldContent>
         </Field>
         <Field className="md:col-span-2">
@@ -98,63 +94,12 @@ export function WizardStepBranchDetails({
             <FieldError errors={errors.hqAddressLine1 ? [errors.hqAddressLine1] : undefined} />
           </FieldContent>
         </Field>
-        <Field>
-          <FieldLabel htmlFor="br-wiz-locality">Locality</FieldLabel>
-          <FieldContent>
-            <Input id="br-wiz-locality" className="h-9 text-sm" {...register('locality')} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="br-wiz-block">Block</FieldLabel>
-          <FieldContent>
-            <Input id="br-wiz-block" className="h-9 text-sm" {...register('block')} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="br-wiz-district">
-            District <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Input id="br-wiz-district" className="h-9 text-sm" {...register('district')} />
-            <FieldError errors={errors.district ? [errors.district] : undefined} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel id="br-wiz-state-label">
-            State <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Controller
-              name="state"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || undefined} onValueChange={field.onChange}>
-                  <SelectTrigger className="h-9 w-full text-sm" aria-labelledby="br-wiz-state-label">
-                    <SelectValue placeholder="Select state" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDIAN_STATE_OPTIONS.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            <FieldError errors={errors.state ? [errors.state] : undefined} />
-          </FieldContent>
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="br-wiz-pin">
-            PIN code <span className="text-destructive">*</span>
-          </FieldLabel>
-          <FieldContent>
-            <Input id="br-wiz-pin" className="h-9 text-sm" maxLength={6} {...register('pinCode')} />
-            <FieldError errors={errors.pinCode ? [errors.pinCode] : undefined} />
-          </FieldContent>
-        </Field>
-      </div>
-    </FieldGroup>
+        <ConfiguratorAddressPincodeFields
+          idPrefix="br-wiz"
+          errors={errors}
+          setValue={setValue}
+          watch={watch}
+        />
+      </div>    </FieldGroup>
   );
 }

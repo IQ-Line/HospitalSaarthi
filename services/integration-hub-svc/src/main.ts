@@ -15,16 +15,19 @@ import {
   DrizzleLinkTokensRepo,
   createFideliusEncryptorFromEnv,
   HttpEmpiClient,
+  HttpRegistrationClient,
   HttpRecordFoundationClient,
   MockEmpiClient,
   MockRecordFoundationClient,
   NoOpEmpiClient,
+  NoOpRegistrationClient,
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
   registerM3CallbackRoutes,
   registerM2EventConsumers,
   createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
+  DrizzleCareContextLinkStateRepo,
   DrizzleM3ConsentRequestsRepo,
   DrizzleM3ConsentArtefactsHiuRepo,
   DrizzleM3DataTransfersRepo,
@@ -40,6 +43,7 @@ import {
   resolveDatabaseUrlFromEnv,
   serviceRoot,
 } from "./load-env.js";
+import { validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerHttpErrorHandler } from "./http-errors.js";
 
 normalizeIntegrationHubEnvAliases();
@@ -50,8 +54,6 @@ const PORT = Number(
   process.env["INTEGRATION_HUB_SVC_PORT"] ?? process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007,
 );
 const DATABASE_URL = resolveDatabaseUrlFromEnv();
-const JWKS_URL =
-  process.env["JWKS_URL"] ?? "http://localhost:3000/.well-known/jwks.json";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const GATEWAY_BASE_URL =
@@ -62,7 +64,13 @@ const ABHA_API_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_ABHA_API_BASE_URL"] ??
   process.env["ABDM_ABHA_API_BASE_URL"] ??
   "https://abhasbx.abdm.gov.in/abha/api";
-const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? "";
+const EMPI_BASE_URL = process.env["EMPI_BASE_URL"] ?? process.env["EMPI_URL"] ?? "";
+const REGISTRATION_BASE_URL =
+  process.env["REGISTRATION_BASE_URL"] ?? process.env["REGISTRATION_URL"] ?? "";
+const ABDM_MOCK_PATIENT_ID =
+  process.env["INTEGRATION_HUB_ABDM_MOCK_PATIENT_ID"]?.trim() ||
+  process.env["ABDM_MOCK_PATIENT_ID"]?.trim() ||
+  "00000000-0000-4000-8000-000000000001";
 const RECORD_FOUNDATION_BASE_URL = process.env["RECORD_FOUNDATION_BASE_URL"] ?? "";
 const ABDM_M2_MOCK_PLATFORM =
   (process.env["INTEGRATION_HUB_ABDM_M2_MOCK_PLATFORM"] ??
@@ -96,7 +104,7 @@ async function main() {
     const env = process.env["NODE_ENV"] ?? "development";
     if (env === "production" || env === "staging") {
       app.log.error(
-        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWKS_URL before staging/production.",
+        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
       );
     } else {
       app.log.warn(
@@ -132,6 +140,13 @@ async function main() {
     );
   }
 
+  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
+  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
+    app.log.warn(
+      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
+    );
+  }
+
   const profiles = ConfiguratorHttpIntegrationProfileRepo.fromEnv();
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
@@ -142,10 +157,13 @@ async function main() {
   const linkTokens = new DrizzleLinkTokensRepo(db);
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
   const empi = ABDM_M2_MOCK_PLATFORM
-    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS)
+    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID)
     : EMPI_BASE_URL
       ? new HttpEmpiClient(EMPI_BASE_URL)
       : new NoOpEmpiClient();
+  const registration = REGISTRATION_BASE_URL
+    ? new HttpRegistrationClient(REGISTRATION_BASE_URL)
+    : new NoOpRegistrationClient();
   const recordFoundation = ABDM_M2_MOCK_PLATFORM
     ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
     : RECORD_FOUNDATION_BASE_URL
@@ -162,6 +180,7 @@ async function main() {
   const m3ConsentArtefactsHiu = new DrizzleM3ConsentArtefactsHiuRepo(db);
   const m3DataTransfers = new DrizzleM3DataTransfersRepo(db);
   const linkOtpStore = new DrizzleLinkOtpsRepo(db);
+  const careContextLinkState = new DrizzleCareContextLinkStateRepo(db);
 
   const sharedInfra: IntegrationHubSharedInfra = {
     profiles,
@@ -177,7 +196,9 @@ async function main() {
     m3ConsentArtefactsHiu,
     m3DataTransfers,
     empi,
+    registration,
     recordFoundation,
+    careContextLinkState,
     fidelius,
     payloadEncryptor,
     linkOtpStore,
@@ -215,10 +236,12 @@ async function main() {
 
   const abdmRouter = createRouter(sharedInfra);
 
+  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+
   await app.register(async (api) => {
-    if (ENABLE_AUTH) {
+    if (identityAuth) {
       const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, { jwksUrl: JWKS_URL });
+      await api.register(identityPlugin, identityAuth);
     }
     await api.register(tenantPlugin);
 

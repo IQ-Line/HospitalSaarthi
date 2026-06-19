@@ -49,8 +49,8 @@ export function PreConsult() {
       {
         key: 'complaint',
         label: 'Complaint',
-        type: 'select',
-        placeholder: 'Select complaint',
+        type: 'creatable-select',
+        placeholder: 'Search or type complaint',
         options: chiefComplaintOptions,
       },
       {
@@ -78,15 +78,15 @@ export function PreConsult() {
       {
         key: 'vaccineName',
         label: 'Vaccine',
-        type: 'select',
-        placeholder: 'Select vaccine',
+        type: 'creatable-select',
+        placeholder: 'Search or type vaccine',
         options: vaccineOptions,
       },
       {
         key: 'manufacturer',
         label: 'Manufacturer',
-        type: 'select',
-        placeholder: 'Select manufacturer',
+        type: 'creatable-select',
+        placeholder: 'Search or type manufacturer',
         options: manufacturerOptions,
       },
       { key: 'lotNumber', label: 'Lot #', width: '100px' },

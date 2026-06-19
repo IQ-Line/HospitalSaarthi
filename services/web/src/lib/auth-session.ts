@@ -91,19 +91,38 @@ function redirectToLoginIfBrowserSessionExpired(): void {
 }
 
 /**
+ * Signs out and clears client auth when the platform user is deactivated mid-session.
+ */
+export async function forceLogoutDueToAccountDisabled(): Promise<void> {
+  authBootstrapComplete = false;
+  authBootstrapPromise = null;
+  useAuthStore.getState().clearSession();
+  try {
+    await authClient.signOut();
+  } catch {
+    /* best-effort — server sessions may already be revoked */
+  }
+  redirectToLoginIfBrowserSessionExpired();
+}
+
+function isAccountDisabledTokenError(error: unknown): boolean {
+  if (error == null || typeof error !== "object") {
+    return false;
+  }
+  const status = (error as { status?: unknown }).status;
+  const message = (error as { message?: unknown }).message;
+  return (
+    status === 403 &&
+    typeof message === "string" &&
+    message.toLowerCase().includes("deactivated")
+  );
+}
+
+/**
  * Restores the browser session from better-auth's cookie-backed session before route guards run.
  * JWTs stay in memory; on reload we re-fetch them from the active better-auth session.
  */
 export async function ensureAuthSession(): Promise<void> {
-  const auth = useAuthStore.getState();
-  if (auth.isAuthenticated && auth.accessToken?.trim()) {
-    authBootstrapComplete = true;
-    return;
-  }
-  if (auth.isAuthenticated && !auth.accessToken?.trim()) {
-    useAuthStore.getState().clearSession();
-  }
-
   if (authBootstrapComplete) {
     return;
   }
@@ -127,6 +146,11 @@ export async function ensureAuthSession(): Promise<void> {
         authUserIqTenantId: resolvedSession.authUserIqTenantId,
         preferredActiveTenantId: useTenantStore.getState().tenantId,
       });
+    } catch (error) {
+      useAuthStore.getState().clearSession();
+      if (isAccountDisabledTokenError(error)) {
+        await forceLogoutDueToAccountDisabled();
+      }
     } finally {
       authBootstrapComplete = true;
       authBootstrapPromise = null;

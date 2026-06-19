@@ -7,6 +7,7 @@ dependencies = [
     "alembic",
     "azure-storage-blob",
     "fastapi",
+    "hims_sdk_fhir",
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
@@ -14,6 +15,9 @@ dependencies = [
     "python-multipart",
     "sqlalchemy",
 ]
+
+[tool.uv.sources]
+hims_sdk_fhir = { path = "../../packages/py-sdk-fhir", editable = true }
 
 [dependency-groups]
 dev = [

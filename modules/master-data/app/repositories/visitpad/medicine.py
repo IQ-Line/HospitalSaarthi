@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, String, cast, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -50,6 +50,10 @@ class VisitpadMedicineRepository:
                     M.code.ilike(term),
                     M.display_name.ilike(term),
                     M.generic_name.ilike(term),
+                    M.short_name.isnot(None) & M.short_name.ilike(term),
+                    M.strength_display.ilike(term),
+                    cast(M.brand_names, String).ilike(term),
+                    cast(M.search_tags, String).ilike(term),
                 )
             )
         append_is_active_filter(filters, M, is_active)

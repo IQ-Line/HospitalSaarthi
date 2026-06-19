@@ -12,7 +12,9 @@ import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
-  createDefaultPrincipalService,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { HttpPdfPlatformRenderer } from "@hims/pdf-client";
@@ -22,13 +24,17 @@ import {
   DrizzleVisitRepo,
   HttpBillingGateway,
   HttpEmpiGateway,
+  HttpConfiguratorGateway,
   HttpOpdGateway,
   HttpPicklistGateway,
+  apiKeyAuthPlugin,
   createRegistrationAuthzTargetResolver,
   registerDocumentsHandler,
+  registerInternalHandlers,
   registerRegistrationsHandler,
   registerVisitsHandler,
 } from "@hims/registration";
+import { DrizzleApiKeyValidator } from "./adapters/drizzle-api-key-validator.js";
 
 const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
@@ -36,6 +42,7 @@ const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
 const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const CONFIGURATOR_URL = process.env["CONFIGURATOR_URL"] ?? "http://localhost:3001";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
 const PDF_PLATFORM_API_KEY = process.env["PDF_PLATFORM_API_KEY"];
 
@@ -59,6 +66,7 @@ async function main() {
       "iq_tenant_id",
       "x-tenant-id",
       "Idempotency-Key",
+      "x-api-key",
     ],
     origin: (
       origin: string | undefined,
@@ -112,6 +120,7 @@ async function main() {
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
+  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL);
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
@@ -140,6 +149,7 @@ async function main() {
     visitRepo,
     allocateOpVisitId,
     empiGateway,
+    configuratorGateway,
     eventBus,
     opdGateway,
     picklistReadPort,
@@ -165,13 +175,25 @@ async function main() {
   const userRepository = new DrizzleUserRepository(db);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
-  const principalService = createDefaultPrincipalService({
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
   });
 
+  const apiKeyValidator = new DrizzleApiKeyValidator(db);
+
   async function registerRegistrationApi(api: FastifyInstance): Promise<void> {
+    await api.register(apiKeyAuthPlugin, { validator: apiKeyValidator });
     await api.register(identityPlugin, {
       ...identityAuth,
       skipPathPrefixes: ["/docs"],
@@ -192,9 +214,15 @@ async function main() {
       allocateOpVisitId,
       eventBus,
       opdGateway,
+      configuratorGateway,
     });
     registerDocumentsHandler(api, documentDeps);
   }
+
+  await app.register(async (internalApi) => {
+    await internalApi.register(tenantPlugin);
+    registerInternalHandlers(internalApi, { registrationRepo });
+  }, { prefix: "/api/registration/v1" });
 
   await app.register(registerRegistrationApi, { prefix: "/api/registration/v1" });
 

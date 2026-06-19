@@ -31,8 +31,14 @@ this scaffold uses Python's standard src-layout (`src/opd/`) so imports are
 uv sync
 uv run pytest
 uv run ruff check .
-uv run alembic upgrade heads
+uv run python -m opd.core.migrations   # alembic upgrade heads (all branches)
 ```
+
+The Alembic chain has parallel branches merged at ``003_merge_opd_prescription_heads``.
+Use ``upgrade heads`` (plural), not ``upgrade head`` — the latter can skip
+``002_health_documents`` and leave ``opd.health_documents`` missing.
+
+``opd-svc`` applies migrations automatically on startup unless ``OPD_SKIP_MIGRATE=true``.
 
 ## Database schema
 

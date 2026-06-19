@@ -28,8 +28,9 @@ export function mapRegistrationVisitToOpdPatientRow(
   visit: RegistrationVisitResponse,
   empi: EmpiPatient | undefined,
   prescriptionStatus?: OpdPrescriptionStatus | null,
+  opdVisitStatus?: string | null,
 ): OpdPatientVisitRow {
-  const status = effectiveOpdQueueStatus(visit.status, prescriptionStatus);
+  const status = effectiveOpdQueueStatus(visit.status, prescriptionStatus, opdVisitStatus);
 
   return {
     id: visit.id,
@@ -43,6 +44,6 @@ export function mapRegistrationVisitToOpdPatientRow(
     visitCreatedAt: visit.created_at.slice(0, 10),
     status,
     isOwnPatient: true,
-    actionLabel: opdVisitStatusToActionLabel(status),
+    actionLabel: opdVisitStatusToActionLabel(status, prescriptionStatus, opdVisitStatus),
   };
 }
