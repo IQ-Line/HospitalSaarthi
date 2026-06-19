@@ -16,6 +16,7 @@ PDF platform sidecar. Apply directly, or use as input for Helm/Kustomize/ArgoCD.
 - `hims.azurecr.io/empi-svc:<sha>`
 - `hims.azurecr.io/master-data:<sha>`
 - `hims.azurecr.io/registration-svc:<sha>`
+- `hims.azurecr.io/record-foundation-svc:<sha>`
 - `hims.azurecr.io/user-management-svc:<sha>`
 - `hims.azurecr.io/web:<sha>`
 
@@ -161,7 +162,7 @@ NHA CM   → Ingress /api → BFF → integration-hub-svc:3007  (/api/v3/*)
 | --- | --- | --- |
 | `INTEGRATION_HUB_URL` | `hims-config` ConfigMap | `http://integration-hub-svc.himsv2.svc.cluster.local:3007` |
 | `EMPI_BASE_URL` | `hims-config` ConfigMap | `http://empi-svc.himsv2.svc.cluster.local:3002` |
-| `RECORD_FOUNDATION_BASE_URL` | `hims-config` ConfigMap | `http://opd-svc.himsv2.svc.cluster.local:8020` |
+| `RECORD_FOUNDATION_BASE_URL` | `hims-config` ConfigMap | `http://record-foundation-svc.himsv2.svc.cluster.local:3009` (integration-hub-svc + opd-svc) |
 | `INTEGRATION_HUB_PUBLIC_BASE_URL` | `hims-config` ConfigMap | `https://dev.v2.hospitalsaarthi.com` (match public web host) |
 | `ABDM_TOKEN_ENCRYPTION_KEY` | `hims-secrets` | 32-byte key (hex or base64) — required in production |
 | `CONFIGURATOR_INTERNAL_API_KEY` | `hims-secrets` (optional in dev) | Same value as configurator-svc |
@@ -215,6 +216,7 @@ own runtime ports unless overridden. These manifests use the service defaults:
 | `user-management-svc` | `3005` |
 | `registration-svc` | `3006` |
 | `integration-hub-svc` | `3007` |
+| `record-foundation-svc` | `3009` |
 | `master-data` | `8010` |
 | `web` | `8080` |
 | `cerbos` | `3593` gRPC, `3592` HTTP |

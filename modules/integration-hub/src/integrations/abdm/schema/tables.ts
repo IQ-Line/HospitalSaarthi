@@ -91,6 +91,24 @@ export const abdmLinkTokens = abdmAdapterSchema.table(
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.abha_address] })],
 );
 
+export const abdmLinkedCareContexts = abdmAdapterSchema.table(
+  "abdm_linked_care_contexts",
+  {
+    ...tenantColumn(),
+    abha_address: text("abha_address").notNull(),
+    care_context_ref: text("care_context_ref").notNull(),
+    linked_at: timestamp("linked_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.iq_tenant_id, t.abha_address, t.care_context_ref],
+    }),
+    index("ix_abdm_linked_care_contexts_abha").on(t.iq_tenant_id, t.abha_address),
+  ],
+);
+
 export const abdmLinkOtps = abdmAdapterSchema.table(
   "abdm_link_otps",
   {

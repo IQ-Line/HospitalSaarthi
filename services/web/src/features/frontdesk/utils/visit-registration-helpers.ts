@@ -578,23 +578,78 @@ function mapVisitEncounterFields(
   return body;
 }
 
+function pickVisitRegistrationAddress(
+  data: CreateVisitRequestBody,
+): CreateVisitRequestBody['permanent_address'] {
+  return data.residential_address?.line1?.trim()
+    ? data.residential_address
+    : data.permanent_address;
+}
+
+function hasVisitRegistrationAddress(
+  address: CreateVisitRequestBody['permanent_address'] | undefined,
+): boolean {
+  if (!address) return false;
+  return [
+    address.line1,
+    address.line2,
+    address.city,
+    address.district,
+    address.state,
+    address.pincode,
+  ].some((part) => part?.trim());
+}
+
 export function mapVisitRegistrationToNewPatientIntakeBody(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient: mapVisitRegistrationToEmpiCreatePatient(data),
     ...mapVisitEncounterFields(data.appointment),
   };
+  const address = pickVisitRegistrationAddress(data);
+  if (hasVisitRegistrationAddress(address)) {
+    body.permanent_address = address;
+  }
+  return body;
 }
 
 export function mapVisitRegistrationToExistingPatientIntakeBody(
   data: CreateVisitRequestBody,
   patientId: string,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient_id: patientId,
     ...mapVisitEncounterFields(data.appointment),
   };
+  const abhaNumber = data.patient.abha_number?.trim();
+  const abhaAddress = data.patient.abha_address?.trim();
+  if (abhaNumber) body.abha_number = abhaNumber;
+  if (abhaAddress) body.abha_address = abhaAddress;
+
+  const p = data.patient;
+  const patientOverlay: Record<string, unknown> = {};
+  const abhaAddr = p.abha_address?.trim();
+  if (abhaAddr) patientOverlay.abha_address = abhaAddr;
+  const abhaNum = p.abha_number?.trim();
+  if (abhaNum) patientOverlay.abha_number = abhaNum;
+  const dob = p.date_of_birth?.trim();
+  if (dob) {
+    patientOverlay.date_of_birth = dob;
+    const y = new Date(dob).getFullYear();
+    if (!Number.isNaN(y) && y > 1900) patientOverlay.year_of_birth = y;
+  }
+
+  if (Object.keys(patientOverlay).length > 0) {
+    body.patient = patientOverlay;
+  }
+
+  const address = pickVisitRegistrationAddress(data);
+  if (hasVisitRegistrationAddress(address)) {
+    body.permanent_address = address;
+  }
+
+  return body;
 }
 
 export function defaultVisitRegistrationAddress(): CreateVisitRequestBody['permanent_address'] {

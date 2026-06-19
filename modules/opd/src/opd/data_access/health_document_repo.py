@@ -90,3 +90,15 @@ class HealthDocumentRepository:
             base.order_by(HealthDocument.uploaded_at.desc()).offset(offset).limit(limit)
         ).all()
         return list(rows), total
+
+    def list_active_for_visit(self, visit_id: UUID) -> list[HealthDocument]:
+        stmt = (
+            select(HealthDocument)
+            .where(
+                HealthDocument.tenant_id == self._tenant_id,
+                HealthDocument.visit_id == visit_id,
+                HealthDocument.status == "active",
+            )
+            .order_by(HealthDocument.uploaded_at.desc())
+        )
+        return list(self._session.scalars(stmt).all())

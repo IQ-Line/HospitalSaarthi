@@ -76,6 +76,7 @@ export async function handleM3HipConsentNotifyBridge(
       iqTenantId: input.iqTenantId,
       abhaAddress: patientAbha,
       empi: deps.empi,
+      registration: deps.registration,
     });
   } catch {
     patientId = "00000000-0000-0000-0000-000000000099";

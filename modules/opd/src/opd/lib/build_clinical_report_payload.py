@@ -49,6 +49,7 @@ def _clinical_base(
             "phone": _text(context.facility_phone) or None,
             "email": _text(context.facility_email) or None,
             "facilityId": _text(context.facility_id) or None,
+            "logoUrl": _text(context.logo_url) or None,
         },
         "patient": {
             "name": source.patient_name,
@@ -131,6 +132,32 @@ def _map_medicines(form_data: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _enrich_medicines_from_clinical(
+    medicines: list[dict[str, Any]],
+    clinical: PrescriptionClinicalPayload | None,
+) -> list[dict[str, Any]]:
+    """Backfill strength from normalized prescription rows when JSON form_data omits it."""
+    if not clinical or not clinical.medicines:
+        return medicines
+    strength_by_name = {
+        (row.name or "").strip().lower(): (row.strength or "").strip()
+        for row in clinical.medicines
+        if row.name and row.strength
+    }
+    if not strength_by_name:
+        return medicines
+
+    enriched: list[dict[str, Any]] = []
+    for med in medicines:
+        if med.get("strength"):
+            enriched.append(med)
+            continue
+        name_key = (med.get("name") or "").strip().lower()
+        strength = strength_by_name.get(name_key)
+        enriched.append({**med, "strength": strength} if strength else med)
+    return enriched
 
 
 def _normalize_immunization_date(value: str) -> str | None:
@@ -498,7 +525,10 @@ def build_clinical_report_request(
         return {
             **base,
             "diagnoses": _map_diagnoses(form_data),
-            "medicines": _map_medicines(form_data),
+            "medicines": _enrich_medicines_from_clinical(
+                _map_medicines(form_data),
+                clinical,
+            ),
         }
 
     if report_type == "immunization":
@@ -520,7 +550,10 @@ def build_clinical_report_request(
         "complaints": _map_complaints(form_data),
         "allergyDetails": _map_allergies(form_data),
         "diagnoses": _map_diagnoses(form_data),
-        "medicines": _map_medicines(form_data),
+        "medicines": _enrich_medicines_from_clinical(
+            _map_medicines(form_data),
+            clinical,
+        ),
         "tests": _map_tests(form_data),
         "imaging": _map_imaging(form_data),
         "procedures": _map_procedures(form_data),

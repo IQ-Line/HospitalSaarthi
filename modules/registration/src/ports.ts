@@ -29,6 +29,10 @@ export interface RegistrationRepo {
     tenantId: string,
     patientId: string,
   ): Promise<RegistrationRecord | undefined>;
+  findPatientIdByAbhaAddress(
+    tenantId: string,
+    abhaAddress: string,
+  ): Promise<string | undefined>;
   insert(
     tenantId: string,
     input: CreateRegistrationInput,
@@ -122,6 +126,13 @@ export interface EmpiHttpPort {
     body: Record<string, unknown>,
     bearerToken?: string,
   ): Promise<EmpiRegisterPatientResult>;
+  linkAbhaAddress(
+    tenantId: string,
+    patientId: string,
+    abhaAddress: string,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<{ ok: true } | { ok: false; reason: "conflict" | "error"; status: number }>;
   resolvePatientId(
     tenantId: string,
     query: {
@@ -145,7 +156,19 @@ export interface EmpiHttpPort {
     tenantId: string,
     patientId: string,
     bearerToken?: string,
-  ): Promise<{ patient: EmpiPatientWire; abha_number?: string | null; abha_address?: string | null } | null>;
+  ): Promise<{
+    patient: EmpiPatientWire;
+    abha_number?: string | null;
+    abha_address?: string | null;
+    addresses?: Array<{ id: string; address_type: string }>;
+  } | null>;
+  upsertPermanentAddress(
+    tenantId: string,
+    patientId: string,
+    address: Record<string, unknown>,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<void>;
 }
 
 export interface ConfiguratorHttpPort {

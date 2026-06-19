@@ -304,8 +304,11 @@ export async function executeCreateVisitFlow(
 
   try {
     await persistEmpiPatientPermanentAddress(registration.patient_id, addressBlock);
-  } catch {
-    // Best-effort — reports can still use formatted address from the visit flow context.
+  } catch (err) {
+    console.warn('[registration] EMPI patient address persist failed', {
+      patientId: registration.patient_id,
+      err,
+    });
   }
 
   const patientAddress = formatPatientAddressForReport(addressBlock);

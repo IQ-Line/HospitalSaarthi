@@ -71,6 +71,16 @@ def _list_has_content(items: Any) -> bool:
     return isinstance(items, list) and len(items) > 0
 
 
+def _immunization_list_has_content(items: Any) -> bool:
+    if not isinstance(items, list):
+        return False
+    return any(
+        isinstance(row, dict)
+        and _text(row.get("vaccineName") or row.get("vaccine_name") or row.get("name"))
+        for row in items
+    )
+
+
 def _vitals_has_content(vitals: Any) -> bool:
     if not isinstance(vitals, dict):
         return False
@@ -511,7 +521,9 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
         if key not in merged:
             merged[key] = value
             continue
-        if isinstance(merged[key], list) and _list_has_content(value):
+        if isinstance(merged[key], list) and key == "immunizations" and _immunization_list_has_content(value):
+            merged[key] = value
+        elif isinstance(merged[key], list) and key != "immunizations" and _list_has_content(value):
             merged[key] = value
         elif key == "vitals" and _vitals_has_content(value):
             merged[key] = value
@@ -532,6 +544,12 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
         "physicalActivity",
     )
     for key in list_keys:
+        if key == "immunizations":
+            if not _immunization_list_has_content(merged.get(key)) and _immunization_list_has_content(
+                base.get(key)
+            ):
+                merged[key] = base[key]
+            continue
         if not _list_has_content(merged.get(key)) and _list_has_content(base.get(key)):
             merged[key] = base[key]
 
@@ -636,7 +654,9 @@ def _persist_normalized_from_form_data_impl(
     for row in form_data.get("immunizations") or []:
         if not isinstance(row, dict):
             continue
-        vaccine_name = _text(row.get("vaccineName"))
+        vaccine_name = _text(
+            row.get("vaccineName") or row.get("vaccine_name") or row.get("name")
+        )
         if not vaccine_name:
             continue
         line_no += 1

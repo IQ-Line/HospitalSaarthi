@@ -130,6 +130,20 @@ export interface CareContextRef {
   hiType?: string;
 }
 
+/** Tracks care contexts already linked to an ABHA in the CM (ABDM protocol state). */
+export interface CareContextLinkStatePort {
+  listLinkedReferences(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<ReadonlySet<string>>;
+
+  markLinked(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+    careContextReferences: string[];
+  }): Promise<void>;
+}
+
 export interface SmsClient {
   sendOtp(input: { phoneNo: string; message: string }): Promise<void>;
 }
@@ -184,6 +198,10 @@ export interface RegistrationClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<M2PatientProfile | null>;
+  findPatientIdByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null>;
 }
 
 export interface HealthRecordBundleEntry {
@@ -193,28 +211,14 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
-  /** Project care contexts for PHR discover when RF is not deployed (OPD orchestration path). */
-  registerUnlinkedCareContexts(input: {
-    iqTenantId: string;
-    patientId: string;
-    contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
-  }): Promise<void>;
-  listUnlinkedCareContexts(input: {
+  listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]>;
-  markCareContextLinked(input: {
+
+  listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void>;
-  /** Bundles to encrypt and push under consent (M3 §6.3.5). */
-  fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    dateRange?: { from: string; to: string };
-    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
@@ -503,6 +507,7 @@ export interface AbdmAdapterDeps {
   empi: EmpiClient;
   registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
+  careContextLinkState: CareContextLinkStatePort;
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;
   eventBus?: EventBus;

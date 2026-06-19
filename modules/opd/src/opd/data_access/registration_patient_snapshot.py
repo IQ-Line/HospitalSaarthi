@@ -58,6 +58,38 @@ def map_registration_snapshot_to_pharmacy_patient_fields(
         "phone": _trimmed(row.patient_phone_number),
         "age_years": age,
         "gender": _trimmed(row.patient_gender),
+        "abha_address": _trimmed(row.patient_abha_address),
+        "patient_date_of_birth": row.patient_date_of_birth,
+    }
+
+
+def load_op_consult_patient_fields(
+    session: Session,
+    tenant_id: UUID,
+    patient_id: UUID,
+) -> dict[str, Any] | None:
+    """Patient demographics for ABDM OpConsult bundles (includes ABHA + DOB)."""
+    stmt = (
+        select(RegistrationPatientSnapshot)
+        .where(
+            RegistrationPatientSnapshot.tenant_id == tenant_id,
+            RegistrationPatientSnapshot.patient_id == patient_id,
+        )
+        .order_by(desc(RegistrationPatientSnapshot.created_at))
+        .limit(1)
+    )
+    row = session.scalars(stmt).first()
+    if row is None:
+        return None
+    age = age_years_from_date_of_birth(row.patient_date_of_birth)
+    if age is None:
+        age = age_years_from_year_of_birth(row.patient_year_of_birth)
+    return {
+        "patient_name": _trimmed(row.patient_full_name),
+        "gender": _trimmed(row.patient_gender),
+        "abha_address": _trimmed(row.patient_abha_address),
+        "patient_date_of_birth": row.patient_date_of_birth,
+        "age_years": age,
     }
 
 

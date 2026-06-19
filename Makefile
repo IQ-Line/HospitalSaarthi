@@ -6,7 +6,7 @@ NX := npx nx
 
 # Services that ship a .env.example to seed a personal .env (kept in sync with
 # the actual services/ tree; see docs/dev/port-allocation.md for ports).
-SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc pharmacy-svc integration-hub-svc analytics-svc web
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc pharmacy-svc integration-hub-svc analytics-svc record-foundation-svc web
 
 # --- Setup -------------------------------------------------------------------
 
@@ -92,6 +92,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run configurator:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
+	$(NX) run record-foundation:db-migrate
 	$(NX) run opd:db-migrate
 	$(NX) run billing:db-migrate
 	$(NX) run pharmacy:db-migrate
