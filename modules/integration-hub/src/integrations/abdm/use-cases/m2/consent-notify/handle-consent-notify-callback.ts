@@ -79,6 +79,7 @@ export async function handleConsentNotifyCallback(
       iqTenantId: input.iqTenantId,
       abhaAddress,
       empi: deps.empi,
+      registration: deps.registration,
     });
   } catch (e) {
     const message =

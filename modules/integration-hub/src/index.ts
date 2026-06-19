@@ -56,7 +56,6 @@ export type {
 export type {
   AbdmSessionsPort,
   GatewayClient,
-  FideliusEncryptor,
   SecretsClient,
   AbdmAdapterDeps,
   AbdmGatewayRouteTarget,
@@ -94,6 +93,7 @@ export {
   createFideliusEncryptorFromEnv,
 } from "./integrations/abdm/data-access/fidelius.js";
 export { DrizzleLinkOtpsRepo } from "./integrations/abdm/data-access/abdm-link-otps.repo.js";
+export { DrizzleCareContextLinkStateRepo } from "./integrations/abdm/data-access/abdm-care-context-link-state.repo.js";
 export { createPayloadEncryptorFromEnv } from "./integrations/abdm/lib/payload-encryptor.js";
 export {
   registerM2CallbackRoutes,

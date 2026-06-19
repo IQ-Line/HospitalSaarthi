@@ -65,7 +65,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 async function inlineReportLogoForPdfCapture(root: Document | Element): Promise<void> {
   try {
-    const res = await fetch('/reportLogo.png');
+    const res = await fetch('/reportLogo.svg');
     if (!res.ok) return;
     const dataUrl = await blobToDataUrl(await res.blob());
     const imgs = root.querySelectorAll<HTMLImageElement>(

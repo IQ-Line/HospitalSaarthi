@@ -20,89 +20,96 @@ const MIGRATION_FILES = [
   "011_tenant_follow_up_config.sql",
 ] as const;
 
-/**
- * Splits PostgreSQL DDL on `;` boundaries while keeping `$$ ... $$` blocks intact.
- */
-function splitSqlStatements(ddl: string): string[] {
+/** Split a SQL file into executable statements (respects `DO $$ … $$` blocks, strings, and `--` comments). */
+function splitSqlStatements(sqlText: string): string[] {
   const statements: string[] = [];
-  let buffer = "";
-  let i = 0;
+  let current = "";
+  let inDollarQuote = false;
+  let dollarTag = "";
+  let inLineComment = false;
+  let inSingleQuote = false;
 
-  while (i < ddl.length) {
-    if (ddl[i] === "/" && ddl[i + 1] === "*") {
-      const end = ddl.indexOf("*/", i + 2);
-      if (end === -1) {
-        break;
+  for (let i = 0; i < sqlText.length; i++) {
+    const ch = sqlText[i];
+    const next = sqlText[i + 1];
+
+    if (inLineComment) {
+      current += ch;
+      if (ch === "\n") {
+        inLineComment = false;
       }
-      i = end + 2;
       continue;
     }
 
-    if (ddl[i] === "-" && ddl[i + 1] === "-") {
-      const end = ddl.indexOf("\n", i);
-      if (end === -1) {
-        break;
-      }
-      i = end + 1;
-      continue;
-    }
-
-    const dollarMatch = ddl.slice(i).match(/^\$[A-Za-z0-9_]*\$/);
-    if (dollarMatch) {
-      const tag = dollarMatch[0];
-      buffer += tag;
-      i += tag.length;
-      const closeIdx = ddl.indexOf(tag, i);
-      if (closeIdx === -1) {
-        buffer += ddl.slice(i);
-        break;
-      }
-      buffer += ddl.slice(i, closeIdx + tag.length);
-      i = closeIdx + tag.length;
-      continue;
-    }
-
-    if (ddl[i] === "'") {
-      buffer += ddl[i];
-      i += 1;
-      while (i < ddl.length) {
-        if (ddl[i] === "'") {
-          buffer += ddl[i];
-          i += 1;
-          if (ddl[i] === "'") {
-            buffer += ddl[i];
-            i += 1;
-            continue;
-          }
-          break;
-        }
-        buffer += ddl[i];
+    if (inSingleQuote) {
+      current += ch;
+      if (ch === "'" && next === "'") {
+        current += next;
         i += 1;
+        continue;
+      }
+      if (ch === "'") {
+        inSingleQuote = false;
       }
       continue;
     }
 
-    if (ddl[i] === ";") {
-      const statement = buffer.trim();
-      if (statement.length > 0) {
-        statements.push(statement);
-      }
-      buffer = "";
-      i += 1;
+    if (!inDollarQuote && ch === "-" && next === "-") {
+      inLineComment = true;
+      current += ch;
       continue;
     }
 
-    buffer += ddl[i];
-    i += 1;
+    if (!inDollarQuote && ch === "'") {
+      inSingleQuote = true;
+      current += ch;
+      continue;
+    }
+
+    if (!inDollarQuote && ch === "$") {
+      const match = sqlText.slice(i).match(/^\$([A-Za-z0-9_]*)\$/);
+      if (match) {
+        inDollarQuote = true;
+        dollarTag = match[0];
+        current += dollarTag;
+        i += dollarTag.length - 1;
+        continue;
+      }
+    } else if (inDollarQuote && sqlText.slice(i).startsWith(dollarTag)) {
+      current += dollarTag;
+      i += dollarTag.length - 1;
+      inDollarQuote = false;
+      dollarTag = "";
+      continue;
+    }
+
+    if (ch === ";" && !inDollarQuote) {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        statements.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    current += ch;
   }
 
-  const tail = buffer.trim();
-  if (tail.length > 0) {
-    statements.push(tail);
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    statements.push(trimmed);
   }
 
-  return statements;
+  return statements.filter((statement) => {
+    const withoutComments = statement
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("--"))
+      .join("\n")
+      .trim();
+    return withoutComments.length > 0;
+  });
 }
+
 
 function getPgErrorCode(error: unknown): string | undefined {
   let current: unknown = error;

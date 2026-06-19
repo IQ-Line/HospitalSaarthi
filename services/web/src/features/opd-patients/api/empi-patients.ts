@@ -93,6 +93,24 @@ export async function fetchEmpiPatientDetail(
   return apiClient<EmpiPatientDetailResponse>(`${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientId)}`);
 }
 
+/** Idempotent — links desk-verified ABHA address for M2 / consent lookup. */
+export async function ensurePatientAbhaAddressIdentifier(
+  patientId: string,
+  abhaAddress: string,
+): Promise<void> {
+  const value = abhaAddress.trim();
+  if (!value) return;
+
+  await apiClient(`${EMPI_PATIENTS_BASE}/${encodeURIComponent(patientId)}/identifiers`, {
+    method: 'POST',
+    body: JSON.stringify({
+      identifier_type: 'abha_address',
+      identifier_value: value,
+      issuing_system: 'abdm',
+    }),
+  });
+}
+
 /** Resolve EMPI display fields per patient id (detail API; used when snapshot is insufficient). */
 export async function fetchEmpiPatientLookupMap(
   patientIds: string[],

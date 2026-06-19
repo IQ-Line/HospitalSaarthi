@@ -54,6 +54,11 @@ class Settings(BaseSettings):
         default="http://localhost:3007",
         description="integration-hub-svc origin (no trailing path).",
     )
+    record_foundation_base_url: str = Field(
+        default="http://localhost:3009",
+        description="record-foundation-svc origin (no trailing path).",
+        validation_alias="RECORD_FOUNDATION_BASE_URL",
+    )
     pdf_platform_url: str = Field(
         default="http://localhost:8091",
         description="pdf-platform worker origin (no trailing path).",
@@ -114,6 +119,19 @@ class ServiceIntegrationSettings(BaseSettings):
 
     pharmacy_url: str = Field(default="", validation_alias="PHARMACY_URL")
     pharmacy_internal_api_key: str = Field(default="", validation_alias="PHARMACY_INTERNAL_API_KEY")
+    user_management_url: str = Field(
+        default="http://localhost:3005",
+        validation_alias="USER_MANAGEMENT_URL",
+    )
+    pdf_platform_url: str = Field(default="", validation_alias="PDF_PLATFORM_URL")
+    pdf_platform_api_key: str = Field(default="", validation_alias="PDF_PLATFORM_API_KEY")
+    report_web_origin: str = Field(default="", validation_alias="REPORT_WEB_ORIGIN")
+    report_logo_url: str = Field(default="/reportLogo.svg", validation_alias="REPORT_LOGO_URL")
+    facility_id: str = Field(
+        default="",
+        description="NDHM/HFR facility id (IN…) fallback when configurator profile is absent.",
+        validation_alias="FACILITY_ID",
+    )
 
 
 @lru_cache

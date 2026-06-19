@@ -11,7 +11,9 @@ import type { VisitRecord } from "../domain/visit.types.js";
 import { createRegistration } from "./create-registration.js";
 import { createVisit } from "./create-visit.js";
 import {
+  abhaAddressFromIntake,
   mapEmpiPatientToSnapshot,
+  mapRegistrationAddressToEmpiBody,
   mergeIntakeIntoSnapshot,
   stripNonEmpiIntakeFields,
 } from "../lib/registration-helpers.js";
@@ -66,10 +68,14 @@ export async function createIntakeForNewPatient(
     };
   }
 
+  const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);
   const empiResult = await deps.empiGateway.registerPatient(
     tenantId,
     ctx.idempotencyKey,
-    stripNonEmpiIntakeFields(input.patient),
+    {
+      ...stripNonEmpiIntakeFields(input.patient),
+      ...(empiAddress ? { address: empiAddress } : {}),
+    },
     ctx.bearerToken,
   );
 
@@ -124,6 +130,17 @@ export async function createIntakeForNewPatient(
     ctx,
   );
 
+  const abhaAddress = abhaAddressFromIntake(input.patient);
+  if (abhaAddress) {
+    await deps.empiGateway.linkAbhaAddress(
+      tenantId,
+      empiResult.patientId,
+      abhaAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
+
   const visitResult = await createVisit(
     deps,
     tenantId,
@@ -160,8 +177,8 @@ export async function createVisitForExistingPatient(
     registrationRepo: RegistrationRepo;
     visitRepo: VisitRepo;
     empiGateway: EmpiHttpPort;
-    eventBus: EventBus;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
+    eventBus: EventBus;
     opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
   },
@@ -199,16 +216,43 @@ export async function createVisitForExistingPatient(
   };
   const mapped = mapEmpiPatientToSnapshot(wire, wire.id);
 
+  const intakeOverlay: Record<string, unknown> = { ...(input.patient ?? {}) };
+  if (input.abha_number?.trim()) intakeOverlay.abha_number = input.abha_number.trim();
+  if (input.abha_address?.trim()) intakeOverlay.abha_address = input.abha_address.trim();
+  const patientSnapshot = mergeIntakeIntoSnapshot(mapped.snapshot, intakeOverlay);
+
   const registrationResult = await createRegistration(
     deps,
     tenantId,
     {
       patient_id: input.patient_id,
       patient_source_record_id: mapped.sourceRecordId,
-      patient_snapshot: mapped.snapshot,
+      patient_snapshot: patientSnapshot,
     },
     ctx,
   );
+
+  const abhaAddress = abhaAddressFromIntake(intakeOverlay);
+  if (abhaAddress) {
+    await deps.empiGateway.linkAbhaAddress(
+      tenantId,
+      input.patient_id,
+      abhaAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
+
+  const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);
+  if (empiAddress) {
+    await deps.empiGateway.upsertPermanentAddress(
+      tenantId,
+      input.patient_id,
+      empiAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
 
   const visitResult = await createVisit(
     deps,

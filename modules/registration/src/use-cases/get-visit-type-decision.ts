@@ -86,6 +86,17 @@ export async function getVisitTypeDecision(
     return firstVisitDecision(config);
   }
 
+  const abhaAddress = trim(patient.abha_address);
+  if (abhaAddress) {
+    await deps.empiGateway?.linkAbhaAddress(
+      tenantId,
+      resolvedPatientId,
+      abhaAddress,
+      undefined,
+      bearerToken,
+    );
+  }
+
   const lastVisit = await deps.visitRepo.findLatestByPatientAndDepartment(
     tenantId,
     resolvedPatientId,

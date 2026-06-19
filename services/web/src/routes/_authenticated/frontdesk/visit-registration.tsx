@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +32,7 @@ import {
   type RegistrationAbhaContext,
 } from '@/features/frontdesk/components/registration-patient-section';
 import { getAbhaCard } from '@/features/abha/api/m1-enrolment';
+import { ensurePatientAbhaAddressIdentifier } from '@/features/opd-patients/api/empi-patients';
 import { downloadAbhaCardFile } from '@/features/abha/utils/download-abha-card';
 import {
   VisitRegistrationAppointmentSection,
@@ -108,6 +109,7 @@ function VisitRegistrationRoute() {
 
   const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
+  const abhaIdentifierSyncKeyRef = useRef<string | null>(null);
   const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
   const [isVisitTypeLocked, setIsVisitTypeLocked] = useState(false);
   const [phase, setPhase] = useState<'list' | 'form'>('list');
@@ -362,10 +364,26 @@ function VisitRegistrationRoute() {
     tariffs.consultationRoomNumber,
     form.setValue,
   );
+  const resolvedDeskPatientId =
+    existingPatientId ?? visitDecisionMeta?.resolved_patient_id ?? null;
+
+  const syncAbhaIdentifierToEmpi = useCallback(async (patientId: string, abhaAddress: string) => {
+    const value = abhaAddress.trim();
+    if (!value) return;
+    const syncKey = `${patientId}:${value}`;
+    if (abhaIdentifierSyncKeyRef.current === syncKey) return;
+    try {
+      await ensurePatientAbhaAddressIdentifier(patientId, value);
+      abhaIdentifierSyncKeyRef.current = syncKey;
+    } catch {
+      // Best-effort — visit submit and visit-type-decision also link.
+    }
+  }, []);
 
   const visitTypeDecisionPatient = useMemo(
     () =>
       buildVisitTypeDecisionPatientPayload({
+        patientId: resolvedDeskPatientId,
         phone: patientPhone,
         firstName: patientFirstName,
         middleName: patientMiddleName,
@@ -379,6 +397,7 @@ function VisitRegistrationRoute() {
         abhaAddress: patientAbhaAddress,
       }),
     [
+      resolvedDeskPatientId,
       patientPhone,
       patientFirstName,
       patientMiddleName,
@@ -392,6 +411,11 @@ function VisitRegistrationRoute() {
       patientAbhaAddress,
     ],
   );
+
+  useEffect(() => {
+    if (!resolvedDeskPatientId || !patientAbhaAddress?.trim()) return;
+    void syncAbhaIdentifierToEmpi(resolvedDeskPatientId, patientAbhaAddress);
+  }, [resolvedDeskPatientId, patientAbhaAddress, syncAbhaIdentifierToEmpi]);
 
   const visitTypeDecisionKey = useMemo(
     () =>
@@ -584,6 +608,10 @@ function VisitRegistrationRoute() {
         abhaNumber,
         abhaAddress,
       });
+    }
+    const patientId = existingPatientId ?? visitDecisionMeta?.resolved_patient_id ?? null;
+    if (patientId && abhaAddress) {
+      void syncAbhaIdentifierToEmpi(patientId, abhaAddress);
     }
     toast.success('ABHA details applied to registration form');
   };

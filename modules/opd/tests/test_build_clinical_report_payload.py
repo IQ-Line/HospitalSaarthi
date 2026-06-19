@@ -74,6 +74,43 @@ def test_op_consultation_report_includes_clinical_sections() -> None:
     assert "immunizations" in request
 
 
+def test_medicine_strength_falls_back_to_clinical_payload() -> None:
+    from unittest.mock import MagicMock
+
+    from opd.schemas.prescription.prescription import (
+        PrescriptionClinicalPayload,
+        PrescriptionMedicinePayload,
+    )
+
+    source = MagicMock()
+    source.visit_number = "V-001"
+    source.patient_name = "Test Patient"
+    source.patient_age_years = 30
+    source.patient_gender = "male"
+    source.patient_uhid = "UHID1"
+    source.doctor_name = "Dr Test"
+    source.department_name = "Medicine"
+
+    clinical = PrescriptionClinicalPayload(
+        medicines=[
+            PrescriptionMedicinePayload(line_no=1, name="Paracetamol", strength="500mg"),
+        ],
+    )
+    form_data = {
+        "medicines": [{"id": "1", "medicine": "Paracetamol", "days": "3"}],
+        "diagnosis": [{"id": "1", "notes": "Fever"}],
+    }
+
+    request = build_clinical_report_request(
+        "prescription",
+        form_data=form_data,
+        source=source,
+        context=ClinicalReportContext(),
+        clinical=clinical,
+    )
+    assert request["medicines"][0]["strength"] == "500mg"
+
+
 def test_immunization_date_of_dose_is_date_only() -> None:
     from unittest.mock import MagicMock
 

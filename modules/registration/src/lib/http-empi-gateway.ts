@@ -169,6 +169,45 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     return { ok: false, kind: "error", status: res.status, body: text };
   }
 
+  async linkAbhaAddress(
+    tenantId: string,
+    patientId: string,
+    abhaAddress: string,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<{ ok: true } | { ok: false; reason: "conflict" | "error"; status: number }> {
+    const value = abhaAddress.trim();
+    if (!value) return { ok: true };
+
+    const url = joinUrl(
+      this.empiServiceOrigin,
+      `/api/empi/v1/patients/${encodeURIComponent(patientId)}/identifiers`,
+    );
+
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          ...this.tenantHeaders(tenantId, bearerToken),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          identifier_type: "abha_address",
+          identifier_value: value,
+          issuing_system: "abdm",
+          created_by: actorId,
+        }),
+      });
+    } catch {
+      return { ok: false, reason: "error", status: 503 };
+    }
+
+    if (res.status === 201 || res.status === 200) return { ok: true };
+    if (res.status === 409) return { ok: false, reason: "conflict", status: 409 };
+    return { ok: false, reason: "error", status: res.status };
+  }
+
   private tenantHeaders(tenantId: string, bearerToken?: string): Record<string, string> {
     const h: Record<string, string> = { iq_tenant_id: tenantId };
     if (bearerToken) {
@@ -215,7 +254,12 @@ export class HttpEmpiGateway implements EmpiHttpPort {
     tenantId: string,
     patientId: string,
     bearerToken?: string,
-  ): Promise<{ patient: EmpiPatientWire; abha_number?: string | null; abha_address?: string | null } | null> {
+  ): Promise<{
+    patient: EmpiPatientWire;
+    abha_number?: string | null;
+    abha_address?: string | null;
+    addresses?: Array<{ id: string; address_type: string }>;
+  } | null> {
     const url = joinUrl(
       this.empiServiceOrigin,
       `/api/empi/v1/patients/${encodeURIComponent(patientId.trim())}`,
@@ -248,9 +292,91 @@ export class HttpEmpiGateway implements EmpiHttpPort {
         }
       }
 
-      return { patient: patientRaw, abha_number: abhaNumber, abha_address: abhaAddress };
+      const addresses = Array.isArray(json.addresses)
+        ? json.addresses
+            .filter((item): item is { id: string; address_type: string } => {
+              if (!item || typeof item !== "object") return false;
+              const row = item as Record<string, unknown>;
+              return typeof row.id === "string" && typeof row.address_type === "string";
+            })
+            .map((row) => ({ id: row.id, address_type: row.address_type }))
+        : [];
+
+      return { patient: patientRaw, abha_number: abhaNumber, abha_address: abhaAddress, addresses };
     } catch {
       return null;
+    }
+  }
+
+  async upsertPermanentAddress(
+    tenantId: string,
+    patientId: string,
+    address: Record<string, unknown>,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<void> {
+    const detail = await this.fetchPatientDetail(tenantId, patientId, bearerToken);
+    if (!detail) {
+      this.log?.warn(
+        { tenantId, patientId },
+        "EMPI upsertPermanentAddress skipped — patient detail not found",
+      );
+      return;
+    }
+
+    const existing =
+      detail.addresses?.find((row) => row.address_type === "permanent") ??
+      detail.addresses?.[0];
+
+    if (existing?.id) {
+      const patchPayload = {
+        ...address,
+        ...(actorId ? { updated_by: actorId } : {}),
+      };
+      const url = joinUrl(
+        this.empiServiceOrigin,
+        `/api/empi/v1/patients/${encodeURIComponent(patientId)}/addresses/${encodeURIComponent(existing.id)}`,
+      );
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: {
+          ...this.tenantHeaders(tenantId, bearerToken),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(patchPayload),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        this.log?.warn(
+          { tenantId, patientId, status: res.status, body },
+          "EMPI permanent address PATCH failed",
+        );
+      }
+      return;
+    }
+
+    const postPayload = {
+      ...address,
+      ...(actorId ? { created_by: actorId } : {}),
+    };
+    const url = joinUrl(
+      this.empiServiceOrigin,
+      `/api/empi/v1/patients/${encodeURIComponent(patientId)}/addresses`,
+    );
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        ...this.tenantHeaders(tenantId, bearerToken),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(postPayload),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      this.log?.warn(
+        { tenantId, patientId, status: res.status, body },
+        "EMPI permanent address POST failed",
+      );
     }
   }
 

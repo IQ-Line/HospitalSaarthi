@@ -8,7 +8,10 @@ import type {
 } from "./patient.types.js";
 
 /** POST /patients — body only; `iq_tenant_id` comes from request context. */
-export type RegisterPatientRequestBody = Omit<CreatePatientData, "iq_tenant_id">;
+export type RegisterPatientRequestBody = Omit<CreatePatientData, "iq_tenant_id"> & {
+  abha_address?: string | null;
+  address?: CreateAddressRequestBody;
+};
 
 export type UpdatePatientRequestBody = UpdatePatientData;
 

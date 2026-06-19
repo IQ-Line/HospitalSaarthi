@@ -46,12 +46,6 @@ export async function handleLinkConfirmCallback(
 
   const ctx = session.context;
   const careContexts = ctx.careContexts ?? [];
-  for (const cc of careContexts) {
-    await deps.recordFoundation.markCareContextLinked({
-      iqTenantId: input.iqTenantId,
-      careContextId: cc.referenceNumber,
-    });
-  }
 
   const patientPayload =
     careContexts.length > 0
@@ -81,6 +75,14 @@ export async function handleLinkConfirmCallback(
     requestId: input.inboundRequestId,
     xHipId: deps.xHipId,
   });
+
+  if (ctx.abhaAddress && careContexts.length > 0) {
+    await deps.careContextLinkState.markLinked({
+      iqTenantId: input.iqTenantId,
+      abhaAddress: ctx.abhaAddress,
+      careContextReferences: careContexts.map((c) => c.referenceNumber),
+    });
+  }
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

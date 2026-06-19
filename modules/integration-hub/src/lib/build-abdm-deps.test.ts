@@ -43,6 +43,7 @@ function mockSharedInfra(profiles: IntegrationProfileRepo): IntegrationHubShared
     empi: {} as IntegrationHubSharedInfra["empi"],
     registration: {} as IntegrationHubSharedInfra["registration"],
     recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
+    careContextLinkState: {} as IntegrationHubSharedInfra["careContextLinkState"],
     fidelius: {} as IntegrationHubSharedInfra["fidelius"],
     payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
     linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],

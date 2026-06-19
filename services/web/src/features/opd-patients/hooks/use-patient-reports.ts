@@ -1,9 +1,29 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useTenantStore } from '@/stores/tenant.store';
 import { fetchFormattedPatientAddressForReport } from '../api/empi-patients';
 import type {
   ClinicalReportQueryContext,
   ClinicalReportType,
 } from '../api/clinical-documents';
+
+/** Default facility context for OPD / nurse clinical report previews. */
+export function useClinicalReportQueryContext(): ClinicalReportQueryContext {
+  const { tenantName, branches, activeBranch } = useTenantStore(
+    useShallow((s) => ({
+      tenantName: s.tenantName,
+      branches: s.branches,
+      activeBranch: s.activeBranch,
+    })),
+  );
+
+  return useMemo(() => {
+    const branch = branches.find((item) => item.id === activeBranch);
+    return {
+      facility_name: branch?.name ?? tenantName ?? undefined,
+    };
+  }, [activeBranch, branches, tenantName]);
+}
 
 interface PatientReportSelection {
   visitId: string;

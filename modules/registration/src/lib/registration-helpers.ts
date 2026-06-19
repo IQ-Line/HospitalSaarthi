@@ -142,6 +142,11 @@ function trimString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+export function abhaAddressFromIntake(intake: Record<string, unknown>): string | null {
+  const value = trimString(intake.abha_address);
+  return value || null;
+}
+
 /** Year of birth from intake `year_of_birth` or `date_of_birth` (desk form / ABHA profile). */
 export function yearOfBirthFromIntake(patient: Record<string, unknown>): number | null {
   const explicit = patient.year_of_birth;
@@ -152,6 +157,34 @@ export function yearOfBirthFromIntake(patient: Record<string, unknown>): number 
   if (!dob) return null;
   const y = new Date(dob).getFullYear();
   return !Number.isNaN(y) && y > 1900 ? y : null;
+}
+
+/** Map desk address block to EMPI create/upsert address payload. */
+export function mapRegistrationAddressToEmpiBody(
+  address: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!address || typeof address !== "object") return undefined;
+
+  const line1 = trimString(address.line1);
+  const line2 = trimString(address.line2);
+  const street = [line1, line2].filter(Boolean).join(", ");
+  const city = trimString(address.city);
+  const district = trimString(address.district);
+  const state = trimString(address.state);
+  const pincode = trimString(address.pincode);
+
+  if (![street, city, district, state, pincode].some(Boolean)) {
+    return undefined;
+  }
+
+  return {
+    address_type: "permanent",
+    street: street || null,
+    city: city || null,
+    district: district || null,
+    state: state || null,
+    pincode: pincode || null,
+  };
 }
 
 /** EMPI create rejects `abha_address`; keep it on the intake row for the registration snapshot only. */

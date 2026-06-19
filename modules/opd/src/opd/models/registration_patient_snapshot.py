@@ -33,3 +33,4 @@ class RegistrationPatientSnapshot(Base, TimestampMixin):
     patient_gender: Mapped[str | None] = mapped_column(Text, nullable=True)
     patient_date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
     patient_year_of_birth: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    patient_abha_address: Mapped[str | None] = mapped_column(Text, nullable=True)
