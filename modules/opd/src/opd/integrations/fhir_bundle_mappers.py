@@ -223,7 +223,7 @@ def to_op_consult_input(
     document: DocumentInput | None = None
     if document_pdf_base64:
         document = DocumentInput(
-            title="Consultation Report",
+            title="Consultation attachment",
             content_type="application/pdf",
             data_base64=document_pdf_base64,
         )
@@ -270,7 +270,7 @@ def to_immunization_bundle_input(
     document: DocumentInput | None = None
     if document_pdf_base64:
         document = DocumentInput(
-            title="Immunization Report",
+            title="Immunization record attachment",
             content_type="application/pdf",
             data_base64=document_pdf_base64,
         )

@@ -43,6 +43,7 @@ import type { ConsultationType } from "../lib/follow-up.js";
 
 export interface NewPatientIntakeInput {
   patient: Record<string, unknown>;
+  permanent_address?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;
@@ -59,6 +60,7 @@ export interface ExistingPatientVisitInput {
   abha_address?: string | null;
   /** Desk-captured ABHA / DOB overlay when re-visiting an existing EMPI patient. */
   patient?: Record<string, unknown>;
+  permanent_address?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;

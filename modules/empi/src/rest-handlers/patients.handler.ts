@@ -40,6 +40,17 @@ import {
   updatePatientBodySchema,
 } from "./patient-schemas.js";
 
+function hasAddressContent(
+  address: Pick<
+    CreateAddressRequestBody,
+    "street" | "city" | "district" | "state" | "pincode"
+  >,
+): boolean {
+  return [address.street, address.city, address.district, address.state, address.pincode].some(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+}
+
 interface SearchPatientsQuerystring {
   name?: string;
   phone?: string;
@@ -71,7 +82,11 @@ export function registerPatientsHandler(
     },
     async (request, reply) => {
       const tenantId = request.tenantId;
-      const { abha_address: abhaAddressRaw, ...registerBody } = request.body;
+      const {
+        abha_address: abhaAddressRaw,
+        address: addressInput,
+        ...registerBody
+      } = request.body;
       const abhaAddress = abhaAddressRaw?.trim();
 
       try {
@@ -86,6 +101,20 @@ export function registerPatientsHandler(
 
         if (isDuplicateRegistrationResult(result)) {
           return reply.code(409).send(result);
+        }
+
+        if (addressInput && hasAddressContent(addressInput)) {
+          await deps.addressRepo.create({
+            iq_tenant_id: tenantId,
+            patient_id: result.id,
+            address_type: addressInput.address_type ?? "permanent",
+            street: addressInput.street ?? null,
+            city: addressInput.city ?? null,
+            district: addressInput.district ?? null,
+            state: addressInput.state ?? null,
+            pincode: addressInput.pincode ?? null,
+            created_by: registerBody.created_by ?? null,
+          });
         }
 
         if (abhaAddress) {

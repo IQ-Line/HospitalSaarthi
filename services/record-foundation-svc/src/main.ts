@@ -16,6 +16,8 @@ const PORT = Number(
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const SKIP_MIGRATE = process.env["RECORD_FOUNDATION_SKIP_MIGRATE"] === "true";
 const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
+/** Match store-bundle MAX_BUNDLE_SIZE_BYTES (50 MiB) plus JSON wrapper overhead. */
+const MAX_BUNDLE_BODY_BYTES = 52 * 1024 * 1024;
 
 const fastifyAjv = {
   customOptions: {
@@ -30,7 +32,11 @@ async function main() {
     throw new Error("DATABASE_URL is required for record-foundation-svc");
   }
 
-  const app = Fastify({ logger: true, ajv: fastifyAjv });
+  const app = Fastify({
+    logger: true,
+    ajv: fastifyAjv,
+    bodyLimit: MAX_BUNDLE_BODY_BYTES,
+  });
 
   await registerOpenApiDocs(app, {
     serviceId: "record-foundation",

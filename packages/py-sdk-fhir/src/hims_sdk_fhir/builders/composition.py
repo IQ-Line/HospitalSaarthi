@@ -34,6 +34,7 @@ def build_composition(
     identifier: FhirIdentifier | None = None,
     status: str = "final",
     custodian: FhirReference | None = None,
+    language: str | None = None,
 ) -> Composition:
     """Build a ``Composition`` resource for the given NRCeS ``profile`` key."""
     pinned = NRCES_PROFILES[profile]
@@ -57,5 +58,7 @@ def build_composition(
         composition["encounter"] = encounter
     if custodian is not None:
         composition["custodian"] = custodian
+    if language is not None:
+        composition["language"] = language
 
     return compact(composition)

@@ -33,7 +33,6 @@ from opd.data_access.registration_patient_source import load_visit_patient_sourc
 from opd.integrations.clinical_form_helpers import (
     abdm_immunization_debug,
     clinical_summary_from_form_data,
-    clinical_summary_html,
     has_immunization_data,
     has_prescription_clinical_data,
     immunization_rows_from_form_data,
@@ -52,12 +51,10 @@ from opd.integrations.fhir_bundle_mappers import (
 from opd.integrations.op_consult_report import (
     OP_CONSULT_HI_TYPE,
     OPD_SLIP_HI_TYPE,
-    ensure_op_consult_report_pdf_base64,
-    wrap_op_consult_report_document,
 )
 from opd.models.prescription_row import Prescription
 from opd.lib import azure_blob_storage
-from opd.lib.clinical_report_context import ClinicalReportContext
+from opd.lib.clinical_report_context import ClinicalReportContext, resolve_clinical_report_context
 from opd.services.clinical_documents_service import (
     PdfPlatformRenderError,
     get_clinical_report_pdf,
@@ -68,6 +65,10 @@ logger = logging.getLogger(__name__)
 ABDM_M2_LOG_PREFIX = "[ABDM-M2]"
 
 BUNDLE_IDENTIFIER_SYSTEM = "https://www.max.in/bundle"
+
+# Must stay below record-foundation store-bundle limit (50 MiB).
+MAX_BUNDLE_JSON_BYTES = 50 * 1024 * 1024
+BUNDLE_STORE_HTTP_TIMEOUT_SECONDS = 120.0
 
 HI_TYPE_OP_CONSULT = "OPCONSULTATION"
 HI_TYPE_PRESCRIPTION = "PRESCRIPTION"
@@ -117,6 +118,10 @@ def stamp_bundle_identifier(bundle: dict[str, Any], care_context_ref: str) -> No
         "system": BUNDLE_IDENTIFIER_SYSTEM,
         "value": care_context_ref,
     }
+
+
+def _bundle_json_byte_size(bundle_json: dict[str, Any]) -> int:
+    return len(json.dumps(bundle_json, separators=(",", ":")).encode("utf-8"))
 
 
 def _integration_hub_base_url() -> str | None:
@@ -370,6 +375,24 @@ def _persist_care_context_bundle(
             source_record_type,
             care_context_id,
         )
+        bundle_bytes = _bundle_json_byte_size(bundle_json)
+        _log_abdm_m2(
+            "visit %s bundle store start hiType=%s care_ref=%s bytes=%s",
+            visit_id,
+            source_record_type,
+            care_ref,
+            bundle_bytes,
+        )
+        if bundle_bytes > MAX_BUNDLE_JSON_BYTES:
+            _log_abdm_m2(
+                "visit %s bundle store aborted hiType=%s care_ref=%s — size %s exceeds limit %s",
+                visit_id,
+                source_record_type,
+                care_ref,
+                bundle_bytes,
+                MAX_BUNDLE_JSON_BYTES,
+            )
+            return None
         store_res = _http_json(
             method="POST",
             url=f"{base}/api/record-foundation/v1/bundles",
@@ -384,6 +407,7 @@ def _persist_care_context_bundle(
                 "bundle_json": bundle_json,
                 "produced_at": produced_at.isoformat(),
             },
+            timeout=BUNDLE_STORE_HTTP_TIMEOUT_SECONDS,
         )
         if not store_res or "data" not in store_res:
             _log_abdm_m2(
@@ -437,11 +461,28 @@ def _persist_care_context_bundle(
     return None
 
 
+def _clinical_report_context(
+    session: Session,
+    tenant_id: UUID,
+    visit_id: UUID,
+    snapshot: _VisitClinicalSnapshot,
+) -> ClinicalReportContext:
+    return resolve_clinical_report_context(
+        session,
+        tenant_id,
+        ClinicalReportContext(doctor_name=snapshot.practitioner_name or None),
+        visit_id=visit_id,
+        patient_id=snapshot.patient_id,
+    )
+
+
 def _render_report_pdf_base64(
     session: Session,
     tenant_id: UUID,
     visit_id: UUID,
     report_type: str,
+    *,
+    snapshot: _VisitClinicalSnapshot,
 ) -> str | None:
     """Best-effort clinical report PDF; bundle persist continues without attachment."""
     try:
@@ -450,8 +491,15 @@ def _render_report_pdf_base64(
             tenant_id,
             visit_id,
             report_type,  # type: ignore[arg-type]
-            ClinicalReportContext(),
+            _clinical_report_context(session, tenant_id, visit_id, snapshot),
         )
+        if not result.pdf_bytes or not result.pdf_bytes.startswith(b"%PDF-"):
+            _log_abdm_m2(
+                "visit %s clinical report PDF skipped type=%s reason=invalid_pdf_bytes",
+                visit_id,
+                report_type,
+            )
+            return None
         return base64.b64encode(result.pdf_bytes).decode("ascii")
     except (LookupError, PermissionError, ValueError, PdfPlatformRenderError, RuntimeError, OSError) as exc:
         _log_abdm_m2(
@@ -476,18 +524,12 @@ def _persist_op_consult(
     care_ref = op_consult_care_context_ref(visit_id)
     display = f"OP consultation {care_ref}"
 
-    report_html = wrap_op_consult_report_document(
-        patient_name=snapshot.patient_name,
-        practitioner_name=snapshot.practitioner_name,
-        clinical_html=clinical_summary_html(snapshot.clinical_summary),
-    )
-    document_pdf_base64 = ensure_op_consult_report_pdf_base64(
+    document_pdf_base64 = _render_report_pdf_base64(
         session,
         tenant_id,
         visit_id,
-        patient_id,
-        report_html=report_html,
-        fallback_summary=snapshot.clinical_summary,
+        "op-consultation",
+        snapshot=snapshot,
     )
 
     period_iso = now.isoformat()
@@ -544,7 +586,9 @@ def _persist_prescription(
     _log_abdm_m2("visit %s PRESCRIPTION bundle build start", visit_id)
     care_ref = prescription_care_context_ref(visit_id)
     display = f"Prescription {care_ref}"
-    pdf_base64 = _render_report_pdf_base64(session, tenant_id, visit_id, "prescription")
+    pdf_base64 = _render_report_pdf_base64(
+        session, tenant_id, visit_id, "prescription", snapshot=snapshot
+    )
 
     period_iso = now.isoformat()
     patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)
@@ -604,7 +648,9 @@ def _persist_immunization(
 
     care_ref = immunization_care_context_ref(visit_id)
     display = f"Immunization {care_ref}"
-    pdf_base64 = _render_report_pdf_base64(session, tenant_id, visit_id, "immunization")
+    pdf_base64 = _render_report_pdf_base64(
+        session, tenant_id, visit_id, "immunization", snapshot=snapshot
+    )
 
     period_iso = now.isoformat()
     patient, practitioner, encounter = _common_inputs(snapshot, visit_id, period_iso=period_iso)

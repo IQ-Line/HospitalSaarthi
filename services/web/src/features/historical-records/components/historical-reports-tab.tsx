@@ -16,7 +16,10 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { HISTORICAL_RECORDS_STALE_MS } from '../api/constants';
 import { fetchHistoricalPatientReports, REPORT_HI_TYPES } from '../api/historical-records';
 import { historicalRecordsQueryKeys } from '../api/query-keys';
-import { usePatientReports } from '@/features/opd-patients/hooks/use-patient-reports';
+import {
+  useClinicalReportQueryContext,
+  usePatientReports,
+} from '@/features/opd-patients/hooks/use-patient-reports';
 import { formatHistoricalShortDate, historicalPatientTabDateRange } from '../lib/formatters';
 import type { HistoricalReportItem } from '../types';
 
@@ -89,7 +92,8 @@ function ReportCard({
 
 export function HistoricalReportsTab({ patientId }: HistoricalReportsTabProps) {
   const { startDate, endDate } = historicalPatientTabDateRange();
-  const patientReports = usePatientReports();
+  const reportContext = useClinicalReportQueryContext();
+  const patientReports = usePatientReports(reportContext);
   const [filters, setFilters] = useState({
     startDate,
     endDate,

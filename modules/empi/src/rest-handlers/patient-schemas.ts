@@ -110,6 +110,20 @@ export const paramsPatientAndAddressSchema = {
   },
 };
 
+const createPatientAddressSchema = {
+  type: "object" as const,
+  required: ["address_type"],
+  additionalProperties: false,
+  properties: {
+    address_type: { type: "string", enum: [...addressTypeEnum] },
+    street: { type: "string" },
+    city: { type: "string" },
+    district: { type: "string" },
+    state: { type: "string" },
+    pincode: { type: "string" },
+  },
+} as const;
+
 export const createPatientBodySchema = {
   type: "object" as const,
   required: ["first_name", "gender", "phone_number"],
@@ -138,6 +152,7 @@ export const createPatientBodySchema = {
     emergency_contact_phone: { type: "string" },
     abha_number: { type: "string" },
     abha_address: { type: "string" },
+    address: createPatientAddressSchema,
     registered_by: uuidParam,
     created_by: uuidParam,
     force_create: { type: "boolean" },

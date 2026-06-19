@@ -15,7 +15,7 @@ from opd.lib.build_clinical_report_payload import (
     report_filename,
     validate_report_request,
 )
-from opd.lib.clinical_report_context import ClinicalReportContext
+from opd.lib.clinical_report_context import ClinicalReportContext, resolve_clinical_report_context
 from opd.lib.master_data_client import fetch_visitpad_vitals_catalog
 from opd.lib.pdf_platform_client import (
     PdfPlatformRenderError,
@@ -49,6 +49,14 @@ def _build_clinical_report_request_body(
     if source is None:
         raise LookupError("Visit not found")
 
+    resolved = resolve_clinical_report_context(
+        session,
+        tenant_id,
+        context,
+        visit_id=visit_id,
+        patient_id=source.patient_id,
+    )
+
     repository = PrescriptionRepository(session)
     try:
         prescription_row = repository.get_by_visit_id(tenant_id, visit_id)
@@ -65,7 +73,7 @@ def _build_clinical_report_request_body(
         report_type,
         form_data=form_data,
         source=source,
-        context=context,
+        context=resolved,
         clinical=prescription.clinical,
         visitpad_vitals=visitpad_vitals,
     )
@@ -155,13 +163,20 @@ def _availability_for_prescription(
         return _unavailable_all_reports("Reports are available only after consultation is completed")
 
     form_data = effective_form_data_for_prescription(session, tenant_id, prescription_row.id)
+    resolved = resolve_clinical_report_context(
+        session,
+        tenant_id,
+        context,
+        visit_id=source.visit_uuid,
+        patient_id=source.patient_id,
+    )
     availability: dict[str, dict[str, object]] = {}
     for report_type in _CLINICAL_REPORT_TYPES:
         request_body = build_clinical_report_request(
             report_type,
             form_data=form_data,
             source=source,
-            context=context,
+            context=resolved,
             clinical=prescription.clinical,
             visitpad_vitals=visitpad_vitals,
         )
@@ -183,7 +198,7 @@ def get_clinical_reports_availability_by_visit_ids(
     if not visit_ids:
         return {}
 
-    report_context = context or ClinicalReportContext()
+    base_context = context or ClinicalReportContext()
     unique_visit_ids = list(dict.fromkeys(visit_ids))
     repository = PrescriptionRepository(session)
     prescription_rows = repository.list_detail_by_visit_ids(tenant_id, unique_visit_ids)
@@ -209,7 +224,13 @@ def get_clinical_reports_availability_by_visit_ids(
             tenant_id=tenant_id,
             source=source,
             prescription_row=prescription_row,
-            context=report_context,
+            context=resolve_clinical_report_context(
+                session,
+                tenant_id,
+                base_context,
+                visit_id=visit_id,
+                patient_id=source.patient_id,
+            ),
             visitpad_vitals=visitpad_vitals,
         )
 

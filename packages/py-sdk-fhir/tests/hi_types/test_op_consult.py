@@ -106,3 +106,16 @@ def test_optional_features_appear_only_when_provided(uuid_factory, clock):
     no_sig = OpConsultInput(patient=_PATIENT, practitioner=_DOCTOR)
     bundle = build_op_consult_bundle(no_sig, uuid_factory=uuid_factory, clock=clock)
     assert "signature" not in bundle
+
+
+def test_medication_request_links_first_diagnosis(uuid_factory, clock):
+    bundle = build_op_consult_bundle(_full_input(), uuid_factory=uuid_factory, clock=clock)
+    med = next(
+        e["resource"]
+        for e in bundle["entry"]
+        if e["resource"]["resourceType"] == "MedicationRequest"
+    )
+    assert med["reasonReference"][0]["reference"].startswith("urn:uuid:")
+
+    comp = first_composition(bundle)
+    assert comp.get("language") == "en-IN"

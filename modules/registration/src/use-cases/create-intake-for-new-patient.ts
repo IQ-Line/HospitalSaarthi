@@ -13,6 +13,7 @@ import { createVisit } from "./create-visit.js";
 import {
   abhaAddressFromIntake,
   mapEmpiPatientToSnapshot,
+  mapRegistrationAddressToEmpiBody,
   mergeIntakeIntoSnapshot,
   stripNonEmpiIntakeFields,
 } from "../lib/registration-helpers.js";
@@ -67,10 +68,14 @@ export async function createIntakeForNewPatient(
     };
   }
 
+  const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);
   const empiResult = await deps.empiGateway.registerPatient(
     tenantId,
     ctx.idempotencyKey,
-    stripNonEmpiIntakeFields(input.patient),
+    {
+      ...stripNonEmpiIntakeFields(input.patient),
+      ...(empiAddress ? { address: empiAddress } : {}),
+    },
     ctx.bearerToken,
   );
 
@@ -112,6 +117,16 @@ export async function createIntakeForNewPatient(
       status: empiResult.status,
       body: empiResult.body,
     };
+  }
+
+  if (empiAddress) {
+    await deps.empiGateway.upsertPermanentAddress(
+      tenantId,
+      empiResult.patientId,
+      empiAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
   }
 
   const registrationResult = await createRegistration(
@@ -233,6 +248,17 @@ export async function createVisitForExistingPatient(
       tenantId,
       input.patient_id,
       abhaAddress,
+      ctx.actorId,
+      ctx.bearerToken,
+    );
+  }
+
+  const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);
+  if (empiAddress) {
+    await deps.empiGateway.upsertPermanentAddress(
+      tenantId,
+      input.patient_id,
+      empiAddress,
       ctx.actorId,
       ctx.bearerToken,
     );

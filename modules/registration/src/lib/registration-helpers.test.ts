@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isRegistrationDocumentEligible,
+  mapRegistrationAddressToEmpiBody,
   mergeIntakeIntoSnapshot,
   parseRegistrationStatus,
   registrationStatusFromIntakeCompletion,
@@ -73,5 +74,30 @@ describe("intake snapshot merge", () => {
 
   it("derives year of birth from date_of_birth", () => {
     expect(yearOfBirthFromIntake({ date_of_birth: "1998-05-20" })).toBe(1998);
+  });
+
+  it("maps desk permanent address to EMPI address payload", () => {
+    expect(
+      mapRegistrationAddressToEmpiBody({
+        line1: "12 MG Road",
+        line2: "Near Metro",
+        city: "Delhi",
+        state: "7",
+        district: "101",
+        pincode: "110001",
+      }),
+    ).toEqual({
+      address_type: "permanent",
+      street: "12 MG Road, Near Metro",
+      city: "Delhi",
+      district: "101",
+      state: "7",
+      pincode: "110001",
+    });
+  });
+
+  it("returns undefined when address block is empty", () => {
+    expect(mapRegistrationAddressToEmpiBody(undefined)).toBeUndefined();
+    expect(mapRegistrationAddressToEmpiBody({ line1: "", pincode: "" })).toBeUndefined();
   });
 });

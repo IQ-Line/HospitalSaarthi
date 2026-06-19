@@ -125,6 +125,13 @@ class ServiceIntegrationSettings(BaseSettings):
     )
     pdf_platform_url: str = Field(default="", validation_alias="PDF_PLATFORM_URL")
     pdf_platform_api_key: str = Field(default="", validation_alias="PDF_PLATFORM_API_KEY")
+    report_web_origin: str = Field(default="", validation_alias="REPORT_WEB_ORIGIN")
+    report_logo_url: str = Field(default="/reportLogo.svg", validation_alias="REPORT_LOGO_URL")
+    facility_id: str = Field(
+        default="",
+        description="NDHM/HFR facility id (IN…) fallback when configurator profile is absent.",
+        validation_alias="FACILITY_ID",
+    )
 
 
 @lru_cache

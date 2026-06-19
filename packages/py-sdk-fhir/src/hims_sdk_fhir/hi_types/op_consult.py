@@ -142,6 +142,7 @@ def build_op_consult_bundle(
 
     # Diagnosis (Conditions).
     diagnosis_entries: list[FhirReference] = []
+    first_diagnosis_ref: FhirReference | None = None
     for diagnosis in inp.diagnoses:
         cond_id = uuid_factory()
         entries.append(
@@ -153,7 +154,10 @@ def build_op_consult_bundle(
                 recorded_date=now,
             )
         )
-        diagnosis_entries.append(reference(f"Condition/{cond_id}", "Condition"))
+        cond_ref = reference(f"Condition/{cond_id}", "Condition")
+        diagnosis_entries.append(cond_ref)
+        if first_diagnosis_ref is None:
+            first_diagnosis_ref = cond_ref
     if diagnosis_entries:
         sections.append(
             {"title": "Diagnosis", "code": {"text": "Diagnosis"}, "entry": diagnosis_entries}
@@ -187,6 +191,7 @@ def build_op_consult_bundle(
                 subject=patient_ref,
                 requester=practitioner_ref,
                 authored_on=now,
+                reason_reference=first_diagnosis_ref,
             )
         )
         medication_entries.append(reference(f"MedicationRequest/{med_id}", "MedicationRequest"))
@@ -221,6 +226,7 @@ def build_op_consult_bundle(
         title=_TITLE,
         sections=sections,
         custodian=organization_ref,
+        language="en-IN",
     )
 
     bundle = build_document_bundle(

@@ -578,13 +578,40 @@ function mapVisitEncounterFields(
   return body;
 }
 
+function pickVisitRegistrationAddress(
+  data: CreateVisitRequestBody,
+): CreateVisitRequestBody['permanent_address'] {
+  return data.residential_address?.line1?.trim()
+    ? data.residential_address
+    : data.permanent_address;
+}
+
+function hasVisitRegistrationAddress(
+  address: CreateVisitRequestBody['permanent_address'] | undefined,
+): boolean {
+  if (!address) return false;
+  return [
+    address.line1,
+    address.line2,
+    address.city,
+    address.district,
+    address.state,
+    address.pincode,
+  ].some((part) => part?.trim());
+}
+
 export function mapVisitRegistrationToNewPatientIntakeBody(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
-  return {
+  const body: Record<string, unknown> = {
     patient: mapVisitRegistrationToEmpiCreatePatient(data),
     ...mapVisitEncounterFields(data.appointment),
   };
+  const address = pickVisitRegistrationAddress(data);
+  if (hasVisitRegistrationAddress(address)) {
+    body.permanent_address = address;
+  }
+  return body;
 }
 
 export function mapVisitRegistrationToExistingPatientIntakeBody(
@@ -615,6 +642,11 @@ export function mapVisitRegistrationToExistingPatientIntakeBody(
 
   if (Object.keys(patientOverlay).length > 0) {
     body.patient = patientOverlay;
+  }
+
+  const address = pickVisitRegistrationAddress(data);
+  if (hasVisitRegistrationAddress(address)) {
+    body.permanent_address = address;
   }
 
   return body;

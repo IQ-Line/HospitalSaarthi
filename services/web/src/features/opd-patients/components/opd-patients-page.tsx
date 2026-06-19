@@ -5,7 +5,10 @@ import { fetchOpdPatientsList } from '../api/opd-patients';
 import { opdPatientsQueryKeys } from '../api/query-keys';
 import { ClinicalReportModal } from '@/components/clinical-report-modal';
 import { useOpdPatientDetailsDialog } from '../hooks/use-opd-patient-details-dialog';
-import { usePatientReports } from '../hooks/use-patient-reports';
+import {
+  useClinicalReportQueryContext,
+  usePatientReports,
+} from '../hooks/use-patient-reports';
 import { OpdPatientDetailsDialog } from './opd-patient-details-dialog';
 import { OpdPatientsFiltersBar } from './opd-patients-filters';
 import {
@@ -56,7 +59,8 @@ export function OpdPatientsPage() {
   const [filters, setFilters] = useState<OpdPatientsFilters>(defaultFilters);
   const [page, setPage] = useState(1);
   const patientDetailsDialog = useOpdPatientDetailsDialog();
-  const patientReports = usePatientReports();
+  const reportContext = useClinicalReportQueryContext();
+  const patientReports = usePatientReports(reportContext);
   const debouncedSearch = useDebouncedValue(filters.search, 400);
 
   const doctorScope: OpdDoctorScope =

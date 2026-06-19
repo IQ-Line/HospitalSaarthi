@@ -159,6 +159,34 @@ export function yearOfBirthFromIntake(patient: Record<string, unknown>): number 
   return !Number.isNaN(y) && y > 1900 ? y : null;
 }
 
+/** Map desk address block to EMPI create/upsert address payload. */
+export function mapRegistrationAddressToEmpiBody(
+  address: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!address || typeof address !== "object") return undefined;
+
+  const line1 = trimString(address.line1);
+  const line2 = trimString(address.line2);
+  const street = [line1, line2].filter(Boolean).join(", ");
+  const city = trimString(address.city);
+  const district = trimString(address.district);
+  const state = trimString(address.state);
+  const pincode = trimString(address.pincode);
+
+  if (![street, city, district, state, pincode].some(Boolean)) {
+    return undefined;
+  }
+
+  return {
+    address_type: "permanent",
+    street: street || null,
+    city: city || null,
+    district: district || null,
+    state: state || null,
+    pincode: pincode || null,
+  };
+}
+
 /** EMPI create rejects `abha_address`; keep it on the intake row for the registration snapshot only. */
 export function stripNonEmpiIntakeFields(
   patient: Record<string, unknown>,

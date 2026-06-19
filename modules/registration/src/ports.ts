@@ -156,7 +156,19 @@ export interface EmpiHttpPort {
     tenantId: string,
     patientId: string,
     bearerToken?: string,
-  ): Promise<{ patient: EmpiPatientWire; abha_number?: string | null; abha_address?: string | null } | null>;
+  ): Promise<{
+    patient: EmpiPatientWire;
+    abha_number?: string | null;
+    abha_address?: string | null;
+    addresses?: Array<{ id: string; address_type: string }>;
+  } | null>;
+  upsertPermanentAddress(
+    tenantId: string,
+    patientId: string,
+    address: Record<string, unknown>,
+    actorId?: string,
+    bearerToken?: string,
+  ): Promise<void>;
 }
 
 export interface ConfiguratorHttpPort {

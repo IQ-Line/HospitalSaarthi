@@ -69,6 +69,19 @@ export const listVisitsQuerySchema = {
   },
 };
 
+const visitRegistrationAddressSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    line1: { type: "string" },
+    line2: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    district: { type: "string" },
+    pincode: { type: "string" },
+  },
+} as const;
+
 const demographicsSchema = {
   type: "object" as const,
   required: ["first_name", "gender", "phone_number"],
@@ -165,6 +178,7 @@ export const existingPatientVisitBodySchema = {
     abha_number: { type: "string" },
     abha_address: { type: "string" },
     patient: existingPatientDemographicsOverlay,
+    permanent_address: visitRegistrationAddressSchema,
     ...visitEncounterFields,
   },
 } as const;
@@ -175,6 +189,7 @@ export const newPatientIntakeBodySchema = {
   additionalProperties: false,
   properties: {
     patient: demographicsSchema,
+    permanent_address: visitRegistrationAddressSchema,
     ...visitEncounterFields,
   },
 } as const;
