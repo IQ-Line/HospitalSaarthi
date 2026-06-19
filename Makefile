@@ -6,7 +6,7 @@ NX := npx nx
 
 # Services that ship a .env.example to seed a personal .env (kept in sync with
 # the actual services/ tree; see docs/dev/port-allocation.md for ports).
-SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc pharmacy-svc integration-hub-svc web
+SERVICE_ENVS := bff user-management-svc empi-svc configurator-svc billing-svc registration-svc pharmacy-svc integration-hub-svc analytics-svc web
 
 # --- Setup -------------------------------------------------------------------
 
@@ -96,6 +96,7 @@ db-migrate: ## Run all pending migrations
 	$(NX) run billing:db-migrate
 	$(NX) run pharmacy:db-migrate
 	$(NX) run integration-hub:db-migrate
+	$(NX) run analytics:db-migrate
 
 .PHONY: seed
 seed: ## Seed Configurator tenant, UM runtime data, Cerbos smoke check (catalog = Alembic)

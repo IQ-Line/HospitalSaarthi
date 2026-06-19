@@ -129,6 +129,12 @@ export function isNavigationNodeVisible(
   if (node.superAdminOnly && !ctx.isSuperAdmin) {
     return false;
   }
+  if (
+    ctx.isTenantAdmin &&
+    (node.id === 'analytics' || node.route?.startsWith('/analytics/'))
+  ) {
+    return true;
+  }
   if (!passesRoleGate(node, ctx, parent)) {
     return false;
   }

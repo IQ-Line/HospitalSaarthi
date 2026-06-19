@@ -198,6 +198,7 @@ describe('tenant-admin HIMS Dev Hospital sidebar (no capability bypass)', () => 
     expect(rootIds).toContain('master-data');
     expect(rootIds).toContain('user-management');
     expect(rootIds).toContain('frontdesk');
+    expect(rootIds).toContain('analytics');
 
     const visitpadMaster = filtered
       .find((n) => n.id === 'master-data')

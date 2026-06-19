@@ -1,0 +1,38 @@
+{
+  "name": "analytics",
+  "tags": ["type:module", "scope:analytics", "language:typescript"],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/analytics"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["modules/analytics/src/**/*.ts"]
+      }
+    },
+    "db-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec drizzle-kit generate",
+        "cwd": "modules/analytics"
+      }
+    },
+    "db:migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/analytics"
+      }
+    },
+    "db-migrate": {
+      "command": "tsx scripts/apply-migration.ts",
+      "options": {
+        "cwd": "modules/analytics"
+      }
+    }
+  }
+}

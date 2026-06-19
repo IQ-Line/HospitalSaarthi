@@ -1,0 +1,225 @@
+openapi: 3.1.0
+info:
+  title: Analytics — Operational reporting
+  version: 1.0.0
+  description: |
+    Analytics module for operational reporting snapshots and dashboard data.
+    OPD registration & billing report endpoints are platform super-admin only.
+
+servers:
+  - url: http://localhost:3008/api/analytics/v1
+    description: Local development
+
+paths:
+  /status:
+    get:
+      operationId: getAnalyticsStatus
+      summary: Module status
+      description: Returns a lightweight health signal for the analytics module router.
+      tags: [Analytics]
+      responses:
+        "200":
+          description: Module is reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsModuleStatus"
+
+  /reports/opd-registration-billing:
+    get:
+      operationId: getOpdRegistrationBillingReport
+      summary: OPD registration and billing report
+      description: |
+        Paginated OPD registration & billing log for the selected tenant (via `iq_tenant_id`).
+        Platform super-admin only.
+      tags: [Reports]
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: registration_source
+          in: query
+          schema:
+            type: string
+            enum: [all, abha, manual]
+            default: all
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+      responses:
+        "200":
+          description: Report page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpdRegistrationBillingReportPage"
+        "403":
+          description: Super-admin required
+
+  /reports/opd-registration-billing/export:
+    get:
+      operationId: exportOpdRegistrationBillingReport
+      summary: Download OPD registration and billing report (Excel)
+      description: |
+        Exports all rows for the filter as an `.xlsx` workbook.
+        Platform super-admin only.
+      tags: [Reports]
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: registration_source
+          in: query
+          schema:
+            type: string
+            enum: [all, abha, manual]
+            default: all
+      responses:
+        "200":
+          description: Excel workbook
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Super-admin required
+
+components:
+  schemas:
+    AnalyticsModuleStatus:
+      type: object
+      required: [status, module]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        module:
+          type: string
+          enum: [analytics]
+
+    OpdRegistrationBillingReportSummary:
+      type: object
+      required:
+        - total_patients_registered
+        - total_manual_registrations
+        - total_abha_registrations
+        - total_fees_collected
+        - registration_fees_collected
+        - consultation_fees_collected
+      properties:
+        total_patients_registered:
+          type: integer
+        total_manual_registrations:
+          type: integer
+        total_abha_registrations:
+          type: integer
+        total_fees_collected:
+          type: string
+        registration_fees_collected:
+          type: string
+        consultation_fees_collected:
+          type: string
+
+    OpdRegistrationBillingReportRow:
+      type: object
+      required:
+        - patient_full_name
+        - uhid
+        - visit_id
+        - abha_number
+        - abha_address
+        - bill_number
+        - mobile_number
+        - visit_date_time
+        - gender
+        - dob_age
+        - registered_doctor
+        - consulted_doctor
+        - department
+        - registration_fee
+        - op_consultation_fee
+        - total_fees_collected
+        - visit_type
+      properties:
+        patient_full_name:
+          type: string
+        uhid:
+          type: string
+        visit_id:
+          type: string
+        abha_number:
+          type: string
+        abha_address:
+          type: string
+        bill_number:
+          type: string
+        mobile_number:
+          type: string
+        visit_date_time:
+          type: string
+        gender:
+          type: string
+        dob_age:
+          type: string
+        registered_doctor:
+          type: string
+        consulted_doctor:
+          type: string
+        department:
+          type: string
+        registration_fee:
+          type: string
+        op_consultation_fee:
+          type: string
+        total_fees_collected:
+          type: string
+        visit_type:
+          type: string
+
+    OpdRegistrationBillingReportPage:
+      type: object
+      required: [summary, data, total, page, limit, total_pages]
+      properties:
+        summary:
+          $ref: "#/components/schemas/OpdRegistrationBillingReportSummary"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpdRegistrationBillingReportRow"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        total_pages:
+          type: integer
