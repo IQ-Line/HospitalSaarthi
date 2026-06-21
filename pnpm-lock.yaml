@@ -58,6 +58,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-sequence
     devDependencies:
+      drizzle-kit:
+        specifier: ^0.31.4
+        version: 0.31.10
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -95,6 +98,9 @@ importers:
         specifier: ^5.0.1
         version: 5.1.0
     devDependencies:
+      drizzle-kit:
+        specifier: ^0.31.4
+        version: 0.31.10
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
@@ -176,6 +182,9 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
     devDependencies:
+      drizzle-kit:
+        specifier: ^0.31.4
+        version: 0.31.10
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -235,6 +244,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-sequence
     devDependencies:
+      drizzle-kit:
+        specifier: ^0.31.4
+        version: 0.31.10
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
@@ -290,6 +302,9 @@ importers:
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      drizzle-kit:
+        specifier: ^0.31.4
+        version: 0.31.10
       vitest:
         specifier: ^4.1.5
         version: 4.1.5(@types/node@25.6.0)(jsdom@26.1.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4))

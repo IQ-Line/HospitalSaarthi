@@ -15,10 +15,10 @@
         "lintFilePatterns": ["modules/registration/src/**/*.ts"]
       }
     },
-    "db:migrate": {
+    "db-generate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsx scripts/apply-migration.ts",
+        "command": "pnpm exec drizzle-kit generate",
         "cwd": "modules/registration"
       }
     },

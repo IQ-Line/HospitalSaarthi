@@ -2,9 +2,10 @@
   "name": "configurator",
   "tags": ["type:module", "scope:configurator", "language:typescript"],
   "targets": {
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+    "db-generate": {
+      "executor": "nx:run-commands",
       "options": {
+        "command": "pnpm exec drizzle-kit generate",
         "cwd": "modules/configurator"
       }
     },

@@ -1,28 +1,23 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDb, sql } from "@hims/ts-sdk-db";
+import { applyMigrations } from "@hims/ts-sdk-db";
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
-
-const MIGRATION_FILES = [
-  "0000_integration_hub_schema.sql",
-  "0001_integration_hub_m2_schema.sql",
-  "0002_abdm_link_otps.sql",
-  "0003_integration_hub_m3_schema.sql",
-  "0004_abdm_linked_care_contexts.sql",
-] as const;
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
 /**
- * Applies `integration_hub` schema DDL (idempotent — safe to run on every dev boot).
+ * Apply pending `integration_hub` migrations using the drizzle-kit journal under
+ * `migrations/` (numbered SQL + meta/_journal.json), tracked in
+ * `drizzle.__drizzle_migrations_integration_hub`. Each migration runs exactly once.
+ *
+ * Replaces the legacy hand-written "re-run every .sql on every boot" path
+ * (no tracking table, idempotency-by-author-vigilance). Source of truth is
+ * `src/integrations/abdm/schema/tables.ts`; regenerate with
+ * `nx run integration-hub:db-generate`.
  */
 export async function applyIntegrationHubSchemaMigration(
   connectionString: string,
 ): Promise<void> {
-  const db = createDb(connectionString);
-  for (const file of MIGRATION_FILES) {
-    console.log(`Applying ${file}…`);
-    const ddl = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-    await db.execute(sql.raw(ddl));
-  }
+  await applyMigrations(connectionString, MIGRATIONS_DIR, {
+    migrationsSchema: "drizzle",
+    migrationsTable: "__drizzle_migrations_integration_hub",
+  });
 }

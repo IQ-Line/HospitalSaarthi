@@ -22,12 +22,6 @@
         "cwd": "modules/record-foundation"
       }
     },
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
-      "options": {
-        "cwd": "modules/record-foundation"
-      }
-    },
     "db-migrate": {
       "command": "tsx scripts/apply-migration.ts",
       "options": {
