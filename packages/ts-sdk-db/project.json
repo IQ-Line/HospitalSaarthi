@@ -9,9 +9,10 @@
       "executor": "@nx/eslint:lint"
     },
     "test": {
-      "executor": "@nx/vite:test",
+      "executor": "nx:run-commands",
       "options": {
-        "reportsDirectory": "../../coverage/packages/ts-sdk-db"
+        "command": "vitest run",
+        "cwd": "packages/ts-sdk-db"
       }
     }
   }

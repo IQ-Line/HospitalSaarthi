@@ -1,4 +1,4 @@
-# ADR-0031: ABDM Adapter M3 mock harness — ship a curl-injectable CM + loopback HIU inside the adapter
+# ADR-0033: ABDM Adapter M3 mock harness — ship a curl-injectable CM + loopback HIU inside the adapter
 
 - **Status:** Accepted
 - **Date:** 2026-05-21

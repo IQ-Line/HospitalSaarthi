@@ -16,7 +16,7 @@ Reading order before code:
 1. [`08-m3-flows.md`](./08-m3-flows.md) — flow catalogue (this guide assumes you've read it)
 2. [`12-phr-push-reconciliation.md`](./12-phr-push-reconciliation.md) — canonical M3 HIP push / Fidelius direction
 3. [`04-orchestration-phase-1-http-first.md §11`](../integration-platform/04-orchestration-phase-1-http-first.md#11-portability-rules--the-structure-that-makes-future-de-migration-mechanical) — **the nine portability rules**. Memorise; PR review will check.
-3. [`ADR-0031`](../../adr/0031-abdm-m3-mock-harness-strategy.md) — mock harness strategy (why curl-injectable + loopback)
+3. [`ADR-0033`](../../adr/0033-abdm-m3-mock-harness-strategy.md) — mock harness strategy (why curl-injectable + loopback)
 4. This file
 5. `docs/external/abdm/v3-m3-hiu-consent-request-health-records-fetch.md` — **the source spec.** Read §4 (Consent flow) end-to-end and §5 (Data flow) end-to-end before writing any handler. Skip §6 (Subscription — deferred to M4).
 6. [`11-m3-doc-vetting-notes.md`](./11-m3-doc-vetting-notes.md) — before copying any pattern from production HIMS
@@ -529,7 +529,7 @@ When this code eventually moves to durable execution ([`05-orchestration-target-
 - [08-m3-flows.md](./08-m3-flows.md) — the M3 flow catalogue (read first)
 - [10-m3-mock-harness-guide.md](./10-m3-mock-harness-guide.md) — env flags, 5-minute loop, troubleshooting
 - [11-m3-doc-vetting-notes.md](./11-m3-doc-vetting-notes.md) — production HIMS divergences
-- [ADR-0031 mock harness strategy](../../adr/0031-abdm-m3-mock-harness-strategy.md)
+- [ADR-0033 mock harness strategy](../../adr/0033-abdm-m3-mock-harness-strategy.md)
 - [04-orchestration-phase-1-http-first.md §11](../integration-platform/04-orchestration-phase-1-http-first.md#11-portability-rules--the-structure-that-makes-future-de-migration-mechanical) — the nine portability rules
 - [06-m2-dev-guide.md](./06-m2-dev-guide.md) — M2 patterns to mirror
 - [02-m1-flows.md](./02-m1-flows.md) and [dev-guide.md](./dev-guide.md) — M1 patterns

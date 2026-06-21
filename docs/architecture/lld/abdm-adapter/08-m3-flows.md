@@ -12,7 +12,7 @@ M2 made the platform a webhook target for the HIP side of linking + consent rece
 
 1. **HIU role.** The platform is now the *requester*: a doctor at our facility asks for a patient's records held at another HIP. We initiate consent requests, receive grant/deny notifications, fetch artefacts, request data, and receive encrypted bundles. Five distinct inbound CM callbacks per consent-request flow, order-sensitive.
 2. **HIP-side data response.** M2 received consent artefacts; M3 *acts* on them. When CM tells us to ship records for a granted consent, we assemble a FHIR bundle, encrypt it with Fidelius (BC Weierstrass curve25519 + AES-256-GCM — reuses [`fidelius-curve25519-bc.ts`](../../../../modules/abdm-adapter/src/lib/fidelius-curve25519-bc.ts) from M2 PR #86), POST to the HIU's `dataPushUrl`, then notify CM of transfer status.
-3. **Loopback testing mode.** Because real Record Foundation and a separate HIU service don't exist yet, M3 ships an env-gated harness ([ADR-0031](../../adr/0031-abdm-m3-mock-harness-strategy.md)) that lets one service play both HIP and HIU and drive an end-to-end consent → transfer → decrypt loop in five minutes without external dependencies.
+3. **Loopback testing mode.** Because real Record Foundation and a separate HIU service don't exist yet, M3 ships an env-gated harness ([ADR-0033](../../adr/0033-abdm-m3-mock-harness-strategy.md)) that lets one service play both HIP and HIU and drive an end-to-end consent → transfer → decrypt loop in five minutes without external dependencies.
 
 This is the dividing line between M2 and M3.
 
@@ -802,7 +802,7 @@ The spec's parameter tables (lines 4897-4905, 9907-9917) describe `dateRange` as
 - [09-m3-dev-guide.md](./09-m3-dev-guide.md) — step-by-step impl checklist
 - [10-m3-mock-harness-guide.md](./10-m3-mock-harness-guide.md) — env flags, 5-minute loop, troubleshooting
 - [11-m3-doc-vetting-notes.md](./11-m3-doc-vetting-notes.md) — production HIMS divergences NOT to replicate
-- [ADR-0031 mock harness strategy](../../adr/0031-abdm-m3-mock-harness-strategy.md) — why curl-injectable CM + loopback
+- [ADR-0033 mock harness strategy](../../adr/0033-abdm-m3-mock-harness-strategy.md) — why curl-injectable CM + loopback
 - [ADR-0030 ABDM Adapter prototype phase](../../adr/0030-abdm-adapter-prototype-phase.md) — Phase 0 module shape
 - [05-m2-flows.md](./05-m2-flows.md) — M2 catalogue (compare for shape consistency)
 - [06-m2-dev-guide.md](./06-m2-dev-guide.md) — M2 dev checklist (M3 mirrors its structure)

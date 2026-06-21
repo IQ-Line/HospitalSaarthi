@@ -36,6 +36,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+*.code-workspace
 
 # Testing
 coverage/
@@ -50,10 +51,14 @@ modules/empi/migrations/drizzle/
 # Docker volumes
 infra/docker/volumes/
 
-# Claude Code
+# Claude Code / agent tooling state (never commit)
 .agents/
 .claude/
 .cursor/
+.opencode/
+.worktrees/
+scratch/
+tmp/
 
 # Python
 __pycache__/
