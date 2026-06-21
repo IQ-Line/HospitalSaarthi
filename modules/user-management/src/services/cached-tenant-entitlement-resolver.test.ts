@@ -6,7 +6,7 @@ import type { Capability } from "../ports/index.js";
 const umReadCap: Capability = {
   id: "c1",
   capability_key: "users:users:read",
-  module: "user-management",
+  module: "users",
   feature: "users",
   action: "read",
   display_name: "Read users",

@@ -9,7 +9,7 @@ describe("getCapabilityById", () => {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d490",
           capability_key: "user-roles:user-roles:read",
-          module: "user-management",
+          module: "user-roles",
           feature: "roles",
           action: "read",
           display_name: "Read roles",

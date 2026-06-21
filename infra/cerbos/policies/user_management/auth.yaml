@@ -11,6 +11,11 @@ resourcePolicy:
   resource: "auth"
   version: default
   rules:
+    # INTENTIONAL EXCEPTION — the only unconditional EFFECT_ALLOW in the platform's policy set.
+    # super-admin reads its own principal snapshot with no capability/tenant condition. Safe: the
+    # /auth/* endpoints return only the caller's own enriched principal (capability hydration for the
+    # shell), never another user's data. Every other action in every other policy gates on
+    # request.principal.attr.capabilities even for super-admin. Do not copy this shape elsewhere.
     - actions:
         - "auth.read"
       roles: ["super-admin"]
