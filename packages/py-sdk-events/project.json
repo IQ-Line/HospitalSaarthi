@@ -1,0 +1,40 @@
+{
+  "name": "py-sdk-events",
+  "tags": ["type:sdk", "scope:platform", "language:python"],
+  "namedInputs": {
+    "default": ["{projectRoot}/**/*"],
+    "production": [
+      "default",
+      "!{projectRoot}/tests/**/*"
+    ]
+  },
+  "targets": {
+    "setup": {
+      "command": "uv sync",
+      "options": {
+        "cwd": "packages/py-sdk-events"
+      },
+      "inputs": ["default"],
+      "cache": true,
+      "outputs": ["{projectRoot}/.venv"]
+    },
+    "lint": {
+      "command": "uv run ruff check .",
+      "options": {
+        "cwd": "packages/py-sdk-events"
+      },
+      "dependsOn": ["setup"],
+      "inputs": ["default", "{projectRoot}/pyproject.toml"],
+      "cache": true
+    },
+    "test": {
+      "command": "uv run pytest",
+      "options": {
+        "cwd": "packages/py-sdk-events"
+      },
+      "dependsOn": ["setup"],
+      "inputs": ["default"],
+      "cache": true
+    }
+  }
+}
