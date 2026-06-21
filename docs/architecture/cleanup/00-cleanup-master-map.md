@@ -117,12 +117,12 @@ Health: **good** / **fair** / **poor** / **broken**. 13 audited + 7 found by the
 - ☑ **D1 (test layout) — DECIDED 2026-06-21: separated `test/unit` + `test/integration`** (the LLD's documented layout, `01-monorepo-setup.md:168`; also mirrors the Python `tests/` dirs). Implies: move all 282 sibling TS test files into per-project `test/{unit,integration}`; rewrite vitest `include`/`exclude` globs AND `nx.json` `production` namedInput from suffix-based (`*.test.ts`) to **path-based** (`test/**`) in lockstep; correct issue #36 (says siblings) and the earlier `__tests__/` preference. Unit/integration split stays driven by directory + `DATABASE_URL`. Gates: B, C.
 - ☑ **D2 (migration direction) — DECIDED 2026-06-21: reverse PR #65, adopt drizzle-kit (#66)** for all TS modules via shared `packages/ts-sdk-db`; regenerate **fresh** baselines from `src/schema/tables.ts` (A1 accepted — DB disposable, no `_journal.json` history stitching). Gates: A, I.
 - ☐ **D3 (cross-module sync mechanism)** — Build generated `packages/openapi-clients` (openapi-fetch/openapi-generator per ADR-0016) vs amend ADR to bless ports + hand-written adapters. *One decision for H, K, G, D.*
-- ☐ **D4 (distribution-key name)** — Canonical `iq_tenant_id` (rec; matches ADR-0021/ts-sdk-db/all TS) → fix OPD + `database-principles.md §2`; vs standardize on `tenant_id`. Gates: I, B (fixtures).
+- ☑ **D4 (distribution-key name) — DECIDED 2026-06-21: `iq_tenant_id` is canonical.** OPD (`tenant_id`) gets renamed; `database-principles.md §2` (which says `tenant_id`) gets corrected to match. Gates: I, B (fixtures).
 - ☐ **D5 (master-data classification)** — Normalize to module + `services/master-data-svc` (rec; matches opd/empi) vs document embedded-service as an intentional exception. Gates: C, H, I, B.
 - ☐ **D6 (Nx inference)** — Adopt Nx 22 plugin inference (`@nx/js`/`@nx/eslint`/`@nx/vite`) as standard, deleting most per-project targets? *Rec yes; large repo-wide change.* Gates: C, H.
 - ☑ **D7 (CI trunk) — DECIDED 2026-06-21: yes, retarget CI to gate `dev`** (implied by selecting Phase 0). CI image build/push/deploy (area N) folded into Phase 0/2. Gates: everything observable.
 - ☐ **D8 (events vs HTTP as default)** — Finish #30 HTTP `/internal/events` bridge (events-as-default) vs formally bless synchronous HTTP for Phase 1 and demote events to intra-process. Reconcile docs either way. Gates: G.
-- ☐ **D9 (Citus in dev)** — Enable Citus in dev/CI now (exercise distribution + reference tables before prod) vs keep prod-only. Gates: I (risk A4).
+- ☑ **D9 (Citus in dev) — DECIDED 2026-06-21: distribute unconditionally** (dev + CI already run `citusdata/citus:12.1`). Distribution/reference-table creation moves into journaled `--custom` migrations that always run; the old unset-env-gated `create_distributed_table` probes are removed. **Verified on empi** against real Citus. Gates: I (closes risk A4).
 
 **Per-area decisions:**
 - ☐ **D10 (super-admin model)** — Granular cross-tenant capability bundle (rec, #93) vs Cerbos derivedRole shorthand. Affects E, F, L.
@@ -204,4 +204,35 @@ CI→dev (D7) · remove broken `@nx/vite:test` + dup migrate targets + dead Make
 |---|---|---|
 | 2026-06-21 | 1 | Deep-dive analysis (15-agent workflow). Created branch `dev--improved-v1`. Wrote this map. Verified CI-on-main, PR#65 merged/#66 open, 62 merged branches. |
 | 2026-06-21 | 1 | **First work block chosen:** Phase 0 + Phase 1 + AuthZ + AuthN. **Decisions:** D1=separated `test/unit`+`test/integration`; D2=drizzle-kit + fresh baselines; D7=CI→dev. Internal execution order: Phase 0 → Phase 1 → AuthN → AuthZ (authz depends on authn + capability-key correctness; both pull in the minimal Phase-2 boundary/spec bits they need). |
+| 2026-06-21 | 1 | **Phase 0 committed: `286eefe6`** (scoped — no unrelated WIP swept in; `.npmrc` now tracked). **Branch/worktree cleanup:** removed 5 of 7 `.claude/worktrees` (2 kept — uncommitted work: `feat/abdm-adapter-scaffold`, `billing_reg_integration`); pruned stale `/tmp/pr267-review`; **deleted 58 merged branches** (77→19 local). Preserved all branches needed downstream (authz-level-1/2/3a/3b, fix/authz-corrections, py-sdk-events, chore/testing-scaffolding, record-foundation-module, module/ipd-lite). **abdm-adapter dead-dir deletion NOT done** — it's a live prototype (ADR-0030) mid-transition to integration-hub (see DEVNOTE 2026-05-28); reclassified from "quick win" to **deferred**. **Phase 0 complete. Next: Phase 1 (DB + migrations drizzle-kit rebuild) — recommend a fresh focused session.** |
 | 2026-06-21 | 1 | **Phase 0 executed (safe items):** CI now triggers on `[dev, main]`; `.gitignore` gaps closed (`.opencode/`,`scratch/`,`tmp/`,`.worktrees/`,`*.code-workspace`); untracked the 32 `ts-sdk-fhir` build artifacts + removed 2 stray `*.code-workspace` files; fixed broken `@nx/vite:test` in `ts-sdk-sequence`+`ts-sdk-db` (→ `vitest run`); ADR-0031 collision resolved (abdm-m3 → **0033**, README indexed + note); promoted authn deliberation → `docs/architecture/auth/username-primary-authn-deliberation.md`. **Deferred to Phase 1** (same edits get rewritten there): dup `db:migrate` targets, `create-module-databases.sql`, Makefile `db-migrate`. **Needs user confirm:** branch(62)+worktree cleanup, abdm-adapter dead-dir deletion, whether to commit. **Not yet committed.** |
+| 2026-06-21 | 1 | **Phase 1 STARTED — empi reference proven end-to-end against real Citus 12.1.** Built shared `applyMigrations`+`createPool` in `ts-sdk-db`; converted empi to drizzle-kit (fresh baseline from `tables.ts` + custom pg_trgm + custom citus-distribute); rewired runtime apply path; deduped project.json. **Verified:** fresh apply + idempotent re-run + 7 tables + tracking table `drizzle.__drizzle_migrations_empi` + pg_trgm/gin index + all 7 tables distributed by `iq_tenant_id` + real `db-migrate` command path. See §12 for the canonical recipe. **Next: fan out the other 7 TS modules + DB reshape. empi reference not yet committed.** |
+
+---
+
+## 12. Phase 1 — proven drizzle-kit migration recipe (empi reference, VERIFIED)
+
+Verified end-to-end on `empi` against real Citus 12.1 (2026-06-21): fresh apply, idempotent re-run, 7 tables distributed by `iq_tenant_id`, pg_trgm + gin index, journaled tracking table. **This is the canonical recipe for the remaining 7 TS modules.**
+
+**Shared infra (DONE):** `packages/ts-sdk-db` now exports `applyMigrations(connectionString, migrationsFolder, { migrationsSchema, migrationsTable })` (runtime `migrate()` from `drizzle-orm/node-postgres/migrator`) and `createPool`. Stale on-disk `.js`/`.d.ts` build artifacts under `ts-sdk-db/src` were deleted (they shadowed the `.ts` under tsx).
+
+**Tracking-table decision:** schema **`drizzle`** (drizzle's own, auto-created — avoids the fresh-DB chicken-egg of the module's own schema, since the generated baseline emits a bare `CREATE SCHEMA "<mod>"` with no `IF NOT EXISTS`), table **`__drizzle_migrations_<module>`** (module-unique — the node-postgres migrator advances by latest-applied timestamp, so a *shared* table makes modules skip each other's pending migrations).
+
+**Extensions + Citus = journaled `--custom` migrations** (issue #66 default), NOT infra bootstrap — so they run wherever `applyMigrations` runs (dev/CI/prod). Journal ⇒ exactly once ⇒ no `DO $$` / `IF NOT EXISTS` / `pg_dist_partition` guards needed.
+
+**Per-module steps:**
+1. `drizzle.config.ts`: `schema: ./src/schema/tables.ts`, `out: ./migrations`, `dialect: postgresql`, `schemaFilter: ['<schema>']`, `migrations: { schema: 'drizzle', table: '__drizzle_migrations_<module>' }`.
+2. Delete hand-written `migrations/*.sql` + any old `migrations/drizzle/`.
+3. Generate fresh, in order: `drizzle-kit generate --custom --name <ext>` per extension (edit → `CREATE EXTENSION IF NOT EXISTS ...`) → `--name init` (baseline) → `--custom --name distribute_citus` (edit: `create_distributed_table('<schema>.<t>','iq_tenant_id')` for tenant tables; **`create_reference_table('<schema>.<t>')` for catalog/control-plane tables FK'd by distributed tables — #92**). Extension must precede any index that needs it.
+4. Rewrite `src/schema/apply-migration.ts` → call `applyMigrations(conn, MIGRATIONS_DIR, { migrationsSchema:'drizzle', migrationsTable:'__drizzle_migrations_<module>' })`; **keep the exported `applyXSchemaMigration` name** so boot (`services/*-svc/src/main.ts`) + `scripts/apply-migration.ts` callers are unchanged.
+5. `project.json`: remove duplicate `db:migrate` (keep `db-migrate` + `db-generate`).
+6. Verify against throwaway Citus: `docker run -d --name hims-verify -e POSTGRES_USER=hims -e POSTGRES_PASSWORD=hims -e POSTGRES_DB=hims_dev -p5444:5432 citusdata/citus:12.1` then `CREATE EXTENSION citus;` — apply ×2, check tables + tracking rows + `pg_dist_partition`. (Dev compose `infra/docker/docker-compose.yml` had a WSL2 bind-mount glitch on `citus-init.sql`; throwaway container sidesteps it.)
+
+**Per-module notes for the fan-out:**
+- billing, registration, pharmacy, record-foundation: tenant tables → distribute by `iq_tenant_id` (like empi).
+- configurator, user-management: catalog/control-plane tables (modules, permissions, system_roles, organizations, tenants, capabilities) FK-referenced by distributed tables → **`create_reference_table`** (#92), not distribute.
+- user-management `auth` schema (better-auth): non-distributable (text PKs) — document as a reference/local exception (ties to AuthN phase, D-decisions there).
+- integration-hub: schema lives at `src/integrations/abdm/schema/tables.ts` (not `src/schema/tables.ts`) — adjust config path.
+- Extensions seen: pg_trgm (empi). Check each for pgcrypto/`gen_random_uuid` (PG17 has it built-in — verify per image).
+
+**Remaining Phase 1 (after the 7-module fan-out):** OPD `tenant_id`→`iq_tenant_id` (Python/Alembic, D4); master-data schema rename #91 (D17); delete stale `infra/db/create-module-databases.sql` + k8s per-module `*_DATABASE_URL` secrets; fix OPD cross-schema reads into `registration`; rewrite Makefile `db-migrate` ordering; correct `database-principles.md §2` to `iq_tenant_id`.

@@ -22,12 +22,6 @@
         "cwd": "modules/empi"
       }
     },
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
-      "options": {
-        "cwd": "modules/empi"
-      }
-    },
     "db-migrate": {
       "command": "tsx scripts/apply-migration.ts",
       "options": {
