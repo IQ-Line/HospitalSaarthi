@@ -27,11 +27,14 @@ const ACTOR_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d580";
 const CAP_UM_ROW: Capability = {
   id: CAP_UM,
   capability_key: "users:users:read",
-  module: "user-management",
+  module: "users",
   feature: "users",
   action: "read",
   display_name: "Read users",
   is_active: true,
+  source_catalog: "master_data",
+  source_module_slug: "users",
+  source_permission_slug: "read",
 };
 
 const identityStubPlugin = fp(

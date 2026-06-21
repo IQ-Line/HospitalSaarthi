@@ -37,7 +37,7 @@ const CAP_UM_ROW: Capability = {
 
   capability_key: "users:users:read",
 
-  module: "user-management",
+  module: "users",
 
   feature: "users",
 
@@ -46,6 +46,12 @@ const CAP_UM_ROW: Capability = {
   display_name: "Read users",
 
   is_active: true,
+
+  source_catalog: "master_data",
+
+  source_module_slug: "users",
+
+  source_permission_slug: "read",
 
 };
 
