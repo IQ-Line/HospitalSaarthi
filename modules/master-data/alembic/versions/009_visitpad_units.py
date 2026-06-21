@@ -1,9 +1,9 @@
-"""Create ``units`` and ``unit_conversions`` in ``global_master``.
+"""Create ``units`` and ``unit_conversions`` in ``master_global``.
 
 Revision ID: 009_visitpad_units
 Revises: 008_module_permissions
 
-Visitpad rows are tenant-scoped in ``global_master`` until ``011`` splits ``tenant_master`` copies.
+Visitpad rows are tenant-scoped in ``master_global`` until ``011`` splits ``master_tenant`` copies.
 """
 
 from collections.abc import Sequence

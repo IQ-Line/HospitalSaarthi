@@ -1,4 +1,4 @@
-"""Create ``global_master.picklist`` catalog table.
+"""Create ``master_global.picklist`` catalog table.
 
 Revision ID: 030_picklist_catalog
 Revises: 029_add_delete_permission_catalog

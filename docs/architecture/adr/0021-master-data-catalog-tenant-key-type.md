@@ -7,11 +7,11 @@
 
 ## Context and problem statement
 
-Master Data previously accepted a **positive integer** in the `iq_tenant_id` HTTP header and persisted it on `tenant_master` rows, while `packages/ts-sdk-db` and other modules use **UUID** for the same conceptual field name. That mismatch broke header reuse, co-location reasoning, and UI expectations (slug tenants silently targeted `public`).
+Master Data previously accepted a **positive integer** in the `iq_tenant_id` HTTP header and persisted it on `master_tenant` rows, while `packages/ts-sdk-db` and other modules use **UUID** for the same conceptual field name. That mismatch broke header reuse, co-location reasoning, and UI expectations (slug tenants silently targeted `public`).
 
 ## Decision outcome
 
-**Align Master Data catalog scope with UUID:** `CatalogScope.iq_tenant_id` is `UUID | None`; the header must be a canonical UUID string when present. PostgreSQL `tenant_master.*.iq_tenant_id` columns are `UUID` (see Alembic **`022_tm_iq_tenant_uuid`** — truncates `tenant_master` then alters column type; re-seed tenant rows after upgrade).
+**Align Master Data catalog scope with UUID:** `CatalogScope.iq_tenant_id` is `UUID | None`; the header must be a canonical UUID string when present. PostgreSQL `master_tenant.*.iq_tenant_id` columns are `UUID` (see Alembic **`022_tm_iq_tenant_uuid`** — truncates `master_tenant` then alters column type; re-seed tenant rows after upgrade).
 
 ### Consequences
 
@@ -21,7 +21,7 @@ Master Data previously accepted a **positive integer** in the `iq_tenant_id` HTT
 
 **Negative / accepted trade-offs:**
 
-- **022** is destructive for `tenant_master` data on PostgreSQL (documented in the migration header).
+- **022** is destructive for `master_tenant` data on PostgreSQL (documented in the migration header).
 
 ## More information
 

@@ -1,4 +1,4 @@
-"""Add visibility_scope to global_master.modules and tenant_master.modules.
+"""Add visibility_scope to master_global.modules and master_tenant.modules.
 
 Revision ID: 037_module_visibility_scope
 Revises: 036_module_kind_and_display_order
@@ -70,13 +70,13 @@ def _drop_columns(schema: str, constraint_name: str) -> None:
 
 
 def upgrade() -> None:
-    _add_columns("global_master", "modules_visibility_scope_check")
-    _backfill_visibility_scope("global_master")
+    _add_columns("master_global", "modules_visibility_scope_check")
+    _backfill_visibility_scope("master_global")
 
-    _add_columns("tenant_master", "tm_modules_visibility_scope_check")
-    _backfill_visibility_scope("tenant_master")
+    _add_columns("master_tenant", "tm_modules_visibility_scope_check")
+    _backfill_visibility_scope("master_tenant")
 
 
 def downgrade() -> None:
-    _drop_columns("tenant_master", "tm_modules_visibility_scope_check")
-    _drop_columns("global_master", "modules_visibility_scope_check")
+    _drop_columns("master_tenant", "tm_modules_visibility_scope_check")
+    _drop_columns("master_global", "modules_visibility_scope_check")

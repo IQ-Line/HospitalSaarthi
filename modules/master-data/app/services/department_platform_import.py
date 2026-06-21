@@ -1,4 +1,4 @@
-"""Bulk copy department rows from ``global_master`` into ``tenant_master``."""
+"""Bulk copy department rows from ``master_global`` into ``master_tenant``."""
 
 from __future__ import annotations
 

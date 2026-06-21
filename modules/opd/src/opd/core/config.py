@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ``modules/opd`` — stable regardless of CWD.
@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description="SQLAlchemy database URL for the OPD module.",
+        # Prefixed OPD_DATABASE_URL wins; falls back to the shared DATABASE_URL
+        # (single hims_dev DB per ADR-0013). AliasChoices bypasses env_prefix.
+        validation_alias=AliasChoices("OPD_DATABASE_URL", "DATABASE_URL"),
     )
     api_prefix: str = "/api/v1/opd"
     log_level: str = "INFO"

@@ -27,16 +27,16 @@ def upgrade() -> None:
 
     op.execute(
         """
-        ALTER TABLE global_master.picklist_values
+        ALTER TABLE master_global.picklist_values
         RENAME COLUMN is_default TO is_global;
         """
     )
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET value = 'super_admin', is_global = true
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -46,7 +46,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        INSERT INTO global_master.picklist_values (
+        INSERT INTO master_global.picklist_values (
             id, category_id, value, label, description, metadata,
             is_active, is_global, display_order, created_at, updated_at
         )
@@ -62,11 +62,11 @@ def upgrade() -> None:
             9,
             now(),
             now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE p.slug = 'role-types'
           AND NOT p.is_deleted
           AND NOT EXISTS (
-              SELECT 1 FROM global_master.picklist_values pv
+              SELECT 1 FROM master_global.picklist_values pv
               WHERE pv.category_id = p.id
                 AND pv.value = 'tenant_admin'
           );
@@ -75,9 +75,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = true
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -87,9 +87,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = false
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -105,8 +105,8 @@ def downgrade() -> None:
 
     op.execute(
         """
-        DELETE FROM global_master.picklist_values pv
-        USING global_master.picklist p
+        DELETE FROM master_global.picklist_values pv
+        USING master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND pv.value = 'tenant_admin';
@@ -115,9 +115,9 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET value = 'superadmin'
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND pv.value = 'super_admin';
@@ -126,7 +126,7 @@ def downgrade() -> None:
 
     op.execute(
         """
-        ALTER TABLE global_master.picklist_values
+        ALTER TABLE master_global.picklist_values
         RENAME COLUMN is_global TO is_default;
         """
     )

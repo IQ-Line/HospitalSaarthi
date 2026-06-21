@@ -1,4 +1,4 @@
-"""Add module_permissions junction table (`global_master.module_permissions`).
+"""Add module_permissions junction table (`master_global.module_permissions`).
 
 Revision ID: 008_module_permissions
 Revises: 007_system_roles_catalog
@@ -117,7 +117,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('global_master.module_permissions');
+                PERFORM create_reference_table('master_global.module_permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN

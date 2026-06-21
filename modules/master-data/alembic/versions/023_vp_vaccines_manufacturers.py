@@ -1,4 +1,4 @@
-"""Add Visitpad ``vaccines`` and ``manufacturers`` in ``global_master`` and ``tenant_master``.
+"""Add Visitpad ``vaccines`` and ``manufacturers`` in ``master_global`` and ``master_tenant``.
 
 Revision ID: 023_vp_vaccines_manufacturers
 Revises: 022_tm_iq_tenant_uuid

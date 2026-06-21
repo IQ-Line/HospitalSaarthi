@@ -1,4 +1,4 @@
-"""Link L2+ catalog modules to platform permissions in ``global_master.module_permissions``.
+"""Link L2+ catalog modules to platform permissions in ``master_global.module_permissions``.
 
 Revision ID: 028_core_module_permissions_catalog
 Revises: 027_core_modules_catalog
@@ -31,7 +31,7 @@ def upgrade() -> None:
     for permission_slug in _PERMISSION_SLUGS:
         op.execute(
             f"""
-            INSERT INTO global_master.module_permissions (
+            INSERT INTO master_global.module_permissions (
                 id, slug, module_id, permission_id, is_default, is_active, is_deleted,
                 created_at, updated_at
             )
@@ -45,14 +45,14 @@ def upgrade() -> None:
                 false,
                 now(),
                 now()
-            FROM global_master.modules m
-            CROSS JOIN global_master.permissions p
+            FROM master_global.modules m
+            CROSS JOIN master_global.permissions p
             WHERE m.level >= 2
               AND NOT m.is_deleted
               AND p.slug = '{permission_slug}'
               AND NOT p.is_deleted
               AND NOT EXISTS (
-                  SELECT 1 FROM global_master.module_permissions mp
+                  SELECT 1 FROM master_global.module_permissions mp
                   WHERE mp.slug = m.slug || ':' || '{permission_slug}'
                     AND NOT mp.is_deleted
               );
@@ -68,9 +68,9 @@ def downgrade() -> None:
     permission_slugs_sql = ", ".join(f"'{slug}'" for slug in _PERMISSION_SLUGS)
     op.execute(
         f"""
-        UPDATE global_master.module_permissions mp
+        UPDATE master_global.module_permissions mp
         SET is_deleted = true, updated_at = now()
-        FROM global_master.modules m, global_master.permissions p
+        FROM master_global.modules m, master_global.permissions p
         WHERE mp.module_id = m.id
           AND mp.permission_id = p.id
           AND m.level >= 2

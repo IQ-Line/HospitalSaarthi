@@ -34,20 +34,20 @@ def _insert_module(
     parent_exists_clause = ""
     if parent_slug is not None:
         parent_sql = f"""
-            (SELECT id FROM global_master.modules
+            (SELECT id FROM master_global.modules
              WHERE slug = '{parent_slug}' AND NOT is_deleted
              LIMIT 1)
         """
         parent_exists_clause = f"""
           AND EXISTS (
-              SELECT 1 FROM global_master.modules
+              SELECT 1 FROM master_global.modules
               WHERE slug = '{parent_slug}' AND NOT is_deleted
           )
         """
 
     op.execute(
         f"""
-        INSERT INTO global_master.modules (
+        INSERT INTO master_global.modules (
             id, parent_id, name, slug, description, category, version, level, icon,
             is_active, is_deleted, created_at, updated_at
         )
@@ -66,11 +66,11 @@ def _insert_module(
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE slug = '{slug}' AND NOT is_deleted
         )
           AND NOT EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE name = '{_sql_literal(name)}' AND NOT is_deleted
         ){parent_exists_clause};
         """
@@ -81,7 +81,7 @@ def _link_shell_junction(module_slug: str, permission_slug: str) -> None:
     junction_slug = f"{module_slug}:{permission_slug}"
     op.execute(
         f"""
-        INSERT INTO global_master.module_permissions (
+        INSERT INTO master_global.module_permissions (
             id, slug, module_id, permission_id, is_default, is_active, is_deleted,
             created_at, updated_at
         )
@@ -95,12 +95,12 @@ def _link_shell_junction(module_slug: str, permission_slug: str) -> None:
             false,
             now(),
             now()
-        FROM global_master.modules m
-        INNER JOIN global_master.permissions p
+        FROM master_global.modules m
+        INNER JOIN master_global.permissions p
           ON p.slug = '{permission_slug}' AND NOT p.is_deleted
         WHERE m.slug = '{module_slug}' AND NOT m.is_deleted
           AND NOT EXISTS (
-            SELECT 1 FROM global_master.module_permissions mp
+            SELECT 1 FROM master_global.module_permissions mp
             WHERE mp.slug = '{_sql_literal(junction_slug)}'
               AND NOT mp.is_deleted
           );
@@ -112,7 +112,7 @@ def _link_l2_crud_permissions(l2_slug: str) -> None:
     for permission_slug in _PERMISSION_SLUGS:
         op.execute(
             f"""
-            INSERT INTO global_master.module_permissions (
+            INSERT INTO master_global.module_permissions (
                 id, slug, module_id, permission_id, is_default, is_active, is_deleted,
                 created_at, updated_at
             )
@@ -126,15 +126,15 @@ def _link_l2_crud_permissions(l2_slug: str) -> None:
                 false,
                 now(),
                 now()
-            FROM global_master.modules m
-            CROSS JOIN global_master.permissions p
+            FROM master_global.modules m
+            CROSS JOIN master_global.permissions p
             WHERE m.slug = '{l2_slug}'
               AND m.level >= 2
               AND NOT m.is_deleted
               AND p.slug = '{permission_slug}'
               AND NOT p.is_deleted
               AND NOT EXISTS (
-                  SELECT 1 FROM global_master.module_permissions mp
+                  SELECT 1 FROM master_global.module_permissions mp
                   WHERE mp.slug = m.slug || ':' || '{permission_slug}'
                     AND NOT mp.is_deleted
               );
@@ -178,9 +178,9 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.module_permissions mp
+        UPDATE master_global.module_permissions mp
         SET is_deleted = true, updated_at = now()
-        FROM global_master.modules m
+        FROM master_global.modules m
         WHERE mp.module_id = m.id
           AND m.slug IN ({slugs_sql})
           AND NOT mp.is_deleted;
@@ -188,9 +188,9 @@ def downgrade() -> None:
     )
     op.execute(
         f"""
-        UPDATE global_master.module_permissions mp
+        UPDATE master_global.module_permissions mp
         SET is_deleted = true, updated_at = now()
-        FROM global_master.modules m, global_master.permissions p
+        FROM master_global.modules m, master_global.permissions p
         WHERE mp.module_id = m.id
           AND mp.permission_id = p.id
           AND m.slug IN ({slugs_sql})
@@ -202,7 +202,7 @@ def downgrade() -> None:
     )
     op.execute(
         f"""
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_deleted = true, updated_at = now()
         WHERE slug IN ({slugs_sql}) AND NOT is_deleted;
         """

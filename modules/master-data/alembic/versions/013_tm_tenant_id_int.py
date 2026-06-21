@@ -1,4 +1,4 @@
-"""Convert ``tenant_master.*.tenant_id`` from UUID to integer (catalog tenant key).
+"""Convert ``master_tenant.*.tenant_id`` from UUID to integer (catalog tenant key).
 
 Revision ID: 013_tm_tenant_id_int (≤32 chars for ``alembic_version.version_num``).
 Revises: 012_tm_platform_catalog

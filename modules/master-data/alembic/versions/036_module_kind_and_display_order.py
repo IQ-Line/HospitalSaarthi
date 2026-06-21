@@ -1,4 +1,4 @@
-"""Add module_kind and display_order to global_master.modules and tenant_master.modules.
+"""Add module_kind and display_order to master_global.modules and master_tenant.modules.
 
 Revision ID: 036_module_kind_and_display_order
 Revises: 035_retire_visitpad_templates_catalog
@@ -188,15 +188,15 @@ def _drop_columns(schema: str, kind_constraint: str) -> None:
 
 
 def upgrade() -> None:
-    _add_columns("global_master", "modules_module_kind_check")
-    _backfill_kind("global_master")
-    _backfill_display_order("global_master")
+    _add_columns("master_global", "modules_module_kind_check")
+    _backfill_kind("master_global")
+    _backfill_display_order("master_global")
 
-    _add_columns("tenant_master", "tm_modules_module_kind_check")
-    _backfill_kind("tenant_master")
-    _backfill_display_order("tenant_master")
+    _add_columns("master_tenant", "tm_modules_module_kind_check")
+    _backfill_kind("master_tenant")
+    _backfill_display_order("master_tenant")
 
 
 def downgrade() -> None:
-    _drop_columns("tenant_master", "tm_modules_module_kind_check")
-    _drop_columns("global_master", "modules_module_kind_check")
+    _drop_columns("master_tenant", "tm_modules_module_kind_check")
+    _drop_columns("master_global", "modules_module_kind_check")

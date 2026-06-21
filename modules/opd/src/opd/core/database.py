@@ -40,8 +40,23 @@ def database_target_label(url: str) -> str:
     return f"{host}:{port}/{db}" if port else f"{host}/{db}"
 
 
+def _normalize_driver(url: str) -> str:
+    """Force the psycopg (v3) driver so the shared ``postgresql://`` DATABASE_URL works.
+
+    The unified ``DATABASE_URL`` is the Node/Drizzle form (``postgresql://``); plain
+    SQLAlchemy would resolve that to the default psycopg2 dialect. The prefixed
+    ``OPD_DATABASE_URL`` override already uses ``postgresql+psycopg://`` and still wins.
+    """
+    for prefix in ("postgresql://", "postgres://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg://" + url[len(prefix) :]
+    return url
+
+
 def _bind_engine(url: str) -> Engine:
     global _engine, _bound_url, _session_factory
+
+    url = _normalize_driver(url)
 
     if _engine is not None and _bound_url == url:
         return _engine

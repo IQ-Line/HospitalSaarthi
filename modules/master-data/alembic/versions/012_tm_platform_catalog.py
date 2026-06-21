@@ -1,13 +1,13 @@
-"""Create ``tenant_master`` tables for platform catalog (modules, permissions, system_roles, module_permissions).
+"""Create ``master_tenant`` tables for platform catalog (modules, permissions, system_roles, module_permissions).
 
-Each table mirrors ``global_master`` plus ``iq_tenant_id`` (UUID) and tenant-scoped partial unique indexes.
-Rows start empty; global catalog remains in ``global_master``.
+Each table mirrors ``master_global`` plus ``iq_tenant_id`` (UUID) and tenant-scoped partial unique indexes.
+Rows start empty; global catalog remains in ``master_global``.
 
 Revision ID: 012_tm_platform_catalog (≤32 chars for ``alembic_version.version_num``).
 Revises: 011_tenant_master_visitpad
 
-Chain order: all ``global_master``-only revisions through ``010`` run first; ``011`` performs Visitpad dual-schema
-(data copy before ``global_master`` reshape); **this** revision adds platform ``tenant_master`` tables only after ``011``.
+Chain order: all ``master_global``-only revisions through ``010`` run first; ``011`` performs Visitpad dual-schema
+(data copy before ``master_global`` reshape); **this** revision adds platform ``master_tenant`` tables only after ``011``.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -288,5 +288,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     raise NotImplementedError(
-        "Downgrade for tenant_master platform catalog migration is not supported.",
+        "Downgrade for master_tenant platform catalog migration is not supported.",
     )

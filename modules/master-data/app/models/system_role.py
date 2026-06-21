@@ -1,4 +1,4 @@
-"""SQLAlchemy models for system role templates: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for system role templates: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class SystemRolePublicModel(TimestampMixin, Base):
-    """Platform-wide role templates (``global_master``)."""
+    """Platform-wide role templates (``master_global``)."""
 
     __tablename__ = "system_roles"
     __table_args__ = (

@@ -1,4 +1,4 @@
-"""Add optional ``short_name`` to Visitpad ``chief_complaints`` (``global_master`` + ``tenant_master``).
+"""Add optional ``short_name`` to Visitpad ``chief_complaints`` (``master_global`` + ``master_tenant``).
 
 Revision ID: 014_cc_short_name
 Revises: 013_tm_tenant_id_int

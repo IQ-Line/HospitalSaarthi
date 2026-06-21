@@ -26,9 +26,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_active = true, is_global = true, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -38,9 +38,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = false, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -50,9 +50,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_active = false, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -62,9 +62,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = true, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -75,9 +75,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = false, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -94,9 +94,9 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = true, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted

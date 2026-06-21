@@ -1,4 +1,4 @@
-"""``tenant_master.*.iq_tenant_id``: integer → UUID (align with platform ``iq_tenant_id`` as UUID).
+"""``master_tenant.*.iq_tenant_id``: integer → UUID (align with platform ``iq_tenant_id`` as UUID).
 
 Revision ID: 022_tm_iq_tenant_uuid
 Revises: 021_alembic_ver_num_128

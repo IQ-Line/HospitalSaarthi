@@ -1,4 +1,4 @@
-"""Visitpad catalog tables in ``global_master`` (rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
+"""Visitpad catalog tables in ``master_global`` (rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
 
 Revision ID: 010_visitpad_catalog
 Revises: 009_visitpad_units

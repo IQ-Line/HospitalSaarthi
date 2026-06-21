@@ -1,4 +1,4 @@
-"""Add optional `manage` permission for Visitpad templates catalog (``global_master`` vocabulary).
+"""Add optional `manage` permission for Visitpad templates catalog (``master_global`` vocabulary).
 
 Revision ID: 025_visitpad_templates_catalog_manage
 Revises: 024_visitpad_templates_module_catalog
@@ -31,7 +31,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO global_master.permissions (
+        INSERT INTO master_global.permissions (
             id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
         )
         SELECT
@@ -45,7 +45,7 @@ def upgrade() -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.permissions
+            SELECT 1 FROM master_global.permissions
             WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted
         );
         """
@@ -53,7 +53,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO global_master.module_permissions (
+        INSERT INTO master_global.module_permissions (
             id, slug, module_id, permission_id, is_default, is_active, is_deleted,
             created_at, updated_at
         )
@@ -61,19 +61,19 @@ def upgrade() -> None:
             '{MP_MANAGE_ID}'::uuid,
             'visitpad-templates-catalog-manage',
             '{MODULE_VISITPAD_ID}'::uuid,
-            (SELECT id FROM global_master.permissions WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted LIMIT 1),
+            (SELECT id FROM master_global.permissions WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted LIMIT 1),
             false,
             true,
             false,
             now(),
             now()
-        WHERE EXISTS (SELECT 1 FROM global_master.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
+        WHERE EXISTS (SELECT 1 FROM master_global.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
           AND EXISTS (
-              SELECT 1 FROM global_master.permissions
+              SELECT 1 FROM master_global.permissions
               WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted
           )
           AND NOT EXISTS (
-              SELECT 1 FROM global_master.module_permissions
+              SELECT 1 FROM master_global.module_permissions
               WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted
           );
         """
@@ -87,13 +87,13 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.module_permissions SET is_deleted = true, updated_at = now()
+        UPDATE master_global.module_permissions SET is_deleted = true, updated_at = now()
         WHERE id = '{MP_MANAGE_ID}'::uuid;
         """
     )
     op.execute(
         f"""
-        UPDATE global_master.permissions SET is_deleted = true, updated_at = now()
+        UPDATE master_global.permissions SET is_deleted = true, updated_at = now()
         WHERE id = '{PERM_MANAGE_ID}'::uuid;
         """
     )

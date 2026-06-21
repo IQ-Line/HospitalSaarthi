@@ -1,4 +1,4 @@
-"""Add ``departments`` catalog tables to ``global_master`` and ``tenant_master``.
+"""Add ``departments`` catalog tables to ``master_global`` and ``master_tenant``.
 
 Revision ID: 026_departments_catalog
 Revises: 025_visitpad_templates_catalog_manage

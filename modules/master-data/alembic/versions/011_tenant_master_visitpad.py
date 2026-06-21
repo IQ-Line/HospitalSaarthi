@@ -1,10 +1,10 @@
-"""Create ``tenant_master`` with full Visitpad copies, then drop ``tenant_id`` from ``global_master`` catalog tables.
+"""Create ``master_tenant`` with full Visitpad copies, then drop ``tenant_id`` from ``master_global`` catalog tables.
 
 Revision ID: 011_tenant_master_visitpad
 Revises: 010_visitpad_catalog
 
-**Local / fresh DB only:** copies any existing ``global_master`` Visitpad rows into ``tenant_master``, then reshapes
-``global_master`` for global rows (no ``tenant_id``). Visitpad ``tenant_master`` columns are renamed to ``iq_tenant_id`` in this revision.
+**Local / fresh DB only:** copies any existing ``master_global`` Visitpad rows into ``master_tenant``, then reshapes
+``master_global`` for global rows (no ``tenant_id``). Visitpad ``master_tenant`` columns are renamed to ``iq_tenant_id`` in this revision.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -60,26 +60,26 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    op.execute(text("CREATE SCHEMA IF NOT EXISTS tenant_master"))
+    op.execute(text("CREATE SCHEMA IF NOT EXISTS master_tenant"))
 
     for table in _VISITPAD_TABLES:
         op.execute(
-            text(f'CREATE TABLE tenant_master."{table}" (LIKE global_master."{table}" INCLUDING ALL)')
+            text(f'CREATE TABLE master_tenant."{table}" (LIKE master_global."{table}" INCLUDING ALL)')
         )
-        op.execute(text(f'INSERT INTO tenant_master."{table}" SELECT * FROM global_master."{table}"'))
+        op.execute(text(f'INSERT INTO master_tenant."{table}" SELECT * FROM master_global."{table}"'))
         op.execute(
             text(
                 f'ALTER TABLE {_TM}."{table}" RENAME COLUMN tenant_id TO iq_tenant_id'
             )
         )
 
-    # Collapse duplicate natural keys in global_master before dropping tenant_id (keeps smallest id).
+    # Collapse duplicate natural keys in master_global before dropping tenant_id (keeps smallest id).
     op.execute(
         text(
             """
-            DELETE FROM global_master.units u
+            DELETE FROM master_global.units u
             WHERE EXISTS (
-              SELECT 1 FROM global_master.units u2
+              SELECT 1 FROM master_global.units u2
               WHERE lower(u2.code) = lower(u.code) AND u2.id < u.id
             )
             """
@@ -96,9 +96,9 @@ def upgrade() -> None:
         op.execute(
             text(
                 f"""
-                DELETE FROM global_master."{table}" u
+                DELETE FROM master_global."{table}" u
                 WHERE EXISTS (
-                  SELECT 1 FROM global_master."{table}" u2
+                  SELECT 1 FROM master_global."{table}" u2
                   WHERE lower(u2.{code_col}) = lower(u.{code_col}) AND u2.id < u.id
                 )
                 """
@@ -107,9 +107,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM global_master.diagnoses u
+            DELETE FROM master_global.diagnoses u
             WHERE EXISTS (
-              SELECT 1 FROM global_master.diagnoses u2
+              SELECT 1 FROM master_global.diagnoses u2
               WHERE lower(u2.icd10_code) = lower(u.icd10_code)
                 AND u2.icd_version = u.icd_version
                 AND u2.id < u.id
@@ -120,9 +120,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM global_master.chronic_illnesses u
+            DELETE FROM master_global.chronic_illnesses u
             WHERE EXISTS (
-              SELECT 1 FROM global_master.chronic_illnesses u2
+              SELECT 1 FROM master_global.chronic_illnesses u2
               WHERE lower(u2.icd10_code) = lower(u.icd10_code) AND u2.id < u.id
             )
             """
@@ -131,9 +131,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM global_master.unit_conversions u
+            DELETE FROM master_global.unit_conversions u
             WHERE EXISTS (
-              SELECT 1 FROM global_master.unit_conversions u2
+              SELECT 1 FROM master_global.unit_conversions u2
               WHERE lower(u2.from_unit_code) = lower(u.from_unit_code)
                 AND lower(u2.to_unit_code) = lower(u.to_unit_code)
                 AND u2.id < u.id
@@ -144,9 +144,9 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            DELETE FROM global_master.rx_columns u
+            DELETE FROM master_global.rx_columns u
             WHERE EXISTS (
-              SELECT 1 FROM global_master.rx_columns u2
+              SELECT 1 FROM master_global.rx_columns u2
               WHERE lower(u2.section) = lower(u.section)
                 AND lower(u2.code) = lower(u.code)
                 AND u2.id < u.id

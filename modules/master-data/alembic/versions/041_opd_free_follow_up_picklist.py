@@ -34,7 +34,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        INSERT INTO global_master.picklist_values (
+        INSERT INTO master_global.picklist_values (
             id, category_id, value, label, description, metadata,
             is_active, is_global, display_order, created_at, updated_at
         )
@@ -50,11 +50,11 @@ def upgrade() -> None:
             {_DISPLAY_ORDER},
             now(),
             now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE p.slug = '{_PICKLIST_SLUG}'
           AND NOT p.is_deleted
           AND NOT EXISTS (
-              SELECT 1 FROM global_master.picklist_values pv
+              SELECT 1 FROM master_global.picklist_values pv
               WHERE pv.category_id = p.id
                 AND pv.value = '{_sql_literal(_VALUE)}'
           );
@@ -69,8 +69,8 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        DELETE FROM global_master.picklist_values pv
-        USING global_master.picklist p
+        DELETE FROM master_global.picklist_values pv
+        USING master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = '{_PICKLIST_SLUG}'
           AND NOT p.is_deleted

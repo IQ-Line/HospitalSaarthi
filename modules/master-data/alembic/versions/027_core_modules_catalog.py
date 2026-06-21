@@ -1,4 +1,4 @@
-"""Seed core platform modules and Master Data catalog tree in ``global_master.modules``.
+"""Seed core platform modules and Master Data catalog tree in ``master_global.modules``.
 
 Revision ID: 027_core_modules_catalog
 Revises: 026_master_data_catalog_permissions
@@ -178,20 +178,20 @@ def _insert_module(
     parent_exists_clause = ""
     if parent_slug is not None:
         parent_sql = f"""
-            (SELECT id FROM global_master.modules
+            (SELECT id FROM master_global.modules
              WHERE slug = '{parent_slug}' AND NOT is_deleted
              LIMIT 1)
         """
         parent_exists_clause = f"""
           AND EXISTS (
-              SELECT 1 FROM global_master.modules
+              SELECT 1 FROM master_global.modules
               WHERE slug = '{parent_slug}' AND NOT is_deleted
           )
         """
 
     op.execute(
         f"""
-        INSERT INTO global_master.modules (
+        INSERT INTO master_global.modules (
             id, parent_id, name, slug, description, category, version, level, icon,
             is_active, is_deleted, created_at, updated_at
         )
@@ -210,11 +210,11 @@ def _insert_module(
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE slug = '{slug}' AND NOT is_deleted
         )
           AND NOT EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE name = '{_sql_literal(name)}' AND NOT is_deleted
         ){parent_exists_clause};
         """
@@ -289,7 +289,7 @@ def downgrade() -> None:
     slugs = ", ".join(f"'{slug}'" for slug in reversed(all_slugs))
     op.execute(
         f"""
-        UPDATE global_master.modules SET is_deleted = true, updated_at = now()
+        UPDATE master_global.modules SET is_deleted = true, updated_at = now()
         WHERE slug IN ({slugs}) AND NOT is_deleted;
         """
     )

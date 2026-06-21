@@ -1,4 +1,4 @@
-"""SQLAlchemy models for module↔permission junction: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for module↔permission junction: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class ModulePermissionPublicModel(TimestampMixin, Base):
-    """Platform-wide junction rows (``global_master``)."""
+    """Platform-wide junction rows (``master_global``)."""
 
     __tablename__ = "module_permissions"
     __table_args__ = (

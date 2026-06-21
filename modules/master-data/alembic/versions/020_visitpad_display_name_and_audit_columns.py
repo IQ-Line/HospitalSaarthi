@@ -3,7 +3,7 @@
 Revision ID: 020_vp_disp_nm_audit_cols (≤32 chars for ``alembic_version.version_num``)
 Revises: 019_tm_iq_tenant_id_col
 
-- Renames ``display_label`` to ``display_name`` on ``units`` (``public`` + ``tenant_master``).
+- Renames ``display_label`` to ``display_name`` on ``units`` (``public`` + ``master_tenant``).
 - Adds nullable UUID ``created_by`` and ``updated_by`` to all Visitpad catalog tables in both schemas.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).

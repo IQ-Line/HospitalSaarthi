@@ -24,7 +24,7 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0017](0017-in-process-event-bus-phase-0.md) | InProcessEventBus as Phase 0 event transport | Proposed |
 | [0018](0018-frontend-stack-zustand-tanstack-router.md) | Frontend stack: Zustand, TanStack Router, TanStack Query | Proposed |
 | [0019](0019-fastify-node24-lts.md) | Fastify v5 as HTTP framework, Node.js 24 LTS as runtime | Proposed |
-| [0020](0020-master-data-catalog-dual-schema.md) | Master Data Visitpad catalogs: dual schemas (`public` vs `tenant_master`) | Accepted |
+| [0020](0020-master-data-catalog-dual-schema.md) | Master Data Visitpad catalogs: dual schemas (`master_global` vs `master_tenant`) | Accepted |
 | [0021](0021-master-data-catalog-tenant-key-type.md) | Master Data catalog tenant key: UUID `iq_tenant_id` (aligned with platform) | Accepted |
 | [0022](0022-immutable-fhir-document-storage.md) | Immutable FHIR Document Bundles (byte-exact storage, no UPDATE) | Proposed |
 | [0023](0023-distributed-fhir-assembly.md) | Distributed FHIR assembly via per-module serialisers + central Composition | Proposed |

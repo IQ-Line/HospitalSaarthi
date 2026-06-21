@@ -49,13 +49,13 @@ def upgrade() -> None:
     # L3 catalog row used by /visitpad/conversions (manifest catalogModuleSlug).
     op.execute(
         """
-        INSERT INTO global_master.modules (
+        INSERT INTO master_global.modules (
             id, parent_id, name, slug, description, category, version, level, icon,
             is_active, is_deleted, created_at, updated_at
         )
         SELECT
             gen_random_uuid(),
-            (SELECT id FROM global_master.modules
+            (SELECT id FROM master_global.modules
              WHERE slug = 'visitpad-master' AND NOT is_deleted
              LIMIT 1),
             'Unit conversions',
@@ -70,11 +70,11 @@ def upgrade() -> None:
             now(),
             now()
         WHERE EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE slug = 'visitpad-master' AND NOT is_deleted
         )
           AND NOT EXISTS (
-            SELECT 1 FROM global_master.modules
+            SELECT 1 FROM master_global.modules
             WHERE slug = 'unit-conversions' AND NOT is_deleted
         );
         """
@@ -83,7 +83,7 @@ def upgrade() -> None:
     for permission_slug in ("read", "create", "edit", "delete"):
         op.execute(
             f"""
-            INSERT INTO global_master.module_permissions (
+            INSERT INTO master_global.module_permissions (
                 id, slug, module_id, permission_id, is_default, is_active, is_deleted,
                 created_at, updated_at
             )
@@ -97,14 +97,14 @@ def upgrade() -> None:
                 false,
                 now(),
                 now()
-            FROM global_master.modules m
-            CROSS JOIN global_master.permissions p
+            FROM master_global.modules m
+            CROSS JOIN master_global.permissions p
             WHERE m.slug = 'unit-conversions'
               AND NOT m.is_deleted
               AND p.slug = '{permission_slug}'
               AND NOT p.is_deleted
               AND NOT EXISTS (
-                  SELECT 1 FROM global_master.module_permissions mp
+                  SELECT 1 FROM master_global.module_permissions mp
                   WHERE mp.slug = 'unit-conversions:' || '{permission_slug}'
                     AND NOT mp.is_deleted
               );
@@ -116,10 +116,10 @@ def upgrade() -> None:
         junction_slug = f"visitpad-master:{perm_slug}"
         op.execute(
             f"""
-            UPDATE global_master.module_permissions mp
+            UPDATE master_global.module_permissions mp
             SET is_deleted = true, updated_at = now()
             WHERE mp.permission_id IN (
-                SELECT id FROM global_master.permissions
+                SELECT id FROM master_global.permissions
                 WHERE slug = '{perm_slug}' AND NOT is_deleted
             )
               AND mp.module_id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
@@ -128,7 +128,7 @@ def upgrade() -> None:
         )
         op.execute(
             f"""
-            INSERT INTO global_master.module_permissions (
+            INSERT INTO master_global.module_permissions (
                 id, slug, module_id, permission_id, is_default, is_active, is_deleted,
                 created_at, updated_at
             )
@@ -142,12 +142,12 @@ def upgrade() -> None:
                 false,
                 now(),
                 now()
-            FROM global_master.modules vm
-            INNER JOIN global_master.permissions p
+            FROM master_global.modules vm
+            INNER JOIN master_global.permissions p
               ON p.slug = '{perm_slug}' AND NOT p.is_deleted
             WHERE vm.slug = 'visitpad-master' AND NOT vm.is_deleted
               AND NOT EXISTS (
-                SELECT 1 FROM global_master.module_permissions mp
+                SELECT 1 FROM master_global.module_permissions mp
                 WHERE mp.slug = '{junction_slug}' AND NOT mp.is_deleted
               );
             """
@@ -163,7 +163,7 @@ def upgrade() -> None:
     )
     op.execute(
         f"""
-        UPDATE global_master.module_permissions
+        UPDATE master_global.module_permissions
         SET is_deleted = true, updated_at = now()
         WHERE id IN ({legacy_mp_ids})
            OR module_id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
@@ -182,7 +182,7 @@ def upgrade() -> None:
     legacy_perm_slugs_sql = ", ".join(f"'{slug}'" for slug in _LEGACY_PERMISSION_SLUGS)
     op.execute(
         f"""
-        UPDATE global_master.permissions
+        UPDATE master_global.permissions
         SET is_deleted = true, updated_at = now()
         WHERE id IN ({legacy_perm_ids})
            OR slug IN ({legacy_perm_slugs_sql})
@@ -192,7 +192,7 @@ def upgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_deleted = true, updated_at = now()
         WHERE id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
            OR slug = '{_LEGACY_MODULE_SLUG}'
@@ -224,7 +224,7 @@ def upgrade() -> None:
                 now(),
                 now()
             FROM configurator.tenant_modules legacy
-            INNER JOIN global_master.modules vm
+            INNER JOIN master_global.modules vm
               ON vm.slug = 'visitpad-master' AND NOT vm.is_deleted
             WHERE legacy.module_id = '55555555-5555-4555-8555-555555555501'::uuid
               AND NOT legacy.is_active
@@ -267,7 +267,7 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_deleted = false, updated_at = now()
         WHERE id = '{MODULE_VISITPAD_TEMPLATES_ID}'::uuid
            OR slug = '{_LEGACY_MODULE_SLUG}';
@@ -276,7 +276,7 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.permissions
+        UPDATE master_global.permissions
         SET is_deleted = false, updated_at = now()
         WHERE id IN (
             '{PERM_VP_CATALOG_READ_ID}'::uuid,
@@ -288,7 +288,7 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.module_permissions
+        UPDATE master_global.module_permissions
         SET is_deleted = false, updated_at = now()
         WHERE id IN (
             '{MP_VP_CATALOG_READ_ID}'::uuid,
@@ -300,7 +300,7 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_deleted = true, updated_at = now()
         WHERE slug = 'unit-conversions' AND NOT is_deleted;
         """

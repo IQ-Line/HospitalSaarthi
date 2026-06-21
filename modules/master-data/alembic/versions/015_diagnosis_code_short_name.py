@@ -32,9 +32,9 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    # IF EXISTS: some DBs never got the tenant_master ICD index (e.g. partial upgrade paths); 015 must still run.
+    # IF EXISTS: some DBs never got the master_tenant ICD index (e.g. partial upgrade paths); 015 must still run.
     op.execute(text(f'DROP INDEX IF EXISTS "{_TM}".diagnoses_tenant_icd_active_key'))
-    op.execute(text('DROP INDEX IF EXISTS global_master.diagnoses_global_icd_active_key'))
+    op.execute(text('DROP INDEX IF EXISTS master_global.diagnoses_global_icd_active_key'))
 
     for schema in (_GM, _TM):
         op.add_column(
@@ -51,7 +51,7 @@ def upgrade() -> None:
     op.execute(
         text(
             """
-            UPDATE global_master.diagnoses
+            UPDATE master_global.diagnoses
             SET code = 'dx' || replace(cast(id as text), '-', '')
             WHERE code IS NULL
             """

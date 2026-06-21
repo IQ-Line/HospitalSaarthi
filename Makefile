@@ -84,12 +84,13 @@ infra-logs: ## Tail docker infrastructure logs
 
 .PHONY: db-migrate
 db-migrate: ## Run all pending migrations
-	# Configurator + user-management before master-data: revision 035 touches both schemas.
+	# Each module's migrations are self-contained: every module owns its own schema,
+	# there are no cross-schema FKs, and no migration depends on another module's
+	# schema at migrate time. Order is therefore independent — listed here roughly by
+	# foundation-first for readability, one invocation per module (no double-runs).
+	$(NX) run master-data:db-migrate
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
-	$(NX) run master-data:migrate
-	# 005 backfill joins global_master.modules (Citus reference table) — re-run after master-data.
-	$(NX) run configurator:db-migrate
 	$(NX) run empi:db-migrate
 	$(NX) run registration:db-migrate
 	$(NX) run record-foundation:db-migrate

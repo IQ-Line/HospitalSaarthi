@@ -29,8 +29,8 @@ def picklist_sqlite_session() -> Iterator[Session]:
     @event.listens_for(engine, "connect")
     def _sqlite_attach(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA foreign_keys=ON")
-        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS global_master")
-        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS tenant_master")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS master_global")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS master_tenant")
 
     with engine.begin() as conn:
         Base.metadata.create_all(bind=conn)

@@ -1,4 +1,4 @@
-"""Demo authorization catalog: frontdesk, opd, shell permissions (``global_master``).
+"""Demo authorization catalog: frontdesk, opd, shell permissions (``master_global``).
 
 Revision ID: 030_demo_authorization_catalog
 Revises: 029_add_delete_permission_catalog
@@ -70,7 +70,7 @@ def upgrade() -> None:
     for module_id, name, slug, description, category, level in _MODULE_SEEDS:
         op.execute(
             f"""
-            INSERT INTO global_master.modules (
+            INSERT INTO master_global.modules (
                 id, parent_id, name, slug, description, category, version, level,
                 is_active, is_deleted, created_at, updated_at
             )
@@ -88,7 +88,7 @@ def upgrade() -> None:
                 now(),
                 now()
             WHERE NOT EXISTS (
-                SELECT 1 FROM global_master.modules
+                SELECT 1 FROM master_global.modules
                 WHERE slug = '{slug}' AND NOT is_deleted
             );
             """
@@ -97,7 +97,7 @@ def upgrade() -> None:
     for perm_id, slug, name, action, module_slug in _PERMISSION_SEEDS:
         op.execute(
             f"""
-            INSERT INTO global_master.permissions (
+            INSERT INTO master_global.permissions (
                 id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
             )
             SELECT
@@ -111,7 +111,7 @@ def upgrade() -> None:
                 now(),
                 now()
             WHERE NOT EXISTS (
-                SELECT 1 FROM global_master.permissions
+                SELECT 1 FROM master_global.permissions
                 WHERE slug = '{slug}' AND NOT is_deleted
             );
             """
@@ -120,7 +120,7 @@ def upgrade() -> None:
         junction_slug = f"{module_slug}:{slug}"
         op.execute(
             f"""
-            INSERT INTO global_master.module_permissions (
+            INSERT INTO master_global.module_permissions (
                 id, slug, module_id, permission_id, is_default, is_active, is_deleted,
                 created_at, updated_at
             )
@@ -134,12 +134,12 @@ def upgrade() -> None:
                 false,
                 now(),
                 now()
-            FROM global_master.modules m
-            INNER JOIN global_master.permissions p
+            FROM master_global.modules m
+            INNER JOIN master_global.permissions p
               ON p.slug = '{slug}' AND NOT p.is_deleted
             WHERE m.slug = '{module_slug}' AND NOT m.is_deleted
               AND NOT EXISTS (
-                SELECT 1 FROM global_master.module_permissions mp
+                SELECT 1 FROM master_global.module_permissions mp
                 WHERE mp.slug = '{_esc(junction_slug)}'
                   AND NOT mp.is_deleted
               );
@@ -157,9 +157,9 @@ def downgrade() -> None:
 
     op.execute(
         f"""
-        UPDATE global_master.module_permissions mp
+        UPDATE master_global.module_permissions mp
         SET is_deleted = true, updated_at = now()
-        FROM global_master.permissions p
+        FROM master_global.permissions p
         WHERE mp.permission_id = p.id
           AND p.slug IN ({perm_slugs})
           AND NOT mp.is_deleted;
@@ -167,14 +167,14 @@ def downgrade() -> None:
     )
     op.execute(
         f"""
-        UPDATE global_master.permissions
+        UPDATE master_global.permissions
         SET is_deleted = true, updated_at = now()
         WHERE slug IN ({perm_slugs}) AND NOT is_deleted;
         """
     )
     op.execute(
         f"""
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_deleted = true, updated_at = now()
         WHERE slug IN ({module_slugs}) AND NOT is_deleted;
         """

@@ -33,25 +33,25 @@ _SCHEMA = {"schema": SCHEMA}
 
 def _rx_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "prescription_id"],
-        [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+        ["iq_tenant_id", "prescription_id"],
+        [f"{SCHEMA}.prescriptions.iq_tenant_id", f"{SCHEMA}.prescriptions.id"],
         ondelete="CASCADE",
     )
 
 
 def _med_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "prescription_medicine_id"],
-        [f"{SCHEMA}.prescription_medicines.tenant_id", f"{SCHEMA}.prescription_medicines.id"],
+        ["iq_tenant_id", "prescription_medicine_id"],
+        [f"{SCHEMA}.prescription_medicines.iq_tenant_id", f"{SCHEMA}.prescription_medicines.id"],
         ondelete="CASCADE",
     )
 
 
 def _pa_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "physical_activity_id"],
+        ["iq_tenant_id", "physical_activity_id"],
         [
-            f"{SCHEMA}.prescription_physical_activity.tenant_id",
+            f"{SCHEMA}.prescription_physical_activity.iq_tenant_id",
             f"{SCHEMA}.prescription_physical_activity.id",
         ],
         ondelete="CASCADE",
@@ -85,7 +85,7 @@ class PrescriptionVitalObservationModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_vital_obs_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_vital_obs_line_key"
         ),
         _SCHEMA,
     )
@@ -107,7 +107,7 @@ class PrescriptionChiefComplaintModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_chief_complaints"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"),
+        UniqueConstraint("iq_tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"),
         _SCHEMA,
     )
 
@@ -128,7 +128,7 @@ class PrescriptionDiagnosisModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_diagnoses"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"),
+        UniqueConstraint("iq_tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"),
         _SCHEMA,
     )
 
@@ -148,7 +148,7 @@ class PrescriptionSymptomModel(LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_symptoms_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_symptoms_line_key"
         ),
         _SCHEMA,
     )
@@ -186,7 +186,7 @@ class PrescriptionMedicalHistoryAllergyModel(TimestampMixin, LineItemMixin, Base
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_mh_allergy_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_mh_allergy_line_key"
         ),
         _SCHEMA,
     )
@@ -210,7 +210,7 @@ class PrescriptionMedicalHistoryChronicIllnessModel(TimestampMixin, LineItemMixi
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
         ),
         _SCHEMA,
     )
@@ -233,7 +233,7 @@ class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_medicines_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_medicines_line_key"
         ),
         _SCHEMA,
     )
@@ -288,7 +288,7 @@ class PrescriptionOrderedTestModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_tests_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_ordered_tests_line_key"
         ),
         _SCHEMA,
     )
@@ -316,7 +316,7 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
         ),
         _SCHEMA,
     )
@@ -343,7 +343,7 @@ class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
         ),
         _SCHEMA,
     )
@@ -371,7 +371,7 @@ class PrescriptionAdvisedProcedureModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id",
+            "iq_tenant_id",
             "prescription_id",
             "line_no",
             name="prescription_advised_procedures_line_key",
@@ -395,7 +395,7 @@ class PrescriptionPhysicalActivityModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id",
+            "iq_tenant_id",
             "prescription_id",
             "line_no",
             name="prescription_physical_activity_line_key",

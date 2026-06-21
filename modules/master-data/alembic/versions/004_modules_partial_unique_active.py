@@ -27,14 +27,14 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX modules_name_active_key
-        ON global_master.modules (name)
+        ON master_global.modules (name)
         WHERE NOT is_deleted
         """
     )
     op.execute(
         """
         CREATE UNIQUE INDEX modules_slug_active_key
-        ON global_master.modules (slug)
+        ON master_global.modules (slug)
         WHERE NOT is_deleted
         """
     )

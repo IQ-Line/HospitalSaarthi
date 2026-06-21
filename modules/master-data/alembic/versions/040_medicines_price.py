@@ -1,4 +1,4 @@
-"""Add optional ``price`` to Visitpad ``medicines`` (global_master + tenant_master).
+"""Add optional ``price`` to Visitpad ``medicines`` (master_global + master_tenant).
 
 Revision ID: 040_medicines_price
 Revises: 039_registration_picklists_seed

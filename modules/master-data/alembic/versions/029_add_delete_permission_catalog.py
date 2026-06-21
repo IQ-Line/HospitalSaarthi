@@ -25,7 +25,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        INSERT INTO global_master.permissions (
+        INSERT INTO master_global.permissions (
             id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
         )
         SELECT
@@ -39,7 +39,7 @@ def upgrade() -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.permissions
+            SELECT 1 FROM master_global.permissions
             WHERE slug = 'delete' AND NOT is_deleted
         );
         """
@@ -47,7 +47,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        INSERT INTO global_master.module_permissions (
+        INSERT INTO master_global.module_permissions (
             id, slug, module_id, permission_id, is_default, is_active, is_deleted,
             created_at, updated_at
         )
@@ -61,14 +61,14 @@ def upgrade() -> None:
             false,
             now(),
             now()
-        FROM global_master.modules m
-        CROSS JOIN global_master.permissions p
+        FROM master_global.modules m
+        CROSS JOIN master_global.permissions p
         WHERE m.level >= 2
           AND NOT m.is_deleted
           AND p.slug = 'delete'
           AND NOT p.is_deleted
           AND NOT EXISTS (
-              SELECT 1 FROM global_master.module_permissions mp
+              SELECT 1 FROM master_global.module_permissions mp
               WHERE mp.slug = m.slug || ':' || 'delete'
                 AND NOT mp.is_deleted
           );
@@ -83,9 +83,9 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.module_permissions mp
+        UPDATE master_global.module_permissions mp
         SET is_deleted = true, updated_at = now()
-        FROM global_master.modules m, global_master.permissions p
+        FROM master_global.modules m, master_global.permissions p
         WHERE mp.module_id = m.id
           AND mp.permission_id = p.id
           AND m.level >= 2
@@ -96,7 +96,7 @@ def downgrade() -> None:
     )
     op.execute(
         """
-        UPDATE global_master.permissions SET is_deleted = true, updated_at = now()
+        UPDATE master_global.permissions SET is_deleted = true, updated_at = now()
         WHERE slug = 'delete' AND NOT is_deleted;
         """
     )

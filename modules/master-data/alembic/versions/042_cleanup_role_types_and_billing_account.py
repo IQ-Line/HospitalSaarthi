@@ -30,9 +30,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_active = false, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -42,9 +42,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = true
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -55,9 +55,9 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_global = false
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted
@@ -68,7 +68,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_active = false, updated_at = now()
         WHERE slug = 'billing-account'
           AND is_deleted = false;
@@ -83,7 +83,7 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.modules
+        UPDATE master_global.modules
         SET is_active = true, updated_at = now()
         WHERE slug = 'billing-account'
           AND is_deleted = false;
@@ -92,9 +92,9 @@ def downgrade() -> None:
 
     op.execute(
         """
-        UPDATE global_master.picklist_values pv
+        UPDATE master_global.picklist_values pv
         SET is_active = true, updated_at = now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE pv.category_id = p.id
           AND p.slug = 'role-types'
           AND NOT p.is_deleted

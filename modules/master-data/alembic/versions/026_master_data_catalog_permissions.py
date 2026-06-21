@@ -1,4 +1,4 @@
-"""Seed Master Data catalog permissions (read, create, edit, delete) in ``global_master.permissions`` only.
+"""Seed Master Data catalog permissions (read, create, edit, delete) in ``master_global.permissions`` only.
 
 Revision ID: 026_master_data_catalog_permissions
 Revises: 025_visitpad_templates_catalog_manage
@@ -56,7 +56,7 @@ _PERMISSION_SEEDS: tuple[tuple[str, str, str, str], ...] = (
 def _insert_permission(name: str, slug: str, action: str, description: str) -> None:
     op.execute(
         f"""
-        INSERT INTO global_master.permissions (
+        INSERT INTO master_global.permissions (
             id, name, slug, action, description, is_active, is_deleted, created_at, updated_at
         )
         SELECT
@@ -70,7 +70,7 @@ def _insert_permission(name: str, slug: str, action: str, description: str) -> N
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.permissions
+            SELECT 1 FROM master_global.permissions
             WHERE slug = '{slug}' AND NOT is_deleted
         );
         """
@@ -94,7 +94,7 @@ def downgrade() -> None:
     slugs = ", ".join(f"'{slug}'" for _, slug, _, _ in _PERMISSION_SEEDS)
     op.execute(
         f"""
-        UPDATE global_master.permissions SET is_deleted = true, updated_at = now()
+        UPDATE master_global.permissions SET is_deleted = true, updated_at = now()
         WHERE slug IN ({slugs}) AND NOT is_deleted;
         """
     )

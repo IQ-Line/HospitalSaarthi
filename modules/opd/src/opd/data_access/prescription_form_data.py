@@ -114,7 +114,7 @@ def _prescription_form_data_column(
                 f"""
                 SELECT form_data
                 FROM {table}
-                WHERE id = :pid AND tenant_id = :tenant
+                WHERE id = :pid AND iq_tenant_id = :tenant
                 LIMIT 1
                 """
             ),
@@ -640,7 +640,7 @@ def _persist_normalized_from_form_data_impl(
             text(
                 f"""
                 INSERT INTO {vitals_table} (
-                    prescription_id, tenant_id, {columns}, created_at, updated_at
+                    prescription_id, iq_tenant_id, {columns}, created_at, updated_at
                 )
                 VALUES (
                     :pid, :tenant, {placeholders}, :now, :now
@@ -665,7 +665,7 @@ def _persist_normalized_from_form_data_impl(
             text(
                 f"""
                 INSERT INTO {vaccines_table} (
-                    id, tenant_id, prescription_id, line_no, vaccine_code, name,
+                    id, iq_tenant_id, prescription_id, line_no, vaccine_code, name,
                     due_by, instructions, status, created_at, updated_at
                 )
                 VALUES (

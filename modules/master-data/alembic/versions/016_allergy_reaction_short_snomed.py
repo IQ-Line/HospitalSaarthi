@@ -1,4 +1,4 @@
-"""Add ``short_name`` and ``snomed_code`` to Visitpad ``allergy_reactions`` (public + tenant_master).
+"""Add ``short_name`` and ``snomed_code`` to Visitpad ``allergy_reactions`` (public + master_tenant).
 
 Revision ID: 016_allergy_react_snomed (≤32 chars for ``alembic_version.version_num``)
 Revises: 015_diagnosis_code_short_name

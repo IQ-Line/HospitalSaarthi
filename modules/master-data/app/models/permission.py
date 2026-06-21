@@ -1,4 +1,4 @@
-"""SQLAlchemy models for permission catalog: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for permission catalog: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class PermissionPublicModel(TimestampMixin, Base):
-    """Platform-wide permission definitions (``global_master``)."""
+    """Platform-wide permission definitions (``master_global``)."""
 
     __tablename__ = "permissions"
     __table_args__ = (

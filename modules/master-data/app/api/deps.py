@@ -47,7 +47,7 @@ def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> C
             detail = (
                 "Invalid iq_tenant_id: expected a canonical UUID string "
                 "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
-                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (global_master schema)."
+                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (master_global schema)."
             )
         else:
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."
@@ -58,8 +58,8 @@ def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> C
 def get_catalog_scope(request: Request) -> CatalogScope:
     """Resolve where catalog CRUD goes for this request.
 
-    - No / blank tenant header → ``CatalogScope(iq_tenant_id=None)`` → ``global_master`` models.
-    - Valid UUID in ``iq_tenant_id`` or ``x-tenant-id`` → ``tenant_master`` models.
+    - No / blank tenant header → ``CatalogScope(iq_tenant_id=None)`` → ``master_global`` models.
+    - Valid UUID in ``iq_tenant_id`` or ``x-tenant-id`` → ``master_tenant`` models.
     """
     raw = resolve_catalog_tenant_header_raw(request.headers)
     return catalog_scope_from_tenant_header_raw(raw)
@@ -89,7 +89,7 @@ def get_permission_repository(
 def get_picklist_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> PicklistRepository:
-    """Platform picklists live in ``global_master`` only; tenant header is ignored."""
+    """Platform picklists live in ``master_global`` only; tenant header is ignored."""
     return PicklistRepository(session)
 
 

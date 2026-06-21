@@ -1,4 +1,4 @@
-"""Add ``chronic_illness_prompt`` to Visitpad ``chronic_illnesses`` (public + tenant_master).
+"""Add ``chronic_illness_prompt`` to Visitpad ``chronic_illnesses`` (public + master_tenant).
 
 Revision ID: 017_chronic_illness_prompt
 Revises: 016_allergy_react_snomed

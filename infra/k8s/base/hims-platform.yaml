@@ -764,11 +764,11 @@ spec:
           env:
             - name: USER_MANAGEMENT_SVC_PORT
               value: "3005"
-            - name: USER_MGMT_DATABASE_URL
+            - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
-                  key: USER_MGMT_DATABASE_URL
+                  key: DATABASE_URL
             - name: BETTER_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
@@ -834,11 +834,11 @@ spec:
             - secretRef:
                 name: hims-secrets
           env:
-            - name: MASTER_DATA_DATABASE_URL
+            - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
-                  key: MASTER_DATA_DATABASE_URL
+                  key: DATABASE_URL
           livenessProbe:
             httpGet:
               path: /api/v1/master-data/health
@@ -899,11 +899,11 @@ spec:
             - secretRef:
                 name: hims-secrets
           env:
-            - name: OPD_DATABASE_URL
+            - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: hims-secrets
-                  key: OPD_DATABASE_URL
+                  key: DATABASE_URL
             - name: AZURE_STORAGE_CONNECTION_STRING
               valueFrom:
                 secretKeyRef:

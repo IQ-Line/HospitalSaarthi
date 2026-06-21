@@ -1,4 +1,4 @@
-"""SQLAlchemy models for platform picklist catalog in ``global_master``."""
+"""SQLAlchemy models for platform picklist catalog in ``master_global``."""
 
 from __future__ import annotations
 

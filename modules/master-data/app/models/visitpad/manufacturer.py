@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Visitpad ``manufacturers`` — global_master vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``manufacturers`` — master_global vs ``master_tenant``."""
 
 from __future__ import annotations
 

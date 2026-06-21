@@ -98,8 +98,8 @@ That Unix socket is created only when **PostgreSQL is installed and running on t
 
 Master Data uses the **same operational database** as every other module (`hims_dev` from Docker Compose). Catalog tables live in isolated schemas:
 
-- **`global_master`** — platform catalog (modules, permissions, …)
-- **`tenant_master`** — tenant-scoped master rows
+- **`master_global`** — platform catalog (modules, permissions, …)
+- **`master_tenant`** — tenant-scoped master rows
 
 `MASTER_DATA_DATABASE_URL` must point at **`hims_dev`** (with the `postgresql+psycopg://` driver prefix). Alembic keeps `include_schemas=True` and `version_table_schema="public"`; do not rename or collapse those schemas.
 

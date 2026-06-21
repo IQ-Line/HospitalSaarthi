@@ -1,4 +1,4 @@
-"""SQLAlchemy models for hospital departments — ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for hospital departments — ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _TYPE_CHECK = "type IN ('clinical', 'diagnostic', 'administrative', 'support')"
 
 
 class DepartmentPublicModel(TimestampMixin, AuditActorMixin, Base):
-    """Platform-wide department catalog in ``global_master``."""
+    """Platform-wide department catalog in ``master_global``."""
 
     __tablename__ = "departments"
     __table_args__ = (
@@ -40,7 +40,7 @@ class DepartmentPublicModel(TimestampMixin, AuditActorMixin, Base):
 
 
 class DepartmentTenantModel(TimestampMixin, AuditActorMixin, Base):
-    """Tenant-scoped departments in ``tenant_master``."""
+    """Tenant-scoped departments in ``master_tenant``."""
 
     __tablename__ = "departments"
     __table_args__ = (

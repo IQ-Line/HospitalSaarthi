@@ -1,4 +1,4 @@
-"""Create ``global_master.picklist_values`` catalog table.
+"""Create ``master_global.picklist_values`` catalog table.
 
 Revision ID: 032_picklist_values_catalog
 Revises: 031_picklist_catalog_seed

@@ -1,4 +1,4 @@
-"""Add ``short_name`` to Visitpad ``procedures`` (public + tenant_master).
+"""Add ``short_name`` to Visitpad ``procedures`` (public + master_tenant).
 
 Revision ID: 018_procedure_short_name
 Revises: 017_chronic_illness_prompt

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # `modules/master-data` — stable regardless of CWD.
@@ -46,8 +46,12 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description=(
             "SQLAlchemy database URL for the Master Data module. "
-            "Catalog lives in `global_master` and `tenant_master` schemas on `hims_dev`."
+            "Catalog lives in `master_global` and `master_tenant` schemas on `hims_dev`."
         ),
+        # Prefixed MASTER_DATA_DATABASE_URL wins; falls back to the shared
+        # DATABASE_URL (single hims_dev DB per ADR-0013). AliasChoices bypasses
+        # env_prefix for this one field; other fields still use env_prefix.
+        validation_alias=AliasChoices("MASTER_DATA_DATABASE_URL", "DATABASE_URL"),
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -111,12 +115,18 @@ class Settings(BaseSettings):
 
 
 def _resolve_database_url_from_env_files() -> str | None:
-    """Read MASTER_DATA_DATABASE_URL from workspace `.env` when pydantic env_prefix skips it."""
+    """Read the DB URL from process env / workspace `.env`.
+
+    Prefixed ``MASTER_DATA_DATABASE_URL`` wins; falls back to the shared
+    ``DATABASE_URL`` (single hims_dev DB per ADR-0013). Mirrors the field's
+    ``AliasChoices`` precedence for the env-file path that ``env_prefix`` skips.
+    """
     import os
 
-    explicit = os.environ.get("MASTER_DATA_DATABASE_URL", "").strip()
-    if explicit:
-        return explicit
+    for key in ("MASTER_DATA_DATABASE_URL", "DATABASE_URL"):
+        explicit = os.environ.get(key, "").strip()
+        if explicit:
+            return explicit
 
     try:
         from dotenv import dotenv_values
@@ -127,7 +137,7 @@ def _resolve_database_url_from_env_files() -> str | None:
     resolved: str | None = None
     for path in _master_data_env_files() or ():
         values = dotenv_values(path)
-        url = (values.get("MASTER_DATA_DATABASE_URL") or "").strip()
+        url = (values.get("MASTER_DATA_DATABASE_URL") or values.get("DATABASE_URL") or "").strip()
         if url:
             resolved = url
     return resolved

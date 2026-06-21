@@ -19,5 +19,5 @@ Class names (e.g. `VisitpadUnitRepository`, `VisitpadUnitPublicModel`) stay pref
 
 ## Relation to ADRs
 
-- [ADR-0020](../../adr/0020-master-data-catalog-dual-schema.md) — dual schema `public` vs `tenant_master`.
+- [ADR-0020](../../adr/0020-master-data-catalog-dual-schema.md) — dual schema `public` vs `master_tenant`.
 - [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md) — UUID `iq_tenant_id`.

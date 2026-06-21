@@ -12,7 +12,10 @@ services:
       - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ../db/citus-init.sql:/docker-entrypoint-initdb.d/01-citus-init.sql
+      # Directory mount (not single-file bind) — single-file binds fail to start on WSL2.
+      # Only init scripts live in ../db/initdb; create-module-databases.sql and
+      # pg-init-trust.sh stay in ../db and are intentionally NOT mounted here.
+      - ../db/initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U hims -d hims_dev']
       interval: 5s

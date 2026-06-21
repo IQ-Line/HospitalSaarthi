@@ -1,4 +1,4 @@
-"""Add permissions catalog table (`global_master.permissions`).
+"""Add permissions catalog table (`master_global.permissions`).
 
 Revision ID: 006_permissions_catalog
 Revises: 005_level_max_10
@@ -67,7 +67,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX permissions_slug_active_key
-        ON global_master.permissions (slug)
+        ON master_global.permissions (slug)
         WHERE NOT is_deleted
         """
     )
@@ -77,7 +77,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('global_master.permissions');
+                PERFORM create_reference_table('master_global.permissions');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN

@@ -1,4 +1,4 @@
-"""Catalog: global in ``global_master`` (no ``iq_tenant_id``); per-tenant in ``tenant_master``."""
+"""Catalog: global in ``master_global`` (no ``iq_tenant_id``); per-tenant in ``master_tenant``."""
 
 from __future__ import annotations
 

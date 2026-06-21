@@ -1,4 +1,4 @@
-"""Add system role templates table (`global_master.system_roles`).
+"""Add system role templates table (`master_global.system_roles`).
 
 Revision ID: 007_system_roles_catalog
 Revises: 006_permissions_catalog
@@ -68,7 +68,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE UNIQUE INDEX system_roles_slug_active_key
-        ON global_master.system_roles (slug)
+        ON master_global.system_roles (slug)
         WHERE NOT is_deleted
         """
     )
@@ -78,7 +78,7 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'create_reference_table') THEN
-                PERFORM create_reference_table('global_master.system_roles');
+                PERFORM create_reference_table('master_global.system_roles');
             END IF;
         EXCEPTION
             WHEN duplicate_object THEN

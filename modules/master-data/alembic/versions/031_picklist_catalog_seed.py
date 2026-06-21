@@ -1,4 +1,4 @@
-"""Seed platform picklist domains in ``global_master.picklist``.
+"""Seed platform picklist domains in ``master_global.picklist``.
 
 Revision ID: 031_picklist_catalog_seed
 Revises: 030_picklist_catalog
@@ -37,7 +37,7 @@ def _sql_literal(value: str) -> str:
 def _insert_picklist(name: str, slug: str) -> None:
     op.execute(
         f"""
-        INSERT INTO global_master.picklist (
+        INSERT INTO master_global.picklist (
             id, name, slug, is_active, is_deleted, created_by, updated_by,
             created_at, updated_at
         )
@@ -52,7 +52,7 @@ def _insert_picklist(name: str, slug: str) -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.picklist
+            SELECT 1 FROM master_global.picklist
             WHERE slug = '{slug}' AND NOT is_deleted
         );
         """
@@ -76,7 +76,7 @@ def downgrade() -> None:
     slugs = ", ".join(f"'{slug}'" for _, slug in _PICKLIST_SEEDS)
     op.execute(
         f"""
-        UPDATE global_master.picklist SET is_deleted = true, updated_at = now()
+        UPDATE master_global.picklist SET is_deleted = true, updated_at = now()
         WHERE slug IN ({slugs}) AND NOT is_deleted;
         """
     )

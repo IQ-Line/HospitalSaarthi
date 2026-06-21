@@ -26,7 +26,7 @@ class Prescription(LegacyBase, TimestampMixin):
     __tablename__ = "prescriptions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column("iq_tenant_id", Uuid(as_uuid=True), nullable=False)
     visit_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         nullable=False,

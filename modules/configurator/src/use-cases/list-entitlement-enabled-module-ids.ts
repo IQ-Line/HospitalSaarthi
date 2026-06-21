@@ -14,11 +14,11 @@ function readRows<T>(result: unknown): T[] {
 }
 
 /**
- * Returns tenant module ids that exist in `global_master.modules` (non-deleted).
+ * Returns tenant module ids that exist in `master_global.modules` (non-deleted).
  * Side-effect: deactivates active rows whose `module_id` is missing from the catalog
  * (orphan / wrong-environment UUID) so UM entitlement hydration cannot fail-closed.
  *
- * Citus: UPDATE must not use a `global_master` subquery — select orphan ids first,
+ * Citus: UPDATE must not use a `master_global` subquery — select orphan ids first,
  * then update `tenant_modules` by `(iq_tenant_id, module_id)` only.
  */
 export async function listEntitlementEnabledModuleIds(
@@ -32,7 +32,7 @@ export async function listEntitlementEnabledModuleIds(
       AND tm.is_active = true
       AND NOT EXISTS (
         SELECT 1
-        FROM global_master.modules AS m
+        FROM master_global.modules AS m
         WHERE m.id = tm.module_id
           AND m.is_deleted = false
       )
@@ -61,7 +61,7 @@ export async function listEntitlementEnabledModuleIds(
   const result = await db.execute(sql`
     SELECT tm.module_id, tm.is_active
     FROM configurator.tenant_modules AS tm
-    INNER JOIN global_master.modules AS m
+    INNER JOIN master_global.modules AS m
       ON m.id = tm.module_id
       AND m.is_deleted = false
     WHERE tm.iq_tenant_id = ${iqTenantId}

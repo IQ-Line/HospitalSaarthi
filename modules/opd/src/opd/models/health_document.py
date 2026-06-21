@@ -15,8 +15,8 @@ from opd.models.prescription.mixins import TenantPrimaryKeyMixin
 class HealthDocument(TenantPrimaryKeyMixin, TimestampMixin, AuditActorMixin, Base):
     __tablename__ = "health_documents"
     __table_args__ = (
-        Index("health_documents_tenant_patient_idx", "tenant_id", "patient_id"),
-        Index("health_documents_tenant_visit_idx", "tenant_id", "visit_id"),
+        Index("health_documents_tenant_patient_idx", "iq_tenant_id", "patient_id"),
+        Index("health_documents_tenant_visit_idx", "iq_tenant_id", "visit_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)

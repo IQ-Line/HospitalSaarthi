@@ -47,7 +47,7 @@ def _sql_literal(value: str) -> str:
 def _insert_picklist(name: str, slug: str) -> None:
     op.execute(
         f"""
-        INSERT INTO global_master.picklist (
+        INSERT INTO master_global.picklist (
             id, name, slug, is_active, is_deleted, created_by, updated_by,
             created_at, updated_at
         )
@@ -62,7 +62,7 @@ def _insert_picklist(name: str, slug: str) -> None:
             now(),
             now()
         WHERE NOT EXISTS (
-            SELECT 1 FROM global_master.picklist
+            SELECT 1 FROM master_global.picklist
             WHERE slug = '{slug}' AND NOT is_deleted
         );
         """
@@ -79,7 +79,7 @@ def _insert_picklist_value(
     global_sql = "true" if is_global else "false"
     op.execute(
         f"""
-        INSERT INTO global_master.picklist_values (
+        INSERT INTO master_global.picklist_values (
             id, category_id, value, label, description, metadata,
             is_active, is_global, display_order, created_at, updated_at
         )
@@ -95,11 +95,11 @@ def _insert_picklist_value(
             {display_order},
             now(),
             now()
-        FROM global_master.picklist p
+        FROM master_global.picklist p
         WHERE p.slug = '{picklist_slug}'
           AND NOT p.is_deleted
           AND NOT EXISTS (
-              SELECT 1 FROM global_master.picklist_values pv
+              SELECT 1 FROM master_global.picklist_values pv
               WHERE pv.category_id = p.id
                 AND pv.value = '{_sql_literal(value)}'
           );
@@ -127,8 +127,8 @@ def downgrade() -> None:
     for picklist_slug, value, _, _, _ in _PICKLIST_VALUE_SEEDS:
         op.execute(
             f"""
-            DELETE FROM global_master.picklist_values pv
-            USING global_master.picklist p
+            DELETE FROM master_global.picklist_values pv
+            USING master_global.picklist p
             WHERE pv.category_id = p.id
               AND p.slug = '{picklist_slug}'
               AND NOT p.is_deleted
@@ -139,7 +139,7 @@ def downgrade() -> None:
     slugs = ", ".join(f"'{slug}'" for _, slug in _PICKLIST_SEEDS)
     op.execute(
         f"""
-        UPDATE global_master.picklist SET is_deleted = true, updated_at = now()
+        UPDATE master_global.picklist SET is_deleted = true, updated_at = now()
         WHERE slug IN ({slugs}) AND NOT is_deleted;
         """
     )
