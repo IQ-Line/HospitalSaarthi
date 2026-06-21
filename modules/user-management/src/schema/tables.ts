@@ -56,6 +56,9 @@ export const users = userManagementSchema.table(
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+    index("idx_users_api_key_prefix")
+      .on(t.api_key_prefix)
+      .where(sql`${t.api_key_prefix} is not null and ${t.status} = 'active'`),
   ],
 );
 

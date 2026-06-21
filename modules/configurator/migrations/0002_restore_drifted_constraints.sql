@@ -1,0 +1,4 @@
+ALTER TABLE "configurator"."tenant_api_keys" ADD CONSTRAINT "fk_tenant_api_keys_tenant" FOREIGN KEY ("iq_tenant_id") REFERENCES "configurator"."tenants"("iq_tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "configurator"."tenant_integration_profiles" ADD CONSTRAINT "fk_tenant_integration_profiles_tenant" FOREIGN KEY ("iq_tenant_id") REFERENCES "configurator"."tenants"("iq_tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "configurator"."tenants" ADD CONSTRAINT "fk_tenants_organization" FOREIGN KEY ("org_id") REFERENCES "configurator"."organizations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "configurator"."tenants" ADD CONSTRAINT "fk_tenants_parent_tenant" FOREIGN KEY ("parent_tenant_id") REFERENCES "configurator"."tenants"("iq_tenant_id") ON DELETE no action ON UPDATE no action;

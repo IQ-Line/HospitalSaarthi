@@ -9,6 +9,7 @@ import {
   index,
   check,
   primaryKey,
+  foreignKey,
   tenantColumn,
   timestamp,
   smallint,
@@ -100,6 +101,20 @@ export const tenants = configuratorSchema.table(
       "chk_tenants_branch_type",
       sql`${t.branch_type} IS NULL OR ${t.branch_type} IN ('hub_lab', 'hub', 'satellite')`,
     ),
+    // Restored from old hand-written migration 006_configurator_tenant_org_fk.sql:
+    // every tenant belongs to exactly one organisation (reference -> reference FK).
+    foreignKey({
+      name: "fk_tenants_organization",
+      columns: [t.org_id],
+      foreignColumns: [organizations.id],
+    }),
+    // Restored from 006: parent tenant within the same org (self-referential
+    // reference -> reference FK; NULL = root tenant, branches reference a root).
+    foreignKey({
+      name: "fk_tenants_parent_tenant",
+      columns: [t.parent_tenant_id],
+      foreignColumns: [t.iq_tenant_id],
+    }),
   ],
 );
 
@@ -155,6 +170,14 @@ export const tenantIntegrationProfiles = configuratorSchema.table(
       "chk_tenant_integration_profiles_kind",
       sql`${t.integration_kind} IN ('abdm')`,
     ),
+    // Restored from old hand-written migration 007_configurator_tenant_integration_profiles.sql
+    // (inline `iq_tenant_id ... REFERENCES configurator.tenants (iq_tenant_id)`).
+    // Reference -> reference FK, which Citus allows.
+    foreignKey({
+      name: "fk_tenant_integration_profiles_tenant",
+      columns: [t.iq_tenant_id],
+      foreignColumns: [tenants.iq_tenant_id],
+    }),
   ],
 );
 
@@ -183,6 +206,14 @@ export const tenantApiKeys = configuratorSchema.table(
       "chk_tenant_api_keys_status",
       sql`${t.status} IN ('active', 'disabled', 'revoked')`,
     ),
+    // Restored from old hand-written migration 010_tenant_api_keys.sql
+    // (inline `iq_tenant_id ... REFERENCES configurator.tenants (iq_tenant_id)`).
+    // Reference -> reference FK, which Citus allows.
+    foreignKey({
+      name: "fk_tenant_api_keys_tenant",
+      columns: [t.iq_tenant_id],
+      foreignColumns: [tenants.iq_tenant_id],
+    }),
   ],
 );
 

@@ -62,6 +62,23 @@ jobs:
       - name: Lint
         run: npx nx affected -t lint --parallel=3
 
+      # Stage 1b: Drizzle schema-drift gate — every module's src/schema/tables.ts (source of truth)
+      # must match its committed migrations. Closes the "tables.ts vs SQL drift, no gate" gap.
+      - name: Drizzle migration drift check
+        run: |
+          for cfg in modules/*/drizzle.config.ts; do
+            mod=$(dirname "$cfg")
+            echo "drizzle-kit generate :: $mod"
+            (cd "$mod" && pnpm exec drizzle-kit generate)
+          done
+          drift="$(git status --porcelain | grep -E ' modules/[^/]+/migrations/' || true)"
+          if [ -n "$drift" ]; then
+            echo "::error::Drizzle drift: a module's src/schema/tables.ts changed without a committed migration. Run 'nx run <module>:db-generate' and commit the generated migration."
+            echo "$drift"
+            exit 1
+          fi
+          echo "No drizzle schema drift — tables.ts matches committed migrations."
+
       # Stage 2: Type checking
       # - name: Typecheck
       #   run: npx nx affected -t typecheck --parallel=3

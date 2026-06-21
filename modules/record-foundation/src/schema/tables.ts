@@ -8,6 +8,9 @@ import {
   primaryKey,
   unique,
   index,
+  check,
+  foreignKey,
+  sql,
   tenantColumn,
   auditColumns,
 } from "@hims/ts-sdk-db";
@@ -40,6 +43,23 @@ export const careContexts = recordFoundationSchema.table(
       t.source_record_id,
       t.source_record_type,
     ),
+    // NOTE: bare (unqualified) column names on purpose. drizzle's `${t.col}`
+    // interpolation renders a fully-qualified `"schema"."table"."col"` reference,
+    // which is legal inside an inline CREATE TABLE CHECK but is rejected by
+    // PostgreSQL/Citus in an `ALTER TABLE ... ADD CONSTRAINT ... CHECK` (the form
+    // drizzle-kit emits when a CHECK is added to an existing table) with
+    // "missing FROM-clause entry for table". Using sql.raw with the bare column
+    // name keeps the predicate valid in the ALTER form.
+    check(
+      "chk_care_contexts_source_origin",
+      sql.raw(
+        `"source_origin" in ('platform_module', 'legacy_system', 'external_abdm')`,
+      ),
+    ),
+    check(
+      "chk_care_contexts_status",
+      sql.raw(`"status" in ('active', 'inactive', 'archived')`),
+    ),
     index("idx_care_contexts_patient_time").on(
       t.iq_tenant_id,
       t.patient_id,
@@ -68,6 +88,11 @@ export const bundles = recordFoundationSchema.table(
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "fk_bundles_care_context",
+      columns: [t.iq_tenant_id, t.care_context_id],
+      foreignColumns: [careContexts.iq_tenant_id, careContexts.id],
+    }),
     index("idx_bundles_care_context").on(t.iq_tenant_id, t.care_context_id),
     index("idx_bundles_kind").on(t.iq_tenant_id, t.bundle_kind),
   ],
