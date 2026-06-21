@@ -13,6 +13,8 @@ CREATE SCHEMA IF NOT EXISTS auth;
 CREATE TABLE IF NOT EXISTS auth."user" (
   "id" text PRIMARY KEY,
   "name" text NOT NULL,
+  -- AuthN identity anchor: synthetic "{username}@auth.internal" (NOT a real/contact email).
+  -- Real contact email lives on user_management.users.email. See ADR-0003 / authn spec §2.2.
   "email" text NOT NULL,
   CONSTRAINT "uq_auth_user_email" UNIQUE ("email"),
   "emailVerified" boolean NOT NULL DEFAULT false,
@@ -20,12 +22,25 @@ CREATE TABLE IF NOT EXISTS auth."user" (
   "createdAt" timestamptz NOT NULL DEFAULT now(),
   "updatedAt" timestamptz NOT NULL DEFAULT now(),
   "iq_tenant_id" text NOT NULL,
-  "platform_user_id" text
+  "platform_user_id" text,
+  -- username plugin: primary login credential (globally unique, lowercased in place);
+  -- displayUsername preserves original casing.
+  "username" text,
+  "displayUsername" text,
+  -- admin plugin columns (input:false; managed via auth.api.* admin endpoints).
+  "role" text,
+  "banned" boolean NOT NULL DEFAULT false,
+  "banReason" text,
+  "banExpires" timestamptz
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "uq_auth_user_platform_user_id"
   ON auth."user" ("platform_user_id")
   WHERE "platform_user_id" IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_auth_user_username"
+  ON auth."user" ("username")
+  WHERE "username" IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS auth."session" (
   "id" text PRIMARY KEY,
@@ -36,7 +51,9 @@ CREATE TABLE IF NOT EXISTS auth."session" (
   "updatedAt" timestamptz NOT NULL DEFAULT now(),
   "ipAddress" text,
   "userAgent" text,
-  "userId" text NOT NULL REFERENCES auth."user" ("id") ON DELETE CASCADE
+  "userId" text NOT NULL REFERENCES auth."user" ("id") ON DELETE CASCADE,
+  -- admin plugin: set when an admin impersonates a user.
+  "impersonatedBy" text
 );
 
 CREATE TABLE IF NOT EXISTS auth."account" (
