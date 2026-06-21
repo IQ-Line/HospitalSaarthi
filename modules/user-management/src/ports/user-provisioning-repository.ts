@@ -7,7 +7,10 @@ export type RoleTemplateGrantPlan = {
 
 export type ProvisionUserWithAccessInput = {
   userId: string;
-  user: CreateUserInput & { email: string };
+  /** `email` is the optional real contact email (null when the user has none). */
+  user: CreateUserInput & { email: string | null };
+  /** Derived recovery tier (authn spec §3.2): 'standard' when a real email exists, else 'admin_only'. */
+  recoveryTier: string;
   authUserId: string;
   manualCapabilityIds: string[];
   roleTemplateGrants: RoleTemplateGrantPlan[];

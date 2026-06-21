@@ -155,13 +155,10 @@ export interface InfrastructureModuleCatalogPort {
  * Implemented at the service layer where user-management + better-auth are available.
  */
 export interface TenantAdminProvisioningPort {
-  checkEmailAvailability(email: string): Promise<void>;
-
   createAuthAccount(input: {
     platformUserId: string;
     tenantId: string;
     fullName: string;
-    email: string;
     password: string;
   }): Promise<{ authUserId: string }>;
 
@@ -186,14 +183,16 @@ export interface TenantAdminProvisioningPort {
     input: {
       userId: string;
       fullName: string;
-      email: string;
+      /** Required login credential (username-primary). */
+      username: string;
+      /** Optional contact email — not the login credential. */
+      email?: string | null;
       phone?: string | null;
-      username?: string | null;
       orgId?: string | null;
       authUserId: string;
       roleId: string;
       roleCapabilityIds: string[];
       actorId: string | null;
     },
-  ): Promise<{ id: string; email: string; full_name: string }>;
+  ): Promise<{ id: string; email: string | null; full_name: string }>;
 }

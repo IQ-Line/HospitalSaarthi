@@ -508,10 +508,10 @@ export function CreateTenantWizard({
       admin: {
         first_name: values.adminFirstName.trim(),
         last_name: values.adminLastName?.trim() || null,
-        email: values.adminEmail.trim(),
+        username: values.adminUsername.trim().toLowerCase(),
+        email: values.adminEmail?.trim() ? values.adminEmail.trim().toLowerCase() : null,
         password: values.password,
         phone: values.adminMobile?.trim() || null,
-        username: values.adminUsername?.trim() || null,
       },
     };
 

@@ -19,10 +19,12 @@ export type UmUser = {
 
 export type CreateUserBody = {
   full_name: string;
-  email: string;
+  /** Username-primary login handle (required). Lowercase letters/digits/`.`/`_`, 3-30 chars. */
+  username: string;
+  /** Optional business-contact email; not a login credential. */
+  email?: string | null;
   password: string;
   phone?: string | null;
-  username?: string | null;
   org_id?: string | null;
   department?: string | null;
   clearance_tier_required?: number;

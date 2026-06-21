@@ -29,6 +29,8 @@ import { deactivateUser } from "../use-cases/deactivate-user.js";
 import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
 import { activateUser } from "../use-cases/activate-user.js";
 import type { ActivateUserDeps } from "../use-cases/activate-user.js";
+import { resetUserPassword } from "../use-cases/reset-user-password.js";
+import type { ResetUserPasswordDeps } from "../use-cases/reset-user-password.js";
 import { replaceUserCapabilities } from "../use-cases/replace-user-capabilities.js";
 import type { ReplaceUserCapabilitiesDeps } from "../use-cases/replace-user-capabilities.js";
 import { updateUser } from "../use-cases/update-user.js";
@@ -50,6 +52,8 @@ export type UserHandlersDeps = {
   updateUserDeps: UpdateUserDeps;
   deactivateUserDeps: DeactivateUserDeps;
   activateUserDeps: ActivateUserDeps;
+  /** Admin recovery Flow A. When omitted (better-auth ports not wired) the route is not mounted. */
+  resetUserPasswordDeps?: ResetUserPasswordDeps;
 };
 
 function tenantOnlyResourceAttr(tenantId: string) {
@@ -345,6 +349,33 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       }
     },
   );
+
+  const resetUserPasswordDeps = deps.resetUserPasswordDeps;
+  if (resetUserPasswordDeps) {
+    fastify.post<{ Params: { id: string }; Body: { new_password: string } }>(
+      "/users/:id/reset-password",
+      { config: { authMode: "protected" } },
+      async (request, reply) => {
+        const tenantId = deps.getTenantId(request);
+        const actorId = deps.getActorId(request);
+        const cid = request.correlationId ?? request.id;
+        try {
+          const user = await resetUserPassword(
+            resetUserPasswordDeps,
+            { tenantId, actorId, correlationId: cid },
+            request.params.id,
+            (request.body ?? {}) as { new_password: string },
+          );
+          if (user === null) {
+            return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
+          }
+          return reply.send(user);
+        } catch (err) {
+          return replyWithUserManagementError(reply, err, cid);
+        }
+      },
+    );
+  }
 
   fastify.get<{ Params: { id: string } }>(
     "/users/:id",

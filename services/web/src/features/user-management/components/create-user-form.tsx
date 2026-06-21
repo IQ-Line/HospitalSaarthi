@@ -63,10 +63,11 @@ export function buildCreateUserRequestBody(
 
   return {
     full_name: values.full_name,
-    email: values.email.trim(),
+    // Username-primary login handle; lowercased to match the wire contract (^[a-z0-9._]+$).
+    username: values.username.trim().toLowerCase(),
+    email: values.email.trim() === '' ? null : values.email.trim(),
     password: values.password,
     phone: values.phone === '' ? null : values.phone,
-    username: values.username === '' ? null : values.username,
     org_id: values.org_id === '' ? null : values.org_id,
     department:
       primaryDepartmentName !== undefined

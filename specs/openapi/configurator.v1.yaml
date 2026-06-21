@@ -1926,7 +1926,7 @@ components:
           type: object
           required:
             - first_name
-            - email
+            - username
             - password
           properties:
             first_name:
@@ -1935,16 +1935,23 @@ components:
             last_name:
               type: string
               nullable: true
+            username:
+              type: string
+              minLength: 3
+              maxLength: 30
+              pattern: "^[a-z0-9._]+$"
+              description: >
+                Username-primary login credential for the tenant admin (lowercase letters/digits/`.`/`_`,
+                3-30 chars). The better-auth anchor is the synthetic `{username}@auth.internal`.
             email:
               type: string
               format: email
+              nullable: true
+              description: Optional contact email — not the login credential.
             password:
               type: string
               minLength: 8
             phone:
-              type: string
-              nullable: true
-            username:
               type: string
               nullable: true
     ProvisionTenantResult:

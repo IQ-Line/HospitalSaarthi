@@ -10,6 +10,7 @@ import {
   assertWithinLimit,
   dedupeTrimmedIds,
 } from "../domain/runtime-authorization-limits.js";
+import { assertValidPassword } from "../domain/validate-password.js";
 import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
 import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
@@ -31,6 +32,9 @@ import type { ModuleEntitlementRequestContext } from "../ports/module-integratio
 import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Username-primary login (authn spec §2). Charset matches better-auth's default username validator
+// (/^[a-zA-Z0-9_.]+$/) intersected with our lowercase-in-place rule — NO hyphen (better-auth rejects it).
+const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -70,26 +74,33 @@ export async function createUser(
     throw new ValidationError("full_name_empty");
   }
 
-  if (typeof input.email !== "string") {
-    throw new ValidationError("email_invalid_type");
+  // Username-primary identity: username is the login credential and is required; email is optional
+  // business-contact data (authn spec §2). The synthetic better-auth anchor is derived from username
+  // inside the provisioner, never here.
+  if (typeof input.username !== "string" || input.username.trim() === "") {
+    throw new ValidationError("username_required");
   }
-  const email = input.email.trim();
-  if (email === "") {
-    throw new ValidationError("email_required");
-  }
-  if (!EMAIL_RE.test(email)) {
-    throw new ValidationError("email_invalid_type");
+  const username = input.username.trim().toLowerCase();
+  if (!USERNAME_RE.test(username)) {
+    throw new ValidationError("username_invalid");
   }
 
-  if (typeof input.password !== "string") {
-    throw new ValidationError("password_invalid_type");
+  let email: string | null = null;
+  if (input.email !== undefined && input.email !== null && String(input.email).trim() !== "") {
+    if (typeof input.email !== "string") {
+      throw new ValidationError("email_invalid_type");
+    }
+    const trimmed = input.email.trim();
+    if (!EMAIL_RE.test(trimmed)) {
+      throw new ValidationError("email_invalid_type");
+    }
+    email = trimmed;
   }
-  if (input.password.trim() === "") {
-    throw new ValidationError("password_required");
-  }
-  if (input.password.length < 8) {
-    throw new ValidationError("password_too_short");
-  }
+  // Recovery tier (authn spec §3.2): a real email enables self-serve reset later ('standard');
+  // without one the only recovery path is an admin-driven reset ('admin_only').
+  const recoveryTier = email !== null ? "standard" : "admin_only";
+
+  assertValidPassword(input.password);
 
   if (
     input.capability_ids !== undefined &&
@@ -196,13 +207,14 @@ export async function createUser(
     platformUserId: userId,
     tenantId: ctx.tenantId,
     fullName: input.full_name,
-    email,
+    username,
     password: input.password,
   });
 
   const linkedUser = await deps.userProvisioningRepository.provisionUserWithAccess(ctx.tenantId, {
     userId,
-    user: { ...input, email },
+    user: { ...input, username, email },
+    recoveryTier,
     authUserId: authAccount.authUserId,
     manualCapabilityIds: capabilityIds,
     roleTemplateGrants,

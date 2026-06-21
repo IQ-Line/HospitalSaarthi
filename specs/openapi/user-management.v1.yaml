@@ -707,17 +707,30 @@ paths:
               additionalProperties: false
               required:
                 - full_name
-                - email
+                - username
                 - password
               properties:
                 full_name:
                   type: string
                   minLength: 1
                   description: Display name for the principal (required platform profile field).
+                username:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+                  pattern: "^[a-z0-9._]+$"
+                  description: >
+                    Username-primary login handle (lowercase letters/digits/`.`/`_`, 3-30 chars).
+                    The better-auth identity anchor is the synthetic `{username}@auth.internal`;
+                    real email is optional contact data, never the login credential.
                 email:
                   type: string
                   format: email
-                  description: Login email used to provision the current minimal better-auth account and retained as business contact email.
+                  nullable: true
+                  description: >
+                    Optional business-contact email (not a login credential). When provided the
+                    user gets the `standard` recovery tier; when omitted the user is `admin_only`
+                    (admin-driven password reset).
                 password:
                   type: string
                   minLength: 8
@@ -726,10 +739,6 @@ paths:
                   type: string
                   nullable: true
                   description: Business contact phone.
-                username:
-                  type: string
-                  nullable: true
-                  description: Optional login handle; unique per tenant when set.
                 org_id:
                   type: string
                   format: uuid
@@ -1289,6 +1298,68 @@ paths:
       responses:
         "200":
           description: User is now active (or was already active).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/reset-password:
+    post:
+      tags:
+        - Users
+      summary: Admin reset of a tenant-scoped user's password (recovery Flow A)
+      description: >
+        Sets a new password for the target user's login account and revokes the user's existing
+        sessions (authn spec §3.5 Flow A). Uses Cerbos action `user.reset_password` — distinct from
+        `user.update` so policies can separate account recovery from routine profile edits. The new
+        password is delivered to the user out of band by the admin.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - new_password
+              properties:
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New login password for the target user's better-auth account.
+      responses:
+        "200":
+          description: Password reset; the target user's existing sessions were revoked.
           content:
             application/json:
               schema:

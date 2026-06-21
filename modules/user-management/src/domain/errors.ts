@@ -4,6 +4,8 @@ export type ValidationIssue =
   | "full_name_empty"
   | "email_invalid_type"
   | "email_required"
+  | "username_required"
+  | "username_invalid"
   | "password_invalid_type"
   | "password_required"
   | "password_too_short"
@@ -42,6 +44,15 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   email_required: {
     code: "EMAIL_REQUIRED",
     message: "email is required to create a login account.",
+  },
+  username_required: {
+    code: "USERNAME_REQUIRED",
+    message: "username is required (username-primary login).",
+  },
+  username_invalid: {
+    code: "INVALID_INPUT",
+    message:
+      "username must be 3-30 chars using only lowercase letters, digits, '.', or '_'.",
   },
   password_invalid_type: {
     code: "INVALID_INPUT",

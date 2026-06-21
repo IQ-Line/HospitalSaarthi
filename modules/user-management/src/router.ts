@@ -3,6 +3,7 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
+import type { AuthPasswordResetterPort } from "./ports/auth-password-resetter.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -81,6 +82,8 @@ export interface UserManagementPluginOptions {
   internalEntitlementCacheApiKey?: string;
   accessTokenIssuer: AccessTokenIssuerPort;
   authSessionRevoker?: AuthSessionRevokerPort;
+  /** better-auth credential reset for admin recovery Flow A; pairs with authSessionRevoker. */
+  authPasswordResetter?: AuthPasswordResetterPort;
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -183,6 +186,15 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       authSessionRevoker: options.authSessionRevoker,
     },
     activateUserDeps: { userRepository, eventBus },
+    ...(options.authPasswordResetter && options.authSessionRevoker
+      ? {
+          resetUserPasswordDeps: {
+            userRepository,
+            authPasswordResetter: options.authPasswordResetter,
+            authSessionRevoker: options.authSessionRevoker,
+          },
+        }
+      : {}),
   });
 
   registerRoleHandlers(fastify, {

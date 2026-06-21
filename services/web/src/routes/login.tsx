@@ -14,7 +14,7 @@ import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
 
 const signInSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
+  username: z.string().min(1, 'Username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -47,7 +47,7 @@ function LoginPage() {
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { username: '', password: '' },
   });
 
   async function completeSignIn(
@@ -72,8 +72,8 @@ function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data, error: authError } = await authClient.signIn.email({
-        email: values.email.trim().toLowerCase(),
+      const { data, error: authError } = await authClient.signIn.username({
+        username: values.username.trim().toLowerCase(),
         password: values.password,
       });
 
@@ -111,16 +111,16 @@ function LoginPage() {
 
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
+                id="username"
+                type="text"
                 autoComplete="username"
-                placeholder="you@hospital.org"
-                {...form.register('email')}
+                placeholder="your.username"
+                {...form.register('username')}
               />
-              {form.formState.errors.email && (
-                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+              {form.formState.errors.username && (
+                <p className="text-xs text-destructive">{form.formState.errors.username.message}</p>
               )}
             </div>
             <div className="space-y-1.5">

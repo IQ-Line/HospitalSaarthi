@@ -55,7 +55,12 @@ export class InMemoryUserProvisioningRepository implements UserProvisioningRepos
     const accessSnap = snapshotAccess(this.userAccessRepository);
 
     try {
-      const user = this.userRepository.insertUserWithId(tenantId, input.userId, input.user);
+      const user = this.userRepository.insertUserWithId(
+        tenantId,
+        input.userId,
+        input.user,
+        input.recoveryTier,
+      );
       const linked = await this.userRepository.updateUser(tenantId, user.id, {
         auth_user_id: input.authUserId,
       });

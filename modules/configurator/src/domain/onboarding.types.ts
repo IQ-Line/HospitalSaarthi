@@ -42,10 +42,12 @@ export interface ProvisionTenantInput {
   admin: {
     first_name: string;
     last_name?: string | null;
-    email: string;
+    /** Username-primary login credential (required). Lowercase letters/digits/`.`/`_`, 3-30 chars. */
+    username: string;
+    /** Optional contact email — not the login credential (username-primary, ADR-0003). */
+    email?: string | null;
     password: string;
     phone?: string | null;
-    username?: string | null;
   };
 }
 
@@ -58,7 +60,8 @@ export interface ProvisionedRole {
 
 export interface ProvisionedUser {
   id: string;
-  email: string;
+  /** Optional contact email (null when the admin has none — username-primary login). */
+  email: string | null;
   full_name: string;
 }
 

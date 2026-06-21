@@ -29,6 +29,13 @@
       "when": 1782057100200,
       "tag": "0003_restore_drifted_constraints",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782071827864,
+      "tag": "0004_add_recovery_tier",
+      "breakpoints": true
     }
   ]
 }

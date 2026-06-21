@@ -10,6 +10,7 @@ import {
 } from "../../modules/user-management/src/schema/tables.ts";
 import type { DbInstance } from "../../packages/ts-sdk-db/src/index.ts";
 import { authUser } from "../../services/user-management-svc/src/auth/auth-schema.ts";
+import { toSyntheticAuthEmail } from "../../services/user-management-svc/src/auth/synthetic-email.ts";
 import { DEV_ORG_ID, DEV_TENANT_ID, filterCapabilityKeysForPersona } from "./constants.ts";
 import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
@@ -28,6 +29,7 @@ type BetterAuthServerApi = {
         name: string;
         password: string;
         platform_user_id: string;
+        username: string;
       };
     }): Promise<unknown>;
   };
@@ -107,10 +109,13 @@ async function ensureAuthUser(
   seedUser: DevelopmentSeedUser,
   platformUserId: string,
 ): Promise<string> {
+  // Identity anchor is the synthetic {username}@auth.internal (authn spec §15.1); the seed user's
+  // real email lives only on the platform `users` row. Login is by username.
+  const syntheticEmail = toSyntheticAuthEmail(seedUser.username);
   const [existing] = await db
     .select({ id: authUser.id })
     .from(authUser)
-    .where(eq(authUser.email, seedUser.email))
+    .where(eq(authUser.email, syntheticEmail))
     .limit(1);
 
   if (existing) {
@@ -120,21 +125,22 @@ async function ensureAuthUser(
   await auth.api.signUpEmail({
     body: {
       name: seedUser.name,
-      email: seedUser.email,
+      email: syntheticEmail,
       password: seedUser.password,
       iq_tenant_id: context.tenantId,
       platform_user_id: platformUserId,
+      username: seedUser.username,
     },
   });
 
   const [created] = await db
     .select({ id: authUser.id })
     .from(authUser)
-    .where(eq(authUser.email, seedUser.email))
+    .where(eq(authUser.email, syntheticEmail))
     .limit(1);
 
   if (!created) {
-    throw new Error(`better-auth user was not created for ${seedUser.email}`);
+    throw new Error(`better-auth user was not created for ${seedUser.username}`);
   }
   return created.id;
 }

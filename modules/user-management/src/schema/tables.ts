@@ -38,6 +38,14 @@ export const users = userManagementSchema.table(
     status: text("status").notNull().default("active"),
     /** Login handle; unique per tenant when set (multiple NULLs allowed). */
     username: text("username"),
+    /**
+     * Account-recovery tier (authn spec §3.2). MVP emits only 'standard' (user has a real email →
+     * self-serve reset later) or 'admin_only' (no real email → admin-driven reset). The other tiers
+     * (delegated/phone_recovery/federated) arrive with their Phase-2/3 recovery flows; the CHECK
+     * widens then. Derived at creation from whether a real email was supplied (not honestly
+     * backfillable afterwards, hence written now even though no reader exists this pass).
+     */
+    recovery_tier: text("recovery_tier").notNull().default("standard"),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
     /** Department-scoped ABAC field. */
@@ -55,6 +63,7 @@ export const users = userManagementSchema.table(
       "users_clearance_tier_chk",
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
+    check("users_recovery_tier_chk", sql`${t.recovery_tier} in ('standard', 'admin_only')`),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
     index("idx_users_api_key_prefix")
       .on(t.api_key_prefix)

@@ -18,7 +18,7 @@ export function WizardStep4Admin({ register }: WizardStep4AdminProps) {
     <FieldGroup className="mx-auto max-w-none gap-4">
       <Field>
         <FieldDescription>
-          Creates the tenant administrator account (email + password). Module permissions are
+          Creates the tenant administrator account (username + password). Module permissions are
           assigned automatically from your module selection.
         </FieldDescription>
       </Field>
@@ -40,9 +40,22 @@ export function WizardStep4Admin({ register }: WizardStep4AdminProps) {
         </Field>
       </div>
       <Field>
-        <FieldLabel htmlFor="wiz-aemail">
-          Email (Gmail or work) <span className="text-destructive">*</span>
+        <FieldLabel htmlFor="wiz-auser">
+          Username <span className="text-destructive">*</span>
         </FieldLabel>
+        <FieldContent>
+          <Input
+            id="wiz-auser"
+            className="h-9 text-sm"
+            autoComplete="username"
+            placeholder="hospital-admin"
+            {...register('adminUsername')}
+          />
+          <FieldDescription>The admin signs in with this username.</FieldDescription>
+        </FieldContent>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="wiz-aemail">Email</FieldLabel>
         <FieldContent>
           <Input
             id="wiz-aemail"
@@ -52,20 +65,7 @@ export function WizardStep4Admin({ register }: WizardStep4AdminProps) {
             placeholder="admin@hospital.example"
             {...register('adminEmail')}
           />
-          <FieldDescription>Sign-in email and tenant contact email.</FieldDescription>
-        </FieldContent>
-      </Field>
-      <Field>
-        <FieldLabel htmlFor="wiz-auser">Username</FieldLabel>
-        <FieldContent>
-          <Input
-            id="wiz-auser"
-            className="h-9 text-sm"
-            autoComplete="username"
-            placeholder="hospital-admin"
-            {...register('adminUsername')}
-          />
-          <FieldDescription>Optional login alias.</FieldDescription>
+          <FieldDescription>Optional contact email. Not used to sign in.</FieldDescription>
         </FieldContent>
       </Field>
       <Field>

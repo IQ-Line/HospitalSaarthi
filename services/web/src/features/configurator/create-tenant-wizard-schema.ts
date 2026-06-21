@@ -140,8 +140,12 @@ export const createTenantStep3Schema = z
   .object({
     adminFirstName: z.string().min(1, 'First name is required'),
     adminLastName: z.string().optional(),
-    adminEmail: z.string().email('Valid admin email is required'),
-    adminUsername: z.string().optional(),
+    adminUsername: z
+      .string()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username must be at most 30 characters')
+      .regex(/^[a-zA-Z0-9._]+$/, 'Use only letters, digits, "." or "_"'),
+    adminEmail: z.union([z.literal(''), z.string().email('Enter a valid email')]),
     adminMobile: z.string().optional(),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Confirm the password'),

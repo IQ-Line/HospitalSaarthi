@@ -222,6 +222,7 @@ describe("Phase 1A.12 smoke", () => {
         },
         payload: {
           full_name: "Smoke User",
+          username: "smoke.user",
           email: "smoke.user@example.com",
           password: "password123",
         },

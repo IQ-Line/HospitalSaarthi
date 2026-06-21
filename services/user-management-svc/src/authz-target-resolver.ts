@@ -272,6 +272,21 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
+    if (method === "POST" && path === "/users/:id/reset-password") {
+      const id = resolvePathParam(request);
+      if (id === null) return null;
+      return {
+        // Distinct action from user.update (authn spec §3.5) so account recovery can be authorized
+        // separately from routine profile edits. Capability gate currently reuses users:users:update
+        // (see infra/cerbos/policies/user_management/user.yaml); task 9 may split out a dedicated
+        // users:users:reset_password capability.
+        kind: "user",
+        id,
+        action: "user.reset_password",
+        attr: await userResourceAttr(deps, request, id),
+      };
+    }
+
     if (method === "GET" && path === "/providers") {
       return { kind: "auth", id: "provider-list", action: "auth.read", attr: tenantAttr(request) };
     }

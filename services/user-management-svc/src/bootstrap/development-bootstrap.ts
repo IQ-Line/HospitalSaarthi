@@ -36,6 +36,7 @@ import {
   syncSuperAdminCapabilitySnapshots,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
+import { toSyntheticAuthEmail } from "../auth/synthetic-email.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
 
 type FoundationCapabilitySeed = {
@@ -268,7 +269,7 @@ async function readAuthUserByEmail(db: DbInstance) {
       iq_tenant_id: authUser.iq_tenant_id,
     })
     .from(authUser)
-    .where(eq(authUser.email, DEVELOPMENT_BOOTSTRAP_USER_EMAIL))
+    .where(eq(authUser.email, toSyntheticAuthEmail(DEVELOPMENT_BOOTSTRAP_USER_USERNAME)))
     .limit(1);
   return row ?? null;
 }
@@ -337,6 +338,7 @@ type BetterAuthServerApi = {
         name: string;
         password: string;
         platform_user_id: string;
+        username: string;
       };
     }): Promise<unknown>;
   };
@@ -364,10 +366,11 @@ async function ensureBootstrapAuthUser(
   await serverApi.api.signUpEmail({
     body: {
       name: DEVELOPMENT_BOOTSTRAP_USER_NAME,
-      email: DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
+      email: toSyntheticAuthEmail(DEVELOPMENT_BOOTSTRAP_USER_USERNAME),
       password: DEVELOPMENT_BOOTSTRAP_USER_PASSWORD,
       iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
       platform_user_id: platformUserId,
+      username: DEVELOPMENT_BOOTSTRAP_USER_USERNAME,
     },
   });
 

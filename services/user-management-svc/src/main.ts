@@ -48,6 +48,7 @@ import { registerUserManagementApi } from "./openapi/register-user-management-ap
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
+import { BetterAuthPasswordResetter } from "./auth/reset-auth-password.js";
 
 function requireUpstreamBaseUrl(envKey: string): string {
   const raw = process.env[envKey]?.trim();
@@ -265,6 +266,7 @@ async function createApp(): Promise<FastifyInstance> {
     principalRoleProjectionRepository,
   });
   const authSessionRevoker = new DrizzleAuthSessionRevoker(pgDb, userRepository);
+  const authPasswordResetter = new BetterAuthPasswordResetter(auth, userRepository);
 
   const tenantApiKeyValidator = new DrizzleTenantApiKeyValidator(pgDb);
   await app.register(tenantApiKeyAuthPlugin, { validator: tenantApiKeyValidator });
@@ -312,6 +314,7 @@ async function createApp(): Promise<FastifyInstance> {
     internalEntitlementCacheApiKey: umInternalApiKey,
     accessTokenIssuer,
     authSessionRevoker,
+    authPasswordResetter,
   });
 
   return app;

@@ -77,15 +77,16 @@ export const tenantOnboardingBodySchema = {
     },
     admin: {
       type: "object",
-      required: ["first_name", "email", "password"],
+      required: ["first_name", "username", "password"],
       additionalProperties: false,
       properties: {
         first_name: { type: "string", minLength: 1 },
         last_name: { anyOf: [{ type: "string" }, { type: "null" }] },
-        email: { type: "string", format: "email", minLength: 5 },
+        // Username-primary login (ADR-0003). Email is optional contact data.
+        username: { type: "string", minLength: 3, maxLength: 30, pattern: "^[a-z0-9._]+$" },
+        email: { anyOf: [{ type: "string", format: "email" }, { type: "null" }] },
         password: { type: "string", minLength: 8 },
         phone: { anyOf: [{ type: "string" }, { type: "null" }] },
-        username: { anyOf: [{ type: "string" }, { type: "null" }] },
       },
     },
   },

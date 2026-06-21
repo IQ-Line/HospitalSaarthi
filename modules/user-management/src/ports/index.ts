@@ -63,7 +63,12 @@ export type CreatePasswordAuthAccountInput = {
   platformUserId: string;
   tenantId: string;
   fullName: string;
-  email: string;
+  /**
+   * Username-primary login handle. The better-auth adapter derives the synthetic identity-anchor
+   * email (`{username}@auth.internal`) from this; real contact email never enters this boundary
+   * (authn spec §10.2 / §15.1).
+   */
+  username: string;
   password: string;
 };
 

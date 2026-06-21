@@ -43,6 +43,7 @@ function rowToUser(row: {
   auth_user_id: string | null;
   status: string;
   username: string | null;
+  recovery_tier: string;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
@@ -64,6 +65,7 @@ function rowToUser(row: {
     phone: row.phone,
     auth_user_id: row.auth_user_id,
     username: row.username,
+    recovery_tier: row.recovery_tier,
     org_id: row.org_id,
     department: row.department,
     clearance_tier_required: row.clearance_tier_required,
@@ -92,6 +94,7 @@ const userColumns = {
   auth_user_id: users.auth_user_id,
   status: users.status,
   username: users.username,
+  recovery_tier: users.recovery_tier,
   org_id: users.org_id,
   department: users.department,
   clearance_tier_required: users.clearance_tier_required,
@@ -151,6 +154,7 @@ export class DrizzleUserRepository implements UserRepository {
         auth_user_id: users.auth_user_id,
         status: users.status,
         username: users.username,
+        recovery_tier: users.recovery_tier,
         org_id: users.org_id,
         department: users.department,
         clearance_tier_required: users.clearance_tier_required,
@@ -274,6 +278,7 @@ export class DrizzleUserRepository implements UserRepository {
         auth_user_id: users.auth_user_id,
         status: users.status,
         username: users.username,
+        recovery_tier: users.recovery_tier,
         org_id: users.org_id,
         department: users.department,
         clearance_tier_required: users.clearance_tier_required,

@@ -24,6 +24,7 @@ const baseInput: ProvisionTenantInput = {
   admin: {
     first_name: "A",
     last_name: "B",
+    username: "admin.a",
     email: "a@example.com",
     password: "Secret1!",
   },

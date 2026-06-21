@@ -15,6 +15,8 @@ export interface User {
   phone?: string | null;
   auth_user_id?: string | null;
   username?: string | null;
+  /** Account-recovery tier (authn spec §3.2); MVP emits 'standard' | 'admin_only'. */
+  recovery_tier?: string;
   org_id?: string | null;
   /** Department for ABAC; persisted profile field (JWT may also carry `department`). */
   department?: string | null;

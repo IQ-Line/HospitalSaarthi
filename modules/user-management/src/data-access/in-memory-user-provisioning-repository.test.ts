@@ -32,9 +32,11 @@ describe("InMemoryUserProvisioningRepository", () => {
       userId,
       user: {
         full_name: "Provisioned User",
+        username: "provisioned.user",
         email: "provisioned@example.com",
         password: "password123",
       },
+      recoveryTier: "standard",
       authUserId: "auth-1",
       manualCapabilityIds: ["shared-cap"],
       roleTemplateGrants: [{ roleId: "role-1", capabilityIds: ["shared-cap", "template-cap"] }],

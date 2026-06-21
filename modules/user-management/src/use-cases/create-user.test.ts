@@ -196,6 +196,7 @@ describe("createUser", () => {
       },
       {
         full_name: "New User",
+        username: "new.user",
         email: "new.user@example.com",
         password: "password123",
         capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d610"],
@@ -210,10 +211,11 @@ describe("createUser", () => {
       expect.objectContaining({
         platformUserId: created.id,
         tenantId: "tenant-a",
-        email: "new.user@example.com",
+        username: "new.user",
         password: "password123",
       }),
     );
+    expect(created.recovery_tier).toBe("standard");
     expect(created.auth_user_id).toBe(created.id);
     await expect(userAccessRepository.listRoleTemplatesByUser("tenant-a", created.id)).resolves.toEqual(
       expect.arrayContaining([
@@ -322,6 +324,7 @@ describe("createUser", () => {
       },
       {
         full_name: "Subset User",
+        username: "subset.user",
         email: "subset.user@example.com",
         password: "password123",
         role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d621"],
@@ -377,6 +380,7 @@ describe("createUser", () => {
         { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" },
         {
           full_name: "X",
+          username: "x.user",
           email: "x@example.com",
           password: "password123",
           capability_ids: [capId],
@@ -410,6 +414,7 @@ describe("createUser", () => {
     await expect(
       createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
         full_name: "Rollback User",
+        username: "rollback.user",
         email: "rollback@example.com",
         password: "password123",
       }),
@@ -465,6 +470,7 @@ describe("createUser", () => {
     await expect(
       createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
         full_name: "Role Fail",
+        username: "role.fail",
         email: "role.fail@example.com",
         password: "password123",
         role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d631"],
@@ -473,5 +479,82 @@ describe("createUser", () => {
 
     await expect(userRepository.listUsers("tenant-a")).resolves.toHaveLength(0);
     expect(eventBus.published).toHaveLength(0);
+  });
+
+  // --- Username-primary flip (authn spec §2 / §3.2). These deliberately use no capability_ids /
+  //     role_template_ids so they exercise the real provisioner + provisioning repo WITHOUT the
+  //     (pre-existing, separately-tracked) capability-key fixture rot that blocks the grant tests. ---
+
+  it("requires a username (username-primary login)", async () => {
+    await expect(
+      createUser(
+        createUserTestDeps({
+          eventBus: new TestEventBus(),
+          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        }),
+        { tenantId: "t1", actorId: "a1", correlationId: "c1" },
+        { full_name: "No Username", password: "password123" } as unknown as CreateUserInput,
+      ),
+    ).rejects.toMatchObject({ issue: "username_required" });
+  });
+
+  it("rejects an invalid username charset (no hyphen — matches better-auth's validator)", async () => {
+    await expect(
+      createUser(
+        createUserTestDeps({
+          eventBus: new TestEventBus(),
+          authAccountProvisioner: new AuthAccountProvisionerStub(),
+        }),
+        { tenantId: "t1", actorId: "a1", correlationId: "c1" },
+        { full_name: "Bad Handle", username: "bad-user!", password: "password123" },
+      ),
+    ).rejects.toMatchObject({ issue: "username_invalid" });
+  });
+
+  it("passes username (not email) to the provisioner and derives recovery_tier=standard when an email is given", async () => {
+    const provisioner = new AuthAccountProvisionerStub();
+    const userRepository = new InMemoryUserRepository();
+    const tenantId = "f47ac10b-58cc-4372-a567-0e02b2c3d700";
+    const created = await createUser(
+      createUserTestDeps({
+        userRepository,
+        eventBus: new TestEventBus(),
+        authAccountProvisioner: provisioner,
+      }),
+      {
+        tenantId,
+        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d701",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d702",
+      },
+      { full_name: "Carol Lee", username: "Carol.Lee", email: "carol@example.com", password: "password123" },
+    );
+
+    const call = provisioner.createPasswordAccount.mock.calls[0]?.[0];
+    expect(call).toMatchObject({ username: "carol.lee", tenantId, fullName: "Carol Lee" });
+    // Synthetic email is derived inside the better-auth boundary, never passed through this port.
+    expect(call).not.toHaveProperty("email");
+    expect(created.username).toBe("carol.lee");
+    expect(created.email).toBe("carol@example.com");
+    expect(created.recovery_tier).toBe("standard");
+  });
+
+  it("derives recovery_tier=admin_only and null email when no email is supplied", async () => {
+    const provisioner = new AuthAccountProvisionerStub();
+    const created = await createUser(
+      createUserTestDeps({
+        eventBus: new TestEventBus(),
+        authAccountProvisioner: provisioner,
+      }),
+      {
+        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d700",
+        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d701",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d702",
+      },
+      { full_name: "Dan Ray", username: "dan.ray", password: "password123" },
+    );
+
+    expect(provisioner.createPasswordAccount.mock.calls[0]?.[0]).toMatchObject({ username: "dan.ray" });
+    expect(created.email).toBeNull();
+    expect(created.recovery_tier).toBe("admin_only");
   });
 });

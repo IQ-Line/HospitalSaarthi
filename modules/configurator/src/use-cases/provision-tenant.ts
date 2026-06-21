@@ -27,6 +27,8 @@ import { createTenantModule } from "./create-tenant-module.js";
 import { updateTenant } from "./update-tenant.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Username-primary login (ADR-0003): mirrors the user-management create-user validator.
+const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
 export const TENANT_ONBOARDING_COMPLETED_EVENT =
   "tenant-onboarding.provisioning.completed" as const;
@@ -70,7 +72,8 @@ export async function provisionTenant(
   const productModuleIds = deduplicateModuleIds(input.modules);
   const adminFullName =
     `${input.admin.first_name.trim()} ${input.admin.last_name?.trim() ?? ""}`.trim();
-  const adminEmail = input.admin.email.trim().toLowerCase();
+  const adminUsername = input.admin.username.trim().toLowerCase();
+  const adminEmail = input.admin.email?.trim().toLowerCase() || null;
   const adminUserId = randomUUID();
 
   // --- A2. Auto-enable infrastructure modules -----------------------------
@@ -88,15 +91,12 @@ export async function provisionTenant(
     );
   }
 
-  // --- B. Pre-transaction checks -------------------------------------------
-  await deps.adminProvisioner.checkEmailAvailability(adminEmail);
-
   // --- C. Prepare auth account (deferred to provisionUser in HTTP adapter) -
+  // Username uniqueness is enforced by better-auth at user creation time; no pre-check needed.
   const authAccount = await deps.adminProvisioner.createAuthAccount({
     platformUserId: adminUserId,
     tenantId: "pending",
     fullName: adminFullName,
-    email: adminEmail,
     password: input.admin.password,
   });
 
@@ -104,7 +104,7 @@ export async function provisionTenant(
   // Must commit BEFORE capability resolution and HTTP calls because the
   // entitlement check calls back to configurator to verify tenant modules.
   const coreData = await deps.runConfiguratorTransaction(async (repos) => {
-    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet, adminEmail);
+    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet);
   });
 
   // --- E. Resolve capabilities using committed tenant data -----------------
@@ -119,7 +119,7 @@ export async function provisionTenant(
   // --- F. Post-commit: role + capabilities + user via HTTP -----------------
   // These run against committed data so entitlement checks can see modules.
   let adminRole: { id: string; code: string; display_name: string; is_system: boolean };
-  let adminUser: { id: string; email: string; full_name: string };
+  let adminUser: { id: string; email: string | null; full_name: string };
   try {
     adminRole = await deps.adminProvisioner.createSystemRole(
       coreData.tenant.iq_tenant_id,
@@ -144,9 +144,9 @@ export async function provisionTenant(
       {
         userId: adminUserId,
         fullName: adminFullName,
+        username: adminUsername,
         email: adminEmail,
         phone: input.admin.phone?.trim() || null,
-        username: input.admin.username?.trim() || null,
         orgId: coreData.organization.id,
         authUserId: authAccount.authUserId,
         roleId: adminRole.id,
@@ -256,7 +256,6 @@ async function createCoreEntities(
   input: ProvisionTenantInput,
   moduleIds: string[],
   infraModuleIds: ReadonlySet<string>,
-  adminEmail: string,
 ): Promise<CoreProvisioningData> {
   const existingOrgId = input.organization.id?.trim();
   let organization;
@@ -423,9 +422,21 @@ function validateInput(input: ProvisionTenantInput): void {
     );
   }
 
+  const username = input.admin.username?.trim().toLowerCase();
+  if (!username || !USERNAME_RE.test(username)) {
+    throw new ConfiguratorError(
+      400,
+      "admin.username is required (3-30 chars: lowercase letters, digits, '.', '_')",
+      "VALIDATION_ERROR",
+    );
+  }
   const email = input.admin.email?.trim();
-  if (!email || !EMAIL_RE.test(email)) {
-    throw new ConfiguratorError(400, "admin.email must be a valid email", "VALIDATION_ERROR");
+  if (email && !EMAIL_RE.test(email)) {
+    throw new ConfiguratorError(
+      400,
+      "admin.email must be a valid email when provided",
+      "VALIDATION_ERROR",
+    );
   }
   if (!input.admin.first_name?.trim()) {
     throw new ConfiguratorError(400, "admin.first_name is required", "VALIDATION_ERROR");
@@ -497,7 +508,8 @@ export type TenantOnboardingCompletedPayload = {
   tenant_slug: string;
   tenant_type: string;
   admin_user_id: string;
-  admin_email: string;
+  /** Optional contact email of the provisioned admin (null when none — username-primary login). */
+  admin_email: string | null;
   admin_role_id: string;
   enabled_module_ids: string[];
   plan_slug: string;
