@@ -22,6 +22,10 @@ function createResolver() {
           listCalls += 1;
           return [umReadCap];
         },
+        getCapabilityById: async () => null,
+        listCapabilities: async () => [],
+        listCapabilitiesByIds: async () => [],
+        listCapabilitiesByKeys: async () => [],
       },
       tenantModuleEntitlementPort: {
         listTenantEnabledModuleIds: async () => ["mod-1"],

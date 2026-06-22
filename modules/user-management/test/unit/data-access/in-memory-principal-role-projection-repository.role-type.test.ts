@@ -18,7 +18,14 @@ class StubRoleTemplatesByUser implements Pick<UserAccessRepository, "listRoleTem
         role_id: r.role_id,
         assigned_at: new Date(0).toISOString(),
         assigned_by_user_id: null,
-        role: null,
+        role: {
+          id: r.role_id,
+          code: "stub-role",
+          role_type: "stub-role",
+          display_name: "Stub Role",
+          is_system: false,
+          status: "active" as const,
+        },
       }));
   }
 }
@@ -33,6 +40,8 @@ describe("InMemoryPrincipalRoleProjectionRepository role_type", () => {
           code: "doctor-cardiology",
           role_type: "doctor",
           display_name: "Cardiology Doctor",
+          is_system: false,
+          status: "active" as const,
         },
       },
     ]);

@@ -10,7 +10,7 @@ describe("projectPrincipalRoles in-memory alignment", () => {
     const roleRepository = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
-        role: { id: "role-1", code: "  charge_nurse  ", display_name: "Charge Nurse" },
+        role: { id: "role-1", code: "  charge_nurse  ", role_type: "  charge_nurse  ", display_name: "Charge Nurse", is_system: false, status: "active" },
       },
     ]);
     const userAccessRepository = new InMemoryUserAccessRepository((tenantId, roleId) =>

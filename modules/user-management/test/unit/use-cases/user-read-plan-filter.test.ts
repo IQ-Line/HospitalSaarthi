@@ -5,13 +5,14 @@ import {
   PlanExpressionVariable,
   PlanKind,
 } from "@cerbos/core";
+import type { ValidationError } from "@cerbos/core";
 import type { User } from "../../../src/ports/index.js";
 import { filterUsersMatchingUserReadPlan } from "../../../src/use-cases/user-read-plan-filter.js";
 
 const basePlanFields = {
   requestId: "req",
   cerbosCallId: "cid",
-  validationErrors: [] as const,
+  validationErrors: [] as ValidationError[],
   metadata: undefined,
 };
 

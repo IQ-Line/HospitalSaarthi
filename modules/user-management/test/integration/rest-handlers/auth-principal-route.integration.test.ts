@@ -59,6 +59,20 @@ describe("GET /auth/principal", () => {
       getTenantId: (request) => resolveEffectiveTenantId(request),
       getUserId: () => "user-1",
       getUserDeps: { userRepository },
+      validateUserApiKeyDeps: {
+        userRepository,
+        accessTokenIssuer: {
+          async issueForPlatformUser() {
+            return {
+              access_token: "test-token",
+              token_type: "Bearer" as const,
+              expires_in: 300,
+              refresh_token: "test-refresh",
+              refresh_expires_in: 3600,
+            };
+          },
+        },
+      },
     });
 
     const response = await app.inject({

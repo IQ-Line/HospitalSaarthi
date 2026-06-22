@@ -140,6 +140,7 @@ describe("createUser", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           status: "active",
           is_system: false,
@@ -150,6 +151,7 @@ describe("createUser", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d622",
           code: "auditor",
+          role_type: "auditor",
           display_name: "Auditor",
           status: "active",
           is_system: false,
@@ -192,7 +194,6 @@ describe("createUser", () => {
         capabilityRepository,
         roleRepository,
         roleCapabilityRepository,
-        userAccessRepository,
         principalRoleProjectionRepository,
         authAccountProvisioner,
         eventBus: new TestEventBus(),
@@ -294,6 +295,7 @@ describe("createUser", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d621",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           status: "active",
           is_system: false,
@@ -326,7 +328,6 @@ describe("createUser", () => {
         capabilityRepository,
         roleRepository,
         roleCapabilityRepository,
-        userAccessRepository,
         principalRoleProjectionRepository,
         authAccountProvisioner: new AuthAccountProvisionerStub(),
         eventBus: new TestEventBus(),
@@ -461,6 +462,7 @@ describe("createUser", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d631",
           code: "billing-clerk",
+          role_type: "billing-clerk",
           display_name: "Billing clerk",
           status: "active",
           is_system: false,

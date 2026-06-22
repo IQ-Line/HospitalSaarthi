@@ -14,6 +14,13 @@ export type ValidationIssue =
   | "create_user_role_template_ids_invalid"
   | "create_user_role_template_capability_ids_invalid"
   | "create_user_role_template_capability_ids_requires_single_role"
+  | "create_user_role_template_capability_ids_empty"
+  | "create_user_role_template_capability_not_on_role"
+  | "create_user_role_template_ids_limit_exceeded"
+  | "create_user_capability_ids_limit_exceeded"
+  | "replace_user_capabilities_limit_exceeded"
+  | "replace_role_capabilities_limit_exceeded"
+  | "tenant_module_ids_limit_exceeded"
   | "apply_role_template_ids_invalid"
   | "apply_role_template_capability_not_on_role"
   | "apply_role_template_capability_ids_empty"
@@ -86,6 +93,34 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "INVALID_INPUT",
     message:
       "role_template_capability_ids may only be sent when exactly one role_template_id is provided.",
+  },
+  create_user_role_template_capability_ids_empty: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must not be an empty array.",
+  },
+  create_user_role_template_capability_not_on_role: {
+    code: "INVALID_INPUT",
+    message: "Each capability id must belong to the role template being applied.",
+  },
+  create_user_role_template_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many role_template_ids requested in a single create-user call.",
+  },
+  create_user_capability_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single create-user call.",
+  },
+  replace_user_capabilities_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single replace-user-capabilities call.",
+  },
+  replace_role_capabilities_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single replace-role-capabilities call.",
+  },
+  tenant_module_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many tenant module ids requested for slug resolution in a single call.",
   },
   apply_role_template_ids_invalid: {
     code: "INVALID_INPUT",

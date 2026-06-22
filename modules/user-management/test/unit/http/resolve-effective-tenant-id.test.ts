@@ -32,7 +32,7 @@ describe("resolveEffectiveTenantId", () => {
 
   it("allows cross-tenant header when super-admin role is only on cerbosPrincipal", () => {
     const request = mockRequest({ tenantId: "tenant-home", roles: [] });
-    (request as FastifyRequest & { cerbosPrincipal?: { roles: string[] } }).cerbosPrincipal = {
+    (request as { cerbosPrincipal?: { roles: string[] } }).cerbosPrincipal = {
       roles: ["super-admin"],
     };
     request.headers["iq_tenant_id"] = "tenant-other";
@@ -67,7 +67,7 @@ describe("resolveEffectiveTenantId", () => {
   it("allows cross-tenant header when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
     const request = mockRequest({ tenantId: "tenant-home", roles: [] });
     (
-      request as FastifyRequest & {
+      request as {
         cerbosPrincipal?: { roles: string[]; attributes: { role_codes: string[] } };
       }
     ).cerbosPrincipal = {

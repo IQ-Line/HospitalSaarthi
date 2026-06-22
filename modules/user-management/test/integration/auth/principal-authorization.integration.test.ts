@@ -66,7 +66,7 @@ describe("principal authorization (integration)", () => {
 
     const service = principalService(authorization, userRepository);
     const principal = await service.getPrincipal({ tenantId: TENANT, userId: USER });
-    const attrs = principal.attributes as Record<string, unknown>;
+    const attrs = principal.attributes as unknown as Record<string, unknown>;
 
     expect(attrs).not.toHaveProperty("permissions");
     expect(attrs).not.toHaveProperty("permission_map");

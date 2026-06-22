@@ -1,8 +1,18 @@
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import swagger from "@fastify/swagger";
+import type * as FastifySwagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 import { isApiDocsExposureEnabled } from "./is-api-docs-enabled.js";
+
+/**
+ * The exact `components.securitySchemes` shape `@fastify/swagger` accepts (a strict OpenAPI
+ * `SecuritySchemeObject` discriminated union). Anchored to swagger's own types so we don't take
+ * a direct `openapi-types` dependency, and so the cast below stays honest to the real contract.
+ */
+type OpenApiSecuritySchemes = NonNullable<
+  NonNullable<FastifySwagger.FastifyDynamicSwaggerOptions["openapi"]>["components"]
+>["securitySchemes"];
 
 export interface RegisterOpenApiDocsOptions {
   /** Short id for tagging (e.g. `configurator`). */
@@ -69,7 +79,11 @@ export async function registerOpenApiDocs(
             ? [{ url: options.apiPrefix }]
             : [{ url: "/" }],
         ...(options.securitySchemes !== undefined
-          ? { components: { securitySchemes: options.securitySchemes } }
+          ? {
+              components: {
+                securitySchemes: options.securitySchemes as OpenApiSecuritySchemes,
+              },
+            }
           : {}),
       },
     });

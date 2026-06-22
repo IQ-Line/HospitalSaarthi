@@ -217,9 +217,17 @@ export async function applyPlatformDataBootstrap(input: {
   }
 
   if (input.auth) {
-    const { createDevSeedAuth, repairJwksForDevSeed } = await import(
-      "../../../../tools/seed-user-management-dev/create-dev-auth.js"
-    );
+    // The dev-seed CLI scripts under `tools/` run via tsx (TS-extension imports, deps resolved from
+    // the repo root) and are intentionally outside this module's NodeNext type-checking surface.
+    // Load them through `string`-typed paths so tsc treats them as runtime-only dynamic imports.
+    const createDevAuthToolPath: string =
+      "../../../../tools/seed-user-management-dev/create-dev-auth.js";
+    const { createDevSeedAuth, repairJwksForDevSeed } = (await import(
+      createDevAuthToolPath
+    )) as {
+      createDevSeedAuth: (...args: unknown[]) => unknown;
+      repairJwksForDevSeed: (...args: unknown[]) => Promise<unknown>;
+    };
     const { DrizzleUserRepository } = await import("../data-access/user-repository.js");
     const { DrizzlePrincipalRoleProjectionRepository } = await import(
       "../data-access/drizzle-principal-role-projection-repository.js"
@@ -237,9 +245,11 @@ export async function applyPlatformDataBootstrap(input: {
       .set({ auth_user_id: authUserId, updated_at: new Date() })
       .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.id, platformUserId)));
 
-    const { seedDevelopmentUser } = await import(
-      "../../../../tools/seed-user-management-dev/seed-development-users.js"
-    );
+    const seedDevelopmentUsersToolPath: string =
+      "../../../../tools/seed-user-management-dev/seed-development-users.js";
+    const { seedDevelopmentUser } = (await import(seedDevelopmentUsersToolPath)) as {
+      seedDevelopmentUser: (...args: unknown[]) => Promise<unknown>;
+    };
     const capabilityRows = await db
       .select({ id: capabilities.id, capability_key: capabilities.capability_key })
       .from(capabilities)

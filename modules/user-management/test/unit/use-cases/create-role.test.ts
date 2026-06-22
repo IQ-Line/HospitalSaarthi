@@ -7,7 +7,14 @@ describe("createRole", () => {
     const roleRepository = new InMemoryRoleRepository();
     const deps = {
       roleRepository,
-      eventBus: { publish: async () => undefined } as import("@hims/ts-sdk-events").EventBus,
+      eventBus: {
+        async connect() {},
+        async disconnect() {},
+        async publish() {},
+        async subscribe() {
+          return { unsubscribe: async () => {} } as unknown as import("@hims/ts-sdk-events").Subscription;
+        },
+      } satisfies import("@hims/ts-sdk-events").EventBus,
     };
     const ctx = { tenantId: "tenant-a", actorId: "actor-1", correlationId: "c1" };
 

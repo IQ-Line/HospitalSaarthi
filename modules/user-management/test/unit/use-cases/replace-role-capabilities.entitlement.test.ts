@@ -111,6 +111,8 @@ function buildDeps(
 
         code: "registrar",
 
+        role_type: "registrar",
+
         display_name: "Registrar",
 
         is_system: false,

@@ -147,6 +147,7 @@ async function createTestApp(entitlement: {
       role: {
         id: ROLE_ID,
         code: "clerk",
+        role_type: "clerk",
         display_name: "Clerk",
         is_system: false,
         status: "active",
@@ -176,6 +177,17 @@ async function createTestApp(entitlement: {
   await app.register(
     async (instance) => {
       await instance.register(userManagementPlugin, {
+        accessTokenIssuer: {
+          async issueForPlatformUser() {
+            return {
+              access_token: "test-token",
+              token_type: "Bearer" as const,
+              expires_in: 300,
+              refresh_token: "test-refresh",
+              refresh_expires_in: 3600,
+            };
+          },
+        },
         eventBus: noopEventBus,
         userRepository,
         userProvisioningRepository: new InMemoryUserProvisioningRepository(

@@ -8,7 +8,7 @@ describe("InMemoryRoleRepository", () => {
     const repo = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
-        role: { id: "role-1", code: "  Doctor  ", display_name: "Doctor" },
+        role: { id: "role-1", code: "  Doctor  ", role_type: "  Doctor  ", display_name: "Doctor", is_system: false, status: "active" },
       },
     ]);
     const role = await repo.getRoleById("tenant-a", "role-1");
@@ -21,7 +21,7 @@ describe("InMemoryRoleRepository", () => {
         new InMemoryRoleRepository([
           {
             tenantId: "tenant-a",
-            role: { id: "role-1", code: "   ", display_name: "X" },
+            role: { id: "role-1", code: "   ", role_type: "   ", display_name: "X", is_system: false, status: "active" },
           },
         ]),
     ).toThrow(InvalidRoleSeedError);

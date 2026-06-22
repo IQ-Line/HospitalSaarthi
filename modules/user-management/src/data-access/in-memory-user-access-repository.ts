@@ -82,7 +82,7 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
       userId: input.userId,
       roleId: input.roleId,
       actorId: input.actorId,
-      createGrant: (capabilityId, existing, grantedAt) => ({
+      createGrant: (capabilityId, existing, grantedAt): UserCapabilityGrant => ({
         id: existing?.id ?? randomUUID(),
         user_id: input.userId,
         capability_id: capabilityId,

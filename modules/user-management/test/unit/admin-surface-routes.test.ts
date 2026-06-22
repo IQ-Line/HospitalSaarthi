@@ -104,6 +104,7 @@ async function createTestApp() {
       role: {
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d592",
         code: "admin",
+        role_type: "admin",
         display_name: "Admin",
         is_system: false,
         status: "active",
@@ -114,6 +115,7 @@ async function createTestApp() {
       role: {
         id: "f47ac10b-58cc-4372-a567-0e02b2c3d593",
         code: "auditor",
+        role_type: "auditor",
         display_name: "Auditor",
         is_system: false,
         status: "active",
@@ -146,6 +148,17 @@ async function createTestApp() {
   await app.register(
     async (instance) => {
       await instance.register(userManagementPlugin, {
+        accessTokenIssuer: {
+          async issueForPlatformUser() {
+            return {
+              access_token: "test-token",
+              token_type: "Bearer" as const,
+              expires_in: 300,
+              refresh_token: "test-refresh",
+              refresh_expires_in: 3600,
+            };
+          },
+        },
         eventBus: noopEventBus,
         userRepository,
         userProvisioningRepository: new InMemoryUserProvisioningRepository(

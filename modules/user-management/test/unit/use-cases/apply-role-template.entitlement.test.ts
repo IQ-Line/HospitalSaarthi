@@ -50,6 +50,7 @@ function buildDeps(entitlement: { moduleIds?: string[]; slugs?: Map<string, stri
       role: {
         id: ROLE_ID,
         code: "clerk",
+        role_type: "clerk",
         display_name: "Clerk",
         is_system: false,
         status: "active",

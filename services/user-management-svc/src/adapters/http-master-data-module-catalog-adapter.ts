@@ -116,7 +116,12 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       return [];
     }
     const tree = await this.loadModuleTree();
-    return [...expandModuleSlugsWithDescendants(roots, tree)];
+    return [
+      ...expandModuleSlugsWithDescendants(
+        roots,
+        tree.map((m) => ({ ...m, parent_id: m.parent_id ?? null })),
+      ),
+    ];
   }
 
   async listActiveModulePermissionSourcePairs(

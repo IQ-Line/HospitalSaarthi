@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { CerbosPrincipalUnavailableError, UserNotFoundError } from "../domain/errors.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import { getUserById } from "../use-cases/get-user.js";
@@ -81,7 +81,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     );
 
     const routeConfig = { config: { authMode: "public" as const } };
-    const handler = async (request: FastifyRequest, reply: { status: (n: number) => { send: (b: unknown) => unknown }; send: (b: unknown) => unknown }) => {
+    const handler = async (request: FastifyRequest, reply: FastifyReply) => {
       const cid = request.correlationId ?? request.id;
       const apiKey = resolveApiKeyFromRequest(request);
       if (!apiKey) {

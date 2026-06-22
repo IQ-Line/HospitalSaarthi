@@ -1,5 +1,5 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { CachedTenantEntitlementResolver } from "../services/cached-tenant-entitlement-resolver.js";
+import type { CachedTenantEntitlementResolver } from "../../services/cached-tenant-entitlement-resolver.js";
 
 /** Must match Configurator {@link publishTenantModuleLifecycleEvent} event types. */
 export const MODULE_ENABLED_EVENT = "configurator.tenant_module.enabled" as const;

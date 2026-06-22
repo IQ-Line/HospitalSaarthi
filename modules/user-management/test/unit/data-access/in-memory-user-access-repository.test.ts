@@ -10,6 +10,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -78,6 +79,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -152,6 +154,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -195,6 +198,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -239,6 +243,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -297,6 +302,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "registrar",
+          role_type: "registrar",
           display_name: "Registrar",
           is_system: false,
           status: "active",
@@ -349,6 +355,7 @@ describe("InMemoryUserAccessRepository", () => {
         role: {
           id: "role-1",
           code: "admin",
+          role_type: "admin",
           display_name: "Admin",
           is_system: false,
           status: "active",

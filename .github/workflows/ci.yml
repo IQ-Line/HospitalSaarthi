@@ -80,8 +80,8 @@ jobs:
           echo "No drizzle schema drift — tables.ts matches committed migrations."
 
       # Stage 2: Type checking
-      # - name: Typecheck
-      #   run: npx nx affected -t typecheck --parallel=3
+      - name: Typecheck
+        run: npx nx affected -t typecheck --parallel=3
 
       # Stage 3: Spec validation (User Management OpenAPI ↔ runtime contract)
       - name: Validate specs

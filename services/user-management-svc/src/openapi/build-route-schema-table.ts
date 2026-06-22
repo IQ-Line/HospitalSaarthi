@@ -1,5 +1,12 @@
-import Ajv, { type ValidateFunction } from "ajv";
-import addFormats from "ajv-formats";
+import { createRequire } from "node:module";
+import { Ajv, type Schema, type ValidateFunction } from "ajv";
+
+/**
+ * ajv-formats is a CJS package whose callable default export trips NodeNext's ESM↔CJS interop
+ * (the default resolves to the module namespace rather than the function). createRequire returns
+ * `module.exports` — the callable plugin — directly.
+ */
+const addFormats = createRequire(import.meta.url)("ajv-formats") as (ajv: Ajv) => Ajv;
 
 /** OpenAPI `{id}` path segments → Fastify `:id` patterns (must match `routeOptions.url`). */
 export function openapiPathToFastify(openapiPath: string): string {
@@ -35,8 +42,9 @@ export function buildRouteSchemaTable(bundle: Record<string, unknown>): Map<
     const fastPath = openapiPathToFastify(openPath);
     const routeUrl = `${pathPrefix}${fastPath}`;
     for (const method of httpMethods) {
-      const op = pathItem[method];
-      if (op === null || op === undefined || typeof op !== "object") continue;
+      const opRaw = pathItem[method];
+      if (opRaw === null || opRaw === undefined || typeof opRaw !== "object") continue;
+      const op = opRaw as Record<string, unknown>;
       const methodU = method.toUpperCase();
       const schema: Record<string, unknown> = {};
 
@@ -120,10 +128,11 @@ export function createResponseValidatorTable(
   for (const [openPath, pathItem] of Object.entries(paths)) {
     const routeUrl = `${pathPrefix}${openapiPathToFastify(openPath)}`;
     for (const method of httpMethods) {
-      const op = pathItem[method];
-      if (op === null || op === undefined || typeof op !== "object") continue;
+      const opRaw = pathItem[method];
+      if (opRaw === null || opRaw === undefined || typeof opRaw !== "object") continue;
+      const op = opRaw as Record<string, unknown>;
       const responses = op.responses as
-        | Record<string, { content?: Record<string, { schema?: unknown }> }>
+        | Record<string, { content?: Record<string, { schema?: Schema }> }>
         | undefined;
       if (!responses) continue;
 

@@ -13,6 +13,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { RoleStatus, UserCapabilityGrantSource } from "../domain/types.js";
 
 /** Capability-first authorization schema for the User Management module. */
 export const userManagementSchema = pgSchema("user_management");
@@ -119,7 +120,7 @@ export const roles = userManagementSchema.table(
     display_name: text("display_name").notNull(),
     description: text("description"),
     is_system: boolean("is_system").notNull().default(false),
-    status: text("status").notNull().default("active"),
+    status: text("status").$type<RoleStatus>().notNull().default("active"),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
@@ -218,7 +219,7 @@ export const user_capabilities = userManagementSchema.table(
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
     capability_id: uuid("capability_id").notNull(),
-    grant_source: text("grant_source").notNull(),
+    grant_source: text("grant_source").$type<UserCapabilityGrantSource>().notNull(),
     source_role_id: uuid("source_role_id"),
     granted_by_user_id: uuid("granted_by_user_id"),
     granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),

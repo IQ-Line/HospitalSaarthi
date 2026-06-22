@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { desc } from "drizzle-orm";
-import { importJWK, importPKCS8, SignJWT, type KeyLike } from "jose";
+import { importJWK, importPKCS8, SignJWT } from "jose";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
   loadIdentityJwtClaims,
@@ -14,7 +14,10 @@ import type { HimsBetterAuthEnv } from "./create-hims-better-auth.js";
 
 const JWT_EXPIRY_SECONDS = 300;
 
-async function loadSigningKey(db: DbInstance, env: HimsBetterAuthEnv): Promise<KeyLike> {
+async function loadSigningKey(
+  db: DbInstance,
+  env: HimsBetterAuthEnv,
+): Promise<CryptoKey | Uint8Array> {
   const [row] = await db
     .select({ privateKey: authJwks.privateKey })
     .from(authJwks)
@@ -31,7 +34,7 @@ async function loadSigningKey(db: DbInstance, env: HimsBetterAuthEnv): Promise<K
   }
 
   try {
-    return (await importJWK(JSON.parse(raw), "RS256")) as KeyLike;
+    return await importJWK(JSON.parse(raw), "RS256");
   } catch {
     return importPKCS8(raw, "RS256");
   }

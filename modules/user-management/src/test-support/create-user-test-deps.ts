@@ -38,7 +38,6 @@ export function createUserTestDeps(options: CreateUserTestDepsOptions): CreateUs
     capabilityRepository: new InMemoryCapabilityRepository(),
     roleRepository,
     roleCapabilityRepository: new InMemoryRoleCapabilityRepository(),
-    userAccessRepository,
     principalRoleProjectionRepository: new InMemoryPrincipalRoleProjectionRepository(
       userAccessRepository,
       roleRepository,

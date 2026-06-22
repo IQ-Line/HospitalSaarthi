@@ -25,9 +25,6 @@ export class InMemoryRoleRepository implements RoleRepository {
         throw new InvalidRoleSeedError();
       }
       this.roles.set(roleKey(seed.tenantId, seed.role.id), {
-        description: null,
-        is_system: false,
-        status: "active",
         ...seed.role,
         code,
         role_type,

@@ -18,6 +18,7 @@ import type {
   RoleRepository,
   UpdateUserInput,
   UserAccessRepository,
+  UserApiKeyRecord,
   UserCapabilityGrant,
   User,
   UserRepository,
@@ -152,6 +153,9 @@ class StubUserRepository implements UserRepository {
     };
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }
   async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
@@ -418,6 +422,17 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          accessTokenIssuer: {
+            async issueForPlatformUser() {
+              return {
+                access_token: "test-token",
+                token_type: "Bearer" as const,
+                expires_in: 300,
+                refresh_token: "test-refresh",
+                refresh_expires_in: 3600,
+              };
+            },
+          },
         });
       },
       { prefix: "/api/user-management" },
@@ -462,6 +477,17 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          accessTokenIssuer: {
+            async issueForPlatformUser() {
+              return {
+                access_token: "test-token",
+                token_type: "Bearer" as const,
+                expires_in: 300,
+                refresh_token: "test-refresh",
+                refresh_expires_in: 3600,
+              };
+            },
+          },
         });
       },
       { prefix: "/api/user-management" },
@@ -539,6 +565,17 @@ describe("OpenAPI/runtime coherence", () => {
           authAccountProvisioner: noopAuthAccountProvisioner,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          accessTokenIssuer: {
+            async issueForPlatformUser() {
+              return {
+                access_token: "test-token",
+                token_type: "Bearer" as const,
+                expires_in: 300,
+                refresh_token: "test-refresh",
+                refresh_expires_in: 3600,
+              };
+            },
+          },
         });
       },
       { prefix: "/api/user-management" },

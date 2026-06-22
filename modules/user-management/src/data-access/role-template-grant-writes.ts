@@ -196,7 +196,7 @@ export type InMemoryCapabilityGrantLike = {
   feature: string;
   action: string;
   display_name: string;
-  description: string | null;
+  description?: string | null;
   grant_source: string;
   source_role_id: string | null;
   granted_by_user_id: string | null;

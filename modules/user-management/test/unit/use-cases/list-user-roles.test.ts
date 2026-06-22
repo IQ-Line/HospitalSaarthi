@@ -17,6 +17,7 @@ describe("listUserRoles", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
           code: "doctor",
+          role_type: "doctor",
           display_name: "Doctor",
           is_system: false,
           status: "active",
@@ -27,6 +28,7 @@ describe("listUserRoles", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
           code: "admin",
+          role_type: "admin",
           display_name: "Admin",
           is_system: false,
           status: "active",
@@ -37,6 +39,7 @@ describe("listUserRoles", () => {
         role: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d502",
           code: "doctor",
+          role_type: "doctor",
           display_name: "Doctor Tenant B",
           is_system: false,
           status: "active",

@@ -91,5 +91,13 @@ declare module "fastify" {
     user: Principal;
     /** Canonical request correlation id used across errors/events/logs. */
     correlationId: string;
+    /**
+     * Canonical tenant scope on the request, decorated by the tenant-context / tenant-API-key
+     * plugins (mirrors `@hims/ts-sdk-tenant`). Consolidated here so resource modules/services
+     * that consume identity don't each redefine the Fastify augmentation.
+     */
+    tenantId: string;
+    /** True when the request was authenticated via a tenant API key rather than a JWT. */
+    authViaApiKey?: boolean;
   }
 }

@@ -11,12 +11,15 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
       const userAccessRepository = new InMemoryUserAccessRepository(async (_tenantId, _roleId) => ({
         id: "r1",
         code: "doctor",
+        role_type: "doctor",
         display_name: "D",
+        is_system: false,
+        status: "active",
       }));
       const roleRepository = new InMemoryRoleRepository([
         {
           tenantId: "t1",
-          role: { id: "r1", code: "doctor", display_name: "D" },
+          role: { id: "r1", code: "doctor", role_type: "doctor", display_name: "D", is_system: false, status: "active" },
         },
       ]);
       await userAccessRepository.applyRoleTemplate("t1", {
@@ -45,8 +48,8 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
         roleRepository.getRoleById(tenantId, roleId),
       );
       const roleRepository = new InMemoryRoleRepository([
-        { tenantId: "t1", role: { id: "r1", code: "a", display_name: "A" } },
-        { tenantId: "t1", role: { id: "r2", code: "b", display_name: "B" } },
+        { tenantId: "t1", role: { id: "r1", code: "a", role_type: "a", display_name: "A", is_system: false, status: "active" } },
+        { tenantId: "t1", role: { id: "r2", code: "b", role_type: "b", display_name: "B", is_system: false, status: "active" } },
       ]);
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
@@ -75,7 +78,7 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
         roleRepository.getRoleById(tenantId, roleId),
       );
       const roleRepository = new InMemoryRoleRepository([
-        { tenantId: "t1", role: { id: "r1", code: "x", display_name: "X" } },
+        { tenantId: "t1", role: { id: "r1", code: "x", role_type: "x", display_name: "X", is_system: false, status: "active" } },
       ]);
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
@@ -100,7 +103,7 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
         roleRepository.getRoleById(tenantId, roleId),
       );
       const roleRepository = new InMemoryRoleRepository([
-        { tenantId: "t1", role: { id: "r1", code: "one", display_name: "O" } },
+        { tenantId: "t1", role: { id: "r1", code: "one", role_type: "one", display_name: "O", is_system: false, status: "active" } },
       ]);
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",

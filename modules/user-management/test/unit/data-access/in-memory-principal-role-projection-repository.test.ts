@@ -22,7 +22,14 @@ class StubRoleTemplatesByUser implements Pick<UserAccessRepository, "listRoleTem
         role_id: r.role_id,
         assigned_at: new Date(0).toISOString(),
         assigned_by_user_id: null,
-        role: null,
+        role: {
+          id: r.role_id,
+          code: r.role_id,
+          role_type: r.role_id,
+          display_name: r.role_id,
+          is_system: false,
+          status: "active" as const,
+        },
       }));
   }
 }
@@ -32,7 +39,14 @@ describe("InMemoryPrincipalRoleProjectionRepository", () => {
     const roleRepository = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
-        role: { id: "role-a", code: "doctor", display_name: "Doctor" },
+        role: {
+          id: "role-a",
+          code: "doctor",
+          role_type: "doctor",
+          display_name: "Doctor",
+          is_system: false,
+          status: "active",
+        },
       },
     ]);
     const getRoleById = vi.spyOn(roleRepository, "getRoleById");
