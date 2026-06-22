@@ -12,7 +12,7 @@ import type {
   UserProvisioningRepository,
 } from "../ports/user-provisioning-repository.js";
 import type { User } from "../ports/index.js";
-import { capabilities, roles, user_capabilities, user_roles, users } from "../schema/tables.js";
+import { roles, user_capabilities, user_roles, users } from "../schema/tables.js";
 
 const userColumns = {
   id: users.id,

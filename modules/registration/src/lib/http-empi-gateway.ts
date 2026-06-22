@@ -277,7 +277,7 @@ export class HttpEmpiGateway implements EmpiHttpPort {
       const patientRaw = json.patient ?? json;
       if (!isPatientWire(patientRaw)) return null;
 
-      let abhaNumber: string | null = patientRaw.abha_number?.trim() || null;
+      const abhaNumber: string | null = patientRaw.abha_number?.trim() || null;
       let abhaAddress: string | null = patientRaw.abha_address?.trim() || null;
       const identifiers = json.identifiers;
       if (Array.isArray(identifiers)) {

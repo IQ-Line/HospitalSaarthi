@@ -11,6 +11,20 @@ export const base = [
   {
     files: ['**/*.ts', '**/*.tsx'],
     rules: {
+      // Gating policy for sonarjs (decision D22). `sonarjs.configs.recommended` is adopted
+      // wholesale above; these three rules are intentionally demoted to `warn` so they stay
+      // visible without breaking the build:
+      //  - todo-tag: TODO/FIXME markers are deliberate signposts in actively-built code
+      //    (e.g. the ABHA SDK is mid-implementation); failing CI on them just pressures
+      //    devs to delete information rather than track it.
+      //  - cognitive-complexity / no-nested-conditional: opinionated refactor-pressure
+      //    metrics. Forcing them to zero on a young codebase invites helper-function
+      //    indirection purely to satisfy a number — the opposite of our simplicity rule.
+      // All security (slow-regex, sql-queries, no-clear-text-protocols, hashing) and
+      // cleanliness (unused-import, redundant-type-aliases, …) sonarjs rules stay as errors.
+      'sonarjs/todo-tag': 'warn',
+      'sonarjs/cognitive-complexity': 'warn',
+      'sonarjs/no-nested-conditional': 'warn',
       '@nx/enforce-module-boundaries': [
         'error',
         {

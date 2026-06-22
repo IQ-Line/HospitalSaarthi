@@ -1,6 +1,6 @@
 /// <reference types="@fastify/sensible" />
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
 import type { AuthPasswordResetterPort } from "./ports/auth-password-resetter.js";

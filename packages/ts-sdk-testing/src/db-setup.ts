@@ -14,8 +14,11 @@ export async function createTestDb(
   const pool = new Pool({ connectionString });
 
   const safeName = sanitizeIdentifier(schemaName);
+  // eslint-disable-next-line sonarjs/sql-queries -- trusted test-setup DDL, no untrusted input
   await pool.query(`DROP SCHEMA IF EXISTS ${safeName} CASCADE`);
+  // eslint-disable-next-line sonarjs/sql-queries -- trusted test-setup DDL, no untrusted input
   await pool.query(`CREATE SCHEMA ${safeName}`);
+  // eslint-disable-next-line sonarjs/sql-queries -- trusted test-setup DDL, no untrusted input
   await pool.query(`SET search_path TO ${safeName}`);
 
   return { pool, schemaName };

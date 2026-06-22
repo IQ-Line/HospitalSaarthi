@@ -120,7 +120,7 @@ export function moduleSlugsForIds(
 ): string[] {
   const byId = new Map(modules.map((module) => [module.id, module]));
   const slugs = new Set<string>();
-  for (const id of moduleIds instanceof Set ? moduleIds : moduleIds) {
+  for (const id of moduleIds) {
     const slug = byId.get(id)?.slug;
     if (slug) {
       slugs.add(normalizeModuleSlug(slug));

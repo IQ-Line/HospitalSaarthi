@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { validateAuthConfig } from "../../../src/config/validate-auth-config.js";
 
 const ENV_KEYS = ["JWKS_URL", "JWT_ISSUER", "JWT_AUDIENCE"] as const;
 
 function expectedJwksForIssuer(issuer: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; no backtracking (not ReDoS)
   return `${issuer.replace(/\/+$/, "")}/api/auth/.well-known/jwks.json`;
 }
 

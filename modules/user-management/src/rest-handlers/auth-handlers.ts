@@ -61,7 +61,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     },
   );
 
-  void fastify.register(async (scope) => {
+  fastify.register(async (scope) => {
     scope.removeContentTypeParser("application/json");
     scope.addContentTypeParser(
       "application/json",

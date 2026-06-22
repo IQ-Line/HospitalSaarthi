@@ -1,5 +1,11 @@
 import type { CreatePatientData, Patient } from "./patient.types.js";
 
+/** Either an incoming registration payload or a persisted patient record. */
+type PatientLike = CreatePatientData | Patient;
+
+/** Demographic fields used to estimate a patient's age. */
+type AgeFields = "date_of_birth" | "year_of_birth" | "age_years";
+
 /**
  * Phase 2 registration dedup — name leg vs legacy Mongo search:
  *
@@ -314,10 +320,7 @@ export function fullNamesPhoneticallySimilar(
 
 /** Approximate age in whole years at `ref` from demographics fields. */
 export function estimateAgeYears(
-  input: Pick<
-    CreatePatientData | Patient,
-    "date_of_birth" | "year_of_birth" | "age_years"
-  >,
+  input: Pick<PatientLike, AgeFields>,
   ref: Date = new Date(),
 ): number | undefined {
   if (input.age_years != null && Number.isFinite(input.age_years)) {
@@ -340,14 +343,8 @@ export function estimateAgeYears(
 
 /** Both sides must have an estimated age and differ by at most 2 years. */
 export function agesWithinTwoYears(
-  a: Pick<
-    CreatePatientData | Patient,
-    "date_of_birth" | "year_of_birth" | "age_years"
-  >,
-  b: Pick<
-    CreatePatientData | Patient,
-    "date_of_birth" | "year_of_birth" | "age_years"
-  >,
+  a: Pick<PatientLike, AgeFields>,
+  b: Pick<PatientLike, AgeFields>,
   ref: Date = new Date(),
 ): boolean {
   const ay = estimateAgeYears(a, ref);

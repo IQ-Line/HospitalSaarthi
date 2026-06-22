@@ -31,6 +31,7 @@ import type {
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
+// eslint-disable-next-line sonarjs/slow-regex -- `@` is excluded from every class, so the first split is unambiguous; the remaining `[^\s@]+\.[^\s@]+$` has no nested quantifier (linear backtracking only); not ReDoS
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Username-primary login (authn spec §2). Charset matches better-auth's default username validator
 // (/^[a-zA-Z0-9_.]+$/) intersected with our lowercase-in-place rule — NO hyphen (better-auth rejects it).

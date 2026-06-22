@@ -5,7 +5,7 @@ import {
   DEVELOPMENT_BOOTSTRAP_TENANT_SLUG,
   DEVELOPMENT_BOOTSTRAP_USER_EMAIL,
   DEVELOPMENT_SEED_TENANT_ID,
-} from "../../../../packages/dev-bootstrap/src/index.js";
+} from "@hims/dev-bootstrap";
 
 const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
 const DEV_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;

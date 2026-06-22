@@ -48,6 +48,7 @@ export interface MasterDataModuleCatalogPort {
 }
 
 /** @deprecated Use {@link ModuleEntitlementRequestContext}. */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name (deprecated back-compat alias)
 export type EntitlementRequestContext = ModuleEntitlementRequestContext;
 
 /** @deprecated Use {@link TenantModuleEntitlementPort}. */

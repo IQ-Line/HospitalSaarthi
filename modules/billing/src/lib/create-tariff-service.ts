@@ -1,5 +1,7 @@
 /** Helpers for POST /services — single row or doctor multi-department bulk create. */
 
+type OptionalPriceLike = string | number | undefined;
+
 export type DepartmentTariffItem = {
   department_id: string;
   base_price: string | number;
@@ -63,7 +65,7 @@ export function parseCreateServiceBody(body: unknown): CreateServiceBody | null 
           return {
             department_id: item.department_id,
             base_price: item.base_price as string | number,
-            tax_percentage: item.tax_percentage as string | number | undefined,
+            tax_percentage: item.tax_percentage as OptionalPriceLike,
             service_code: typeof item.service_code === "string" ? item.service_code : undefined,
             service_name: typeof item.service_name === "string" ? item.service_name : undefined,
           } satisfies DepartmentTariffItem;
@@ -81,8 +83,8 @@ export function parseCreateServiceBody(body: unknown): CreateServiceBody | null 
   const parsed: CreateServiceBody = {
     service_code: typeof b.service_code === "string" ? b.service_code : undefined,
     service_name: typeof b.service_name === "string" ? b.service_name : undefined,
-    base_price: b.base_price as string | number | undefined,
-    tax_percentage: b.tax_percentage as string | number | undefined,
+    base_price: b.base_price as OptionalPriceLike,
+    tax_percentage: b.tax_percentage as OptionalPriceLike,
     description: (b.description as string | null | undefined) ?? null,
     provider_id,
     department_id:

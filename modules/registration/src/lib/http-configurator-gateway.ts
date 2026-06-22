@@ -22,7 +22,7 @@ export class HttpConfiguratorGateway implements ConfiguratorHttpPort {
         method: "GET",
         headers: { iq_tenant_id: tenantId },
       });
-    } catch (err) {
+    } catch {
       return normalizeFollowUpConfig(undefined, undefined);
     }
 

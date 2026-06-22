@@ -30,14 +30,7 @@ export function normalizeDiscount(raw: string | null | undefined): string {
 }
 
 export function normalizeTaxPercent(raw: string | null | undefined): string {
-  if (raw == null || raw === "") {
-    return "0.0000";
-  }
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) {
-    return "0.0000";
-  }
-  return value.toFixed(4);
+  return normalizeDiscount(raw);
 }
 
 export type LineBillingInput = {

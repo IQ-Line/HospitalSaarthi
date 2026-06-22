@@ -29,7 +29,6 @@ import {
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
 import {
-  serializeRegistration,
   serializeRegistrationWithVisit,
   type PicklistLabelMaps,
 } from "./serialize-registration.js";

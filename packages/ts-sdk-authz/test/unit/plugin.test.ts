@@ -50,7 +50,9 @@ const identityStubPlugin = fp(
 // (the PEP consumes request.cerbosPrincipal populated upstream). A no-op stub
 // satisfies checkDependencies without populating the snapshot, so the roleless
 // fallback path under test stays genuinely exercised.
-const principalEnrichmentStub = fp(async () => {}, {
+const principalEnrichmentStub = fp(async () => {
+  /* intentional no-op: stub only needs to satisfy checkDependencies, not populate state */
+}, {
   name: "@hims/user-management-principal-enrichment",
   dependencies: ["@hims/ts-sdk-identity"],
 });

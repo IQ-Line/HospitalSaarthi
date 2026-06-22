@@ -32,7 +32,6 @@ export function normalizeAbhaNumber(input: string): string {
  */
 export function isValidAbhaNumber(input: string): input is AbhaNumber {
   const normalized = normalizeAbhaNumber(input);
-  if (!ABHA_NUMBER_REGEX.test(normalized)) return false;
-  // TODO: Verhoeff checksum.
-  return true;
+  // TODO: also verify the Verhoeff checksum once implemented.
+  return ABHA_NUMBER_REGEX.test(normalized);
 }

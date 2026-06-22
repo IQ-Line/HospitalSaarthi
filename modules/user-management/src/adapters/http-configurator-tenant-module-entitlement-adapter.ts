@@ -37,6 +37,7 @@ export type HttpConfiguratorTenantModuleEntitlementAdapterOptions = {
 };
 
 function trimTrailingSlash(url: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   return url.replace(/\/+$/, "");
 }
 

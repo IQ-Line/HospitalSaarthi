@@ -25,6 +25,7 @@ function readApiKeyHeader(
 
 /** Strip gateway prefix so matchers work inside or outside the UM Fastify scope. */
 export function umRelativePath(url: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   const path = (url.split("?")[0] ?? "").replace(/\/+$/, "") || "/";
   if (path.startsWith(UM_API_PREFIX)) {
     const relative = path.slice(UM_API_PREFIX.length);

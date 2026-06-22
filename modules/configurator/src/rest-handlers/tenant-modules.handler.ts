@@ -59,7 +59,7 @@ async function notifyTenantModuleLifecycle(
         ? (request as FastifyRequest & { correlationId?: string }).correlationId
         : undefined;
     const actorId = getRequestAuthContext(request).userId ?? undefined;
-    void publishTenantModuleLifecycleEvent(deps.eventBus, {
+    publishTenantModuleLifecycleEvent(deps.eventBus, {
       eventType,
       iqTenantId: row.iq_tenant_id,
       moduleId: row.module_id,
@@ -75,7 +75,11 @@ async function notifyTenantModuleLifecycle(
 
   // Do not block PATCH/POST/DELETE on UM cache bust (avoids up to 5s wait when UM is slow/down).
   if ((becameEnabled || becameDisabled) && deps.entitlementCacheInvalidator !== undefined) {
-    void deps.entitlementCacheInvalidator.invalidateTenantEntitlementCache(row.iq_tenant_id);
+    deps.entitlementCacheInvalidator
+      .invalidateTenantEntitlementCache(row.iq_tenant_id)
+      .catch((err) => {
+        request.log.warn({ err }, "tenant entitlement cache invalidation failed");
+      });
   }
 }
 

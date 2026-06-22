@@ -778,7 +778,9 @@ function renderGimsOpdSlipHtml(payload: OPDSlipReportPayload): string {
     .join(' ') || '—';
   const patientGender = (p.gender || '').trim() ? (p.gender || '').trim().charAt(0).toUpperCase() : '';
   const patientAge = formatOpdSlipAge(p.age, p.months, p.days);
-  const patientLine = `${patientNameShort}${patientGender || patientAge !== '--' ? ` (${[patientGender, patientAge !== '--' ? patientAge : ''].filter(Boolean).join(', ')})` : ''}`;
+  const patientMeta = [patientGender, patientAge !== '--' ? patientAge : ''].filter(Boolean).join(', ');
+  const patientMetaSuffix = patientGender || patientAge !== '--' ? ` (${patientMeta})` : '';
+  const patientLine = `${patientNameShort}${patientMetaSuffix}`;
 
   const doctorName = (v.doctor?.name || doctorInfo?.name || '').trim() || 'NA';
   const doctorNameDisplay = doctorName === 'NA' ? 'NA' : (/^dr\.?\s/i.test(doctorName) ? doctorName : `Dr. ${doctorName}`);
@@ -981,7 +983,9 @@ export function renderOPDSlipHtml(payload: OPDSlipReportPayload): string {
     .join(' ') || patientName;
   const patientGender = (p.gender || '').trim() ? (p.gender || '').trim().charAt(0).toUpperCase() : '';
   const patientAge = formatOpdSlipAge(p.age, p.months, p.days);
-  const patientLine = `${patientNameShort}${patientGender || patientAge !== '--' ? ` (${[patientGender, patientAge !== '--' ? patientAge : ''].filter(Boolean).join(', ')})` : ''}`;
+  const patientMeta = [patientGender, patientAge !== '--' ? patientAge : ''].filter(Boolean).join(', ');
+  const patientMetaSuffix = patientGender || patientAge !== '--' ? ` (${patientMeta})` : '';
+  const patientLine = `${patientNameShort}${patientMetaSuffix}`;
   const mobileDisplay = (p.phoneNumber || '').trim() || 'NA';
   const dobDisplay = formatDateSafe(p.dateOfBirth || undefined);
   const visitDateDisplay = formatOpdSlipVisitDate(v.createdAt);

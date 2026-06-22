@@ -6,7 +6,14 @@ import {
   DEVELOPMENT_PLATFORM_OPERATOR,
   DEVELOPMENT_SEED_TENANT_ID,
   DEVELOPMENT_SEED_USERS,
-} from "../../../../packages/dev-bootstrap/src/index.js";
+} from "@hims/dev-bootstrap";
+// Dev-only seed glue: this composes the module's data with the better-auth user table, which
+// is correctly owned by the service-layer auth adapter (ADR-0003). A module importing its own
+// service is the inverse of the layer rule, but the clean fix (extract a shared dev-seed package,
+// or relocate dev composition to the service without leaking dev-only internals into the module's
+// public API) is an authn-layering change tracked with the deferred Token-Handler work. This path
+// never runs in production. Gate: cleanup follow-up "dev-seed module→service composition".
+// eslint-disable-next-line @nx/enforce-module-boundaries -- see comment above (dev-only, gated)
 import { authUser } from "../../../../services/user-management-svc/src/auth/auth-schema.js";
 import { capabilities, roles, user_roles, users } from "../schema/tables.js";
 import { resolveMasterDataModuleCatalog } from "./resolve-master-data-module-catalog.js";
@@ -220,6 +227,9 @@ export async function applyPlatformDataBootstrap(input: {
     // The dev-seed CLI scripts under `tools/` run via tsx (TS-extension imports, deps resolved from
     // the repo root) and are intentionally outside this module's NodeNext type-checking surface.
     // Load them through `string`-typed paths so tsc treats them as runtime-only dynamic imports.
+    // The explicit `: string` is load-bearing (it stops tsc resolving the literal path); the
+    // inferrable-types rule would have us delete it, which would re-break the typecheck gate.
+    // eslint-disable-next-line @typescript-eslint/no-inferrable-types -- required for runtime-only dynamic import
     const createDevAuthToolPath: string =
       "../../../../tools/seed-user-management-dev/create-dev-auth.js";
     const { createDevSeedAuth, repairJwksForDevSeed } = (await import(
@@ -245,6 +255,7 @@ export async function applyPlatformDataBootstrap(input: {
       .set({ auth_user_id: authUserId, updated_at: new Date() })
       .where(and(eq(users.iq_tenant_id, DEV_TENANT_ID), eq(users.id, platformUserId)));
 
+    // eslint-disable-next-line @typescript-eslint/no-inferrable-types -- required for runtime-only dynamic import (see above)
     const seedDevelopmentUsersToolPath: string =
       "../../../../tools/seed-user-management-dev/seed-development-users.js";
     const { seedDevelopmentUser } = (await import(seedDevelopmentUsersToolPath)) as {

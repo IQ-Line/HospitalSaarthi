@@ -67,5 +67,6 @@ export function requirePepUpstreamBaseUrl(envKey: string): string {
       `${envKey} is required for tenant module entitlements and Master Data module catalog integration`,
     );
   }
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   return raw.replace(/\/+$/, "");
 }

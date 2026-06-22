@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { EventBus, Subscription } from "@hims/ts-sdk-events";
 import { InMemoryRoleRepository } from "../../../src/data-access/in-memory-role-repository.js";
 import { createRole } from "../../../src/use-cases/create-role.js";
 
@@ -12,9 +13,9 @@ describe("createRole", () => {
         async disconnect() {},
         async publish() {},
         async subscribe() {
-          return { unsubscribe: async () => {} } as unknown as import("@hims/ts-sdk-events").Subscription;
+          return { unsubscribe: async () => {} } as unknown as Subscription;
         },
-      } satisfies import("@hims/ts-sdk-events").EventBus,
+      } satisfies EventBus,
     };
     const ctx = { tenantId: "tenant-a", actorId: "actor-1", correlationId: "c1" };
 

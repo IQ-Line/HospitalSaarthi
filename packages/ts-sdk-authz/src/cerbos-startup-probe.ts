@@ -36,7 +36,7 @@ export async function assertCerbosReachable(cerbosUrl: string): Promise<void> {
   } catch (err) {
     if (isCerbosTransportFailure(err)) {
       const detail = err instanceof Error ? err.message : String(err);
-      throw new Error(`Cerbos PDP unreachable at ${hostPort}: ${detail}`);
+      throw new Error(`Cerbos PDP unreachable at ${hostPort}: ${detail}`, { cause: err });
     }
   } finally {
     client.close();

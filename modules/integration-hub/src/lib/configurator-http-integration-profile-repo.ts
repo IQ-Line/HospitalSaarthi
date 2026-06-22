@@ -11,6 +11,7 @@ export interface ConfiguratorHttpIntegrationProfileRepoConfig {
 }
 
 function normalizeBaseUrl(url: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   return url.replace(/\/+$/, "");
 }
 
@@ -52,8 +53,9 @@ export class ConfiguratorHttpIntegrationProfileRepo implements IntegrationProfil
     if (res.status === 404) return undefined;
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      const detail = body ? ` ${body}` : "";
       throw new Error(
-        `configurator by-tenant profile lookup failed: ${res.status}${body ? ` ${body}` : ""}`,
+        `configurator by-tenant profile lookup failed: ${res.status}${detail}`,
       );
     }
 
@@ -72,8 +74,9 @@ export class ConfiguratorHttpIntegrationProfileRepo implements IntegrationProfil
     if (res.status === 404) return undefined;
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      const detail = body ? ` ${body}` : "";
       throw new Error(
-        `configurator by-hip profile lookup failed: ${res.status}${body ? ` ${body}` : ""}`,
+        `configurator by-hip profile lookup failed: ${res.status}${detail}`,
       );
     }
 

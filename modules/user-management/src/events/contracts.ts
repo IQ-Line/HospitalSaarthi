@@ -58,8 +58,10 @@ export type UserEventPayload = {
   auth_user_id?: string | null;
 };
 
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public event-payload type name
 export type UserCreatedEventPayload = UserEventPayload;
 
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public event-payload type name
 export type UserUpdatedEventPayload = UserEventPayload;
 
 export type UserDeactivatedEventPayload = {

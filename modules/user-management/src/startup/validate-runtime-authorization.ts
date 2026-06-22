@@ -5,7 +5,6 @@ import {
 import { projectCapabilityRowToCanonical } from "../domain/legacy-capability-key-remap.js";
 import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
 import {
-  assertValidModuleSlug,
   normalizeModuleSlug,
   normalizeModuleSlugSet,
 } from "../domain/module-slug.js";

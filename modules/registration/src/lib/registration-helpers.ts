@@ -191,7 +191,8 @@ export function mapRegistrationAddressToEmpiBody(
 export function stripNonEmpiIntakeFields(
   patient: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { abha_address: _ignored, ...empiBody } = patient;
+  const empiBody = { ...patient };
+  delete empiBody.abha_address;
   return empiBody;
 }
 

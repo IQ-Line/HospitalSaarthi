@@ -6,8 +6,7 @@
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  */
 
-import type { FhirIdentifier, Patient } from '@hims/ts-sdk-fhir';
-import { ABHA_ADDRESS_SYSTEM_URI, ABHA_NUMBER_SYSTEM_URI } from '@hims/ts-sdk-fhir';
+import type { Patient } from '@hims/ts-sdk-fhir';
 import type { AbhaAddress } from '../types/abha-address.js';
 import type { AbhaNumber } from '../types/abha-number.js';
 
@@ -29,12 +28,8 @@ export interface AttachAbhaIdentifiersInput {
  * @see docs/architecture/adr/0023-distributed-fhir-assembly.md
  */
 export function attachAbhaIdentifiers(_patient: Patient, _input: AttachAbhaIdentifiersInput): Patient {
-  // TODO: implement.
+  // TODO: implement. When done, build FhirIdentifier entries using
+  // ABHA_NUMBER_SYSTEM_URI and ABHA_ADDRESS_SYSTEM_URI from '@hims/ts-sdk-fhir'.
   // @see docs/architecture/adr/0023-distributed-fhir-assembly.md
-  // Reference imports until implementation lands (avoids unused-import warnings).
-  void ABHA_NUMBER_SYSTEM_URI;
-  void ABHA_ADDRESS_SYSTEM_URI;
-  const _placeholder: FhirIdentifier[] = [];
-  void _placeholder;
   throw new Error('attachAbhaIdentifiers: not implemented');
 }

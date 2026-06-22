@@ -61,7 +61,9 @@ export function isPlatformSuperAdminPrincipal(
   return persistedRoles.some(isPlatformSuperAdminRole);
 }
 
-function asSingleHeaderValue(value: string | string[] | undefined): string | undefined {
+type RawHeaderValue = string | string[] | undefined;
+
+function asSingleHeaderValue(value: RawHeaderValue): string | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
   if (typeof raw !== "string") {
     return undefined;
@@ -74,8 +76,8 @@ function asSingleHeaderValue(value: string | string[] | undefined): string | und
 function pickHeaderTenantId(request: FastifyRequest): string | undefined {
   const headers = request.headers;
   return (
-    asSingleHeaderValue(headers?.["iq_tenant_id"] as string | string[] | undefined) ??
-    asSingleHeaderValue(headers?.["x-tenant-id"] as string | string[] | undefined)
+    asSingleHeaderValue(headers?.["iq_tenant_id"] as RawHeaderValue) ??
+    asSingleHeaderValue(headers?.["x-tenant-id"] as RawHeaderValue)
   );
 }
 

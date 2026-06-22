@@ -17,6 +17,7 @@ const MIME_TO_EXTENSION: Record<string, string> = {
 
 export function sanitizeFilename(name: string): string {
   const base = path.basename(name);
+  // eslint-disable-next-line sonarjs/slow-regex -- each alternative is a single quantifier anchored at one string end; not ReDoS
   const sanitized = base.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+|\.+$/g, "");
   return sanitized || "logo";
 }

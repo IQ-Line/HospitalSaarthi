@@ -26,6 +26,10 @@ import { createTenant } from "./create-tenant.js";
 import { createTenantModule } from "./create-tenant-module.js";
 import { updateTenant } from "./update-tenant.js";
 
+// Bounded email validator; identical to user-management's create-user regex. "@" is excluded
+// from every char class, so the split at "@" is unambiguous (no cross-"@" backtracking) and the
+// remaining quantifiers backtrack only linearly — not ReDoS.
+// eslint-disable-next-line sonarjs/slow-regex -- anchored, "@"-delimited; linear backtracking, not ReDoS
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Username-primary login (ADR-0003): mirrors the user-management create-user validator.
 const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
@@ -484,7 +488,8 @@ function mergeModuleIds(
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
-  const { website: _website, ...restMetadata } = input.organization.metadata ?? {};
+  const restMetadata = { ...(input.organization.metadata ?? {}) };
+  delete restMetadata.website;
   return {
     ...restMetadata,
     provisioning: {

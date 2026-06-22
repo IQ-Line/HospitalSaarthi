@@ -10,17 +10,11 @@ import type {
   CreateRoleInput,
   Principal,
   ReplaceRoleCapabilitiesInput,
-  ReplaceUserCapabilitiesInput,
   Role,
   UpdateRoleInput,
   UpdateUserInput,
-  UserCapabilitiesSnapshot,
   UserCapabilityGrant,
-  UserCapabilityGrantSource,
-  UserEffectiveCapabilities,
   User,
-  RoleStatus,
-  UserStatus,
 } from "../domain/types.js";
 
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";

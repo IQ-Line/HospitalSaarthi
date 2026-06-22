@@ -2,7 +2,6 @@ import type {
   DispenseLineItemRecord,
   DispenseRecord,
   DispenseFulfillmentStatus,
-  OpdCompletedVisitSummary,
   OpdPrescriptionSnapshot,
   OpdQueueProjectionRow,
   OpdQueueProjectionUpsertInput,

@@ -20,6 +20,7 @@ import type {
 const LAB_CATEGORY: FhirCodeableConcept = {
   coding: [
     {
+      // eslint-disable-next-line sonarjs/no-clear-text-protocols -- canonical FHIR system URI (identifier, not a network call)
       system: "http://terminology.hl7.org/CodeSystem/observation-category",
       code: "laboratory",
       display: "Laboratory",
