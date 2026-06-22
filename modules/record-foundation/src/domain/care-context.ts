@@ -34,4 +34,7 @@ export interface CreateCareContextData {
 export interface CareContextFilters {
   patient_id?: string;
   status?: string;
+  /** Page size cap (defaults applied in the repo) + offset; bounds the list. */
+  limit?: number;
+  offset?: number;
 }

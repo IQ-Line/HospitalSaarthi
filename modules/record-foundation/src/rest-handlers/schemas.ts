@@ -36,6 +36,8 @@ export const listCareContextsQuerySchema = {
   properties: {
     patient_id: { type: "string", format: "uuid" },
     status: { type: "string", enum: ["active", "inactive", "archived"] },
+    limit: { type: "integer", minimum: 1, maximum: 200 },
+    offset: { type: "integer", minimum: 0 },
   },
 } as const;
 

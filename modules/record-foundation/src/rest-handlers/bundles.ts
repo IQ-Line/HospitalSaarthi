@@ -90,11 +90,29 @@ export function registerBundleHandlers(
       const tenantId = request.tenantId;
       const body = request.body;
 
+      // Pre-check the referenced care context so a missing one yields a clean 404
+      // ProblemDetails instead of leaking the bundles->care_contexts FK violation
+      // as an unhandled 500.
+      const careContextId = body["care_context_id"] as string;
+      const careContext = await getCareContext(
+        { careContextRepo: deps.careContextRepo },
+        tenantId,
+        careContextId,
+      );
+      if (!careContext) {
+        return reply.code(404).send({
+          type: "about:blank",
+          title: "Not Found",
+          status: 404,
+          detail: "Care context not found",
+        });
+      }
+
       const result = await storeBundle(
         { bundleRepo: deps.bundleRepo },
         tenantId,
         {
-          careContextId: body["care_context_id"] as string,
+          careContextId,
           bundleKind: body["bundle_kind"] as string,
           fhirProfileUrl: body["fhir_profile_url"] as string,
           fhirProfileVersion: body["fhir_profile_version"] as string,

@@ -26,6 +26,8 @@ paths:
       parameters:
         - { name: patient_id, in: query, required: false, schema: { type: string, format: uuid } }
         - { name: status, in: query, required: false, schema: { $ref: "#/components/schemas/CareContextStatus" } }
+        - { name: limit, in: query, required: false, description: "When set, caps the page size (max 200) and pages via offset. Omit to return ALL matching rows.", schema: { type: integer, minimum: 1, maximum: 200 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0 } }
       responses:
         "200":
           description: Care context list.
@@ -43,7 +45,13 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
     post:
       operationId: createCareContext
-      summary: Create a new care context
+      summary: Create a care context (idempotent on the source tuple)
+      description: >-
+        Idempotent on (source_origin, source_system_id, source_record_type,
+        source_record_id). A fresh record returns 201; redelivery of the SAME
+        source tuple returns 200 with the existing care context (clinical
+        contexts arrive over an at-least-once path). A NULL source_record_id
+        never deduplicates — each such request creates a new context.
       tags: [Care Contexts]
       requestBody:
         required: true
@@ -60,12 +68,16 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/CareContext" }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "409":
-          description: Duplicate care context.
+        "200":
+          description: Existing care context returned (idempotent replay of the same source tuple).
           content:
-            application/problem+json:
-              schema: { $ref: "#/components/schemas/ProblemDetails" }
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/CareContext" }
+        "400": { $ref: "#/components/responses/BadRequest" }
   /care-contexts/{id}:
     get:
       operationId: getCareContext
@@ -142,6 +154,11 @@ paths:
                 properties:
                   data: { $ref: "#/components/schemas/Bundle" }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "404":
+          description: Referenced care context does not exist.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
 components:
   securitySchemes:
     bearerAuth:
