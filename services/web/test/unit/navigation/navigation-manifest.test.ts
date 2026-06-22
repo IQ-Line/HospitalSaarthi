@@ -128,7 +128,7 @@ describe('filterNavigationTree', () => {
     expect(visitpadChildren.map((c) => c.id)).not.toContain('visitpad-conversions');
   });
 
-  it('hides visitpad catalog leaves when principal holds only visitpad:view shell (no L2 keys)', () => {
+  it('grants every visitpad catalog leaf except independently-gated conversions for the product-wide visitpad:view key', () => {
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({
@@ -139,8 +139,15 @@ describe('filterNavigationTree', () => {
         enabledModuleSlugs: new Set(['master-data']),
       }),
     );
-    const visitpadChildren = visitpadMasterGroup(filtered)?.children ?? [];
-    expect(visitpadChildren).toHaveLength(0);
+    const grantedIds = (visitpadMasterGroup(filtered)?.children ?? []).map((c) => c.id);
+    const allLeafIds = (visitpadMasterGroup(NAVIGATION_MANIFEST)?.children ?? []).map((c) => c.id);
+    // Guard: conversions IS a manifest leaf, so the carve-out below is meaningful.
+    expect(allLeafIds).toContain('visitpad-conversions');
+    // The product-wide `visitpad:view` shell key grants every visitpad catalog leaf
+    // (including ones the principal holds no specific L2 key for) EXCEPT `conversions`,
+    // which stays gated behind its own `unit-conversions` L2 key.
+    expect(grantedIds).toEqual(allLeafIds.filter((id) => id !== 'visitpad-conversions'));
+    expect(grantedIds).not.toContain('visitpad-conversions');
   });
 
   it('does not show visitpad when only master-data is enabled', () => {
@@ -202,7 +209,10 @@ describe('filterNavigationTree', () => {
     expect(filtered.map((n) => n.id)).toContain('configurator');
   });
 
-  it('hides configurator when only shell capability is held (no L2 catalog key)', () => {
+  it('shows configurator when the product shell capability is held', () => {
+    // A product shell key (`configurator:shell:access`) authorizes the top-level
+    // module entry; individual L2 catalog leaves are still gated by their own keys.
+    // Matches the authoritative sibling assertion in nav-capability-access.test.ts.
     const capabilityKeys = new Set([CFG_SHELL_ACCESS]);
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
@@ -212,7 +222,7 @@ describe('filterNavigationTree', () => {
         enabledModuleSlugs: new Set(['configurator']),
       }),
     );
-    expect(filtered.map((n) => n.id)).not.toContain('configurator');
+    expect(filtered.map((n) => n.id)).toContain('configurator');
   });
 
   it('shows configurator for platform super-admin when tenant module is enabled (test bypass only)', () => {

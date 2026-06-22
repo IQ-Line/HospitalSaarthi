@@ -492,7 +492,19 @@ describe("OpenAPI/runtime coherence", () => {
     );
     expect(spec).toContain("security:");
     expect(spec).toContain("- bearerAuth: []");
-    expect(spec).not.toContain("security: []");
+    // Operation-level `security: []` overrides the global `- bearerAuth: []` to mark an
+    // intentionally public route. The only public path here is /auth/api-key/validate
+    // (X-API-Key auth; runtime authMode "public"). Assert the marker exists AND lives
+    // nowhere else, so no protected route can silently downgrade to public.
+    const apiKeyStart = spec.indexOf("\n  /auth/api-key/validate:");
+    const nextPath = /\n {2}\/\S*:\n/g;
+    nextPath.lastIndex = apiKeyStart + 1;
+    const apiKeyEnd = nextPath.exec(spec)?.index ?? spec.length;
+    const apiKeyBlock = spec.slice(apiKeyStart, apiKeyEnd);
+    const totalMarkers = (spec.match(/security: \[\]/g) ?? []).length;
+    const apiKeyMarkers = (apiKeyBlock.match(/security: \[\]/g) ?? []).length;
+    expect(apiKeyMarkers).toBeGreaterThan(0); // public route keeps its marker
+    expect(totalMarkers).toBe(apiKeyMarkers); // no other route carries it
     expect(spec).toContain("required: false");
     expect(spec).toContain("deprecated: true");
     const applyRoleTemplateSection = spec.slice(spec.indexOf("Apply a role template to a user"));

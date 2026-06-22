@@ -206,6 +206,14 @@ export function principalGrantsVisitpadMasterShellLeafNav(
     return false;
   }
 
+  // `conversions` is independently gated by its own catalog L2 slug
+  // (`unit-conversions:*`); a product-wide `visitpad-master` shell key must not
+  // blanket-grant it. The precise L2 gate upstream still grants it to real holders.
+  const leafSegment = inferRoutePathSegmentAfterPrefix(route, '/visitpad');
+  if (leafSegment?.toLowerCase() === 'conversions') {
+    return false;
+  }
+
   const visitpadProducts = productSlugs.filter((slug) =>
     catalogSlugMatchesRouteSegment(slug, 'visitpad-master'),
   );

@@ -173,10 +173,11 @@ export async function fetchOpdEncounterOverlaysByVisitIds(
 
     const map = new Map<string, OpdEncounterOverlay>();
     for (const [visitId, row] of Object.entries(response.data)) {
-      map.set(visitId, {
+      const partial = mapReportAvailability(row.reports);
+      map.set(normalizeVisitId(visitId), {
         prescriptionStatus: row.status,
         visitStatus: row.visit_status?.trim() || 'registered',
-        reportAvailability: mapReportAvailability(row.reports),
+        reportAvailability: resolveClinicalReportAvailability(row.status, partial),
       });
     }
     return map;

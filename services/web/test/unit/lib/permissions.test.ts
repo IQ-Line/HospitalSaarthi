@@ -24,8 +24,8 @@ describe('hydrateCapabilitiesFromPrincipal', () => {
     expect(state.isLoaded).toBe(true);
     expect([...state.capabilityKeys].sort()).toEqual([
       'master-data:shell:access',
-      'visitpad-master:visitpad:view',
       'users:users:read',
+      'visitpad-master:visitpad:view',
     ]);
   });
 });

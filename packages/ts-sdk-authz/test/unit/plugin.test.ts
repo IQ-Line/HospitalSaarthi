@@ -46,6 +46,15 @@ const identityStubPlugin = fp(
   { name: "@hims/ts-sdk-identity" },
 );
 
+// authzPlugin declares a fastify dependency on the principal-enrichment plugin
+// (the PEP consumes request.cerbosPrincipal populated upstream). A no-op stub
+// satisfies checkDependencies without populating the snapshot, so the roleless
+// fallback path under test stays genuinely exercised.
+const principalEnrichmentStub = fp(async () => {}, {
+  name: "@hims/user-management-principal-enrichment",
+  dependencies: ["@hims/ts-sdk-identity"],
+});
+
 afterEach(async () => {
   cerbosCheckResource.mockReset();
   await Promise.all(
@@ -70,6 +79,7 @@ describe("authzPlugin", () => {
     });
 
     await app.register(identityStubPlugin);
+    await app.register(principalEnrichmentStub);
     await app.register(authzPlugin, {
       cerbosUrl: "localhost:3593",
       resolveTarget: async () => ({
@@ -101,6 +111,7 @@ describe("authzPlugin", () => {
     apps.push(app);
 
     await app.register(identityStubPlugin);
+    await app.register(principalEnrichmentStub);
     await app.register(authzPlugin, {
       cerbosUrl: "localhost:3593",
       resolveTarget: async () => null,

@@ -7,6 +7,13 @@ const apps: Array<ReturnType<typeof Fastify>> = [];
 const identityPluginStub = fp(async () => {}, {
   name: "@hims/ts-sdk-identity",
 });
+// authzPlugin declares a fastify dependency on the principal-enrichment plugin;
+// a no-op stub satisfies checkDependencies so app.ready() reaches the real
+// AuthZ-mapping validation under test instead of failing on the missing dependency.
+const principalEnrichmentStub = fp(async () => {}, {
+  name: "@hims/user-management-principal-enrichment",
+  dependencies: ["@hims/ts-sdk-identity"],
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -27,6 +34,7 @@ describe("authz mapping enforcement", () => {
     apps.push(app);
 
     await app.register(identityPluginStub);
+    await app.register(principalEnrichmentStub);
     await app.register(authzPlugin, {
       cerbosUrl: "127.0.0.1:3593",
     });
