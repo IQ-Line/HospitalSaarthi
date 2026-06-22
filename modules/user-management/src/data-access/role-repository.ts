@@ -7,6 +7,10 @@ import {
 } from "../domain/errors.js";
 import type { CreateRoleInput, Role, RoleRepository, UpdateRoleInput } from "../ports/index.js";
 import { roles } from "../schema/tables.js";
+import {
+  isPostgresForeignKeyViolation,
+  isPostgresUniqueViolation,
+} from "./postgres-errors.js";
 
 function rowToRole(row: {
   id: string;
@@ -26,24 +30,6 @@ function rowToRole(row: {
     is_system: row.is_system,
     status: row.status as Role["status"],
   };
-}
-
-function isPostgresUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23505"
-  );
-}
-
-function isPostgresForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23503"
-  );
 }
 
 const roleColumns = {
