@@ -265,21 +265,32 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
+      const cid = request.correlationId ?? request.id;
       const department = request.query.department?.trim() || undefined;
-      const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
-        tenantId,
-        department ? { department } : undefined,
-      );
-      return reply.send(
-        users
-          .filter((u) => u.status === "active")
-          .map((u) => ({
-            id: u.id,
-            full_name: u.full_name,
-            department: u.department ?? null,
-            status: u.status,
-          })),
-      );
+      // try/catch so a repo failure returns the standard UM error envelope
+      // instead of leaking a raw Fastify 500 (mirrors GET /users below).
+      // NOTE (tracked): whether this provider picklist should additionally route
+      // through listUsersWithAuthz (per-caller authz scoping) is a product
+      // decision for the functional walk-through — a picklist may intentionally
+      // list all active providers regardless of the caller's manage scope.
+      try {
+        const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
+          tenantId,
+          department ? { department } : undefined,
+        );
+        return reply.send(
+          users
+            .filter((u) => u.status === "active")
+            .map((u) => ({
+              id: u.id,
+              full_name: u.full_name,
+              department: u.department ?? null,
+              status: u.status,
+            })),
+        );
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
     },
   );
 

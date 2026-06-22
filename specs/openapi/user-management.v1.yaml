@@ -643,6 +643,57 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /providers:
+    get:
+      tags:
+        - Users
+      summary: List active providers for the tenant (lightweight picklist)
+      description: >
+        Returns active users for the active tenant as a lightweight picklist
+        (id, full_name, department, status) — used by the frontend to populate
+        provider/doctor selectors. Tenant-scoped; optionally narrowed by
+        `department`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: department
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Narrow the list to providers in this department.
+      responses:
+        "200":
+          description: Active providers for the tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [id, full_name, department, status]
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    full_name:
+                      type: string
+                    department:
+                      type: string
+                      nullable: true
+                    status:
+                      type: string
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users:
     get:
       tags:
