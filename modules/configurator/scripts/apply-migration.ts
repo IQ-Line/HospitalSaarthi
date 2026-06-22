@@ -1,7 +1,5 @@
-import { applyConfiguratorSchemaMigration } from "../src/schema/apply-migration.js";
 import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
+import { applyConfiguratorSchemaMigration } from "../src/schema/apply-migration.js";
 
-const url = resolveDatabaseUrl();
-
-await applyConfiguratorSchemaMigration(url);
-console.log("Configurator schema migration applied.");
+await applyConfiguratorSchemaMigration(resolveDatabaseUrl());
+console.log("[configurator] schema migration applied.");
