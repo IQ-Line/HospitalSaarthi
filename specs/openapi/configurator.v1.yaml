@@ -667,20 +667,10 @@ paths:
             type: string
             minLength: 1
         - name: integration_kind
-  /sequence-configurations:
-    get:
-      operationId: listSequenceConfigurations
-      summary: List tenants with sequence configuration summaries
-      tags:
-        - Sequence Configuration
-      parameters:
-        - name: org_id
           in: query
-          required: false
           schema:
             type: string
             enum: [abdm]
-            default: abdm
       responses:
         "200":
           description: Active profile for the HIP.
@@ -700,6 +690,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /sequence-configurations:
+    get:
+      operationId: listSequenceConfigurations
+      summary: List tenants with sequence configuration summaries
+      tags:
+        - Sequence Configuration
+      parameters:
+        - name: org_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: provisioning_status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/ProvisioningStatus"
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/SequenceConfigurationStatus"
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Substring match on tenant name or tenant numeric code.
+      responses:
+        "200":
+          description: Tenant sequence configuration summaries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationListResponse"
   /integration-profiles/by-tenant/{tenantId}:
     get:
       operationId: getActiveIntegrationProfileByTenantId
@@ -832,47 +858,6 @@ paths:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
         "404":
           description: Profile not found.
-            format: uuid
-        - name: provisioning_status
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/ProvisioningStatus"
-        - name: status
-          in: query
-          required: false
-          schema:
-            $ref: "#/components/schemas/SequenceConfigurationStatus"
-        - name: q
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Substring match on tenant name or tenant numeric code.
-      responses:
-        "200":
-          description: Tenant sequence configuration summaries.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SequenceConfigurationListResponse"
-  /tenants/{tenantId}/sequence-configuration:
-    get:
-      operationId: getSequenceConfiguration
-      summary: Get sequence configuration for a tenant
-      tags:
-        - Sequence Configuration
-      parameters:
-        - $ref: "#/components/parameters/TenantIdPath"
-      responses:
-        "200":
-          description: Effective sequence configuration for all identifier types.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SequenceConfigurationDetail"
-        "404":
-          description: Tenant not found.
           content:
             application/json:
               schema:
@@ -895,18 +880,6 @@ paths:
           schema:
             type: string
             format: uuid
-  /tenants/{tenantId}/sequence-configuration/identifiers/{identifierType}:
-    put:
-      operationId: upsertSequenceIdentifier
-      summary: Customize or revert an identifier format for a tenant
-      description: >
-        Set a custom format with `is_custom: true` and `segments`, or revert to the
-        platform default with `is_custom: false` (no segments required).
-      tags:
-        - Sequence Configuration
-      parameters:
-        - $ref: "#/components/parameters/TenantIdPath"
-        - $ref: "#/components/parameters/IdentifierTypePath"
       requestBody:
         required: true
         content:
@@ -922,16 +895,6 @@ paths:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
         "404":
           description: Profile not found.
-              $ref: "#/components/schemas/SequenceIdentifierUpsertRequest"
-      responses:
-        "200":
-          description: Identifier configuration saved.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/SequenceIdentifierConfig"
-        "400":
-          description: Validation failure.
           content:
             application/json:
               schema:
@@ -959,8 +922,58 @@ paths:
           description: Profile deleted.
         "404":
           description: Profile not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/sequence-configuration:
+    get:
+      operationId: getSequenceConfiguration
+      summary: Get sequence configuration for a tenant
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+      responses:
+        "200":
+          description: Effective sequence configuration for all identifier types.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceConfigurationDetail"
         "404":
           description: Tenant not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /tenants/{tenantId}/sequence-configuration/identifiers/{identifierType}:
+    put:
+      operationId: upsertSequenceIdentifier
+      summary: Customize or revert an identifier format for a tenant
+      description: >
+        Set a custom format with `is_custom: true` and `segments`, or revert to the
+        platform default with `is_custom: false` (no segments required).
+      tags:
+        - Sequence Configuration
+      parameters:
+        - $ref: "#/components/parameters/TenantIdPath"
+        - $ref: "#/components/parameters/IdentifierTypePath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SequenceIdentifierUpsertRequest"
+      responses:
+        "200":
+          description: Identifier configuration saved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SequenceIdentifierConfig"
+        "400":
+          description: Validation failure.
           content:
             application/json:
               schema:
