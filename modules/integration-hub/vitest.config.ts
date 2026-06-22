@@ -4,8 +4,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: [
-      "src/integrations/abdm/**/*.test.ts",
-      "src/lib/**/*.test.ts",
+      "test/**/integrations/abdm/**/*.test.ts",
+      "test/**/lib/**/*.test.ts",
     ],
     exclude: ["**/*.sandbox.integration.test.ts"],
   },
