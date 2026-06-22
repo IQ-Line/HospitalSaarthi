@@ -9,5 +9,5 @@
       "@pulse/ui/*": ["../../packages/pulse-ui/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }
