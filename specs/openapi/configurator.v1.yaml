@@ -508,6 +508,7 @@ paths:
     post:
       operationId: createTenantModule
       summary: Enable a module for a tenant
+      description: Requires platform super-admin (consistent with module PATCH/DELETE).
       tags:
         - Tenant Modules
       parameters:
@@ -533,6 +534,12 @@ paths:
                 $ref: "#/components/schemas/TenantModule"
         "400":
           description: Validation or unknown tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Platform super-admin role required.
           content:
             application/json:
               schema:
@@ -774,6 +781,9 @@ paths:
     get:
       operationId: listTenantIntegrationProfiles
       summary: List tenant integration profiles
+      description: >-
+        Requires platform super-admin. `client_secret` is redacted (null) on
+        every item — use the internal by-hip / by-tenant routes for the secret.
       tags:
         - Integration Profiles
       parameters:
@@ -794,14 +804,23 @@ paths:
             type: boolean
       responses:
         "200":
-          description: Profile list.
+          description: Profile list (client_secret redacted to null).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantIntegrationProfileListResponse"
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       operationId: createTenantIntegrationProfile
       summary: Create tenant integration profile
+      description: >-
+        Requires platform super-admin. The response `client_secret` is redacted
+        (null); submit it in the request body to store it.
       tags:
         - Integration Profiles
       parameters:
@@ -819,11 +838,17 @@ paths:
               $ref: "#/components/schemas/TenantIntegrationProfileCreateRequest"
       responses:
         "201":
-          description: Profile created.
+          description: Profile created (client_secret redacted to null).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "409":
           description: Duplicate tenant + integration_kind or active HIP.
           content:
@@ -834,6 +859,7 @@ paths:
     get:
       operationId: getTenantIntegrationProfileById
       summary: Get tenant integration profile
+      description: Requires platform super-admin. `client_secret` is redacted (null).
       tags:
         - Integration Profiles
       parameters:
@@ -851,11 +877,17 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Profile found.
+          description: Profile found (client_secret redacted to null).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Profile not found.
           content:
@@ -865,6 +897,9 @@ paths:
     patch:
       operationId: updateTenantIntegrationProfile
       summary: Update tenant integration profile
+      description: >-
+        Requires platform super-admin. The response `client_secret` is redacted
+        (null); submit it in the request body to change it.
       tags:
         - Integration Profiles
       parameters:
@@ -888,11 +923,17 @@ paths:
               $ref: "#/components/schemas/TenantIntegrationProfilePatchRequest"
       responses:
         "200":
-          description: Profile updated.
+          description: Profile updated (client_secret redacted to null).
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Profile not found.
           content:
@@ -902,6 +943,7 @@ paths:
     delete:
       operationId: deleteTenantIntegrationProfile
       summary: Delete tenant integration profile
+      description: Requires platform super-admin.
       tags:
         - Integration Profiles
       parameters:
@@ -920,6 +962,12 @@ paths:
       responses:
         "204":
           description: Profile deleted.
+        "403":
+          description: Platform super-admin role required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Profile not found.
           content:
@@ -1722,7 +1770,11 @@ components:
         client_secret:
           type: string
           nullable: true
-          description: Plaintext Phase 1a; internal consumers only.
+          description: >-
+            Write-only credential. Returned in plaintext ONLY on the internal
+            service-to-service routes (by-hip / by-tenant) for gateway auth;
+            ALWAYS null on the tenant-scoped management responses (redacted —
+            super-admin only).
         default_sms_phone:
           type: string
           nullable: true

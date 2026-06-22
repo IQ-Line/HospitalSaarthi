@@ -11,7 +11,7 @@ export async function deleteTenantIntegrationProfile(
     throw new ConfiguratorError(404, "integration profile not found");
   }
 
-  const deleted = await repo.delete(id);
+  const deleted = await repo.delete(id, iqTenantId);
   if (!deleted) {
     throw new ConfiguratorError(404, "integration profile not found");
   }

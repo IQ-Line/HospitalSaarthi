@@ -87,7 +87,7 @@ export interface TenantIntegrationProfilesRepo {
     iqTenantId: string,
     data: UpdateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile | undefined>;
-  delete(id: string): Promise<boolean>;
+  delete(id: string, iqTenantId: string): Promise<boolean>;
 }
 
 export interface TenantApiKeyRepo {

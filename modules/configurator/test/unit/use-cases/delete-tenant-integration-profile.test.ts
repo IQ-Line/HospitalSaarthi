@@ -40,7 +40,8 @@ describe("deleteTenantIntegrationProfile", () => {
 
     await deleteTenantIntegrationProfile(repo, "profile-1", tenantId);
 
-    expect(repo.delete).toHaveBeenCalledWith("profile-1");
+    // P6 defense-in-depth: delete is tenant-scoped in the WHERE clause, not id-only.
+    expect(repo.delete).toHaveBeenCalledWith("profile-1", tenantId);
   });
 
   it("throws 404 when profile tenant mismatches", async () => {

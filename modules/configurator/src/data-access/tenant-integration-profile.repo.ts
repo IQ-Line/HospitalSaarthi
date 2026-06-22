@@ -136,10 +136,15 @@ export class DrizzleTenantIntegrationProfilesRepo
     return rows[0] as TenantIntegrationProfile | undefined;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string, iqTenantId: string): Promise<boolean> {
     const rows = await this.db
       .delete(tenantIntegrationProfiles)
-      .where(eq(tenantIntegrationProfiles.id, id))
+      .where(
+        and(
+          eq(tenantIntegrationProfiles.id, id),
+          eq(tenantIntegrationProfiles.iq_tenant_id, iqTenantId),
+        ),
+      )
       .returning();
 
     return rows.length > 0;

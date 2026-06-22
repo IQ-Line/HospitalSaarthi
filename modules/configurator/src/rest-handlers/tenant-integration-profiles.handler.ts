@@ -1,11 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import { ConfiguratorError } from "../errors.js";
 import { assertConfiguratorInternalAccess } from "../http/assert-configurator-internal-access.js";
+import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import type { TenantIntegrationProfilesRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantIntegrationProfileData,
   UpdateTenantIntegrationProfileData,
   IntegrationKind,
+  TenantIntegrationProfile,
 } from "../domain/tenant-integration-profile.types.js";
 import { listTenantIntegrationProfiles } from "../use-cases/list-tenant-integration-profiles.js";
 import { createTenantIntegrationProfile } from "../use-cases/create-tenant-integration-profile.js";
@@ -32,6 +34,19 @@ interface ByHipQuery {
 export interface TenantIntegrationProfilesHandlerDeps {
   tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
   tenantRepo: TenantRepo;
+}
+
+/**
+ * Strip the stored ABDM `client_secret` from management (super-admin) responses.
+ * The credential is write-only over the management surface: defense-in-depth, the
+ * plaintext secret must never travel back over the wire (logs, browser cache) even
+ * to a super-admin. The internal S2S routes (by-hip / by-tenant) deliberately keep
+ * it — integration-hub needs it to authenticate to the ABDM gateway.
+ */
+function redactProfileSecret(
+  profile: TenantIntegrationProfile,
+): TenantIntegrationProfile {
+  return { ...profile, client_secret: null };
 }
 
 export function registerTenantIntegrationProfilesHandler(
@@ -109,6 +124,7 @@ export function registerTenantIntegrationProfilesHandler(
       },
     },
     async (request) => {
+      assertPlatformSuperAdmin(request);
       const profiles = await listTenantIntegrationProfiles(
         tenantIntegrationProfilesRepo,
         {
@@ -117,7 +133,7 @@ export function registerTenantIntegrationProfilesHandler(
           is_active: request.query.is_active,
         },
       );
-      return { data: profiles, total: profiles.length };
+      return { data: profiles.map(redactProfileSecret), total: profiles.length };
     },
   );
 
@@ -137,6 +153,7 @@ export function registerTenantIntegrationProfilesHandler(
       },
     },
     async (request, reply) => {
+      assertPlatformSuperAdmin(request);
       const created = await createTenantIntegrationProfile(
         tenantIntegrationProfilesRepo,
         tenantRepo,
@@ -145,7 +162,7 @@ export function registerTenantIntegrationProfilesHandler(
           ...request.body,
         },
       );
-      return reply.code(201).send(created);
+      return reply.code(201).send(redactProfileSecret(created));
     },
   );
 
@@ -155,10 +172,13 @@ export function registerTenantIntegrationProfilesHandler(
       schema: { params: tenantIntegrationProfileParamsSchema },
     },
     async (request) => {
-      return getTenantIntegrationProfileById(
-        tenantIntegrationProfilesRepo,
-        request.params.profileId,
-        request.params.tenantId,
+      assertPlatformSuperAdmin(request);
+      return redactProfileSecret(
+        await getTenantIntegrationProfileById(
+          tenantIntegrationProfilesRepo,
+          request.params.profileId,
+          request.params.tenantId,
+        ),
       );
     },
   );
@@ -175,11 +195,14 @@ export function registerTenantIntegrationProfilesHandler(
       },
     },
     async (request) => {
-      return updateTenantIntegrationProfile(
-        tenantIntegrationProfilesRepo,
-        request.params.profileId,
-        request.params.tenantId,
-        request.body,
+      assertPlatformSuperAdmin(request);
+      return redactProfileSecret(
+        await updateTenantIntegrationProfile(
+          tenantIntegrationProfilesRepo,
+          request.params.profileId,
+          request.params.tenantId,
+          request.body,
+        ),
       );
     },
   );
@@ -190,6 +213,7 @@ export function registerTenantIntegrationProfilesHandler(
       schema: { params: tenantIntegrationProfileParamsSchema },
     },
     async (request, reply) => {
+      assertPlatformSuperAdmin(request);
       await deleteTenantIntegrationProfile(
         tenantIntegrationProfilesRepo,
         request.params.profileId,

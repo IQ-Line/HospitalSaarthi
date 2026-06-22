@@ -126,6 +126,10 @@ export function registerTenantModulesHandler(
       },
     },
     async (request, reply) => {
+      // Role-consistent with PATCH/DELETE: enabling a module is a platform-admin op.
+      // Auth inside the handler body (not a sync preHandler): a sync preHandler + body
+      // schema can stall Fastify 5 (see PATCH below).
+      assertPlatformSuperAdmin(request);
       const created = await createTenantModule(tenantModuleRepo, tenantRepo, {
         iq_tenant_id: request.params.tenantId,
         ...request.body,
