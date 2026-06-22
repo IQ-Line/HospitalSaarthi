@@ -185,6 +185,67 @@ describe("patients.handler HTTP validation (Fastify JSON schema)", () => {
     await app.close();
   });
 
+  it("GET /patients with NO criteria → 400 patient_search_invalid_query (no tenant leak)", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({ method: "GET", url: "/patients" });
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).code).toBe("patient_search_invalid_query");
+    // The repo must never be queried for a criterion-less search.
+    expect(deps.patientRepo.findAll).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("GET /patients?name=A (too short) → 400 (1-char name is not a criterion)", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({ method: "GET", url: "/patients?name=A" });
+    expect(res.statusCode).toBe(400);
+    expect(deps.patientRepo.findAll).not.toHaveBeenCalled();
+    await app.close();
+  });
+
+  it("GET /patients?phone=... → 200 with PatientSearchPage shape", async () => {
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/patients?phone=9999999999",
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body).toMatchObject({ total: 1, page: 1, limit: 20, total_pages: 1 });
+    expect(Array.isArray(body.data)).toBe(true);
+    await app.close();
+  });
+
+  it("GET /patients rejects spec-trimmed params (e.g. mobile) — pins additionalProperties:false", async () => {
+    // The spec dropped mobile/gender/sort/order because runtime rejects them. This guards that
+    // guarantee: if removeAdditional were ever flipped on, this would catch the silent erosion.
+    const app = await buildTestApp();
+    const res = await app.inject({
+      method: "GET",
+      url: "/patients?uhid=25010112345000001&mobile=9",
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("GET /patients clamps an over-max limit to 100", async () => {
+    const deps = mockDeps();
+    const app = await buildTestApp(deps);
+    const res = await app.inject({
+      method: "GET",
+      url: "/patients?uhid=25010112345000001&limit=500",
+    });
+    expect(res.statusCode).toBe(200);
+    expect(deps.patientRepo.findAll).toHaveBeenCalledWith(
+      TENANT,
+      expect.objectContaining({ limit: 100 }),
+    );
+    expect(JSON.parse(res.body).limit).toBe(100);
+    await app.close();
+  });
+
   it("GET /patients/:id rejects malformed UUID param", async () => {
     const app = await buildTestApp();
     const res = await app.inject({

@@ -172,7 +172,17 @@ export function registerPatientsHandler(
         filters,
       );
 
-      return reply.send(result);
+      if (!result.ok) {
+        return reply.code(400).send({
+          statusCode: 400,
+          error: "Bad Request",
+          message:
+            "Provide at least one search criterion: uhid, phone, abha_number, or name (min 2 chars).",
+          code: "patient_search_invalid_query",
+        });
+      }
+
+      return reply.send(result.page);
     },
   );
 
