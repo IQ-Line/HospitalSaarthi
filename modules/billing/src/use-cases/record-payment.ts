@@ -1,4 +1,4 @@
-import { money, moneyGt, moneySub } from "../lib/money.js";
+import { money, moneyAdd, moneyGt, moneyGte, moneySub } from "../lib/money.js";
 import { fail, loadBill, ok, requireStatus } from "../lib/use-case.js";
 import type { BillWithItems, RecordPaymentInput, UseCaseResult } from "../domain/bill.types.js";
 import type { BillingDeps } from "../ports.js";
@@ -27,8 +27,9 @@ export async function recordPayment(
   );
   if (statusErr) return statusErr;
 
-  const paid = money(Number(bill.paid_amount) + Number(amount));
-  if (Number(paid) > Number(bill.net_amount) + 0.0001) {
+  // String-money math (both operands are 4dp-rounded): exact comparison, no float epsilon.
+  const paid = moneyAdd(bill.paid_amount, amount);
+  if (moneyGt(paid, bill.net_amount)) {
     return fail("VALIDATION", "Payment exceeds bill net amount");
   }
 
@@ -51,7 +52,7 @@ export async function recordPayment(
   const updated = await deps.billingRepo.updateBill(tenantId, input.bill_id, {
     paid_amount: paid,
     outstanding_amount: moneySub(bill.net_amount, paid),
-    status: Number(paid) >= Number(bill.net_amount) ? "PAID" : "PARTIALLY_PAID",
+    status: moneyGte(paid, bill.net_amount) ? "PAID" : "PARTIALLY_PAID",
   });
   if (!updated) return fail("NOT_FOUND", "Bill not found");
 

@@ -42,4 +42,17 @@ describe("bill-math", () => {
     expect(totals.subtotal).toBe("600.0000");
     expect(totals.net_amount).toBe("540.0000");
   });
+
+  it("rolls up subtotal PRE-TAX when tax is non-zero (subtotal != total)", () => {
+    // Regression lock for the subtotal-includes-tax defect (P3): with tax, subtotal
+    // must be the net sum (100), tax its own field (18), total = subtotal + tax (118).
+    const totals = rollupBillTotals(baseBill, [
+      item("100.0000", "18.0000"),
+      item("200.0000", "36.0000"),
+    ]);
+    expect(totals.subtotal).toBe("300.0000");
+    expect(totals.tax_amount).toBe("54.0000");
+    expect(totals.total_amount).toBe("354.0000");
+    expect(totals.net_amount).toBe("354.0000"); // no bill-level discount/round-off
+  });
 });

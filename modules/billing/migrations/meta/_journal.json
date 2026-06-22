@@ -15,6 +15,13 @@
       "when": 1782054060126,
       "tag": "0001_distribute_citus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782161349015,
+      "tag": "0002_skinny_ted_forrester",
+      "breakpoints": true
     }
   ]
 }

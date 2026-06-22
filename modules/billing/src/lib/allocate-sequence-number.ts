@@ -1,40 +1,31 @@
-import { and, eq, ilike, sql, type DbInstance } from "@hims/ts-sdk-db";
-import { bills, payments } from "../schema/tables.js";
+import { type DbInstance } from "@hims/ts-sdk-db";
+import { nextSequenceValue } from "@hims/ts-sdk-sequence";
 
 const dayKey = () => new Date().toISOString().slice(0, 10).replace(/-/g, "");
 const pad = (n: number) => String(n).padStart(6, "0");
 
-function parseSeq(existing: string | undefined, prefix: string): number {
-  if (!existing?.startsWith(prefix)) return 0;
-  const n = Number.parseInt(existing.slice(prefix.length), 10);
-  return Number.isFinite(n) ? n : 0;
-}
-
-async function nextSeq(
+/**
+ * Atomic per-(tenant, kind, day) numbering via the shared sequence counter
+ * (`nextSequenceValue` = INSERT ... ON CONFLICT DO UPDATE current_value + 1) —
+ * the same atomic primitive bill_number uses through `allocateIdentifier`.
+ *
+ * Replaces the previous racy `SELECT max()+1`, which could hand two concurrent
+ * payments the SAME payment/receipt number. A UNIQUE(iq_tenant_id, payment_number)
+ * constraint on `billing.payments` is the defense-in-depth backstop.
+ */
+async function allocateDailyNumber(
   db: DbInstance,
-  table: typeof bills | typeof payments,
-  numberCol: typeof bills.bill_number | typeof payments.payment_number,
   tenantId: string,
-  prefix: string,
+  kind: "P" | "R",
+  counterName: string,
 ): Promise<string> {
-  const [row] = await db
-    .select({ number: numberCol })
-    .from(table)
-    .where(and(eq(table.iq_tenant_id, tenantId), ilike(numberCol, `${prefix}%`)))
-    .orderBy(sql`${numberCol} desc`)
-    .limit(1);
-  return `${prefix}${pad(parseSeq(row?.number, prefix) + 1)}`;
+  const day = dayKey();
+  const seq = await nextSequenceValue(db, tenantId, `${counterName}:${day}`, 1);
+  return `${kind}-${tenantId.slice(0, 8)}-${day}-${pad(seq)}`;
 }
-
-export function billNumberPrefix(tenantId: string): string {
-  return `B-${tenantId.slice(0, 8)}-${dayKey()}-`;
-}
-
-export const allocateBillNumber = (db: DbInstance, tenantId: string) =>
-  nextSeq(db, bills, bills.bill_number, tenantId, billNumberPrefix(tenantId));
 
 export const allocatePaymentNumber = (db: DbInstance, tenantId: string) =>
-  nextSeq(db, payments, payments.payment_number, tenantId, `P-${tenantId.slice(0, 8)}-${dayKey()}-`);
+  allocateDailyNumber(db, tenantId, "P", "billing_payment");
 
 export const allocateReceiptNumber = (db: DbInstance, tenantId: string) =>
-  nextSeq(db, payments, payments.receipt_number, tenantId, `R-${tenantId.slice(0, 8)}-${dayKey()}-`);
+  allocateDailyNumber(db, tenantId, "R", "billing_receipt");

@@ -22,7 +22,6 @@ import {
   allocateReceiptNumber,
 } from "../lib/allocate-sequence-number.js";
 import { toBillItemRow, toBillRow, toPaymentRow } from "../lib/bill-mappers.js";
-import { nextBillNumber } from "../lib/bill-numbers.js";
 
 const isoDate = (v: string | null | undefined) => (v ? new Date(v) : null);
 
@@ -223,7 +222,11 @@ class InMemoryBillingRepo implements BillingRepo {
 
   async createBill(input: NewBillRow) {
     const now = new Date().toISOString();
-    const row: BillRow = { ...input, id: randomUUID(), created_at: now, updated_at: now };
+    // The Drizzle repo allocates bill_number via the atomic sequence; the in-memory
+    // double assigns a deterministic placeholder when the caller leaves it blank.
+    const bill_number =
+      input.bill_number || `B-MEM-${String(this.bills.length + 1).padStart(6, "0")}`;
+    const row: BillRow = { ...input, bill_number, id: randomUUID(), created_at: now, updated_at: now };
     this.bills.push(row);
     return row;
   }
@@ -316,7 +319,8 @@ export function newDraftBill(
   const today = new Date().toISOString().slice(0, 10);
   return {
     iq_tenant_id: tenantId,
-    bill_number: nextBillNumber(tenantId),
+    // Allocated by the repo on create (Drizzle: atomic sequence; in-memory: placeholder).
+    bill_number: "",
     patient_id: patientId,
     visit_id: visitId,
     visit_type: visitType,

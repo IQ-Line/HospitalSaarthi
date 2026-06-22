@@ -5,8 +5,10 @@ import {
   numeric,
   pgSchema,
   primaryKey,
+  sql,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   tenantColumn,
 } from "@hims/ts-sdk-db";
@@ -130,5 +132,16 @@ export const payments = billingSchema.table(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    // Defense-in-depth backstop for the atomic number allocator: a duplicate
+    // payment/receipt number can never be persisted even if allocation regresses.
+    uniqueIndex("uq_payments_tenant_payment_number").on(
+      t.iq_tenant_id,
+      t.payment_number,
+    ),
+    uniqueIndex("uq_payments_tenant_receipt_number")
+      .on(t.iq_tenant_id, t.receipt_number)
+      .where(sql`${t.receipt_number} IS NOT NULL`),
+  ],
 );

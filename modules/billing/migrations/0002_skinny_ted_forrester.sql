@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "uq_payments_tenant_payment_number" ON "billing"."payments" USING btree ("iq_tenant_id","payment_number");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_payments_tenant_receipt_number" ON "billing"."payments" USING btree ("iq_tenant_id","receipt_number") WHERE "billing"."payments"."receipt_number" IS NOT NULL;
