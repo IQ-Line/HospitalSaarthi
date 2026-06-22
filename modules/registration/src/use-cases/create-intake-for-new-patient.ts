@@ -1,5 +1,12 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo, ConfiguratorHttpPort } from "../ports.js";
+import type {
+  EmpiHttpPort,
+  OpdHttpPort,
+  RegistrationRepo,
+  VisitRepo,
+  ConfiguratorHttpPort,
+  RegistrationLogger,
+} from "../ports.js";
 import type {
   ExistingPatientVisitInput,
   NewPatientIntakeInput,
@@ -34,6 +41,7 @@ export async function createIntakeForNewPatient(
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
+    logger?: RegistrationLogger;
   },
   tenantId: string,
   input: NewPatientIntakeInput,
@@ -132,13 +140,19 @@ export async function createIntakeForNewPatient(
 
   const abhaAddress = abhaAddressFromIntake(input.patient);
   if (abhaAddress) {
-    await deps.empiGateway.linkAbhaAddress(
+    const link = await deps.empiGateway.linkAbhaAddress(
       tenantId,
       empiResult.patientId,
       abhaAddress,
       ctx.actorId,
       ctx.bearerToken,
     );
+    if (!link.ok) {
+      deps.logger?.warn(
+        { tenantId, patientId: empiResult.patientId, abhaAddress, reason: link.reason, status: link.status },
+        "EMPI linkAbhaAddress failed during new-patient intake; ABHA address not linked",
+      );
+    }
   }
 
   const visitResult = await createVisit(
@@ -181,6 +195,7 @@ export async function createVisitForExistingPatient(
     eventBus: EventBus;
     opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
+    logger?: RegistrationLogger;
   },
   tenantId: string,
   input: ExistingPatientVisitInput,
@@ -234,13 +249,19 @@ export async function createVisitForExistingPatient(
 
   const abhaAddress = abhaAddressFromIntake(intakeOverlay);
   if (abhaAddress) {
-    await deps.empiGateway.linkAbhaAddress(
+    const link = await deps.empiGateway.linkAbhaAddress(
       tenantId,
       input.patient_id,
       abhaAddress,
       ctx.actorId,
       ctx.bearerToken,
     );
+    if (!link.ok) {
+      deps.logger?.warn(
+        { tenantId, patientId: input.patient_id, abhaAddress, reason: link.reason, status: link.status },
+        "EMPI linkAbhaAddress failed during existing-patient intake; ABHA address not linked",
+      );
+    }
   }
 
   const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);

@@ -120,7 +120,9 @@ async function main() {
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
-  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL);
+  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 

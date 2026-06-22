@@ -1,5 +1,10 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { ConfiguratorHttpPort, OpdHttpPort, VisitRepo } from "../ports.js";
+import type {
+  ConfiguratorHttpPort,
+  OpdHttpPort,
+  RegistrationLogger,
+  VisitRepo,
+} from "../ports.js";
 import type { CreateVisitInput, InsertVisitResult } from "../domain/visit.types.js";
 import {
   addDays,
@@ -110,6 +115,7 @@ export async function createVisit(
     eventBus: EventBus;
     opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
+    logger?: RegistrationLogger;
   },
   tenantId: string,
   input: CreateVisitInput,
@@ -144,13 +150,27 @@ export async function createVisit(
   if (result.created) {
     await publishVisitCreated(deps, result.record, ctx.actorId);
     if (deps.opdGateway) {
-      await deps.opdGateway.ensureEncounter(
+      // The visit is already committed; a failed encounter must NOT be silently
+      // swallowed into a 201 — log it so the incomplete intake is reconcilable.
+      const encounter = await deps.opdGateway.ensureEncounter(
         tenantId,
         result.record.id,
         result.record.patient_id,
         ctx.bearerToken,
         result.record.doctor_id,
       );
+      if (!encounter.ok) {
+        deps.logger?.warn(
+          {
+            tenantId,
+            visitId: result.record.id,
+            patientId: result.record.patient_id,
+            status: encounter.status,
+            body: encounter.body,
+          },
+          "OPD ensureEncounter failed after visit creation; encounter intake is incomplete and needs reconciliation",
+        );
+      }
     }
   }
 

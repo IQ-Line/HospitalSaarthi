@@ -1,6 +1,3 @@
-export { createRouter } from "./router.js";
-export type { RegistrationRouterOptions } from "./router.js";
-
 export {
   registerRegistrationsHandler,
   type RegistrationsHandlerDeps,

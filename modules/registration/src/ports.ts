@@ -175,6 +175,14 @@ export interface ConfiguratorHttpPort {
   getTenantFollowUpConfig(tenantId: string): Promise<TenantFollowUpConfig>;
 }
 
+/**
+ * Minimal structured logger (pino-compatible) so use-cases can surface
+ * swallowed cross-module degradations instead of returning silent success.
+ */
+export interface RegistrationLogger {
+  warn(detail: Record<string, unknown>, message: string): void;
+}
+
 export interface OpdHttpPort {
   ensureEncounter(
     tenantId: string,

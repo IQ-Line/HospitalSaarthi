@@ -112,6 +112,7 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
             eventBus: deps.eventBus,
             opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
+            logger: request.log,
           },
           request.tenantId,
           request.body,
