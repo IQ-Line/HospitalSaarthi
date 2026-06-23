@@ -785,7 +785,327 @@ function tenantRoleMutationError(err: unknown): string {
   return 'Request failed';
 }
 
+type RoleQueryBlockingState = { isPending: boolean; isError: boolean };
+
+/** Whether the user may modify the currently active editor (create vs edit capability). */
+function roleEditorCanModify(
+  isCreateMode: boolean,
+  isEditMode: boolean,
+  umRoleCreate: boolean,
+  umRoleUpdate: boolean,
+): boolean {
+  if (isCreateMode) return umRoleCreate;
+  if (isEditMode) return umRoleUpdate;
+  return false;
+}
+
+/** True when the create form holds any user-entered draft (text or selected capabilities). */
+function roleCreateFormHasDraft(
+  form: TenantRoleState['createRoleForm'],
+  selectedCapabilityIds: string[],
+): boolean {
+  return (
+    form.roleType !== '' ||
+    form.code !== '' ||
+    form.displayName !== '' ||
+    form.description !== '' ||
+    selectedCapabilityIds.length > 0
+  );
+}
+
+/** Whether the normalized draft has the minimum required fields to allow a save. */
+function roleDraftSaveEnabled(
+  canModify: boolean,
+  draft: ReturnType<typeof normalizeRoleDraft>,
+): boolean {
+  return (
+    canModify &&
+    draft.code.length > 0 &&
+    draft.role_type.length > 0 &&
+    draft.display_name.length > 0
+  );
+}
+
+/** Assignable-capability catalog is blocking the dialog (loading or errored) while the editor is open. */
+function assignableCatalogIsBlocking(
+  umCapabilityRead: boolean,
+  editorOpen: boolean,
+  query: RoleQueryBlockingState,
+): boolean {
+  return umCapabilityRead && editorOpen && (query.isPending || query.isError);
+}
+
+/** Role-capabilities query is blocking the edit/view dialog (loading or errored). */
+function roleCapabilitiesIsBlocking(
+  isCreateMode: boolean,
+  isEditMode: boolean,
+  isViewMode: boolean,
+  umRoleRead: boolean,
+  query: RoleQueryBlockingState,
+): boolean {
+  return (
+    !isCreateMode &&
+    (isEditMode || isViewMode) &&
+    umRoleRead &&
+    (query.isPending || query.isError)
+  );
+}
+
+/** Final enable/disable decision for the dialog Save button. */
+function resolveRoleDialogSaveEnabled(args: {
+  isCreateMode: boolean;
+  saveEnabled: boolean;
+  savePending: boolean;
+  selectedRoleExists: boolean;
+  editorDirty: boolean;
+  assignableCatalogBlocking: boolean;
+  roleCapabilitiesBlocking: boolean;
+  umCapabilityRead: boolean;
+}): boolean {
+  if (args.isCreateMode) {
+    return args.saveEnabled && !args.savePending && !args.assignableCatalogBlocking;
+  }
+  return (
+    args.saveEnabled &&
+    args.selectedRoleExists &&
+    args.editorDirty &&
+    !args.savePending &&
+    !args.roleCapabilitiesBlocking &&
+    (!args.umCapabilityRead || !args.assignableCatalogBlocking)
+  );
+}
+
+type RoleFieldKey = keyof TenantRoleState['createRoleForm'];
+type RoleDispatch = (action: TenantRoleAction) => void;
+
+/** Dispatch a field update to the create or edit form depending on the active mode. */
+function dispatchRoleField(
+  dispatch: RoleDispatch,
+  isCreateMode: boolean,
+  field: RoleFieldKey,
+  value: string,
+): void {
+  dispatch({
+    type: isCreateMode ? 'updateCreateField' : 'updateEditField',
+    field,
+    value,
+  });
+}
+
+/** Update the role type and, in create mode, auto-suggest a code unless it was hand-edited. */
+function handleRoleTypeFieldChange(args: {
+  dispatch: RoleDispatch;
+  isCreateMode: boolean;
+  createCodeManuallyEdited: boolean;
+  displayName: string;
+  suggestCode: (roleType: string, displayName: string) => string;
+  value: string;
+}): void {
+  dispatchRoleField(args.dispatch, args.isCreateMode, 'roleType', args.value);
+  if (args.isCreateMode && !args.createCodeManuallyEdited) {
+    args.dispatch({
+      type: 'updateCreateField',
+      field: 'code',
+      value: args.suggestCode(args.value, args.displayName),
+    });
+  }
+}
+
+/** Update the display name and, in create mode with a chosen role type, auto-suggest a code. */
+function handleDisplayNameFieldChange(args: {
+  dispatch: RoleDispatch;
+  isCreateMode: boolean;
+  createCodeManuallyEdited: boolean;
+  createRoleType: string;
+  suggestCode: (roleType: string, displayName: string) => string;
+  value: string;
+}): void {
+  dispatchRoleField(args.dispatch, args.isCreateMode, 'displayName', args.value);
+  if (args.isCreateMode && !args.createCodeManuallyEdited && args.createRoleType !== '') {
+    args.dispatch({
+      type: 'updateCreateField',
+      field: 'code',
+      value: args.suggestCode(args.createRoleType, args.value),
+    });
+  }
+}
+
+type PersistRoleCapabilities = (roleId: string, capabilityIds: string[]) => Promise<void>;
+
+/** Create a role, optionally seed its capabilities, toast, and return the saved role. */
+async function saveCreatedRole(args: {
+  createRoleDraft: ReturnType<typeof normalizeRoleDraft>;
+  createMutateAsync: (draft: ReturnType<typeof normalizeRoleDraft>) => Promise<UmRole>;
+  selectedCapabilityIds: string[];
+  umCapabilityRead: boolean;
+  umRoleCreate: boolean;
+  persistRoleCapabilities: PersistRoleCapabilities;
+}): Promise<UmRole> {
+  const savedRole = await args.createMutateAsync(args.createRoleDraft);
+  if (args.umCapabilityRead && args.umRoleCreate && args.selectedCapabilityIds.length > 0) {
+    await args.persistRoleCapabilities(savedRole.id, args.selectedCapabilityIds);
+  }
+  toast.success(`Role "${savedRole.display_name}" created`);
+  return savedRole;
+}
+
+/** Update a role (only if its fields changed), optionally persist capabilities, toast, and return it. */
+async function saveEditedRole(args: {
+  selectedRole: UmRole;
+  editRoleDraft: ReturnType<typeof normalizeRoleDraft>;
+  editRoleDirty: boolean;
+  updateMutateAsync: (draft: ReturnType<typeof normalizeRoleDraft>) => Promise<UmRole>;
+  selectedCapabilityIds: string[];
+  capabilitiesDirty: boolean;
+  umCapabilityRead: boolean;
+  umRoleUpdate: boolean;
+  persistRoleCapabilities: PersistRoleCapabilities;
+}): Promise<UmRole> {
+  const savedRole = args.editRoleDirty
+    ? await args.updateMutateAsync(args.editRoleDraft)
+    : args.selectedRole;
+  if (args.umCapabilityRead && args.umRoleUpdate && args.capabilitiesDirty) {
+    await args.persistRoleCapabilities(savedRole.id, args.selectedCapabilityIds);
+  }
+  toast.success(`Role "${savedRole.display_name}" updated`);
+  return savedRole;
+}
+
 const UM_BASE = '/api/user-management';
+
+type TenantRoleEditorConnectorProps = {
+  editorMode: Exclude<TenantRoleEditorMode, null>;
+  isCreateMode: boolean;
+  isEditMode: boolean;
+  isViewMode: boolean;
+  createFormSession: number;
+  editorOpen: boolean;
+  selectedRole: UmRole | null;
+  activeForm: TenantRoleState['createRoleForm'];
+  state: TenantRoleState;
+  assignedCapabilityIds: string[];
+  visibleCapabilityCount: number;
+  totalCapabilityCount: number;
+  editorDirty: boolean;
+  savePending: boolean;
+  canSaveDialog: boolean;
+  deletePending: boolean;
+  roleCapabilitiesPending: boolean;
+  roleCapabilitiesError: boolean;
+  assignableCatalogPending: boolean;
+  assignableCatalogError: boolean;
+  umCapabilityRead: boolean;
+  capabilitySearch: string;
+  capabilities: Capability[];
+  dispatch: RoleDispatch;
+  suggestCode: (roleType: string, displayName: string) => string;
+  onRetryAssignableCatalog: () => void;
+  onCapabilitySearchChange: (value: string) => void;
+  onCloseEditor: () => void;
+  onReset: () => void;
+  onSave: () => void;
+  onRequestDelete: () => void;
+};
+
+/** Wires the shared RoleEditorDialog to the tenant role-template reducer/state. */
+function TenantRoleEditorConnector({
+  editorMode,
+  isCreateMode,
+  isEditMode,
+  isViewMode,
+  createFormSession,
+  editorOpen,
+  selectedRole,
+  activeForm,
+  state,
+  assignedCapabilityIds,
+  visibleCapabilityCount,
+  totalCapabilityCount,
+  editorDirty,
+  savePending,
+  canSaveDialog,
+  deletePending,
+  roleCapabilitiesPending,
+  roleCapabilitiesError,
+  assignableCatalogPending,
+  assignableCatalogError,
+  umCapabilityRead,
+  capabilitySearch,
+  capabilities,
+  dispatch,
+  suggestCode,
+  onRetryAssignableCatalog,
+  onCapabilitySearchChange,
+  onCloseEditor,
+  onReset,
+  onSave,
+  onRequestDelete,
+}: TenantRoleEditorConnectorProps) {
+  const isEditOrView = isEditMode || isViewMode;
+  return (
+    <RoleEditorDialog
+      key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
+      open={editorOpen}
+      mode={editorMode}
+      role={selectedRole}
+      roleType={activeForm.roleType}
+      code={activeForm.code}
+      displayName={activeForm.displayName}
+      description={activeForm.description}
+      selectedCapabilityIds={state.selectedCapabilityIds}
+      assignedCapabilityIds={assignedCapabilityIds}
+      assignedCount={isCreateMode ? 0 : assignedCapabilityIds.length}
+      visibleCount={visibleCapabilityCount}
+      totalCapabilityCount={totalCapabilityCount}
+      isDirty={editorDirty}
+      savePending={savePending}
+      saveDisabled={!canSaveDialog}
+      deletePending={deletePending}
+      assignedCapabilitiesPending={isEditOrView ? roleCapabilitiesPending : false}
+      assignedCapabilitiesError={isEditOrView ? roleCapabilitiesError : false}
+      assignableCatalogPending={umCapabilityRead && assignableCatalogPending}
+      assignableCatalogError={umCapabilityRead && assignableCatalogError}
+      showCapabilityProvenance={umCapabilityRead}
+      productOnly
+      onRetryAssignableCatalog={onRetryAssignableCatalog}
+      capabilitySearch={capabilitySearch}
+      capabilities={capabilities}
+      onOpenChange={(open) => {
+        if (!open) onCloseEditor();
+      }}
+      onRoleTypeChange={(value) =>
+        handleRoleTypeFieldChange({
+          dispatch,
+          isCreateMode,
+          createCodeManuallyEdited: state.createCodeManuallyEdited,
+          displayName: activeForm.displayName,
+          suggestCode,
+          value,
+        })
+      }
+      onCodeChange={(value) => dispatchRoleField(dispatch, isCreateMode, 'code', toRoleCodeSlug(value))}
+      onDisplayNameChange={(value) =>
+        handleDisplayNameFieldChange({
+          dispatch,
+          isCreateMode,
+          createCodeManuallyEdited: state.createCodeManuallyEdited,
+          createRoleType: state.createRoleForm.roleType,
+          suggestCode,
+          value,
+        })
+      }
+      onDescriptionChange={(value) => dispatchRoleField(dispatch, isCreateMode, 'description', value)}
+      onCapabilitySearchChange={onCapabilitySearchChange}
+      onSetSelectedCapabilityIds={(capabilityIds) =>
+        dispatch({ type: 'setSelectedCapabilityIds', capabilityIds })
+      }
+      onToggleCapability={(capabilityId) => dispatch({ type: 'toggleCapability', capabilityId })}
+      onReset={onReset}
+      onSave={onSave}
+      onDelete={onRequestDelete}
+    />
+  );
+}
 
 
 export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string }) {
@@ -879,17 +1199,16 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   );
 
   const editorOpen = editorMode !== null;
-  const canModifyActiveEditor =
-    isCreateMode ? umRoleCreate : isEditMode ? umRoleUpdate : false;
+  const canModifyActiveEditor = roleEditorCanModify(
+    isCreateMode,
+    isEditMode,
+    umRoleCreate,
+    umRoleUpdate,
+  );
   const existingRoleCodes = useMemo(() => roles.map((r) => r.code), [roles]);
   const activeForm = isCreateMode ? state.createRoleForm : state.editRoleForm;
   const activeDraft = normalizeRoleDraft(activeForm);
-  const createHasDraft =
-    state.createRoleForm.roleType !== '' ||
-    state.createRoleForm.code !== '' ||
-    state.createRoleForm.displayName !== '' ||
-    state.createRoleForm.description !== '' ||
-    state.selectedCapabilityIds.length > 0;
+  const createHasDraft = roleCreateFormHasDraft(state.createRoleForm, state.selectedCapabilityIds);
   const editRoleDraft = normalizeRoleDraft(state.editRoleForm);
   const editRoleDirty =
     selectedRole !== null &&
@@ -898,11 +1217,7 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
     selectedRole !== null && !sameCapabilitySet(assignedCapabilityIds, state.selectedCapabilityIds);
   const editorDirty = isCreateMode ? createHasDraft : editRoleDirty || capabilitiesDirty;
   const savePending = dialogSavePending || createRole.isPending || updateRole.isPending;
-  const saveEnabled =
-    canModifyActiveEditor &&
-    activeDraft.code.length > 0 &&
-    activeDraft.role_type.length > 0 &&
-    activeDraft.display_name.length > 0;
+  const saveEnabled = roleDraftSaveEnabled(canModifyActiveEditor, activeDraft);
 
   const suggestCodeForCreate = (roleType: string, displayName: string) =>
     suggestUniqueRoleCode({
@@ -911,22 +1226,29 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
       existingCodes: existingRoleCodes,
     });
 
-  const assignableCatalogBlocking =
-    umCapabilityRead && editorMode !== null && (capabilitiesQuery.isPending || capabilitiesQuery.isError);
-  const roleCapabilitiesBlocking =
-    !isCreateMode &&
-    (isEditMode || isViewMode) &&
-    umRoleRead &&
-    (roleCapabilitiesQuery.isPending || roleCapabilitiesQuery.isError);
+  const assignableCatalogBlocking = assignableCatalogIsBlocking(
+    umCapabilityRead,
+    editorOpen,
+    capabilitiesQuery,
+  );
+  const roleCapabilitiesBlocking = roleCapabilitiesIsBlocking(
+    isCreateMode,
+    isEditMode,
+    isViewMode,
+    umRoleRead,
+    roleCapabilitiesQuery,
+  );
 
-  const canSaveDialog = isCreateMode
-    ? saveEnabled && !savePending && !assignableCatalogBlocking
-    : saveEnabled &&
-      selectedRole !== null &&
-      editorDirty &&
-      !savePending &&
-      !roleCapabilitiesBlocking &&
-      (!umCapabilityRead || !assignableCatalogBlocking);
+  const canSaveDialog = resolveRoleDialogSaveEnabled({
+    isCreateMode,
+    saveEnabled,
+    savePending,
+    selectedRoleExists: selectedRole !== null,
+    editorDirty,
+    assignableCatalogBlocking,
+    roleCapabilitiesBlocking,
+    umCapabilityRead,
+  });
 
   const resetCapabilityFilters = () => setCapabilitySearch('');
 
@@ -1011,21 +1333,28 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
     setDialogSavePending(true);
     try {
       let savedRole: UmRole;
-      const createRoleDraft = normalizeRoleDraft(state.createRoleForm);
-
       if (isCreateMode) {
-        savedRole = await createRole.mutateAsync(createRoleDraft);
-        if (umCapabilityRead && umRoleCreate && state.selectedCapabilityIds.length > 0) {
-          await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
-        }
-        toast.success(`Role "${savedRole.display_name}" created`);
+        savedRole = await saveCreatedRole({
+          createRoleDraft: normalizeRoleDraft(state.createRoleForm),
+          createMutateAsync: createRole.mutateAsync,
+          selectedCapabilityIds: state.selectedCapabilityIds,
+          umCapabilityRead,
+          umRoleCreate,
+          persistRoleCapabilities,
+        });
       } else {
         if (!selectedRole) return;
-        savedRole = editRoleDirty ? await updateRole.mutateAsync(editRoleDraft) : selectedRole;
-        if (umCapabilityRead && umRoleUpdate && capabilitiesDirty) {
-          await persistRoleCapabilities(savedRole.id, state.selectedCapabilityIds);
-        }
-        toast.success(`Role "${savedRole.display_name}" updated`);
+        savedRole = await saveEditedRole({
+          selectedRole,
+          editRoleDraft,
+          editRoleDirty,
+          updateMutateAsync: updateRole.mutateAsync,
+          selectedCapabilityIds: state.selectedCapabilityIds,
+          capabilitiesDirty,
+          umCapabilityRead,
+          umRoleUpdate,
+          persistRoleCapabilities,
+        });
       }
 
       dispatch({ type: 'selectRole', roleId: savedRole.id });
@@ -1061,94 +1390,40 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
       />
 
       {editorMode ? (
-        <RoleEditorDialog
-          key={isCreateMode ? `create-${createFormSession}` : `role-${selectedRole?.id ?? 'none'}`}
-          open={editorOpen}
-          mode={editorMode}
-          role={selectedRole}
-          roleType={activeForm.roleType}
-          code={activeForm.code}
-          displayName={activeForm.displayName}
-          description={activeForm.description}
-          selectedCapabilityIds={state.selectedCapabilityIds}
+        <TenantRoleEditorConnector
+          editorMode={editorMode}
+          isCreateMode={isCreateMode}
+          isEditMode={isEditMode}
+          isViewMode={isViewMode}
+          createFormSession={createFormSession}
+          editorOpen={editorOpen}
+          selectedRole={selectedRole}
+          activeForm={activeForm}
+          state={state}
           assignedCapabilityIds={assignedCapabilityIds}
-          assignedCount={isCreateMode ? 0 : assignedCapabilityIds.length}
-          visibleCount={visibleCapabilityIds.length}
+          visibleCapabilityCount={visibleCapabilityIds.length}
           totalCapabilityCount={editableCapabilities.length}
-          isDirty={editorDirty}
+          editorDirty={editorDirty}
           savePending={savePending}
-          saveDisabled={!canSaveDialog}
+          canSaveDialog={canSaveDialog}
           deletePending={deleteRole.isPending}
-          assignedCapabilitiesPending={
-            isEditMode || isViewMode ? roleCapabilitiesQuery.isPending : false
-          }
-          assignedCapabilitiesError={
-            isEditMode || isViewMode ? roleCapabilitiesQuery.isError : false
-          }
-          assignableCatalogPending={umCapabilityRead && capabilitiesQuery.isPending}
-          assignableCatalogError={umCapabilityRead && capabilitiesQuery.isError}
-          showCapabilityProvenance={umCapabilityRead}
-          productOnly
+          roleCapabilitiesPending={roleCapabilitiesQuery.isPending}
+          roleCapabilitiesError={roleCapabilitiesQuery.isError}
+          assignableCatalogPending={capabilitiesQuery.isPending}
+          assignableCatalogError={capabilitiesQuery.isError}
+          umCapabilityRead={umCapabilityRead}
+          capabilitySearch={capabilitySearch}
+          capabilities={filteredCapabilities}
+          dispatch={dispatch}
+          suggestCode={suggestCodeForCreate}
           onRetryAssignableCatalog={() => {
             void qc.invalidateQueries({ queryKey: userManagementKeys.assignableCapabilities() });
           }}
-          capabilitySearch={capabilitySearch}
-          capabilities={filteredCapabilities}
-          onOpenChange={(open) => {
-            if (!open) closeEditor();
-          }}
-          onRoleTypeChange={(value) => {
-            dispatch({
-              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
-              field: 'roleType',
-              value,
-            });
-            if (isCreateMode && !state.createCodeManuallyEdited) {
-              dispatch({
-                type: 'updateCreateField',
-                field: 'code',
-                value: suggestCodeForCreate(value, activeForm.displayName),
-              });
-            }
-          }}
-          onCodeChange={(value) =>
-            dispatch({
-              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
-              field: 'code',
-              value: toRoleCodeSlug(value),
-            })
-          }
-          onDisplayNameChange={(value) => {
-            dispatch({
-              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
-              field: 'displayName',
-              value,
-            });
-            if (isCreateMode && !state.createCodeManuallyEdited && state.createRoleForm.roleType !== '') {
-              dispatch({
-                type: 'updateCreateField',
-                field: 'code',
-                value: suggestCodeForCreate(state.createRoleForm.roleType, value),
-              });
-            }
-          }}
-          onDescriptionChange={(value) =>
-            dispatch({
-              type: isCreateMode ? 'updateCreateField' : 'updateEditField',
-              field: 'description',
-              value,
-            })
-          }
           onCapabilitySearchChange={setCapabilitySearch}
-          onSetSelectedCapabilityIds={(capabilityIds) =>
-            dispatch({ type: 'setSelectedCapabilityIds', capabilityIds })
-          }
-          onToggleCapability={(capabilityId) =>
-            dispatch({ type: 'toggleCapability', capabilityId })
-          }
+          onCloseEditor={closeEditor}
           onReset={handleResetEditor}
           onSave={() => void handleSaveEditor()}
-          onDelete={() => setDeleteRoleDialogOpen(true)}
+          onRequestDelete={() => setDeleteRoleDialogOpen(true)}
         />
       ) : null}
 
