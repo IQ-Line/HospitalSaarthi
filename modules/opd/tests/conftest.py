@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from opd import create_app
@@ -96,19 +96,28 @@ def prescription_client(db_session: Session) -> Generator[TestClient, None, None
 
 def make_create_payload(
     *,
-    tenant_id: UUID = TENANT_A,
     visit_id: UUID | None = None,
     patient_id: UUID = PATIENT_ID,
-    doctor_id: UUID = DOCTOR_ID,
 ) -> dict:
+    """Request body for POST /prescriptions.
+
+    tenant_id and doctor_id are NO LONGER body fields — they are resolved from the
+    iq_tenant_id / x-user-id request headers (see tenant_headers below).
+    """
     return {
-        "tenant_id": str(tenant_id),
         "visit_id": str(visit_id or uuid4()),
         "patient_id": str(patient_id),
-        "doctor_id": str(doctor_id),
         "clinical": {
             "chief_complaints": [
                 {"line_no": 1, "complaint_text": "Fever"},
             ],
         },
     }
+
+
+def tenant_headers(
+    tenant_id: UUID = TENANT_A,
+    doctor_id: UUID = DOCTOR_ID,
+) -> dict[str, str]:
+    """Trust-boundary headers the normalized /prescriptions routes read tenant/doctor from."""
+    return {"iq_tenant_id": str(tenant_id), "x-user-id": str(doctor_id)}

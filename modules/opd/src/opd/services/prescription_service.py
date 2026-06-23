@@ -6,14 +6,14 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from opd.data_access.visit_status import (
-    resolve_visit_status_for_prescription,
-    resolve_visit_statuses_for_prescriptions,
-)
 from opd.data_access.prescription_repository import (
     PrescriptionConflictError,
     PrescriptionNotFoundError,
     PrescriptionRepository,
+)
+from opd.data_access.visit_status import (
+    resolve_visit_status_for_prescription,
+    resolve_visit_statuses_for_prescriptions,
 )
 from opd.schemas.prescription.prescription import (
     PrescriptionCancelRequest,
@@ -32,8 +32,13 @@ class PrescriptionService:
         self._repository = repository
         self._session = session
 
-    def create(self, payload: PrescriptionCreate) -> PrescriptionDetailResponse:
-        row = self._repository.create(payload)
+    def create(
+        self,
+        tenant_id: UUID,
+        doctor_id: UUID,
+        payload: PrescriptionCreate,
+    ) -> PrescriptionDetailResponse:
+        row = self._repository.create(tenant_id, doctor_id, payload)
         return prescription_to_detail(row)
 
     def _with_visit_status(

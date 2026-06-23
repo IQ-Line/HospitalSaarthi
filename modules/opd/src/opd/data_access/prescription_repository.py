@@ -188,17 +188,22 @@ class PrescriptionRepository:
         )
         return existing is not None
 
-    def create(self, payload: PrescriptionCreate) -> PrescriptionModel:
-        if self.visit_has_prescription(payload.tenant_id, payload.visit_id):
+    def create(
+        self,
+        tenant_id: UUID,
+        doctor_id: UUID,
+        payload: PrescriptionCreate,
+    ) -> PrescriptionModel:
+        if self.visit_has_prescription(tenant_id, payload.visit_id):
             raise PrescriptionConflictError(
                 f"Prescription already exists for visit {payload.visit_id}"
             )
 
         rx = PrescriptionModel(
-            tenant_id=payload.tenant_id,
+            tenant_id=tenant_id,
             visit_id=payload.visit_id,
             patient_id=payload.patient_id,
-            doctor_id=payload.doctor_id,
+            doctor_id=doctor_id,
             vitals_schema_version=payload.vitals_schema_version,
             status=PrescriptionStatus.DRAFT,
             created_by=payload.created_by,
@@ -209,7 +214,7 @@ class PrescriptionRepository:
 
         rx.status_history.append(
             PrescriptionStatusHistoryModel(
-                tenant_id=payload.tenant_id,
+                tenant_id=tenant_id,
                 prescription_id=rx.id,
                 from_status=None,
                 to_status=PrescriptionStatus.DRAFT,
@@ -218,7 +223,7 @@ class PrescriptionRepository:
         )
         self._apply_clinical(rx, payload.clinical)
         self._session.flush()
-        return self.get_by_id(payload.tenant_id, rx.id)
+        return self.get_by_id(tenant_id, rx.id)
 
     def update(
         self, tenant_id: UUID, prescription_id: UUID, payload: PrescriptionUpdate

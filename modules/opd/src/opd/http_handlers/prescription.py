@@ -8,13 +8,14 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
-
+from opd.core.principal import resolve_doctor_id
+from opd.core.tenant import require_tenant_id
 from opd.data_access.prescription_repository import (
     PrescriptionConflictError,
     PrescriptionNotFoundError,
 )
 from opd.http_handlers.deps import get_prescription_service, get_session
+from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
 from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_after_prescription_finalize
 from opd.schemas.prescription import (
     PrescriptionCancelRequest,
@@ -28,6 +29,11 @@ from opd.schemas.prescription import (
 from opd.services.prescription_service import PrescriptionService
 
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
+
+# Tenant/doctor are trust-boundary inputs resolved from request headers, never the
+# query string or body — same Annotated alias pattern as the JSONB family.
+TenantId = Annotated[UUID, Depends(require_tenant_id)]
+DoctorId = Annotated[UUID, Depends(resolve_doctor_id)]
 
 _MAX_BATCH_VISIT_IDS = 100
 
@@ -53,7 +59,7 @@ def _conflict(exc: PrescriptionConflictError) -> HTTPException:
 @router.get("", response_model=PrescriptionListResponse, summary="List prescriptions for a patient")
 def list_prescriptions(
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     patient_id: Annotated[UUID, Query(description="Patient identifier")],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -72,9 +78,11 @@ def create_prescription(
     payload: PrescriptionCreate,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
+    tenant_id: TenantId,
+    doctor_id: DoctorId,
 ) -> PrescriptionSingleResponse:
     try:
-        data = service.create(payload)
+        data = service.create(tenant_id, doctor_id, payload)
     except PrescriptionConflictError as exc:
         raise _conflict(exc) from exc
     session.commit()
@@ -88,7 +96,7 @@ def create_prescription(
 )
 def get_prescription_by_visit(
     visit_id: UUID,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
 ) -> PrescriptionSingleResponse:
     try:
@@ -104,7 +112,7 @@ def get_prescription_by_visit(
     summary="Batch prescription + visit queue status by registration visit_ids",
 )
 def get_prescription_overlays_by_visits(
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     visit_ids: Annotated[
         str | None,
@@ -130,7 +138,7 @@ def get_prescription_overlays_by_visits(
 )
 def get_prescription(
     prescription_id: UUID,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
 ) -> PrescriptionSingleResponse:
     try:
@@ -148,7 +156,7 @@ def get_prescription(
 def update_prescription(
     prescription_id: UUID,
     payload: PrescriptionUpdate,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
 ) -> PrescriptionSingleResponse:
@@ -171,7 +179,7 @@ def finalize_prescription(
     prescription_id: UUID,
     payload: PrescriptionFinalizeRequest,
     background_tasks: BackgroundTasks,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
 ) -> PrescriptionSingleResponse:
@@ -200,7 +208,7 @@ def finalize_prescription(
 def cancel_prescription(
     prescription_id: UUID,
     payload: PrescriptionCancelRequest,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
 ) -> PrescriptionSingleResponse:
@@ -221,7 +229,7 @@ def cancel_prescription(
 )
 def delete_prescription(
     prescription_id: UUID,
-    tenant_id: Annotated[UUID, Query(description="Tenant isolation key")],
+    tenant_id: TenantId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
 ) -> None:

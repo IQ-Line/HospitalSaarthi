@@ -180,10 +180,10 @@ class PrescriptionClinicalPayload(BaseModel):
 
 
 class PrescriptionCreate(BaseModel):
-    tenant_id: UUID
+    # tenant_id and doctor_id are resolved from request headers (not the body) — see
+    # core/tenant.py require_tenant_id and core/principal.py resolve_doctor_id.
     visit_id: UUID  # Same UUID as registration.registration.visit_id (registration module)
     patient_id: UUID
-    doctor_id: UUID
     vitals_schema_version: int = 1
     created_by: UUID | None = None
     clinical: PrescriptionClinicalPayload = Field(default_factory=PrescriptionClinicalPayload)
