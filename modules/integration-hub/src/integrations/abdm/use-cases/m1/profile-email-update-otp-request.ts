@@ -7,6 +7,7 @@ import type { AbdmTenantInput } from "../../ports.js";
 import { m1ProfileUpdateSendOtp } from "../../lib/m1-profile-update-flow.js";
 import { AbdmUseCaseError } from "../../lib/m1-errors.js";
 
+// eslint-disable-next-line sonarjs/slow-regex -- `@` is excluded from every class, so the first split is unambiguous; the remaining `[^\s@]+\.[^\s@]+$` has no nested quantifier (linear backtracking only); not ReDoS
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function profileEmailUpdateOtpRequest(

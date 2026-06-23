@@ -11,7 +11,7 @@
  * lands (per ADR-0027). The port signatures themselves do not change.
  */
 
-import type { M3HipState, M3HiuState } from "@hims/ts-sdk-abha";
+import type { M3HiuState } from "@hims/ts-sdk-abha";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { AbdmSession } from "./domain/session.js";
 

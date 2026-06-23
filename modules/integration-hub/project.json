@@ -26,10 +26,7 @@
     "lint": {
       "executor": "@nx/eslint:lint",
       "options": {
-        "lintFilePatterns": [
-          "modules/integration-hub/src/index.ts",
-          "modules/integration-hub/src/lib/**/*.ts"
-        ]
+        "lintFilePatterns": ["modules/integration-hub/src/**/*.ts"]
       }
     }
   }

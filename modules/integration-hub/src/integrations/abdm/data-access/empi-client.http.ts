@@ -2,10 +2,11 @@ import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import { EmpiClientError } from "../lib/empi-client-error.js";
 import { parseEmpiPatientDetail } from "../lib/parse-empi-m2-patient.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type { EmpiClient, M2PatientProfile } from "../ports.js";
 
 const EMPI_API_PREFIX =
-  process.env["EMPI_API_PREFIX"]?.trim().replace(/\/+$/, "") || "/api/empi/v1";
+  stripTrailingSlashes(process.env["EMPI_API_PREFIX"]?.trim() ?? "") || "/api/empi/v1";
 
 function isClientError(status: number): boolean {
   return status >= 400 && status < 500;
@@ -23,7 +24,7 @@ export class HttpEmpiClient implements EmpiClient {
     abhaAddress: string;
   }): Promise<{ patientId: string; demographics: Record<string, unknown> } | null> {
     if (!this.baseUrl) return null;
-    const url = new URL(`${EMPI_API_PREFIX}/patients/find`, this.baseUrl.replace(/\/+$/, ""));
+    const url = new URL(`${EMPI_API_PREFIX}/patients/find`, stripTrailingSlashes(this.baseUrl));
     url.searchParams.set("abha_address", input.abhaAddress);
     try {
       const res = await fetchWithTimeout(url.toString(), {
@@ -68,7 +69,7 @@ export class HttpEmpiClient implements EmpiClient {
     if (!this.baseUrl) return null;
     const url = new URL(
       `${EMPI_API_PREFIX}/patients/find-by-demographics`,
-      this.baseUrl.replace(/\/+$/, ""),
+      stripTrailingSlashes(this.baseUrl),
     );
     try {
       const res = await fetchWithTimeout(url.toString(), {
@@ -124,7 +125,7 @@ export class HttpEmpiClient implements EmpiClient {
     patientId: string;
   }): Promise<M2PatientProfile | null> {
     if (!this.baseUrl) return null;
-    const url = `${this.baseUrl.replace(/\/+$/, "")}${EMPI_API_PREFIX}/patients/${input.patientId}`;
+    const url = `${stripTrailingSlashes(this.baseUrl)}${EMPI_API_PREFIX}/patients/${input.patientId}`;
     try {
       const res = await fetchWithTimeout(url, {
         method: "GET",

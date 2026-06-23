@@ -146,7 +146,7 @@ export async function registerM3CallbackRoutes(
       throw e;
     }
 
-    let pushRequestId = "";
+    let pushRequestId: string;
     try {
       pushRequestId = resolveInboundRequestId(headers, req.body);
     } catch {

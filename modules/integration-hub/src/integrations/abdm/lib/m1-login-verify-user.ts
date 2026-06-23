@@ -111,7 +111,8 @@ export async function m1LoginVerifyUser(
     headers: nhaLoginTTokenHeaders(transferToken),
   });
   const { xToken, tToken } = extractLoginProfileTokens(nha);
-  const txnId = typeof nha.token === "string" && nha.token ? session.txnId : session.txnId;
+  // verify/user does not change the txn; session.txnId is retained (NHA's verify token is consumed as xToken/tToken above, not as a txnId).
+  const txnId = session.txnId;
 
   await deps.sessions.patch({
     iqTenantId,

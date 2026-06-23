@@ -30,6 +30,7 @@ export async function verifyAbhaAddressOtpRequest(
     otpSystem,
     plainLoginId: abhaAddress,
     initialContext: {
+      // eslint-disable-next-line sonarjs/slow-regex -- linear — `@` is a required literal separator, no nested quantifier; masks a short validated abhaAddress for a log hint only, not ReDoS
       abhaAddressHint: abhaAddress.replace(/(.{2}).+(@.+)/, "$1***$2"),
       verifyChannel: channel,
     },
