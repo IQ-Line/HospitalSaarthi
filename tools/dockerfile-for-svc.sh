@@ -18,7 +18,7 @@ svc="${1:?usage: $0 <service-name>}"
 
 case "$svc" in
   # TS backend services + bff — all use the shared template, context = repo root
-  integration-hub-svc|billing-svc|configurator-svc|empi-svc|pharmacy-svc|registration-svc|user-management-svc|bff)
+  integration-hub-svc|billing-svc|configurator-svc|empi-svc|pharmacy-svc|registration-svc|user-management-svc|record-foundation-svc|bff)
     echo "infra/docker/node-svc.Dockerfile ."
     ;;
   web)
