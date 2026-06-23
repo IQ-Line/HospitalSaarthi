@@ -27,6 +27,7 @@ import {
 import type {
   AbhaCreatedPayload,
   EnrolAadhaarVerifyResponse,
+  LoginAbhaNumberOtpResponse,
   LoginOtpChannel,
   ProfileAccountResponse,
   VerifyAbhaAddressChannel,
@@ -34,7 +35,7 @@ import type {
 import type { AbhaWizardFlow } from './types';
 import { ABHA_ADDRESS_SUFFIX, CONSENT_ITEMS, MAX_OTP_SENDS } from './constants';
 import { abhaWizardReducer, createInitialAbhaWizardState } from './reducer';
-import type { AbhaWizardState, LoginMode } from './types';
+import type { AbhaWizardAction, AbhaWizardState, LoginMode } from './types';
 import {
   extractMobileLast4FromMessage,
   formatMaskedMobileLast4,
@@ -57,6 +58,52 @@ import { mutationErrorMessage } from '@/lib/mutation-error';
 
 function isConflictError(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409;
+}
+
+const goTo = (next: AbhaWizardState['step']): AbhaWizardAction => ({ type: 'SET_STEP', step: next });
+
+// Back-navigation from `login-otp` depends on which login mode produced the OTP.
+function loginOtpBackActions(mode: LoginMode | null): AbhaWizardAction[] {
+  if (mode === 'mobile') return [goTo('login-mobile')];
+  if (mode === 'aadhaar') return [goTo('consent')];
+  if (mode === 'abha-address') return [goTo('login-abha-address-channel')];
+  return [goTo('login-abha-channel')];
+}
+
+// Pure mapping from the current wizard state to the reducer action(s) the Back
+// button should dispatch. Returns [] when the current step has no Back target.
+// The caller still owns the `isSubmitting` guard and the actual dispatching.
+function computeBackActions(state: AbhaWizardState): AbhaWizardAction[] {
+  const { login, consent, address } = state;
+  switch (state.step) {
+    case 'login-abha-channel':
+      return [goTo('login-abha-number')];
+    case 'login-abha-address-channel':
+      return [goTo('login-abha-address')];
+    case 'login-abha-number':
+    case 'login-abha-address':
+      return [goTo('login-method')];
+    case 'login-mobile':
+      return [goTo('login-method')];
+    case 'login-account-select':
+      return [goTo('login-otp')];
+    case 'login-otp':
+      return loginOtpBackActions(login.mode);
+    case 'login-method':
+      return [goTo('method')];
+    case 'consent':
+      return consent.isLoginAadhaarConsent
+        ? [{ type: 'SET_LOGIN_AADHAAR_CONSENT', value: false }, goTo('login-method')]
+        : [goTo('method')];
+    case 'otp':
+      return [goTo('consent')];
+    case 'address-edit':
+      return address.needsMobileVerifyOtp && address.suggestions.length === 0
+        ? [goTo('otp')]
+        : [{ type: 'RESET_ADDRESS_EDIT' }];
+    default:
+      return [];
+  }
 }
 
 export interface UseAbhaWizardParams {
@@ -127,6 +174,41 @@ function computeDerived(state: AbhaWizardState) {
     isVerifyTitle,
     isFrontdeskVerify,
   };
+}
+
+type AbhaWizardDerived = ReturnType<typeof computeDerived>;
+
+// Picks the resend request for the active login mode, validating mode-specific
+// preconditions. Returns a thunk that issues the request, or null when the
+// current mode/inputs are not in a resendable state (caller should bail out).
+function buildLoginResendRequest(
+  mode: LoginMode,
+  login: AbhaWizardState['login'],
+  derived: AbhaWizardDerived,
+): (() => Promise<LoginAbhaNumberOtpResponse>) | null {
+  if (mode === 'abha-number') {
+    if (!login.channel || !derived.loginAbhaNumberValid) return null;
+    const channel = login.channel;
+    return () =>
+      derived.isFrontdeskVerify
+        ? sendVerifyAbhaNumberOtp({ abhaNumber: derived.loginAbhaNumberDigits, channel })
+        : sendLoginAbhaNumberOtp({ abhaNumber: derived.loginAbhaNumberDigits, channel });
+  }
+  if (mode === 'abha-address') {
+    if (!login.abhaAddressChannel || !derived.loginAbhaAddressValid) return null;
+    const channel = login.abhaAddressChannel;
+    return () =>
+      sendVerifyAbhaAddressOtp({
+        abhaAddress: fullAbhaAddressFromLocal(login.abhaAddress, ABHA_ADDRESS_SUFFIX),
+        channel,
+      });
+  }
+  if (mode === 'mobile') {
+    if (!derived.loginMobileValid) return null;
+    return () => sendLoginMobileOtp(login.mobile);
+  }
+  if (!/^\d{12}$/.test(derived.fullAadhaar)) return null;
+  return () => sendLoginAadhaarOtp(derived.fullAadhaar);
 }
 
 export function useAbhaWizard({
@@ -328,36 +410,7 @@ export function useAbhaWizard({
 
   const handleBack = useCallback(() => {
     if (state.isSubmitting) return;
-    const { step, login, consent } = state;
-    if (step === 'login-abha-channel') dispatch({ type: 'SET_STEP', step: 'login-abha-number' });
-    else if (step === 'login-abha-address-channel')
-      dispatch({ type: 'SET_STEP', step: 'login-abha-address' });
-    else if (step === 'login-abha-number' || step === 'login-abha-address')
-      dispatch({ type: 'SET_STEP', step: 'login-method' });
-    else if (step === 'login-mobile') dispatch({ type: 'SET_STEP', step: 'login-method' });
-    else if (step === 'login-account-select') dispatch({ type: 'SET_STEP', step: 'login-otp' });
-    else if (step === 'login-otp') {
-      if (login.mode === 'mobile') dispatch({ type: 'SET_STEP', step: 'login-mobile' });
-      else if (login.mode === 'aadhaar') dispatch({ type: 'SET_STEP', step: 'consent' });
-      else if (login.mode === 'abha-address')
-        dispatch({ type: 'SET_STEP', step: 'login-abha-address-channel' });
-      else dispatch({ type: 'SET_STEP', step: 'login-abha-channel' });
-    } else if (step === 'login-method') dispatch({ type: 'SET_STEP', step: 'method' });
-    else if (step === 'consent') {
-      if (consent.isLoginAadhaarConsent) {
-        dispatch({ type: 'SET_LOGIN_AADHAAR_CONSENT', value: false });
-        dispatch({ type: 'SET_STEP', step: 'login-method' });
-      } else {
-        dispatch({ type: 'SET_STEP', step: 'method' });
-      }
-    } else if (step === 'otp') dispatch({ type: 'SET_STEP', step: 'consent' });
-    else if (step === 'address-edit') {
-      if (state.address.needsMobileVerifyOtp && state.address.suggestions.length === 0) {
-        dispatch({ type: 'SET_STEP', step: 'otp' });
-      } else {
-        dispatch({ type: 'RESET_ADDRESS_EDIT' });
-      }
-    }
+    for (const action of computeBackActions(state)) dispatch(action);
   }, [state.address.needsMobileVerifyOtp, state.address.suggestions.length, state.isSubmitting, state.step, state.login, state.consent]);
 
   const handleLoginMethodSelect = useCallback((methodId: string) => {
@@ -539,40 +592,13 @@ export function useAbhaWizard({
   ]);
 
   const handleLoginResendOtp = useCallback(async () => {
-    const { mode, channel, abhaAddressChannel, mobile } = state.login;
+    const { mode } = state.login;
     if (!derived.canResendLoginOtp || !mode || state.isSubmitting) return;
     dispatch({ type: 'SET_SUBMITTING', isSubmitting: true });
     try {
-      let res;
-      if (mode === 'abha-number') {
-        if (!channel || !derived.loginAbhaNumberValid) return;
-        res = derived.isFrontdeskVerify
-          ? await sendVerifyAbhaNumberOtp({
-              abhaNumber: derived.loginAbhaNumberDigits,
-              channel,
-            })
-          : await sendLoginAbhaNumberOtp({
-              abhaNumber: derived.loginAbhaNumberDigits,
-              channel,
-            });
-      } else if (mode === 'abha-address') {
-        if (!abhaAddressChannel || !derived.loginAbhaAddressValid) return;
-        res = await sendVerifyAbhaAddressOtp({
-          abhaAddress: fullAbhaAddressFromLocal(
-            state.login.abhaAddress,
-            ABHA_ADDRESS_SUFFIX,
-          ),
-          channel: abhaAddressChannel,
-        });
-      } else if (mode === 'mobile') {
-        if (!derived.loginMobileValid) return;
-        res = await sendLoginMobileOtp(mobile);
-      } else if (mode === 'aadhaar') {
-        if (!/^\d{12}$/.test(derived.fullAadhaar)) return;
-        res = await sendLoginAadhaarOtp(derived.fullAadhaar);
-      } else {
-        return;
-      }
+      const request = buildLoginResendRequest(mode, state.login, derived);
+      if (!request) return;
+      const res = await request();
       dispatch({ type: 'SET_OTP_SESSION_ID', sessionId: res.sessionId });
       dispatch({ type: 'LOGIN_OTP_SENT' });
       dispatch({ type: 'START_LOGIN_RESEND_COOLDOWN' });

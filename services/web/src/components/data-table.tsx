@@ -4,9 +4,12 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
+  type Column,
   type ColumnDef,
   type OnChangeFn,
   type PaginationState,
+  type Table as ReactTable,
+  type TableOptions,
   type VisibilityState,
 } from '@tanstack/react-table';
 import {
@@ -51,6 +54,16 @@ type DataTableColumnMeta = {
   cellClassName?: string;
 };
 
+/** Server-driven pagination; when set, table shows pager footer and does not slice rows client-side. */
+type ManualPagination = {
+  pageIndex: number;
+  pageSize: number;
+  total: number;
+  pageSizeOptions?: readonly number[];
+  onPageChange: (pageIndex: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+};
+
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[];
   data: TData[];
@@ -64,19 +77,215 @@ interface DataTableProps<TData> {
   className?: string;
   /** Show TanStack column visibility menu (reference UI “Columns”). */
   showColumnMenu?: boolean;
-  /** Server-driven pagination; when set, table shows pager footer and does not slice rows client-side. */
-  manualPagination?: {
-    pageIndex: number;
-    pageSize: number;
-    total: number;
-    pageSizeOptions?: readonly number[];
-    onPageChange: (pageIndex: number) => void;
-    onPageSizeChange: (pageSize: number) => void;
-  };
+  manualPagination?: ManualPagination;
 }
 
 function readColumnMeta(meta: unknown): DataTableColumnMeta {
   return (meta ?? {}) as DataTableColumnMeta;
+}
+
+/**
+ * Builds the pagination-related slice of TanStack table options. Mirrors the
+ * three branches the table needs: manual (server) pagination, column-menu only,
+ * or neither. Pure helper so the component render body stays flat.
+ */
+function buildTableStateOptions<TData>(args: {
+  manualPagination: ManualPagination | undefined;
+  paginationState: PaginationState | undefined;
+  pageCount: number | undefined;
+  onPaginationChange: OnChangeFn<PaginationState> | undefined;
+  showColumnMenu: boolean;
+  columnVisibility: VisibilityState;
+  setColumnVisibility: OnChangeFn<VisibilityState>;
+}): Partial<TableOptions<TData>> {
+  const {
+    manualPagination,
+    paginationState,
+    pageCount,
+    onPaginationChange,
+    showColumnMenu,
+    columnVisibility,
+    setColumnVisibility,
+  } = args;
+
+  if (manualPagination && paginationState && pageCount != null && onPaginationChange) {
+    return {
+      manualPagination: true,
+      pageCount,
+      state: { columnVisibility, pagination: paginationState },
+      onColumnVisibilityChange: setColumnVisibility,
+      onPaginationChange,
+    };
+  }
+  if (showColumnMenu) {
+    return {
+      state: { columnVisibility },
+      onColumnVisibilityChange: setColumnVisibility,
+    };
+  }
+  return {};
+}
+
+function columnVisibilityLabel<TData>(column: Column<TData, unknown>): string {
+  const { columnDef } = column;
+  if (typeof columnDef.header === 'string') return columnDef.header;
+  return readColumnMeta(columnDef.meta).label ?? column.id;
+}
+
+function ColumnVisibilityMenu<TData>({ table }: { table: ReactTable<TData> }) {
+  return (
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5">
+            <Columns3 className="size-4" aria-hidden />
+            Columns
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {table.getAllLeafColumns().map((column) => {
+            if (!column.getCanHide()) return null;
+            return (
+              <DropdownMenuCheckboxItem
+                key={column.id}
+                className="capitalize"
+                checked={column.getIsVisible()}
+                onCheckedChange={(v) => column.toggleVisibility(!!v)}
+              >
+                {columnVisibilityLabel<TData>(column)}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+function DataTableHead<TData>({ table }: { table: ReactTable<TData> }) {
+  return (
+    <TableHeader>
+      {table.getHeaderGroups().map((headerGroup) => (
+        <TableRow key={headerGroup.id}>
+          {headerGroup.headers.map((header) => (
+            <TableHead
+              key={header.id}
+              className={readColumnMeta(header.column.columnDef.meta).headerClassName}
+            >
+              {header.isPlaceholder
+                ? null
+                : flexRender(header.column.columnDef.header, header.getContext())}
+            </TableHead>
+          ))}
+        </TableRow>
+      ))}
+    </TableHeader>
+  );
+}
+
+function DataTableRow<TData>({
+  row,
+  onRowClick,
+}: {
+  row: ReturnType<ReactTable<TData>['getRowModel']>['rows'][number];
+  onRowClick?: (row: TData) => void;
+}) {
+  return (
+    <TableRow
+      className={onRowClick ? 'cursor-pointer' : undefined}
+      onClick={
+        onRowClick
+          ? (event) => {
+              if (isInteractiveTableRowTarget(event.target)) return;
+              onRowClick(row.original);
+            }
+          : undefined
+      }
+    >
+      {row.getVisibleCells().map((cell) => (
+        <TableCell
+          key={cell.id}
+          className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
+        >
+          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+        </TableCell>
+      ))}
+    </TableRow>
+  );
+}
+
+function DataTableBody<TData>({
+  table,
+  onRowClick,
+}: {
+  table: ReactTable<TData>;
+  onRowClick?: (row: TData) => void;
+}) {
+  return (
+    <TableBody>
+      {table.getRowModel().rows.map((row) => (
+        <DataTableRow<TData> key={row.id} row={row} onRowClick={onRowClick} />
+      ))}
+    </TableBody>
+  );
+}
+
+function PaginationFooter({ manualPagination }: { manualPagination: ManualPagination }) {
+  return (
+    <div className="flex flex-col gap-2 border-t px-4 pt-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-muted-foreground">
+        Showing{' '}
+        {manualPagination.total === 0
+          ? 0
+          : manualPagination.pageIndex * manualPagination.pageSize + 1}
+        –
+        {Math.min(
+          manualPagination.total,
+          (manualPagination.pageIndex + 1) * manualPagination.pageSize,
+        )}{' '}
+        of {manualPagination.total}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          value={String(manualPagination.pageSize)}
+          onValueChange={(v) => manualPagination.onPageSizeChange(Number(v))}
+        >
+          <SelectTrigger className="w-[110px]" aria-label="Rows per page">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(manualPagination.pageSizeOptions ?? [10, 20, 50]).map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n} / page
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={manualPagination.pageIndex <= 0}
+          onClick={() => manualPagination.onPageChange(manualPagination.pageIndex - 1)}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={
+            (manualPagination.pageIndex + 1) * manualPagination.pageSize >= manualPagination.total
+          }
+          onClick={() => manualPagination.onPageChange(manualPagination.pageIndex + 1)}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function DataTable<TData>({
@@ -120,20 +329,15 @@ export function DataTable<TData>({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    ...(manualPagination && paginationState && pageCount != null && onPaginationChange
-      ? {
-          manualPagination: true,
-          pageCount,
-          state: { columnVisibility, pagination: paginationState },
-          onColumnVisibilityChange: setColumnVisibility,
-          onPaginationChange,
-        }
-      : showColumnMenu
-        ? {
-            state: { columnVisibility },
-            onColumnVisibilityChange: setColumnVisibility,
-          }
-        : {}),
+    ...buildTableStateOptions<TData>({
+      manualPagination,
+      paginationState,
+      pageCount,
+      onPaginationChange,
+      showColumnMenu,
+      columnVisibility,
+      setColumnVisibility,
+    }),
   });
 
   if (isLoading) {
@@ -159,135 +363,12 @@ export function DataTable<TData>({
 
   return (
     <div className={className ? `space-y-2 ${className}` : 'space-y-2'}>
-      {showColumnMenu ? (
-        <div className="flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="gap-1.5">
-                <Columns3 className="size-4" aria-hidden />
-                Columns
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {table.getAllLeafColumns().map((column) => {
-                if (!column.getCanHide()) return null;
-                const label =
-                  typeof column.columnDef.header === 'string'
-                    ? column.columnDef.header
-                    : readColumnMeta(column.columnDef.meta).label ?? column.id;
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    className="capitalize"
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(v) => column.toggleVisibility(!!v)}
-                  >
-                    {label}
-                  </DropdownMenuCheckboxItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : null}
+      {showColumnMenu ? <ColumnVisibilityMenu<TData> table={table} /> : null}
       <Table className={tableClassName}>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className={readColumnMeta(header.column.columnDef.meta).headerClassName}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className={onRowClick ? 'cursor-pointer' : undefined}
-              onClick={
-                onRowClick
-                  ? (event) => {
-                      if (isInteractiveTableRowTarget(event.target)) return;
-                      onRowClick(row.original);
-                    }
-                  : undefined
-              }
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
-        </TableBody>
+        <DataTableHead<TData> table={table} />
+        <DataTableBody<TData> table={table} onRowClick={onRowClick} />
       </Table>
-      {manualPagination ? (
-        <div className="flex flex-col gap-2 border-t px-4 pt-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
-            Showing{' '}
-            {manualPagination.total === 0
-              ? 0
-              : manualPagination.pageIndex * manualPagination.pageSize + 1}
-            –
-            {Math.min(
-              manualPagination.total,
-              (manualPagination.pageIndex + 1) * manualPagination.pageSize,
-            )}{' '}
-            of {manualPagination.total}
-          </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select
-              value={String(manualPagination.pageSize)}
-              onValueChange={(v) => manualPagination.onPageSizeChange(Number(v))}
-            >
-              <SelectTrigger className="w-[110px]" aria-label="Rows per page">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(manualPagination.pageSizeOptions ?? [10, 20, 50]).map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n} / page
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={manualPagination.pageIndex <= 0}
-              onClick={() => manualPagination.onPageChange(manualPagination.pageIndex - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={
-                (manualPagination.pageIndex + 1) * manualPagination.pageSize >= manualPagination.total
-              }
-              onClick={() => manualPagination.onPageChange(manualPagination.pageIndex + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      {manualPagination ? <PaginationFooter manualPagination={manualPagination} /> : null}
     </div>
   );
 }

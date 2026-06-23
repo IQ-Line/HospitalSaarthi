@@ -1,7 +1,12 @@
 import { useEffect, useMemo, type ChangeEvent } from 'react';
-import { useForm } from 'react-hook-form';
+import {
+  useForm,
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
+} from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@pulse/ui/alert';
@@ -125,6 +130,159 @@ function tariffRowsFingerprint(
     .join(';');
 }
 
+type SubmitEditUserDeps = {
+  user: UmUser;
+  isDoctor: boolean;
+  activeDepartments: Department[];
+  doctorTariffsFailed: boolean;
+  tenantScope?: string;
+  qc: QueryClient;
+  tariffsQueryKey: ReturnType<typeof doctorConsultationTariffsQueryKey>;
+  mutateAsync: (body: UpdateUserBody) => Promise<UmUser>;
+  setError: (error: string) => void;
+  onSuccess: () => void;
+};
+
+function resolvePrimaryDeptName(values: FormValues, deps: SubmitEditUserDeps): string | null {
+  if (deps.isDoctor) {
+    return (
+      deps.activeDepartments.find((d) => d.id === values.doctor_tariffs[0]?.department_id)?.name ??
+      null
+    );
+  }
+  return deps.user.department ?? null;
+}
+
+async function persistDoctorTariffs(values: FormValues, deps: SubmitEditUserDeps): Promise<void> {
+  const { user, tenantScope, activeDepartments, qc, tariffsQueryKey } = deps;
+  await syncDoctorConsultationTariffs(
+    user.id,
+    values.full_name,
+    values.doctor_tariffs,
+    activeDepartments,
+    tenantScope,
+  );
+  await qc.invalidateQueries({ queryKey: tariffsQueryKey });
+  const refreshed = await listDoctorConsultationTariffs(user.id, tenantScope);
+  qc.setQueryData(tariffsQueryKey, refreshed);
+}
+
+async function submitEditUserChanges(values: FormValues, deps: SubmitEditUserDeps): Promise<void> {
+  if (deps.isDoctor) {
+    const tariffError = validateDoctorTariffs(values.doctor_tariffs);
+    if (tariffError) {
+      deps.setError(tariffError);
+      return;
+    }
+  }
+
+  const primaryDeptName = resolvePrimaryDeptName(values, deps);
+
+  try {
+    const updatedUser = await deps.mutateAsync(toPatch(values, primaryDeptName));
+    if (deps.isDoctor && values.doctor_tariffs.length > 0 && !deps.doctorTariffsFailed) {
+      await persistDoctorTariffs(values, deps);
+    }
+    deps.qc.setQueryData(
+      userManagementKeys.userDetail(deps.user.id, userTenantScopeKey(deps.tenantScope)),
+      updatedUser,
+    );
+    toast.success('Profile updated');
+    deps.onSuccess();
+  } catch (err) {
+    toast.error(mutationErrorMessage(err));
+  }
+}
+
+function DoctorTariffsErrorAlert({ error }: { error: Error | null }) {
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Could not load consultation tariffs</AlertTitle>
+      <AlertDescription>
+        {error instanceof Error ? error.message : 'Billing service error.'} Apply billing
+        migrations: <code className="text-xs">npx nx run billing:db-migrate</code> (or{' '}
+        <code className="text-xs">make db-migrate</code>), then retry. You can still edit name and
+        contact details below.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+type EditUserFormFieldsProps = {
+  register: UseFormRegister<FormValues>;
+  control: Control<FormValues>;
+  errors: FieldErrors<FormValues>;
+  isDoctor: boolean;
+  doctorTariffsFailed: boolean;
+  tariffsError: Error | null;
+  doctorSectionKey: string;
+  tenantScope?: string;
+};
+
+function EditUserFormFields({
+  register,
+  control,
+  errors,
+  isDoctor,
+  doctorTariffsFailed,
+  tariffsError,
+  doctorSectionKey,
+  tenantScope,
+}: EditUserFormFieldsProps) {
+  return (
+    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain p-4">
+      <div className="space-y-2">
+        <Label htmlFor="edit_full_name">Full name</Label>
+        <Input id="edit_full_name" {...register('full_name')} />
+        {errors.full_name ? (
+          <p className="text-sm text-destructive">{errors.full_name.message}</p>
+        ) : null}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="edit_email">Email</Label>
+        <Input id="edit_email" type="email" {...register('email')} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="edit_phone">Phone</Label>
+          <Input
+            id="edit_phone"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            maxLength={10}
+            placeholder="Enter 10-digit number"
+            {...register('phone', {
+              onChange: (e: ChangeEvent<HTMLInputElement>) => {
+                e.target.value = sanitizeIndianMobileInput(e.target.value);
+              },
+            })}
+          />
+          {errors.phone ? (
+            <p className="text-sm text-destructive">{errors.phone.message}</p>
+          ) : null}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit_username">Username</Label>
+          <Input id="edit_username" {...register('username')} />
+        </div>
+      </div>
+
+      {isDoctor ? (
+        <>
+          {doctorTariffsFailed ? <DoctorTariffsErrorAlert error={tariffsError} /> : null}
+          <CreateUserDoctorOpdSection
+            key={doctorSectionKey}
+            control={control}
+            errors={errors}
+            iqTenantId={tenantScope}
+            minRows={1}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUserDialogProps) {
   const qc = useQueryClient();
   const update = useUpdateUser(user.id, tenantScope);
@@ -220,44 +378,20 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
 
   const formBusy = update.isPending || showDoctorLoading;
 
-  const onSubmit = handleSubmit(async (values) => {
-    if (isDoctor) {
-      const tariffError = validateDoctorTariffs(values.doctor_tariffs);
-      if (tariffError) {
-        setError('doctor_tariffs', { type: 'custom', message: tariffError });
-        return;
-      }
-    }
-
-    const primaryDeptName = isDoctor
-      ? (activeDepartments.find((d) => d.id === values.doctor_tariffs[0]?.department_id)?.name ??
-        null)
-      : (user.department ?? null);
-
-    try {
-      const updatedUser = await update.mutateAsync(toPatch(values, primaryDeptName));
-      if (isDoctor && values.doctor_tariffs.length > 0 && !doctorTariffsFailed) {
-        await syncDoctorConsultationTariffs(
-          user.id,
-          values.full_name,
-          values.doctor_tariffs,
-          activeDepartments,
-          tenantScope,
-        );
-        await qc.invalidateQueries({ queryKey: tariffsQueryKey });
-        const refreshed = await listDoctorConsultationTariffs(user.id, tenantScope);
-        qc.setQueryData(tariffsQueryKey, refreshed);
-      }
-      qc.setQueryData(
-        userManagementKeys.userDetail(user.id, userTenantScopeKey(tenantScope)),
-        updatedUser,
-      );
-      toast.success('Profile updated');
-      onOpenChange(false);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  });
+  const onSubmit = handleSubmit((values) =>
+    submitEditUserChanges(values, {
+      user,
+      isDoctor,
+      activeDepartments,
+      doctorTariffsFailed,
+      tenantScope,
+      qc,
+      tariffsQueryKey,
+      mutateAsync: update.mutateAsync,
+      setError: (message) => setError('doctor_tariffs', { type: 'custom', message }),
+      onSuccess: () => onOpenChange(false),
+    }),
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -278,69 +412,16 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
               <p className="text-sm text-muted-foreground">Loading profile details…</p>
             </div>
           ) : (
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-y-contain p-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit_full_name">Full name</Label>
-                <Input id="edit_full_name" {...register('full_name')} />
-                {formState.errors.full_name ? (
-                  <p className="text-sm text-destructive">{formState.errors.full_name.message}</p>
-                ) : null}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit_email">Email</Label>
-                <Input id="edit_email" type="email" {...register('email')} />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="edit_phone">Phone</Label>
-                  <Input
-                    id="edit_phone"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                    maxLength={10}
-                    placeholder="Enter 10-digit number"
-                    {...register('phone', {
-                      onChange: (e: ChangeEvent<HTMLInputElement>) => {
-                        e.target.value = sanitizeIndianMobileInput(e.target.value);
-                      },
-                    })}
-                  />
-                  {formState.errors.phone ? (
-                    <p className="text-sm text-destructive">{formState.errors.phone.message}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit_username">Username</Label>
-                  <Input id="edit_username" {...register('username')} />
-                </div>
-              </div>
-
-              {isDoctor ? (
-                <>
-                  {doctorTariffsFailed ? (
-                    <Alert variant="destructive">
-                      <AlertTitle>Could not load consultation tariffs</AlertTitle>
-                      <AlertDescription>
-                        {tariffsQuery.error instanceof Error
-                          ? tariffsQuery.error.message
-                          : 'Billing service error.'}{' '}
-                        Apply billing migrations:{' '}
-                        <code className="text-xs">npx nx run billing:db-migrate</code> (or{' '}
-                        <code className="text-xs">make db-migrate</code>), then retry. You can
-                        still edit name and contact details below.
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-                  <CreateUserDoctorOpdSection
-                    key={doctorSectionKey}
-                    control={control}
-                    errors={formState.errors}
-                    iqTenantId={tenantScope}
-                    minRows={1}
-                  />
-                </>
-              ) : null}
-            </div>
+            <EditUserFormFields
+              register={register}
+              control={control}
+              errors={formState.errors}
+              isDoctor={isDoctor}
+              doctorTariffsFailed={doctorTariffsFailed}
+              tariffsError={tariffsQuery.error}
+              doctorSectionKey={doctorSectionKey}
+              tenantScope={tenantScope}
+            />
           )}
 
           <DialogFooter className="shrink-0 border-t p-4">
