@@ -101,6 +101,20 @@ export const base = [
     },
   },
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**'],
+    // Flat config does not honor .gitignore, so vendored/worktree/generated paths
+    // must be excluded explicitly or they pollute lint (and the cognitive-complexity
+    // scan) with code we neither own nor hand-edit:
+    //  - .venv: Python virtualenvs (vendored deps, gitignored)
+    //  - .claude: agent worktrees of OTHER branches (gitignored) + session scratch
+    //  - *.generated.ts / *.gen.ts: generated code (e.g. TanStack routeTree, report templates)
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.nx/**',
+      '**/.venv/**',
+      '**/.claude/**',
+      '**/*.generated.ts',
+      '**/*.gen.ts',
+    ],
   },
 ];
