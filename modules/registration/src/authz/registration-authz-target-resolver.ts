@@ -50,80 +50,68 @@ function readTarget(
   return { kind: "registration", id, action, attr: tenantAttr(request) };
 }
 
+/**
+ * Describes how to build an {@link AuthzTarget} for one exact (method, path)
+ * route: which path param (if any) carries the resource id, the id to fall
+ * back to when that param is absent, and the action being authorized.
+ */
+interface RouteTarget {
+  /** Path param name holding the resource id, or null for collection routes. */
+  param: string | null;
+  /** Id used when `param` is null or the param is not present on the request. */
+  defaultId: string;
+  action: RegistrationAuthzAction;
+}
+
+/**
+ * Exact (method, path) → target descriptor. Keys use the post-prefix,
+ * trailing-slash-normalized path produced by {@link resolveRoutePattern} +
+ * {@link stripPrefix}. HEAD is mapped to GET before lookup.
+ */
+const ROUTE_TABLE: Record<string, RouteTarget> = {
+  "POST /documents/opd-slip.pdf": { param: null, defaultId: "partner-opd-slip", action: "registration.read" },
+  "GET /dashboard/stats": { param: null, defaultId: "dashboard", action: "registration.read" },
+  "GET /registrations": { param: null, defaultId: "list", action: "registration.read" },
+  "GET /registrations/:registrationId": { param: "registrationId", defaultId: "detail", action: "registration.read" },
+  "POST /visit-type-decision": { param: null, defaultId: "visit-type-decision", action: "registration.read" },
+  "GET /visits": { param: null, defaultId: "visits-list", action: "registration.read" },
+  "GET /visits/:visitId": { param: "visitId", defaultId: "visit-detail", action: "registration.read" },
+  "POST /workflows/new-patient/registrations": { param: null, defaultId: "new", action: "registration.create" },
+  "POST /workflows/existing-patient/registrations": { param: null, defaultId: "new-visit", action: "registration.create" },
+  "POST /visits": { param: null, defaultId: "new-visit", action: "registration.create" },
+  "PATCH /visits/:visitId": { param: "visitId", defaultId: "visit-update", action: "registration.update" },
+  "DELETE /visits/:visitId": { param: "visitId", defaultId: "visit-delete", action: "registration.update" },
+  "POST /visits/:visitId/status": { param: "visitId", defaultId: "visit-status", action: "registration.update_status" },
+  "POST /visits/:visitId/complete": { param: "visitId", defaultId: "visit-complete", action: "registration.update" },
+};
+
+/**
+ * The four OPD document routes share one target shape (read by
+ * `registrationId`), so they are matched as a set rather than enumerated in
+ * {@link ROUTE_TABLE}.
+ */
+const DOCUMENT_TARGET: RouteTarget = {
+  param: "registrationId",
+  defaultId: "registration-document",
+  action: "registration.read",
+};
+
+function lookupRouteTarget(method: string, path: string): RouteTarget | null {
+  if (method === "GET" && REGISTRATION_DOCUMENT_PATHS.has(path)) {
+    return DOCUMENT_TARGET;
+  }
+  return ROUTE_TABLE[`${method} ${path}`] ?? null;
+}
+
 export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
   return (request): AuthzTarget | null => {
-    const fullPath = resolveRoutePattern(request);
-    const path = stripPrefix(fullPath);
+    const path = stripPrefix(resolveRoutePattern(request));
     const method = request.method === "HEAD" ? "GET" : request.method;
-    const req = request as FastifyRequest;
 
-    if (method === "GET" && REGISTRATION_DOCUMENT_PATHS.has(path)) {
-      const id = resolvePathParam(request, "registrationId");
-      return readTarget(req, id ?? "registration-document", "registration.read");
-    }
+    const route = lookupRouteTarget(method, path);
+    if (route === null) return null;
 
-    if (method === "POST" && path === "/documents/opd-slip.pdf") {
-      return readTarget(req, "partner-opd-slip", "registration.read");
-    }
-
-    if (method === "GET" && path === "/dashboard/stats") {
-      return readTarget(req, "dashboard", "registration.read");
-    }
-
-    if (method === "GET" && path === "/registrations") {
-      return readTarget(req, "list", "registration.read");
-    }
-
-    if (method === "GET" && path === "/registrations/:registrationId") {
-      const id = resolvePathParam(request, "registrationId");
-      return readTarget(req, id ?? "detail", "registration.read");
-    }
-
-    if (method === "POST" && path === "/visit-type-decision") {
-      return readTarget(req, "visit-type-decision", "registration.read");
-    }
-
-    if (method === "GET" && path === "/visits") {
-      return readTarget(req, "visits-list", "registration.read");
-    }
-
-    if (method === "GET" && path === "/visits/:visitId") {
-      const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-detail", "registration.read");
-    }
-
-    if (method === "POST" && path === "/workflows/new-patient/registrations") {
-      return readTarget(req, "new", "registration.create");
-    }
-
-    if (method === "POST" && path === "/workflows/existing-patient/registrations") {
-      return readTarget(req, "new-visit", "registration.create");
-    }
-
-    if (method === "POST" && path === "/visits") {
-      return readTarget(req, "new-visit", "registration.create");
-    }
-
-    if (method === "PATCH" && path === "/visits/:visitId") {
-      const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-update", "registration.update");
-    }
-
-    if (method === "DELETE" && path === "/visits/:visitId") {
-      const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-delete", "registration.update");
-    }
-
-    if (method === "POST" && path === "/visits/:visitId/status") {
-      const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-status", "registration.update_status");
-    }
-
-    if (method === "POST" && path === "/visits/:visitId/complete") {
-      const id = resolvePathParam(request, "visitId");
-      return readTarget(req, id ?? "visit-complete", "registration.update");
-    }
-
-    return null;
+    const id = route.param === null ? null : resolvePathParam(request, route.param);
+    return readTarget(request as FastifyRequest, id ?? route.defaultId, route.action);
   };
 }

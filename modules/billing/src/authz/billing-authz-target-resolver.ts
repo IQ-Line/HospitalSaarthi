@@ -30,67 +30,55 @@ function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
   return { iq_tenant_id: (request as any).tenantId as string };
 }
 
+type AuthzRequest = Parameters<AuthzTargetResolver>[0];
+type AuthzTarget = Awaited<ReturnType<AuthzTargetResolver>>;
+type RouteHandler = (request: AuthzRequest) => AuthzTarget;
+
+/**
+ * Handler for a route with a fixed (non-parameterised) Cerbos id, scoped to the caller's tenant.
+ * Covers list/create style endpoints (`/services`, `/charges`, `/bills`, `/payments`).
+ */
+function tenantScoped(kind: string, id: string, action: string): RouteHandler {
+  return (request) => ({ kind, id, action, attr: tenantAttr(request) });
+}
+
+/**
+ * Handler for a `:param` route whose Cerbos id is the resolved path param, tenant-scoped.
+ * Returns null when the named path param is absent (preserving the per-route guard).
+ */
+function pathIdScoped(kind: string, action: string, paramName: string): RouteHandler {
+  return (request) => {
+    const id = resolvePathParam(request, paramName);
+    if (id === null) return null;
+    return { kind, id, action, attr: tenantAttr(request) };
+  };
+}
+
+/**
+ * Route table keyed by `${method} ${routePattern}`. HEAD is folded into GET before lookup.
+ * Path patterns are post-prefix (the `/api/billing/v1` prefix is stripped by resolveRoutePattern).
+ */
+const ROUTE_TABLE: Record<string, RouteHandler> = {
+  "GET /services": tenantScoped("tariff_master", "list", "tariff-master.read"),
+  "POST /services": tenantScoped("tariff_master", "new", "tariff-master.create"),
+  "PATCH /services/:service_id": pathIdScoped("tariff_master", "tariff-master.update", "service_id"),
+
+  "POST /charges": tenantScoped("invoice", "new", "invoice.create"),
+  "GET /bills": tenantScoped("invoice", "list", "invoice.read"),
+  "GET /bills/:bill_id": pathIdScoped("invoice", "invoice.read", "bill_id"),
+  "PATCH /bills/:bill_id": pathIdScoped("invoice", "invoice.update", "bill_id"),
+  "POST /bills/:bill_id/finalize": pathIdScoped("invoice", "invoice.update", "bill_id"),
+  "POST /bills/:bill_id/cancel": pathIdScoped("invoice", "invoice.delete", "bill_id"),
+  "GET /bills/:bill_id/receipt.pdf": pathIdScoped("invoice", "invoice.read", "bill_id"),
+
+  "POST /payments": tenantScoped("billing_account", "new", "billing-account.create"),
+};
+
 export function createBillingAuthzTargetResolver(): AuthzTargetResolver {
   return async (request) => {
     const path = resolveRoutePattern(request);
     const method = request.method === "HEAD" ? "GET" : request.method;
-
-    if (method === "GET" && path === "/services") {
-      return { kind: "tariff_master", id: "list", action: "tariff-master.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/services") {
-      return { kind: "tariff_master", id: "new", action: "tariff-master.create", attr: tenantAttr(request) };
-    }
-
-    if (method === "PATCH" && path === "/services/:service_id") {
-      const id = resolvePathParam(request, "service_id");
-      if (id === null) return null;
-      return { kind: "tariff_master", id, action: "tariff-master.update", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/charges") {
-      return { kind: "invoice", id: "new", action: "invoice.create", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/bills") {
-      return { kind: "invoice", id: "list", action: "invoice.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/bills/:bill_id") {
-      const id = resolvePathParam(request, "bill_id");
-      if (id === null) return null;
-      return { kind: "invoice", id, action: "invoice.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "PATCH" && path === "/bills/:bill_id") {
-      const id = resolvePathParam(request, "bill_id");
-      if (id === null) return null;
-      return { kind: "invoice", id, action: "invoice.update", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/bills/:bill_id/finalize") {
-      const id = resolvePathParam(request, "bill_id");
-      if (id === null) return null;
-      return { kind: "invoice", id, action: "invoice.update", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/bills/:bill_id/cancel") {
-      const id = resolvePathParam(request, "bill_id");
-      if (id === null) return null;
-      return { kind: "invoice", id, action: "invoice.delete", attr: tenantAttr(request) };
-    }
-
-    if (method === "GET" && path === "/bills/:bill_id/receipt.pdf") {
-      const id = resolvePathParam(request, "bill_id");
-      if (id === null) return null;
-      return { kind: "invoice", id, action: "invoice.read", attr: tenantAttr(request) };
-    }
-
-    if (method === "POST" && path === "/payments") {
-      return { kind: "billing_account", id: "new", action: "billing-account.create", attr: tenantAttr(request) };
-    }
-
-    return null;
+    const handler = ROUTE_TABLE[`${method} ${path}`];
+    return handler ? handler(request) : null;
   };
 }
