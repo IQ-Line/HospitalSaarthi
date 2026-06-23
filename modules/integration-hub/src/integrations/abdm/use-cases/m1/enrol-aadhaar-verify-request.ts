@@ -12,20 +12,39 @@ import {
 } from "@hims/ts-sdk-abha/protocol/m1";
 import { snapshotEnrolByAadhaarResponse } from "../../lib/nha-enrol-context-snapshot.js";
 import { resolveSkipEnrolMobileVerify } from "../../lib/m1-enrol-linked-mobile.js";
+import type { AbdmSession } from "../../domain/session.js";
 
-export async function enrolAadhaarVerifyRequest(
-  input: AbdmTenantInput<EnrolAadhaarVerifyHimsRequest>,
-  deps: AbdmAdapterDeps,
-): Promise<EnrolAadhaarVerifyHimsResponse> {
-  const iqTenantId = input.iqTenantId;
-  const otp = String(input.otp ?? "").trim();
+/** Validate the 6-digit OTP, returning the trimmed value. */
+function requireOtp(rawOtp: unknown): string {
+  const otp = String(rawOtp ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
     throw new AbdmUseCaseError("otp must be exactly 6 digits", 400);
   }
-  const session = await deps.sessions.findById({
-    iqTenantId,
-    sessionId: input.sessionId,
-  });
+  return otp;
+}
+
+/** Normalize and validate the 10-digit primary mobile number. */
+function requireMobile(rawMobile: unknown): string {
+  const mobileDigits = String(rawMobile ?? "").replace(/\D/g, "");
+  if (mobileDigits.length !== 10) {
+    throw new AbdmUseCaseError(
+      "mobile is required (10 digits) — primary number for ABHA; use the mobile where you received the Aadhaar OTP",
+      400,
+    );
+  }
+  return mobileDigits;
+}
+
+/**
+ * Load the session and assert it is a valid Aadhaar-OTP-requested session with a
+ * txnId. Narrows the return type so callers get a non-null txnId.
+ */
+async function loadVerifiableSession(
+  sessions: AbdmAdapterDeps["sessions"],
+  iqTenantId: string,
+  sessionId: string,
+): Promise<AbdmSession & { txnId: string }> {
+  const session = await sessions.findById({ iqTenantId, sessionId });
   if (!session) {
     throw new AbdmUseCaseError("session not found", 404, "NOT_FOUND");
   }
@@ -42,14 +61,24 @@ export async function enrolAadhaarVerifyRequest(
   if (!session.txnId) {
     throw new AbdmUseCaseError("session missing txnId", 400);
   }
-  const mobileDigits = String(input.mobile ?? "").replace(/\D/g, "");
-  if (mobileDigits.length !== 10) {
-    throw new AbdmUseCaseError(
-      "mobile is required (10 digits) — primary number for ABHA; use the mobile where you received the Aadhaar OTP",
-      400,
-    );
-  }
-  const mobile = mobileDigits;
+  return { ...session, txnId: session.txnId };
+}
+
+/** Read the "new ABHA" flag from either `new` or `isNew`, else undefined. */
+function coerceIsNew(nha: NhaEnrolByAadhaarResponse): boolean | undefined {
+  if (typeof nha.new === "boolean") return nha.new;
+  if (typeof nha.isNew === "boolean") return nha.isNew;
+  return undefined;
+}
+
+export async function enrolAadhaarVerifyRequest(
+  input: AbdmTenantInput<EnrolAadhaarVerifyHimsRequest>,
+  deps: AbdmAdapterDeps,
+): Promise<EnrolAadhaarVerifyHimsResponse> {
+  const iqTenantId = input.iqTenantId;
+  const otp = requireOtp(input.otp);
+  const session = await loadVerifiableSession(deps.sessions, iqTenantId, input.sessionId);
+  const mobile = requireMobile(input.mobile);
   const cert = await deps.gateway.getPublicCertificate();
   const otpValue = encryptLoginIdWithAbdmPublicKey(cert.publicKey, otp);
   const body: NhaEnrolByAadhaarBody = {
@@ -72,12 +101,7 @@ export async function enrolAadhaarVerifyRequest(
   if (!txnId) {
     throw new Error("NHA enrol/byAadhaar response missing txnId");
   }
-  const isNew =
-    typeof nha.new === "boolean"
-      ? nha.new
-      : typeof nha.isNew === "boolean"
-        ? nha.isNew
-        : undefined;
+  const isNew = coerceIsNew(nha);
   const mobileVerifySkipped = resolveSkipEnrolMobileVerify(
     input.useAadhaarLinkedMobile,
     nha,

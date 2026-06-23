@@ -59,6 +59,24 @@ function sleep(ms: number): Promise<void> {
   });
 }
 
+function isClassifiedUpstreamError(err: unknown): err is ClassifiedUpstreamError {
+  return (
+    typeof err === "object" && err !== null && "source" in err && "kind" in err
+  );
+}
+
+function backoffDelayMs(attempt: number): number {
+  return 50 * attempt;
+}
+
+function shouldRetry(
+  failure: ClassifiedUpstreamError,
+  attempt: number,
+  maxAttempts: number,
+): boolean {
+  return isRetryableUpstreamFailure(failure) && attempt < maxAttempts;
+}
+
 export type FetchJsonWithResilienceOptions = {
   url: string;
   headers?: Record<string, string>;
@@ -68,6 +86,74 @@ export type FetchJsonWithResilienceOptions = {
   log?: (event: Record<string, unknown>, message: string) => void;
 };
 
+type AttemptContext = {
+  options: FetchJsonWithResilienceOptions;
+  attempt: number;
+  maxAttempts: number;
+};
+
+/**
+ * Runs a single fetch attempt, logging and classifying any HTTP-status or
+ * JSON-parse failure. Returns the parsed body on success; throws an
+ * already-classified {@link ClassifiedUpstreamError} on failure (a
+ * non-ok status or an unparseable body). Transport-level errors (the `fetch`
+ * call itself rejecting) propagate as their raw value for the caller to
+ * classify, since only the caller has the full attempt context for the
+ * "request error" log line.
+ */
+async function performAttempt<T>(ctx: AttemptContext): Promise<T> {
+  const { options, attempt, maxAttempts } = ctx;
+  const response = await fetch(options.url, {
+    method: "GET",
+    headers: options.headers,
+    signal: AbortSignal.timeout(options.timeoutMs),
+  });
+
+  if (!response.ok) {
+    const failure = classifyUpstreamFailure(options.source, undefined, response.status);
+    options.log?.(
+      {
+        source: options.source,
+        attempt,
+        maxAttempts,
+        status: response.status,
+        kind: failure.kind,
+      },
+      "Upstream HTTP request failed",
+    );
+    throw failure;
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch (err) {
+    const failure = classifyUpstreamFailure(options.source, err);
+    options.log?.(
+      { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
+      "Upstream JSON parse failed",
+    );
+    throw failure;
+  }
+}
+
+/**
+ * Normalizes a thrown attempt error into a classified failure. Errors already
+ * classified by {@link performAttempt} pass through untouched; raw transport
+ * errors are classified and logged here as a "request error".
+ */
+function classifyAttemptError(ctx: AttemptContext, err: unknown): ClassifiedUpstreamError {
+  if (isClassifiedUpstreamError(err)) {
+    return err;
+  }
+  const { options, attempt, maxAttempts } = ctx;
+  const failure = classifyUpstreamFailure(options.source, err);
+  options.log?.(
+    { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
+    "Upstream HTTP request error",
+  );
+  return failure;
+}
+
 export async function fetchJsonWithResilience<T>(
   options: FetchJsonWithResilienceOptions,
 ): Promise<T> {
@@ -75,65 +161,20 @@ export async function fetchJsonWithResilience<T>(
   let lastFailure: ClassifiedUpstreamError | undefined;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const ctx: AttemptContext = { options, attempt, maxAttempts };
+    let failure: ClassifiedUpstreamError;
     try {
-      const response = await fetch(options.url, {
-        method: "GET",
-        headers: options.headers,
-        signal: AbortSignal.timeout(options.timeoutMs),
-      });
-
-      if (!response.ok) {
-        const failure = classifyUpstreamFailure(options.source, undefined, response.status);
-        lastFailure = failure;
-        options.log?.(
-          {
-            source: options.source,
-            attempt,
-            maxAttempts,
-            status: response.status,
-            kind: failure.kind,
-          },
-          "Upstream HTTP request failed",
-        );
-        if (isRetryableUpstreamFailure(failure) && attempt < maxAttempts) {
-          await sleep(50 * attempt);
-          continue;
-        }
-        throw failure;
-      }
-
-      try {
-        return (await response.json()) as T;
-      } catch (err) {
-        const failure = classifyUpstreamFailure(options.source, err);
-        lastFailure = failure;
-        options.log?.(
-          { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
-          "Upstream JSON parse failed",
-        );
-        throw failure;
-      }
+      return await performAttempt<T>(ctx);
     } catch (err) {
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "source" in err &&
-        "kind" in err
-      ) {
-        throw err;
-      }
-      const failure = classifyUpstreamFailure(options.source, err);
-      lastFailure = failure;
-      options.log?.(
-        { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
-        "Upstream HTTP request error",
-      );
-      if (isRetryableUpstreamFailure(failure) && attempt < maxAttempts) {
-        await sleep(50 * attempt);
-        continue;
-      }
-      throw failure;
+      failure = classifyAttemptError(ctx, err);
     }
+
+    lastFailure = failure;
+    if (shouldRetry(failure, attempt, maxAttempts)) {
+      await sleep(backoffDelayMs(attempt));
+      continue;
+    }
+    throw failure;
   }
 
   throw lastFailure ?? classifyUpstreamFailure(options.source, new Error("exhausted_retries"));

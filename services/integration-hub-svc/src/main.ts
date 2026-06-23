@@ -90,28 +90,72 @@ const fastifyAjv = {
   },
 };
 
-async function main() {
-  if (!DATABASE_URL) {
+type FastifyApp = ReturnType<typeof Fastify>;
+
+function assertDatabaseUrl(databaseUrl: string): asserts databaseUrl is string {
+  if (!databaseUrl) {
     throw new Error(
       "INTEGRATION_HUB_DATABASE_URL, ABDM_DATA_DATABASE_URL, or DATABASE_URL is required",
     );
   }
+}
+
+function warnIfAuthDisabled(app: FastifyApp): void {
+  if (ENABLE_AUTH) return;
+  const env = process.env["NODE_ENV"] ?? "development";
+  if (env === "production" || env === "staging") {
+    app.log.error(
+      "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
+    );
+  } else {
+    app.log.warn(
+      "ENABLE_AUTH is false — local dev only. M1 enrol/profile APIs trust x-tenant-id alone.",
+    );
+  }
+}
+
+async function verifyDbConnection(app: FastifyApp, db: ReturnType<typeof createDb>): Promise<void> {
+  try {
+    await db.execute(sql`select 1`);
+    app.log.info("Database connection verified");
+  } catch (dbErr) {
+    app.log.error(dbErr, "Database connection failed at startup");
+    throw new Error(
+      "Cannot connect to Postgres — check DATABASE_URL (Azure: add ?sslmode=require)",
+      { cause: dbErr },
+    );
+  }
+}
+
+function warnIfConfiguratorKeyMissing(app: FastifyApp): void {
+  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
+  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
+    app.log.warn(
+      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
+    );
+  }
+}
+
+function createEmpiClient(): IntegrationHubSharedInfra["empi"] {
+  if (ABDM_M2_MOCK_PLATFORM) return new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID);
+  if (EMPI_BASE_URL) return new HttpEmpiClient(EMPI_BASE_URL);
+  return new NoOpEmpiClient();
+}
+
+function createRecordFoundationClient(): IntegrationHubSharedInfra["recordFoundation"] {
+  if (ABDM_M2_MOCK_PLATFORM) return new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS);
+  if (RECORD_FOUNDATION_BASE_URL)
+    return new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL);
+  return new NoOpRecordFoundationClient();
+}
+
+async function main() {
+  assertDatabaseUrl(DATABASE_URL);
 
   const app = Fastify({ logger: true, ajv: fastifyAjv });
   registerHttpErrorHandler(app);
 
-  if (!ENABLE_AUTH) {
-    const env = process.env["NODE_ENV"] ?? "development";
-    if (env === "production" || env === "staging") {
-      app.log.error(
-        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
-      );
-    } else {
-      app.log.warn(
-        "ENABLE_AUTH is false — local dev only. M1 enrol/profile APIs trust x-tenant-id alone.",
-      );
-    }
-  }
+  warnIfAuthDisabled(app);
 
   await registerOpenApiDocs(app, {
     serviceId: "integration-hub",
@@ -130,22 +174,9 @@ async function main() {
   app.get("/api/abdm/v1/healthz", healthzHandler);
 
   const db = createDb(DATABASE_URL);
-  try {
-    await db.execute(sql`select 1`);
-    app.log.info("Database connection verified");
-  } catch (dbErr) {
-    app.log.error(dbErr, "Database connection failed at startup");
-    throw new Error(
-      "Cannot connect to Postgres — check DATABASE_URL (Azure: add ?sslmode=require)",
-    );
-  }
+  await verifyDbConnection(app, db);
 
-  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
-  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
-    app.log.warn(
-      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
-    );
-  }
+  warnIfConfiguratorKeyMissing(app);
 
   const profiles = ConfiguratorHttpIntegrationProfileRepo.fromEnv();
   const eventBus = new InProcessEventBus();
@@ -156,19 +187,11 @@ async function main() {
   const inboundMessages = new DrizzleInboundMessagesRepo(db);
   const linkTokens = new DrizzleLinkTokensRepo(db);
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
-  const empi = ABDM_M2_MOCK_PLATFORM
-    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID)
-    : EMPI_BASE_URL
-      ? new HttpEmpiClient(EMPI_BASE_URL)
-      : new NoOpEmpiClient();
+  const empi = createEmpiClient();
   const registration = REGISTRATION_BASE_URL
     ? new HttpRegistrationClient(REGISTRATION_BASE_URL)
     : new NoOpRegistrationClient();
-  const recordFoundation = ABDM_M2_MOCK_PLATFORM
-    ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
-    : RECORD_FOUNDATION_BASE_URL
-      ? new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL)
-      : new NoOpRecordFoundationClient();
+  const recordFoundation = createRecordFoundationClient();
   if (ABDM_M2_MOCK_PLATFORM) {
     app.log.warn(
       "ABDM_M2_MOCK_PLATFORM=true — EMPI/Record Foundation use in-memory mocks",

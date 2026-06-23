@@ -39,15 +39,70 @@ export interface LinkTokenAcquireInput {
   timeoutMs?: number;
 }
 
+type LinkTokenLookupDeps = Pick<AbdmAdapterDeps, "linkTokens" | "payloadEncryptor">;
+
+/**
+ * Reads the current fresh (non-expired) cache row and returns its decrypted
+ * plaintext token, or undefined if there is no fresh row or it fails to decrypt.
+ * Preserves the cache's freshness semantics by delegating expiry to findFresh.
+ */
+async function readFreshLinkToken(
+  iqTenantId: string,
+  abhaAddress: string,
+  deps: LinkTokenLookupDeps,
+): Promise<string | undefined> {
+  const row = await deps.linkTokens.findFresh(iqTenantId, abhaAddress);
+  if (!row) return undefined;
+  return deps.payloadEncryptor.decrypt(row.linkToken) || undefined;
+}
+
+async function requestTokenGeneration(
+  input: LinkTokenAcquireInput,
+  requestId: string,
+  deps: Pick<AbdmAdapterDeps, "gateway" | "xHipId">,
+): Promise<void> {
+  const body: GenerateTokenRequest = {
+    abhaAddress: input.abhaAddress,
+    abhaNumber: toGatewayAbhaNumberPlain(input.abhaNumber),
+    name: input.name,
+    gender: input.gender,
+    yearOfBirth: input.yearOfBirth,
+  };
+  await deps.gateway.post({
+    path: M2_GATEWAY_PATHS.generateToken,
+    body,
+    target: "gateway",
+    requestId,
+    xHipId: deps.xHipId,
+  });
+}
+
+/**
+ * Polls the cache with exponential backoff until a fresh token appears or the
+ * acquire deadline passes. Returns the decrypted token, or undefined on timeout.
+ */
+async function pollForFreshLinkToken(
+  input: LinkTokenAcquireInput,
+  deps: LinkTokenLookupDeps,
+): Promise<string | undefined> {
+  const deadline = Date.now() + linkTokenAcquireTimeoutMs(input.timeoutMs);
+  let pollMs = linkTokenPollInitialMs();
+  const pollMaxMs = linkTokenPollMaxMs();
+  while (Date.now() < deadline) {
+    await sleep(pollMs);
+    pollMs = Math.min(pollMs * 2, pollMaxMs);
+    const plain = await readFreshLinkToken(input.iqTenantId, input.abhaAddress, deps);
+    if (plain) return plain;
+  }
+  return undefined;
+}
+
 export async function getOrAcquireLinkToken(
   input: LinkTokenAcquireInput,
   deps: Pick<AbdmAdapterDeps, "linkTokens" | "gateway" | "payloadEncryptor" | "xHipId">,
 ): Promise<string> {
-  const cached = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
-  if (cached) {
-    const plain = deps.payloadEncryptor.decrypt(cached.linkToken);
-    if (plain) return plain;
-  }
+  const cached = await readFreshLinkToken(input.iqTenantId, input.abhaAddress, deps);
+  if (cached) return cached;
 
   const requestId = randomUUID();
   const claim = await deps.linkTokens.claimAcquisition(
@@ -57,40 +112,14 @@ export async function getOrAcquireLinkToken(
   );
 
   if (claim === "fresh-exists") {
-    const fresh = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
-    if (fresh) {
-      const plain = deps.payloadEncryptor.decrypt(fresh.linkToken);
-      if (plain) return plain;
-    }
+    const fresh = await readFreshLinkToken(input.iqTenantId, input.abhaAddress, deps);
+    if (fresh) return fresh;
   } else if (claim === "claimed") {
-    const body: GenerateTokenRequest = {
-      abhaAddress: input.abhaAddress,
-      abhaNumber: toGatewayAbhaNumberPlain(input.abhaNumber),
-      name: input.name,
-      gender: input.gender,
-      yearOfBirth: input.yearOfBirth,
-    };
-    await deps.gateway.post({
-      path: M2_GATEWAY_PATHS.generateToken,
-      body,
-      target: "gateway",
-      requestId,
-      xHipId: deps.xHipId,
-    });
+    await requestTokenGeneration(input, requestId, deps);
   }
 
-  const deadline = Date.now() + linkTokenAcquireTimeoutMs(input.timeoutMs);
-  let pollMs = linkTokenPollInitialMs();
-  const pollMaxMs = linkTokenPollMaxMs();
-  while (Date.now() < deadline) {
-    await sleep(pollMs);
-    pollMs = Math.min(pollMs * 2, pollMaxMs);
-    const row = await deps.linkTokens.findFresh(input.iqTenantId, input.abhaAddress);
-    if (row) {
-      const plain = deps.payloadEncryptor.decrypt(row.linkToken);
-      if (plain) return plain;
-    }
-  }
+  const polled = await pollForFreshLinkToken(input, deps);
+  if (polled) return polled;
 
   throw new LinkTokenNotAvailable();
 }
