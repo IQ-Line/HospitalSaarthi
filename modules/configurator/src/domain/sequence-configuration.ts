@@ -315,58 +315,90 @@ export function validateAndBuildOverride(
 }
 
 export function validateSegments(segments: SequenceFormatSegment[]): void {
+  assertEnabledPrerequisites(segments);
+
+  const orderIndexes = new Set<number>();
+  for (const segment of segments) {
+    validateSegmentShape(segment);
+    if (!segment.enabled) continue;
+    assertUniqueOrderIndex(segment, orderIndexes);
+    validateEnabledSegmentFields(segment);
+  }
+}
+
+/** At least one segment enabled, and a sequence segment among the enabled ones. */
+function assertEnabledPrerequisites(segments: SequenceFormatSegment[]): void {
   const enabled = enabledSegments(segments);
   if (enabled.length === 0) {
     throw new ConfiguratorError(400, "At least one segment must be enabled", "VALIDATION_ERROR");
   }
-
-  const hasSequence = enabled.some((segment) => segment.segment_type === "sequence");
-  if (!hasSequence) {
+  if (!enabled.some((segment) => segment.segment_type === "sequence")) {
     throw new ConfiguratorError(400, "Sequence segment must be enabled", "VALIDATION_ERROR");
   }
+}
 
-  const orderIndexes = new Set<number>();
-  for (const segment of segments) {
-    if (!(SEGMENT_TYPES as readonly string[]).includes(segment.segment_type)) {
-      throw new ConfiguratorError(
-        400,
-        `Unknown segment type: ${segment.segment_type}`,
-        "VALIDATION_ERROR",
-      );
-    }
-    if (!Number.isInteger(segment.order_index) || segment.order_index < 0) {
-      throw new ConfiguratorError(400, "Invalid segment order_index", "VALIDATION_ERROR");
-    }
-    if (segment.enabled) {
-      if (orderIndexes.has(segment.order_index)) {
-        throw new ConfiguratorError(400, "Duplicate segment order_index", "VALIDATION_ERROR");
-      }
-      orderIndexes.add(segment.order_index);
-    }
+/** Structural checks that apply to every segment regardless of enabled state. */
+function validateSegmentShape(segment: SequenceFormatSegment): void {
+  if (!(SEGMENT_TYPES as readonly string[]).includes(segment.segment_type)) {
+    throw new ConfiguratorError(
+      400,
+      `Unknown segment type: ${segment.segment_type}`,
+      "VALIDATION_ERROR",
+    );
+  }
+  if (!Number.isInteger(segment.order_index) || segment.order_index < 0) {
+    throw new ConfiguratorError(400, "Invalid segment order_index", "VALIDATION_ERROR");
+  }
+}
 
-    if (segment.segment_type === "date_format" && segment.enabled) {
-      if (!segment.date_format || !(DATE_FORMATS as readonly string[]).includes(segment.date_format)) {
-        throw new ConfiguratorError(400, "Invalid date_format", "VALIDATION_ERROR");
-      }
-    }
+function assertUniqueOrderIndex(segment: SequenceFormatSegment, seen: Set<number>): void {
+  if (seen.has(segment.order_index)) {
+    throw new ConfiguratorError(400, "Duplicate segment order_index", "VALIDATION_ERROR");
+  }
+  seen.add(segment.order_index);
+}
 
-    if (segment.segment_type === "sequence" && segment.enabled) {
-      const digits = segment.sequence_digits ?? 0;
-      const startsAt = segment.sequence_starts_at ?? 0;
-      if (!Number.isInteger(digits) || digits < 1 || digits > 12) {
-        throw new ConfiguratorError(400, "sequence_digits must be between 1 and 12", "VALIDATION_ERROR");
-      }
-      if (!Number.isInteger(startsAt) || startsAt < 1) {
-        throw new ConfiguratorError(400, "sequence_starts_at must be at least 1", "VALIDATION_ERROR");
-      }
-    }
+/** Type-specific field checks for an enabled segment. */
+function validateEnabledSegmentFields(segment: SequenceFormatSegment): void {
+  switch (segment.segment_type) {
+    case "date_format":
+      validateDateFormatFields(segment);
+      return;
+    case "sequence":
+      validateSequenceFields(segment);
+      return;
+    case "prefix_text":
+      validatePrefixFields(segment);
+      return;
+    default:
+      return;
+  }
+}
 
-    if (segment.segment_type === "prefix_text" && segment.enabled) {
-      const prefix = segment.prefix_value?.trim();
-      if (!prefix) {
-        throw new ConfiguratorError(400, "prefix_value is required when prefix segment is enabled", "VALIDATION_ERROR");
-      }
-    }
+function validateDateFormatFields(segment: SequenceFormatSegment): void {
+  if (!segment.date_format || !(DATE_FORMATS as readonly string[]).includes(segment.date_format)) {
+    throw new ConfiguratorError(400, "Invalid date_format", "VALIDATION_ERROR");
+  }
+}
+
+function validateSequenceFields(segment: SequenceFormatSegment): void {
+  const digits = segment.sequence_digits ?? 0;
+  const startsAt = segment.sequence_starts_at ?? 0;
+  if (!Number.isInteger(digits) || digits < 1 || digits > 12) {
+    throw new ConfiguratorError(400, "sequence_digits must be between 1 and 12", "VALIDATION_ERROR");
+  }
+  if (!Number.isInteger(startsAt) || startsAt < 1) {
+    throw new ConfiguratorError(400, "sequence_starts_at must be at least 1", "VALIDATION_ERROR");
+  }
+}
+
+function validatePrefixFields(segment: SequenceFormatSegment): void {
+  if (!segment.prefix_value?.trim()) {
+    throw new ConfiguratorError(
+      400,
+      "prefix_value is required when prefix segment is enabled",
+      "VALIDATION_ERROR",
+    );
   }
 }
 

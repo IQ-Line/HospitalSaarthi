@@ -58,16 +58,45 @@ export type CreateUserContext = {
   correlationId: string;
 };
 
+/** True when every element of `value` is a UUID string. Used to validate optional id arrays. */
+function isUuidArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every((entry) => typeof entry === "string" && UUID_RE.test(entry))
+  );
+}
+
 /**
- * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
- * User row and initial grants persist in one DB transaction; events publish only after commit.
+ * Validates the optional UUID-array fields on the input. Each field, when present, must be an array
+ * of UUID strings; the three fields share identical shape rules but carry distinct error issues.
  */
-export async function createUser(
-  deps: CreateUserDeps,
-  ctx: CreateUserContext,
-  input: CreateUserInput,
-  entitlementContext?: ModuleEntitlementRequestContext,
-): Promise<User> {
+function assertUuidArrayFields(input: CreateUserInput): void {
+  if (input.capability_ids !== undefined && !isUuidArray(input.capability_ids)) {
+    throw new ValidationError("create_user_capability_ids_invalid");
+  }
+  if (input.role_template_ids !== undefined && !isUuidArray(input.role_template_ids)) {
+    throw new ValidationError("create_user_role_template_ids_invalid");
+  }
+  if (
+    input.role_template_capability_ids !== undefined &&
+    !isUuidArray(input.role_template_capability_ids)
+  ) {
+    throw new ValidationError("create_user_role_template_capability_ids_invalid");
+  }
+}
+
+/** Validated, normalized identity fields ready for provisioning. */
+type NormalizedIdentity = {
+  username: string;
+  email: string | null;
+  recoveryTier: "standard" | "admin_only";
+};
+
+/**
+ * Validates and normalizes the user's identity fields (full_name, username, email) and derives the
+ * recovery tier. Throws ValidationError on the first invalid field.
+ */
+function normalizeIdentity(input: CreateUserInput): NormalizedIdentity {
   if (typeof input.full_name !== "string") {
     throw new ValidationError("full_name_invalid_type");
   }
@@ -86,50 +115,77 @@ export async function createUser(
     throw new ValidationError("username_invalid");
   }
 
-  let email: string | null = null;
-  if (input.email !== undefined && input.email !== null && String(input.email).trim() !== "") {
-    if (typeof input.email !== "string") {
-      throw new ValidationError("email_invalid_type");
-    }
-    const trimmed = input.email.trim();
-    if (!EMAIL_RE.test(trimmed)) {
-      throw new ValidationError("email_invalid_type");
-    }
-    email = trimmed;
-  }
+  const email = normalizeEmail(input.email);
   // Recovery tier (authn spec §3.2): a real email enables self-serve reset later ('standard');
   // without one the only recovery path is an admin-driven reset ('admin_only').
   const recoveryTier = email !== null ? "standard" : "admin_only";
 
+  return { username, email, recoveryTier };
+}
+
+/** Returns a trimmed valid email, or null when no email was supplied. Throws on a malformed email. */
+function normalizeEmail(rawEmail: CreateUserInput["email"]): string | null {
+  if (rawEmail === undefined || rawEmail === null || String(rawEmail).trim() === "") {
+    return null;
+  }
+  if (typeof rawEmail !== "string") {
+    throw new ValidationError("email_invalid_type");
+  }
+  const trimmed = rawEmail.trim();
+  if (!EMAIL_RE.test(trimmed)) {
+    throw new ValidationError("email_invalid_type");
+  }
+  return trimmed;
+}
+
+type EntitlementDeps = {
+  capabilityRepository: CapabilityRepository;
+  tenantModuleEntitlementPort: TenantModuleEntitlementPort;
+  masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+};
+
+/** Loads capabilities by id and throws CapabilityNotFoundError for the first id that is missing. */
+async function assertCapabilitiesExist(
+  capabilityRepository: CapabilityRepository,
+  capabilityIds: string[],
+): Promise<void> {
+  const capabilities = await capabilityRepository.listCapabilitiesByIds(capabilityIds);
+  if (capabilities.length === capabilityIds.length) {
+    return;
+  }
+  const found = new Set(capabilities.map((capability) => capability.id));
+  throw new CapabilityNotFoundError(capabilityIds.find((id) => !found.has(id)));
+}
+
+/** Loads roles by id and throws RoleNotFoundError for the first id that is missing. */
+async function assertRolesExist(
+  roleRepository: RoleRepository,
+  tenantId: string,
+  roleIds: string[],
+): Promise<void> {
+  const roles = await roleRepository.listRolesByIds(tenantId, roleIds);
+  if (roles.length === roleIds.length) {
+    return;
+  }
+  const found = new Set(roles.map((role) => role.id));
+  throw new RoleNotFoundError(roleIds.find((id) => !found.has(id)));
+}
+
+/**
+ * Creates a tenant-scoped platform user and publishes `user-management.user.created`.
+ * User row and initial grants persist in one DB transaction; events publish only after commit.
+ */
+export async function createUser(
+  deps: CreateUserDeps,
+  ctx: CreateUserContext,
+  input: CreateUserInput,
+  entitlementContext?: ModuleEntitlementRequestContext,
+): Promise<User> {
+  const { username, email, recoveryTier } = normalizeIdentity(input);
+
   assertValidPassword(input.password);
 
-  if (
-    input.capability_ids !== undefined &&
-    (!Array.isArray(input.capability_ids) ||
-      input.capability_ids.some(
-        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
-      ))
-  ) {
-    throw new ValidationError("create_user_capability_ids_invalid");
-  }
-
-  if (
-    input.role_template_ids !== undefined &&
-    (!Array.isArray(input.role_template_ids) ||
-      input.role_template_ids.some((roleId) => typeof roleId !== "string" || !UUID_RE.test(roleId)))
-  ) {
-    throw new ValidationError("create_user_role_template_ids_invalid");
-  }
-
-  if (
-    input.role_template_capability_ids !== undefined &&
-    (!Array.isArray(input.role_template_capability_ids) ||
-      input.role_template_capability_ids.some(
-        (capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId),
-      ))
-  ) {
-    throw new ValidationError("create_user_role_template_capability_ids_invalid");
-  }
+  assertUuidArrayFields(input);
 
   const roleIds = dedupeTrimmedIds(input.role_template_ids ?? []);
   const roleTemplateCapabilityIds =
@@ -154,21 +210,14 @@ export async function createUser(
     "create_user_capability_ids_limit_exceeded",
   );
 
-  const entitlementDeps = {
+  const entitlementDeps: EntitlementDeps = {
     capabilityRepository: deps.capabilityRepository,
     tenantModuleEntitlementPort: deps.tenantModuleEntitlementPort,
     masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
   };
 
   if (capabilityIds.length > 0) {
-    const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
-    if (capabilities.length !== capabilityIds.length) {
-      const capabilityIdsFound = new Set(capabilities.map((capability) => capability.id));
-      const missingCapabilityId = capabilityIds.find(
-        (capabilityId) => !capabilityIdsFound.has(capabilityId),
-      );
-      throw new CapabilityNotFoundError(missingCapabilityId);
-    }
+    await assertCapabilitiesExist(deps.capabilityRepository, capabilityIds);
     await assertRuntimeCapabilitiesEntitledForTenant(
       entitlementDeps,
       ctx.tenantId,
@@ -178,12 +227,7 @@ export async function createUser(
   }
 
   if (roleIds.length > 0) {
-    const roles = await deps.roleRepository.listRolesByIds(ctx.tenantId, roleIds);
-    if (roles.length !== roleIds.length) {
-      const roleIdsFound = new Set(roles.map((role) => role.id));
-      const missingRoleId = roleIds.find((roleId) => !roleIdsFound.has(roleId));
-      throw new RoleNotFoundError(missingRoleId);
-    }
+    await assertRolesExist(deps.roleRepository, ctx.tenantId, roleIds);
   }
 
   const roleTemplateGrants =
