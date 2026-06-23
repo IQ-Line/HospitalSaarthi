@@ -4,6 +4,7 @@ import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type { DispenseLineItemRecord, DispenseRecord } from "../domain/pharmacy.types.js";
 import { computeRecordAmounts } from "../lib/dispense-amounts.js";
 import type { DispenseRecordRepo, UpsertDispensePayload, UpsertDispenseResult } from "../ports.js";
+import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import { dispenseLineItems, dispenseRecords } from "../schema/tables.js";
 
 function mapRecord(row: typeof dispenseRecords.$inferSelect): DispenseRecord {
@@ -41,15 +42,6 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     line_total: row.line_total,
     created_at: row.created_at,
   };
-}
-
-function isPgUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error != null &&
-    "code" in error &&
-    (error as { code: string }).code === "23505"
-  );
 }
 
 export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
@@ -103,7 +95,7 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
     try {
       return await this.upsertForVisitTx(tenantId, payload);
     } catch (error) {
-      if (isPgUniqueViolation(error)) {
+      if (isPostgresUniqueViolation(error)) {
         return this.upsertForVisitTx(tenantId, payload);
       }
       throw error;
