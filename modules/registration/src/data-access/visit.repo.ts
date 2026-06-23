@@ -3,6 +3,7 @@ import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, inArray, sql } from "@hims/ts-sdk-db";
 import { asc, desc } from "drizzle-orm";
 import { registrations, visits } from "../schema/tables.js";
+import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { VisitRepo } from "../ports.js";
 import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
 import type {
@@ -93,11 +94,11 @@ export class DrizzleVisitRepo implements VisitRepo {
         .returning();
       return { record: mapRow(rows[0]!), created: true as const };
     } catch (err) {
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code: string }).code)
-          : "";
-      if (code === "23505") {
+      // A concurrent intake with the same idempotency key can win the partial
+      // unique-index race after our pre-check passed; recover by replaying the
+      // committed row. drizzle wraps the pg error, so unwrap `.cause` to see the
+      // 23505 (a top-level-only check silently misses it — the retry never fires).
+      if (isPostgresUniqueViolation(err)) {
         const replayed = await this.findByIdempotencyKey(tenantId, idempotencyKey);
         if (replayed) {
           return { record: replayed, created: false as const };
