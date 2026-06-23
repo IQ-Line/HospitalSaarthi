@@ -28,6 +28,13 @@
         "cwd": "modules/user-management"
       }
     },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "command": "TEST_DATABASE_URL=\"${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_user_management\" pnpm exec vitest run test/integration",
+      "options": {
+        "cwd": "modules/user-management"
+      }
+    },
     "typecheck": {
       "dependsOn": ["^build"],
       "command": "tsc -p tsconfig.json --noEmit",
