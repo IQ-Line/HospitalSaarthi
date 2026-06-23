@@ -50,6 +50,88 @@ export type RefreshAuthorizationContextOptions = {
   light?: boolean;
 };
 
+/** Clears permissions, resets hydration trackers, and drops cached principals. */
+async function clearAuthorizationContext(queryClient: QueryClient): Promise<void> {
+  usePermissionsStore.getState().clearPermissions();
+  lastHydratedPrincipalScope = null;
+  lastModulesBootstrappedTenantId = null;
+  await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
+}
+
+/** True when login/tenant/session scope is complete enough to hydrate the principal. */
+function hasCompleteAuthorizationScope(
+  auth: ReturnType<typeof useAuthStore.getState>,
+  tenant: ReturnType<typeof useTenantStore.getState>,
+): boolean {
+  return Boolean(
+    auth.isAuthenticated && auth.userId && auth.accessToken?.trim() && tenant.tenantId?.trim(),
+  );
+}
+
+/** True when the cached principal already covers this scope and may serve without a network call. */
+function cachedPrincipalServesScope(
+  scope: AuthPrincipalQueryScope,
+  cachedPrincipal: AuthPrincipalResponse | undefined,
+  options: RefreshAuthorizationContextOptions | undefined,
+): boolean {
+  const scopeUnchanged =
+    lastHydratedPrincipalScope !== null &&
+    isSameAuthPrincipalScope(lastHydratedPrincipalScope, scope);
+  return (
+    options?.forcePrincipalRefresh !== true &&
+    scopeUnchanged &&
+    cachedPrincipal !== undefined &&
+    usePermissionsStore.getState().isLoaded
+  );
+}
+
+/** Resolves the principal for this scope, preferring an unchanged cache hit over a fetch. */
+async function resolvePrincipal(
+  queryClient: QueryClient,
+  scope: AuthPrincipalQueryScope,
+  cachedPrincipal: AuthPrincipalResponse | undefined,
+  options: RefreshAuthorizationContextOptions | undefined,
+  scopeChanged: boolean,
+): Promise<AuthPrincipalResponse> {
+  if (!scopeChanged && cachedPrincipal !== undefined) {
+    return cachedPrincipal;
+  }
+  if (options?.bypassEntitlementCache === true) {
+    const principal = await fetchAuthPrincipal({ bypassEntitlementCache: true });
+    queryClient.setQueryData(authPrincipalQueryKeys.detail(scope), principal);
+    return principal;
+  }
+  return queryClient.fetchQuery(authPrincipalQueryOptions(scope));
+}
+
+/** Fetches/reuses the principal and hydrates capabilities, refreshing the scope tracker. */
+async function hydratePrincipalForScope(
+  queryClient: QueryClient,
+  scope: AuthPrincipalQueryScope,
+  cachedPrincipal: AuthPrincipalResponse | undefined,
+  options: RefreshAuthorizationContextOptions | undefined,
+): Promise<void> {
+  const scopeChanged =
+    lastHydratedPrincipalScope === null ||
+    !isSameAuthPrincipalScope(lastHydratedPrincipalScope, scope);
+
+  if (scopeChanged) {
+    await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
+  }
+
+  const principal = await resolvePrincipal(queryClient, scope, cachedPrincipal, options, scopeChanged);
+  await hydrateCapabilitiesFromPrincipal(principal);
+  lastHydratedPrincipalScope = scope;
+}
+
+/** Busts the tenant-scoped module registration cache once per tenant change. */
+function bootstrapModulesForTenant(queryClient: QueryClient, tenantId: string): void {
+  if (lastModulesBootstrappedTenantId !== tenantId) {
+    invalidateModuleRegistration(queryClient, tenantId);
+    lastModulesBootstrappedTenantId = tenantId;
+  }
+}
+
 export async function refreshAuthorizationContext(
   queryClient: QueryClient,
   options?: RefreshAuthorizationContextOptions,
@@ -57,19 +139,8 @@ export async function refreshAuthorizationContext(
   const auth = useAuthStore.getState();
   const tenant = useTenantStore.getState();
 
-  if (!auth.isAuthenticated || !auth.userId || !auth.accessToken?.trim()) {
-    usePermissionsStore.getState().clearPermissions();
-    lastHydratedPrincipalScope = null;
-    lastModulesBootstrappedTenantId = null;
-    await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
-    return;
-  }
-
-  if (!tenant.tenantId?.trim()) {
-    usePermissionsStore.getState().clearPermissions();
-    lastHydratedPrincipalScope = null;
-    lastModulesBootstrappedTenantId = null;
-    await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
+  if (!hasCompleteAuthorizationScope(auth, tenant)) {
+    await clearAuthorizationContext(queryClient);
     return;
   }
 
@@ -79,50 +150,15 @@ export async function refreshAuthorizationContext(
     activeBranch: tenant.activeBranch,
   };
 
-  const permissions = usePermissionsStore.getState();
   const cachedPrincipal = queryClient.getQueryData<AuthPrincipalResponse>(
     authPrincipalQueryKeys.detail(scope),
   );
 
-  const scopeChanged =
-    lastHydratedPrincipalScope === null ||
-    !isSameAuthPrincipalScope(lastHydratedPrincipalScope, scope);
-
-  const skipPrincipalNetwork =
-    options?.forcePrincipalRefresh !== true &&
-    !scopeChanged &&
-    cachedPrincipal !== undefined &&
-    permissions.isLoaded;
-
-  if (!skipPrincipalNetwork) {
-    if (scopeChanged) {
-      await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
-    }
-
-    let principal: AuthPrincipalResponse;
-    if (!scopeChanged && cachedPrincipal !== undefined) {
-      principal = cachedPrincipal;
-    } else {
-      principal =
-        options?.bypassEntitlementCache === true
-          ? await fetchAuthPrincipal({ bypassEntitlementCache: true })
-          : await queryClient.fetchQuery(authPrincipalQueryOptions(scope));
-      if (options?.bypassEntitlementCache === true) {
-        queryClient.setQueryData(authPrincipalQueryKeys.detail(scope), principal);
-      }
-    }
-
-    await hydrateCapabilitiesFromPrincipal(principal);
-    lastHydratedPrincipalScope = scope;
+  if (!cachedPrincipalServesScope(scope, cachedPrincipal, options)) {
+    await hydratePrincipalForScope(queryClient, scope, cachedPrincipal, options);
   }
 
-  const tenantId = tenant.tenantId;
-  const modulesTenantChanged = lastModulesBootstrappedTenantId !== tenantId;
-
-  if (modulesTenantChanged) {
-    invalidateModuleRegistration(queryClient, tenantId);
-    lastModulesBootstrappedTenantId = tenantId;
-  }
+  bootstrapModulesForTenant(queryClient, tenant.tenantId);
 
   if (options?.light !== true) {
     await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());

@@ -1,16 +1,4 @@
-import type {
-  AllergyRow,
-  ChiefComplaintRow,
-  CreateRxFormData,
-  CreateRxSectionTab,
-  DiagnosisRow,
-  ImagingRow,
-  ImmunizationRow,
-  MedicineRow,
-  PhysicalActivityRow,
-  ProcedureRow,
-  TestRow,
-} from '../types';
+import type { ChiefComplaintRow, CreateRxFormData, CreateRxSectionTab } from '../types';
 
 export type VisitpadTableSection =
   | 'chiefComplaints'
@@ -96,18 +84,28 @@ function validatePartialRows<T extends { id: string }>(
   return errors;
 }
 
+const CHIEF_COMPLAINT_ALL_FIELDS = [
+  'complaint',
+  'severity',
+  'duration',
+  'durationUnit',
+  'notes',
+] as const;
+
+const CHIEF_COMPLAINT_REQUIRED_FIELDS = [
+  'complaint',
+  'severity',
+  'duration',
+  'durationUnit',
+] as const;
+
 function hasCompleteChiefComplaint(rows: ChiefComplaintRow[]): boolean {
   return rows.some((row) => {
     const record = row as Record<string, unknown>;
-    if (!rowHasAnyValue(record, ['complaint', 'severity', 'duration', 'durationUnit', 'notes'])) {
+    if (!rowHasAnyValue(record, [...CHIEF_COMPLAINT_ALL_FIELDS])) {
       return false;
     }
-    return (
-      textValue(row.complaint).length > 0 &&
-      textValue(row.severity).length > 0 &&
-      textValue(row.duration).length > 0 &&
-      textValue(row.durationUnit).length > 0
-    );
+    return CHIEF_COMPLAINT_REQUIRED_FIELDS.every((field) => textValue(row[field]).length > 0);
   });
 }
 
@@ -115,120 +113,167 @@ export function visitpadCellKey(rowId: string, field: string): string {
   return `${rowId}:${field}`;
 }
 
+/**
+ * Declarative table of per-section partial-row validation rules. Each entry
+ * names the section's form-data key plus its "any value" and "required" field
+ * lists. Keeping these as data (rather than nine inline `validatePartialRows`
+ * calls) is what collapses the cognitive complexity of the orchestrator below.
+ */
+interface PartialRowRule {
+  section: VisitpadTableSection;
+  formKey: keyof CreateRxFormData;
+  allFields: string[];
+  requiredFields: string[];
+}
+
+const PARTIAL_ROW_RULES: PartialRowRule[] = [
+  {
+    section: 'chiefComplaints',
+    formKey: 'chiefComplaints',
+    allFields: [...CHIEF_COMPLAINT_ALL_FIELDS],
+    requiredFields: [...CHIEF_COMPLAINT_REQUIRED_FIELDS],
+  },
+  {
+    section: 'immunizations',
+    formKey: 'immunizations',
+    allFields: [
+      'vaccineName',
+      'manufacturer',
+      'lotNumber',
+      'dateOfDose',
+      'doseNumber',
+      'nextDueDate',
+      'notes',
+    ],
+    requiredFields: ['vaccineName', 'manufacturer', 'dateOfDose'],
+  },
+  {
+    section: 'allergyDetails',
+    formKey: 'allergyDetails',
+    allFields: ['allergen', 'reaction', 'severity'],
+    requiredFields: ['allergen', 'reaction', 'severity'],
+  },
+  {
+    section: 'diagnosis',
+    formKey: 'diagnosis',
+    allFields: ['notes', 'certainty'],
+    requiredFields: ['notes', 'certainty'],
+  },
+  {
+    section: 'medicines',
+    formKey: 'medicines',
+    allFields: [
+      'medicine',
+      'dosageForm',
+      'route',
+      'strength',
+      'dosageMorning',
+      'dosageAfternoon',
+      'dosageNight',
+      'days',
+      'frequency',
+      'toa',
+      'quantity',
+    ],
+    requiredFields: ['medicine', 'dosageMorning', 'dosageAfternoon', 'dosageNight', 'days', 'frequency'],
+  },
+  {
+    section: 'testsRequired',
+    formKey: 'testsRequired',
+    allFields: ['testName', 'status'],
+    requiredFields: ['testName', 'status'],
+  },
+  {
+    section: 'imagingRequired',
+    formKey: 'imagingRequired',
+    allFields: ['testName', 'byWhen', 'instructions', 'status'],
+    requiredFields: ['testName', 'status'],
+  },
+  {
+    section: 'procedures',
+    formKey: 'procedures',
+    allFields: ['procedureName', 'advisedDate'],
+    requiredFields: ['procedureName'],
+  },
+  {
+    section: 'physicalActivity',
+    formKey: 'physicalActivity',
+    allFields: ['steps', 'sleepDuration', 'caloriesBurned', 'exerciseType'],
+    requiredFields: ['steps', 'sleepDuration', 'caloriesBurned', 'exerciseType'],
+  },
+];
+
+function collectPartialRowErrors(formData: CreateRxFormData): VisitpadFieldError[] {
+  return PARTIAL_ROW_RULES.flatMap((rule) =>
+    validatePartialRows(
+      formData[rule.formKey] as { id: string }[],
+      rule.allFields,
+      rule.requiredFields,
+      rule.section,
+    ),
+  );
+}
+
+/**
+ * "End consultation" gate: at least one chief-complaint row must be complete.
+ * When none is, flag every still-missing mandatory field on the first row
+ * (without duplicating errors already raised by the partial-row pass).
+ */
+function collectChiefComplaintGateErrors(
+  formData: CreateRxFormData,
+  existingErrors: VisitpadFieldError[],
+): VisitpadFieldError[] {
+  if (hasCompleteChiefComplaint(formData.chiefComplaints)) return [];
+
+  const firstRow = formData.chiefComplaints[0];
+  if (!firstRow) return [];
+
+  const gateErrors: VisitpadFieldError[] = [];
+  for (const field of CHIEF_COMPLAINT_REQUIRED_FIELDS) {
+    if (textValue(firstRow[field])) continue;
+    if (isAlreadyReported(existingErrors, 'chiefComplaints', firstRow.id, field)) continue;
+    gateErrors.push({ section: 'chiefComplaints', rowId: firstRow.id, field });
+  }
+  return gateErrors;
+}
+
+function isAlreadyReported(
+  errors: VisitpadFieldError[],
+  section: VisitpadTableSection,
+  rowId: string,
+  field: string,
+): boolean {
+  return errors.some(
+    (error) => error.section === section && error.rowId === rowId && error.field === field,
+  );
+}
+
+function resolveFirstSectionTab(
+  invalidSections: VisitpadTableSection[],
+): CreateRxSectionTab | null {
+  return (
+    SECTION_TAB_ORDER.find((tab) =>
+      invalidSections.some((section) => VISITPAD_SECTION_TAB[section] === tab),
+    ) ?? null
+  );
+}
+
 export function validateVisitpadForm(
   formData: CreateRxFormData,
   options?: { requireChiefComplaint?: boolean },
 ): VisitpadValidationResult {
-  const errors: VisitpadFieldError[] = [
-    ...validatePartialRows<ChiefComplaintRow>(
-      formData.chiefComplaints,
-      ['complaint', 'severity', 'duration', 'durationUnit', 'notes'],
-      ['complaint', 'severity', 'duration', 'durationUnit'],
-      'chiefComplaints',
-    ),
-    ...validatePartialRows<ImmunizationRow>(
-      formData.immunizations,
-      [
-        'vaccineName',
-        'manufacturer',
-        'lotNumber',
-        'dateOfDose',
-        'doseNumber',
-        'nextDueDate',
-        'notes',
-      ],
-      ['vaccineName', 'manufacturer', 'dateOfDose'],
-      'immunizations',
-    ),
-    ...validatePartialRows<AllergyRow>(
-      formData.allergyDetails,
-      ['allergen', 'reaction', 'severity'],
-      ['allergen', 'reaction', 'severity'],
-      'allergyDetails',
-    ),
-    ...validatePartialRows<DiagnosisRow>(
-      formData.diagnosis,
-      ['notes', 'certainty'],
-      ['notes', 'certainty'],
-      'diagnosis',
-    ),
-    ...validatePartialRows<MedicineRow>(
-      formData.medicines,
-      [
-        'medicine',
-        'dosageForm',
-        'route',
-        'strength',
-        'dosageMorning',
-        'dosageAfternoon',
-        'dosageNight',
-        'days',
-        'frequency',
-        'toa',
-        'quantity',
-      ],
-      ['medicine', 'dosageMorning', 'dosageAfternoon', 'dosageNight', 'days', 'frequency'],
-      'medicines',
-    ),
-    ...validatePartialRows<TestRow>(
-      formData.testsRequired,
-      ['testName', 'status'],
-      ['testName', 'status'],
-      'testsRequired',
-    ),
-    ...validatePartialRows<ImagingRow>(
-      formData.imagingRequired,
-      ['testName', 'byWhen', 'instructions', 'status'],
-      ['testName', 'status'],
-      'imagingRequired',
-    ),
-    ...validatePartialRows<ProcedureRow>(
-      formData.procedures,
-      ['procedureName', 'advisedDate'],
-      ['procedureName'],
-      'procedures',
-    ),
-    ...validatePartialRows<PhysicalActivityRow>(
-      formData.physicalActivity,
-      ['steps', 'sleepDuration', 'caloriesBurned', 'exerciseType'],
-      ['steps', 'sleepDuration', 'caloriesBurned', 'exerciseType'],
-      'physicalActivity',
-    ),
-  ];
+  const errors = collectPartialRowErrors(formData);
 
-  if (options?.requireChiefComplaint && !hasCompleteChiefComplaint(formData.chiefComplaints)) {
-    const firstRow = formData.chiefComplaints[0];
-    if (firstRow) {
-      for (const field of ['complaint', 'severity', 'duration', 'durationUnit'] as const) {
-        if (!textValue(firstRow[field])) {
-          const alreadyReported = errors.some(
-            (error) =>
-              error.section === 'chiefComplaints' &&
-              error.rowId === firstRow.id &&
-              error.field === field,
-          );
-          if (!alreadyReported) {
-            errors.push({
-              section: 'chiefComplaints',
-              rowId: firstRow.id,
-              field,
-            });
-          }
-        }
-      }
-    }
+  if (options?.requireChiefComplaint) {
+    errors.push(...collectChiefComplaintGateErrors(formData, errors));
   }
 
   const invalidSections = [...new Set(errors.map((error) => error.section))];
-  const firstSectionTab =
-    SECTION_TAB_ORDER.find((tab) =>
-      invalidSections.some((section) => VISITPAD_SECTION_TAB[section] === tab),
-    ) ?? null;
 
   return {
     isValid: errors.length === 0,
     errors,
     invalidSections,
-    firstSectionTab,
+    firstSectionTab: resolveFirstSectionTab(invalidSections),
   };
 }

@@ -288,6 +288,59 @@ function isAccountDisabledResponse(status: number, body: string): boolean {
   return parsed?.code === 'USER_ACCOUNT_DISABLED';
 }
 
+/**
+ * Service-specific normalization of `iq_tenant_id` / `x-tenant-id` on top of
+ * {@link buildRequestHeaders}. Mutates `headers` in place. No-op when tenant
+ * headers are omitted for this path/context.
+ */
+function normalizeServiceTenantHeaders(
+  headers: Headers,
+  path: string,
+  context: ApiClientContext | undefined,
+): void {
+  if (shouldOmitTenantHeadersForPath(path, context)) {
+    return;
+  }
+
+  const tenantId = resolveEffectiveTenantId(context);
+
+  /** Billing tariffs are tenant-scoped — always normalize (caller may pass stale EMPI placeholder). */
+  if (path.startsWith(BILLING_API_PREFIX)) {
+    const billingTenant = billingIqTenantHeaderValue(
+      tenantId,
+      useAuthStore.getState().accessToken,
+    );
+    headers.set('iq_tenant_id', billingTenant);
+    headers.set('x-tenant-id', billingTenant);
+    return;
+  }
+
+  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
+  if (catalogTenant && !headers.has('iq_tenant_id')) {
+    headers.set('iq_tenant_id', catalogTenant);
+    headers.set('x-tenant-id', catalogTenant);
+  }
+
+  /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
+  if (
+    (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
+    !headers.has('iq_tenant_id')
+  ) {
+    const serviceTenant = serviceIqTenantHeaderValue(tenantId);
+    headers.set('iq_tenant_id', serviceTenant);
+    headers.set('x-tenant-id', serviceTenant);
+  }
+
+  /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
+  if (
+    path.startsWith(CONFIGURATOR_API_PREFIX) &&
+    !headers.has('iq_tenant_id') &&
+    !headers.has('x-tenant-id')
+  ) {
+    headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
+  }
+}
+
 async function fetchWithAuthRetry(
   path: string,
   options: RequestInit,
@@ -295,43 +348,7 @@ async function fetchWithAuthRetry(
   canRetryWithFreshToken: boolean,
 ): Promise<Response> {
   const headers = buildRequestHeaders(path, options, context);
-  const tenantId = resolveEffectiveTenantId(context);
-  const accessToken = useAuthStore.getState().accessToken;
-  const catalogTenant = catalogIqTenantHeaderValue(tenantId);
-  const omitTenantHeaders = shouldOmitTenantHeadersForPath(path, context);
-
-  if (!omitTenantHeaders) {
-    if (
-      !path.startsWith(BILLING_API_PREFIX) &&
-      catalogTenant &&
-      !headers.has('iq_tenant_id')
-    ) {
-      headers.set('iq_tenant_id', catalogTenant);
-      headers.set('x-tenant-id', catalogTenant);
-    }
-    /** EMPI and Registration require `iq_tenant_id` (or `x-tenant-id`). */
-    if (
-      (path.startsWith(EMPI_API_PREFIX) || isRegistrationApiPath(path)) &&
-      !headers.has('iq_tenant_id')
-    ) {
-      headers.set('iq_tenant_id', serviceIqTenantHeaderValue(tenantId));
-      headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
-    }
-    /** Configurator tenantPlugin (legacy) rejects requests without a tenant header. */
-    if (
-      path.startsWith(CONFIGURATOR_API_PREFIX) &&
-      !headers.has('iq_tenant_id') &&
-      !headers.has('x-tenant-id')
-    ) {
-      headers.set('x-tenant-id', serviceIqTenantHeaderValue(tenantId));
-    }
-    /** Billing tariffs are tenant-scoped — always normalize (caller may pass stale EMPI placeholder). */
-    if (path.startsWith(BILLING_API_PREFIX)) {
-      const billingTenant = billingIqTenantHeaderValue(tenantId, accessToken);
-      headers.set('iq_tenant_id', billingTenant);
-      headers.set('x-tenant-id', billingTenant);
-    }
-  }
+  normalizeServiceTenantHeaders(headers, path, context);
 
   const response = await fetch(resolveRequestUrl(path), {
     ...options,
