@@ -1,10 +1,16 @@
-import { and, eq, inArray, sql, type DbInstance } from "@hims/ts-sdk-db";
+import {
+  and,
+  eq,
+  inArray,
+  isPostgresUniqueViolation,
+  sql,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import { asc } from "drizzle-orm";
 import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type { DispenseLineItemRecord, DispenseRecord } from "../domain/pharmacy.types.js";
 import { computeRecordAmounts } from "../lib/dispense-amounts.js";
 import type { DispenseRecordRepo, UpsertDispensePayload, UpsertDispenseResult } from "../ports.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import { dispenseLineItems, dispenseRecords } from "../schema/tables.js";
 
 function mapRecord(row: typeof dispenseRecords.$inferSelect): DispenseRecord {

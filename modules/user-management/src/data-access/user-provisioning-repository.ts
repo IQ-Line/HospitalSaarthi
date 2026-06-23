@@ -1,11 +1,10 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { isPostgresUniqueViolation, type DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   DuplicateUsernameError,
   UnexpectedPersistenceError,
 } from "../domain/errors.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import { syncRoleTemplateCapabilitySnapshot } from "./role-template-grant-writes.js";
 import type {
   ProvisionUserWithAccessInput,

@@ -1,4 +1,8 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import {
+  isPostgresForeignKeyViolation,
+  isPostgresUniqueViolation,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   DuplicateRoleCodeError,
@@ -7,10 +11,6 @@ import {
 } from "../domain/errors.js";
 import type { CreateRoleInput, Role, RoleRepository, UpdateRoleInput } from "../ports/index.js";
 import { roles } from "../schema/tables.js";
-import {
-  isPostgresForeignKeyViolation,
-  isPostgresUniqueViolation,
-} from "./postgres-errors.js";
 
 function rowToRole(row: {
   id: string;

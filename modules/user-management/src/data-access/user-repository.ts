@@ -1,6 +1,5 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { isPostgresUniqueViolation, type DbInstance } from "@hims/ts-sdk-db";
 import { DuplicateUsernameError, UnexpectedPersistenceError } from "../domain/errors.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";

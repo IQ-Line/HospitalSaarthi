@@ -1,9 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, inArray, sql } from "@hims/ts-sdk-db";
+import { and, eq, inArray, isPostgresUniqueViolation, sql } from "@hims/ts-sdk-db";
 import { asc, desc } from "drizzle-orm";
 import { registrations, visits } from "../schema/tables.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { VisitRepo } from "../ports.js";
 import type { DashboardRepoMetrics } from "../domain/dashboard.types.js";
 import type {

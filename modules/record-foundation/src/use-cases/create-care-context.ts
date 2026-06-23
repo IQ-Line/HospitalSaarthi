@@ -1,6 +1,6 @@
 import type { CareContextRepo, CareContextRow } from "../ports.js";
 import type { CreateCareContextData } from "../domain/care-context.js";
-import { isPostgresUniqueViolation } from "../data-access/postgres-errors.js";
+import { isPostgresUniqueViolation } from "@hims/ts-sdk-db";
 
 interface Deps {
   careContextRepo: CareContextRepo;

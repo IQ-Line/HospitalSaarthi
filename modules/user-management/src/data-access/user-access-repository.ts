@@ -1,4 +1,4 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { isPostgresForeignKeyViolation, type DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type {
   AppliedRoleTemplate,
@@ -10,7 +10,6 @@ import {
   UnexpectedPersistenceError,
   UserNotFoundError,
 } from "../domain/errors.js";
-import { isPostgresForeignKeyViolation } from "./postgres-errors.js";
 import {
   revokeRoleTemplateCapabilitySnapshot,
   syncRoleTemplateCapabilitySnapshot,

@@ -1,8 +1,7 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, sql } from "@hims/ts-sdk-db";
+import { and, eq, isPostgresUniqueViolation, sql } from "@hims/ts-sdk-db";
 import { desc, ilike, or } from "drizzle-orm";
 import { registrations } from "../schema/tables.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { RegistrationRepo } from "../ports.js";
 import type {
   CreateRegistrationInput,
