@@ -5,6 +5,9 @@ Revises: 043_platform_role_types_super_admin_and_admin
 
 Operational inventory tables (items, stores, GRN, stock) remain in the ``inventory`` schema.
 Master rows are owned by Master Data; inventory holds UUID references without cross-schema FKs.
+
+Manufacturers are not duplicated here — inventory reuses Visitpad ``manufacturers``
+(``023_vp_vaccines_manufacturers``) via ``manufacturer_id`` on items and GRNs.
 """
 
 from __future__ import annotations
@@ -28,7 +31,6 @@ _INVENTORY_L3_SEEDS: tuple[tuple[str, str, str], ...] = (
     ("Categories", "inventory-categories", "Inventory item category hierarchy."),
     ("Item Types", "inventory-item-types", "Inventory item type master."),
     ("Units of Measure", "inventory-uoms", "Purchase, consumption, and sale UOMs."),
-    ("Manufacturers", "inventory-manufacturers", "Item and supply manufacturers."),
     ("HSN / GST", "inventory-hsn-gst", "HSN codes and GST rate schedules."),
     ("Storage Conditions", "inventory-storage-conditions", "Item storage condition master."),
     ("Store Types", "inventory-store-types", "Inventory store type definitions."),
@@ -248,36 +250,6 @@ def _create_tenant_inventory_uoms() -> None:
         ON {_TM}.inventory_uoms (iq_tenant_id, lower(btrim(abbreviation)))
         WHERE NOT is_deleted
         """
-    )
-
-
-def _create_global_inventory_manufacturers() -> None:
-    op.create_table(
-        "inventory_manufacturers",
-        _id_column(),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("code", sa.Text(), nullable=True),
-        *_audit_columns(),
-        schema=_GM,
-    )
-    _reference_table(_GM, "inventory_manufacturers")
-
-
-def _create_tenant_inventory_manufacturers() -> None:
-    op.create_table(
-        "inventory_manufacturers",
-        _id_column(),
-        sa.Column("iq_tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("code", sa.Text(), nullable=True),
-        *_audit_columns(),
-        schema=_TM,
-    )
-    op.create_index(
-        "tm_idx_inventory_manufacturers_tenant",
-        "inventory_manufacturers",
-        ["iq_tenant_id"],
-        schema=_TM,
     )
 
 
@@ -571,7 +543,6 @@ def upgrade() -> None:
     _create_global_inventory_categories()
     _create_global_inventory_item_types()
     _create_global_inventory_uoms()
-    _create_global_inventory_manufacturers()
     _create_global_inventory_hsn_gst()
     _create_global_inventory_storage_conditions()
     _create_global_inventory_store_types()
@@ -580,7 +551,6 @@ def upgrade() -> None:
     _create_tenant_inventory_categories()
     _create_tenant_inventory_item_types()
     _create_tenant_inventory_uoms()
-    _create_tenant_inventory_manufacturers()
     _create_tenant_inventory_hsn_gst()
     _create_tenant_inventory_storage_conditions()
     _create_tenant_inventory_store_types()
@@ -638,7 +608,6 @@ def downgrade() -> None:
         "inventory_store_types",
         "inventory_storage_conditions",
         "inventory_hsn_gst",
-        "inventory_manufacturers",
         "inventory_uoms",
         "inventory_item_types",
         "inventory_categories",
