@@ -9,7 +9,68 @@ import { handleOnFetchCallback } from "../../use-cases/m3/hiu/handle-on-fetch-ca
 import { handleOnDataRequestCallback } from "../../use-cases/m3/hiu/handle-on-data-request-callback.js";
 import { handleBundlePush } from "../../use-cases/m3/hiu/handle-bundle-push.js";
 import { resolveCallbackTenant, resolveInboundRequestId } from "../../lib/resolve-callback-tenant.js";
+import type { TenantIntegrationProfile } from "../../../../lib/integration-context.js";
 import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+
+/** Outcome of resolving the tenant for an encrypted bundle push. */
+type TenantResolution =
+  | { ok: true; iqTenantId: string; profile?: TenantIntegrationProfile }
+  | { ok: false; message: string };
+
+/** First non-empty, trimmed value among the given raw header values. */
+const firstTrimmed = (...values: unknown[]): string => {
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
+};
+
+/**
+ * Resolves the tenant for a bundle push: `x-tenant-id` header (then HIP-profile
+ * match), else the `abdm_m3_data_transfers` row, else HIP/header resolution.
+ */
+async function resolveBundlePushTenant(
+  headers: Record<string, unknown>,
+  transferId: string,
+  sharedInfra: IntegrationHubSharedInfra,
+): Promise<TenantResolution> {
+  const headerTenantId = firstTrimmed(headers["x-tenant-id"], headers["X-Tenant-Id"]);
+  if (headerTenantId) {
+    const hipId = firstTrimmed(headers["x-hip-id"], headers["X-HIP-ID"]);
+    if (hipId) {
+      const byHip = await sharedInfra.profiles.findActiveByHipId(hipId);
+      if (byHip?.iqTenantId === headerTenantId) {
+        return { ok: true, iqTenantId: headerTenantId, profile: byHip };
+      }
+    }
+    return { ok: true, iqTenantId: headerTenantId };
+  }
+
+  const row = await sharedInfra.m3DataTransfers.findByTransferId(transferId);
+  if (row) {
+    return { ok: true, iqTenantId: row.iqTenantId };
+  }
+
+  try {
+    const resolved = await resolveCallbackTenant(headers, sharedInfra.profiles);
+    return { ok: true, iqTenantId: resolved.iqTenantId, profile: resolved.profile };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : "tenant resolution failed" };
+  }
+}
+
+/** Derives the idempotency request-id for a bundle push from headers/body. */
+function resolveBundlePushRequestId(
+  headers: Record<string, unknown>,
+  body: unknown,
+): string {
+  try {
+    return resolveInboundRequestId(headers, body);
+  } catch {
+    return firstTrimmed(headers["request-id"], headers["REQUEST-ID"]);
+  }
+}
 
 export async function registerM3CallbackRoutes(
   app: FastifyInstance,
@@ -103,34 +164,12 @@ export async function registerM3CallbackRoutes(
   app.post("/hiu/health-information/transfer/:transferId", async (req, reply) => {
     const headers = req.headers as Record<string, unknown>;
     const transferId = (req.params as { transferId: string }).transferId;
-    let iqTenantId = String(headers["x-tenant-id"] ?? headers["X-Tenant-Id"] ?? "").trim();
-    let profile;
 
-    if (!iqTenantId) {
-      const row = await sharedInfra.m3DataTransfers.findByTransferId(transferId);
-      if (row) {
-        iqTenantId = row.iqTenantId;
-      } else {
-        try {
-          const resolved = await resolveCallbackTenant(headers, sharedInfra.profiles);
-          iqTenantId = resolved.iqTenantId;
-          profile = resolved.profile;
-        } catch (e) {
-          return reply.code(400).send({
-            error: "BadRequest",
-            message: e instanceof Error ? e.message : "tenant resolution failed",
-          });
-        }
-      }
-    } else {
-      const hipId = String(headers["x-hip-id"] ?? headers["X-HIP-ID"] ?? "").trim();
-      if (hipId) {
-        const byHip = await sharedInfra.profiles.findActiveByHipId(hipId);
-        if (byHip?.iqTenantId === iqTenantId) {
-          profile = byHip;
-        }
-      }
+    const tenant = await resolveBundlePushTenant(headers, transferId, sharedInfra);
+    if (!tenant.ok) {
+      return reply.code(400).send({ error: "BadRequest", message: tenant.message });
     }
+    const { iqTenantId, profile } = tenant;
 
     let deps;
     try {
@@ -146,12 +185,7 @@ export async function registerM3CallbackRoutes(
       throw e;
     }
 
-    let pushRequestId: string;
-    try {
-      pushRequestId = resolveInboundRequestId(headers, req.body);
-    } catch {
-      pushRequestId = String(headers["request-id"] ?? headers["REQUEST-ID"] ?? "").trim();
-    }
+    const pushRequestId = resolveBundlePushRequestId(headers, req.body);
     const dedupeRequestId = pushRequestId
       ? `transfer-push:${transferId}:${pushRequestId}`
       : `transfer-push:${transferId}`;

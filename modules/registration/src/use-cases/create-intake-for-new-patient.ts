@@ -1,6 +1,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
   EmpiHttpPort,
+  EmpiRegisterPatientResult,
   OpdHttpPort,
   RegistrationRepo,
   VisitRepo,
@@ -32,6 +33,68 @@ export type IntakeContext = {
   bearerToken?: string;
 };
 
+type NewPatientIntakeFailure =
+  | {
+      ok: false;
+      kind: "duplicate";
+      body: {
+        code: string;
+        message: string;
+        patient_id: string;
+        patient_snapshot: PatientDemographicsSnapshot;
+      };
+    }
+  | { ok: false; kind: "empi_error"; status: number; body: string }
+  | { ok: false; kind: "empi_unavailable"; status: number; body: string };
+
+/**
+ * Translate a failed EMPI register-patient result into the intake failure
+ * response. Cohesive policy: a real duplicate (with an existing id) becomes a
+ * structured `duplicate`; a duplicate without an id, or any other EMPI error,
+ * is surfaced as `empi_error`; an unavailable EMPI is passed through verbatim.
+ */
+function empiFailureToResult(
+  empiResult: Extract<EmpiRegisterPatientResult, { ok: false }>,
+): NewPatientIntakeFailure {
+  if (empiResult.kind === "duplicate") {
+    if (empiResult.existingPatientId) {
+      return {
+        ok: false,
+        kind: "duplicate",
+        body: {
+          code: "patient_already_exists",
+          message: "Patient already exists.",
+          patient_id: empiResult.existingPatientId,
+          patient_snapshot: empiResult.snapshot,
+        },
+      };
+    }
+    return {
+      ok: false,
+      kind: "empi_error",
+      status: 409,
+      body:
+        typeof empiResult.body === "string"
+          ? empiResult.body
+          : JSON.stringify(empiResult.body ?? "EMPI duplicate response unrecognised"),
+    };
+  }
+  if (empiResult.kind === "empi_unavailable") {
+    return {
+      ok: false,
+      kind: "empi_unavailable",
+      status: empiResult.status,
+      body: empiResult.body,
+    };
+  }
+  return {
+    ok: false,
+    kind: "empi_error",
+    status: empiResult.status,
+    body: empiResult.body,
+  };
+}
+
 export async function createIntakeForNewPatient(
   deps: {
     registrationRepo: RegistrationRepo;
@@ -48,18 +111,7 @@ export async function createIntakeForNewPatient(
   ctx: IntakeContext,
 ): Promise<
   | { ok: true; result: RegistrationWithVisitRecord; created: boolean }
-  | {
-      ok: false;
-      kind: "duplicate";
-      body: {
-        code: string;
-        message: string;
-        patient_id: string;
-        patient_snapshot: PatientDemographicsSnapshot;
-      };
-    }
-  | { ok: false; kind: "empi_error"; status: number; body: string }
-  | { ok: false; kind: "empi_unavailable"; status: number; body: string }
+  | NewPatientIntakeFailure
 > {
   const existingVisit = await deps.visitRepo.findByIdempotencyKey(
     tenantId,
@@ -88,43 +140,7 @@ export async function createIntakeForNewPatient(
   );
 
   if (!empiResult.ok) {
-    if (empiResult.kind === "duplicate") {
-      if (empiResult.existingPatientId) {
-        return {
-          ok: false,
-          kind: "duplicate",
-          body: {
-            code: "patient_already_exists",
-            message: "Patient already exists.",
-            patient_id: empiResult.existingPatientId,
-            patient_snapshot: empiResult.snapshot,
-          },
-        };
-      }
-      return {
-        ok: false,
-        kind: "empi_error",
-        status: 409,
-        body:
-          typeof empiResult.body === "string"
-            ? empiResult.body
-            : JSON.stringify(empiResult.body ?? "EMPI duplicate response unrecognised"),
-      };
-    }
-    if (empiResult.kind === "empi_unavailable") {
-      return {
-        ok: false,
-        kind: "empi_unavailable",
-        status: empiResult.status,
-        body: empiResult.body,
-      };
-    }
-    return {
-      ok: false,
-      kind: "empi_error",
-      status: empiResult.status,
-      body: empiResult.body,
-    };
+    return empiFailureToResult(empiResult);
   }
 
   const registrationResult = await createRegistration(

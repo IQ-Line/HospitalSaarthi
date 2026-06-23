@@ -368,29 +368,40 @@ async function createCoreEntities(
 // ---------------------------------------------------------------------------
 
 function validateInput(input: ProvisionTenantInput): void {
-  const existingOrgId = input.organization.id?.trim();
-  const orgName = input.organization.name?.trim();
-  const orgSlug = input.organization.slug?.trim();
-  if (!existingOrgId) {
-    if (!orgName) {
-      throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
-    }
-    if (!orgSlug || orgSlug.length < 3) {
-      throw new ConfiguratorError(
-        400,
-        "organization.slug must be at least 3 characters",
-        "VALIDATION_ERROR",
-      );
-    }
-    if (!input.organization.type) {
-      throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
-    }
+  // Ordering is contractual: organization → tenant → org-contact-email → plan
+  // (which also normalizes input.plan.slug) → modules → admin.
+  validateOrganization(input);
+  validateTenant(input);
+  validateOrgContactEmail(input);
+  validatePlan(input);
+  validateModules(input);
+  validateAdmin(input);
+}
+
+function validateOrganization(input: ProvisionTenantInput): void {
+  // Skip identity/shape checks when referencing an existing organization by id.
+  if (input.organization.id?.trim()) return;
+  if (!input.organization.name?.trim()) {
+    throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
   }
-  const tenantName = input.tenant?.name?.trim();
-  const tenantSlug = input.tenant?.slug?.trim();
-  if (!tenantName) {
+  const orgSlug = input.organization.slug?.trim();
+  if (!orgSlug || orgSlug.length < 3) {
+    throw new ConfiguratorError(
+      400,
+      "organization.slug must be at least 3 characters",
+      "VALIDATION_ERROR",
+    );
+  }
+  if (!input.organization.type) {
+    throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+  }
+}
+
+function validateTenant(input: ProvisionTenantInput): void {
+  if (!input.tenant?.name?.trim()) {
     throw new ConfiguratorError(400, "tenant.name is required", "VALIDATION_ERROR");
   }
+  const tenantSlug = input.tenant?.slug?.trim();
   if (!tenantSlug || tenantSlug.length < 3) {
     throw new ConfiguratorError(
       400,
@@ -398,6 +409,9 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
+
+function validateOrgContactEmail(input: ProvisionTenantInput): void {
   const orgContactEmail = input.organization.contact_email?.trim();
   if (orgContactEmail && !EMAIL_RE.test(orgContactEmail)) {
     throw new ConfiguratorError(
@@ -406,6 +420,10 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
+
+/** Validates plan.slug (required unless this tenant is a branch) and normalizes it on input. */
+function validatePlan(input: ProvisionTenantInput): void {
   const isBranch = !!input.tenant.parent_tenant_id?.trim();
   const planSlug = input.plan?.slug?.trim();
   if (!isBranch && !planSlug) {
@@ -418,6 +436,9 @@ function validateInput(input: ProvisionTenantInput): void {
   if (input.plan) {
     input.plan = { ...input.plan, slug: planSlug ?? "" };
   }
+}
+
+function validateModules(input: ProvisionTenantInput): void {
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
       400,
@@ -425,7 +446,9 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
 
+function validateAdmin(input: ProvisionTenantInput): void {
   const username = input.admin.username?.trim().toLowerCase();
   if (!username || !USERNAME_RE.test(username)) {
     throw new ConfiguratorError(

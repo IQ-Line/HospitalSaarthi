@@ -75,16 +75,28 @@ function sourcePairKey(moduleSlug: string, permissionSlug: string): string {
   return `${moduleSlug}\0${permissionSlug}`;
 }
 
-/**
- * One-way sync: Master Data `module_permissions` → User Management `capabilities`.
- * Master Data is the catalog source of truth; UM rows are deactivated when MD drops a link.
- */
-export async function syncCapabilitiesFromMasterDataCatalog(
-  userManagementDb: DbInstance,
-  masterDataDatabaseUrl: string,
-): Promise<SyncCapabilitiesFromMasterDataResult> {
-  const rows = await loadMasterDataModulePermissions(masterDataDatabaseUrl);
+function describeMappingError(error: unknown): string {
+  if (error instanceof InvalidCapabilityKeyError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
 
+type MappedCatalog = {
+  capabilities: MappedRuntimeCapability[];
+  syncedSourcePairs: Set<string>;
+  skipped: number;
+  skippedSamples: string[];
+};
+
+/**
+ * Map Master Data rows to runtime capabilities, deduping by capability_key.
+ * Rows whose mapping throws are skipped (with up to 20 sampled reasons).
+ */
+function mapCatalogRows(rows: MasterDataModulePermissionRow[]): MappedCatalog {
   const mappedByKey = new Map<string, MappedRuntimeCapability>();
   const syncedSourcePairs = new Set<string>();
   let skipped = 0;
@@ -100,91 +112,106 @@ export async function syncCapabilitiesFromMasterDataCatalog(
     } catch (error) {
       skipped += 1;
       if (skippedSamples.length < 20) {
-        const reason =
-          error instanceof InvalidCapabilityKeyError
-            ? error.message
-            : error instanceof Error
-              ? error.message
-              : String(error);
-        skippedSamples.push(`${row.module_slug}/${row.permission_slug}: ${reason}`);
+        skippedSamples.push(
+          `${row.module_slug}/${row.permission_slug}: ${describeMappingError(error)}`,
+        );
       }
     }
   }
 
-  const mapped = [...mappedByKey.values()];
-  let inserted = 0;
-  let updated = 0;
+  return {
+    capabilities: [...mappedByKey.values()],
+    syncedSourcePairs,
+    skipped,
+    skippedSamples,
+  };
+}
 
-  for (const cap of mapped) {
-    // Legacy seed rows may share (module, feature, action) under an old capability_key (e.g. um:*).
-    await userManagementDb
-      .update(capabilities)
-      .set({
-        capability_key: cap.capability_key,
+/**
+ * Upsert a single mapped capability, returning whether it already existed.
+ * First re-keys any legacy seed row sharing (module, feature, action) under an
+ * old capability_key, then inserts-or-updates by capability_key.
+ */
+async function upsertCapability(
+  db: DbInstance,
+  cap: MappedRuntimeCapability,
+): Promise<{ existed: boolean }> {
+  const description = `Synced from Master Data (${cap.source_module_slug}/${cap.source_permission_slug}).`;
+
+  // Legacy seed rows may share (module, feature, action) under an old capability_key (e.g. um:*).
+  await db
+    .update(capabilities)
+    .set({
+      capability_key: cap.capability_key,
+      module: cap.module,
+      feature: cap.feature,
+      action: cap.action,
+      display_name: cap.display_name,
+      description,
+      is_active: true,
+      source_module_slug: cap.source_module_slug,
+      source_permission_slug: cap.source_permission_slug,
+      source_catalog: "master_data",
+      updated_at: new Date(),
+    })
+    .where(
+      and(
+        eq(capabilities.module, cap.module),
+        eq(capabilities.feature, cap.feature),
+        eq(capabilities.action, cap.action),
+        ne(capabilities.capability_key, cap.capability_key),
+      ),
+    );
+
+  const [existing] = await db
+    .select({ id: capabilities.id })
+    .from(capabilities)
+    .where(eq(capabilities.capability_key, cap.capability_key))
+    .limit(1);
+
+  await db
+    .insert(capabilities)
+    .values({
+      capability_key: cap.capability_key,
+      module: cap.module,
+      feature: cap.feature,
+      action: cap.action,
+      display_name: cap.display_name,
+      description,
+      is_active: true,
+      source_module_slug: cap.source_module_slug,
+      source_permission_slug: cap.source_permission_slug,
+      source_catalog: "master_data",
+    })
+    .onConflictDoUpdate({
+      target: [capabilities.capability_key],
+      set: {
         module: cap.module,
         feature: cap.feature,
         action: cap.action,
         display_name: cap.display_name,
-        description: `Synced from Master Data (${cap.source_module_slug}/${cap.source_permission_slug}).`,
+        description,
         is_active: true,
         source_module_slug: cap.source_module_slug,
         source_permission_slug: cap.source_permission_slug,
         source_catalog: "master_data",
         updated_at: new Date(),
-      })
-      .where(
-        and(
-          eq(capabilities.module, cap.module),
-          eq(capabilities.feature, cap.feature),
-          eq(capabilities.action, cap.action),
-          ne(capabilities.capability_key, cap.capability_key),
-        ),
-      );
+      },
+    });
 
-    const [existing] = await userManagementDb
-      .select({ id: capabilities.id })
-      .from(capabilities)
-      .where(eq(capabilities.capability_key, cap.capability_key))
-      .limit(1);
+  return { existed: Boolean(existing) };
+}
 
-    await userManagementDb
-      .insert(capabilities)
-      .values({
-        capability_key: cap.capability_key,
-        module: cap.module,
-        feature: cap.feature,
-        action: cap.action,
-        display_name: cap.display_name,
-        description: `Synced from Master Data (${cap.source_module_slug}/${cap.source_permission_slug}).`,
-        is_active: true,
-        source_module_slug: cap.source_module_slug,
-        source_permission_slug: cap.source_permission_slug,
-        source_catalog: "master_data",
-      })
-      .onConflictDoUpdate({
-        target: [capabilities.capability_key],
-        set: {
-          module: cap.module,
-          feature: cap.feature,
-          action: cap.action,
-          display_name: cap.display_name,
-          description: `Synced from Master Data (${cap.source_module_slug}/${cap.source_permission_slug}).`,
-          is_active: true,
-          source_module_slug: cap.source_module_slug,
-          source_permission_slug: cap.source_permission_slug,
-          source_catalog: "master_data",
-          updated_at: new Date(),
-        },
-      });
-
-    if (existing) {
-      updated += 1;
-    } else {
-      inserted += 1;
-    }
-  }
-
-  const mdCapabilities = await userManagementDb
+/**
+ * Deactivate active master_data-sourced capabilities whose source pair is no
+ * longer present in the catalog (or whose source columns are missing).
+ * Returns the count deactivated.
+ */
+async function deactivateOrphans(
+  db: DbInstance,
+  syncedSourcePairs: Set<string>,
+): Promise<number> {
+  const mdCapabilities = await db
     .select({
       id: capabilities.id,
       source_module_slug: capabilities.source_module_slug,
@@ -209,14 +236,42 @@ export async function syncCapabilitiesFromMasterDataCatalog(
     })
     .map((row) => row.id);
 
-  let deactivated = 0;
-  if (orphanIds.length > 0) {
-    await userManagementDb
-      .update(capabilities)
-      .set({ is_active: false, updated_at: new Date() })
-      .where(inArray(capabilities.id, orphanIds));
-    deactivated = orphanIds.length;
+  if (orphanIds.length === 0) {
+    return 0;
   }
+
+  await db
+    .update(capabilities)
+    .set({ is_active: false, updated_at: new Date() })
+    .where(inArray(capabilities.id, orphanIds));
+
+  return orphanIds.length;
+}
+
+/**
+ * One-way sync: Master Data `module_permissions` → User Management `capabilities`.
+ * Master Data is the catalog source of truth; UM rows are deactivated when MD drops a link.
+ */
+export async function syncCapabilitiesFromMasterDataCatalog(
+  userManagementDb: DbInstance,
+  masterDataDatabaseUrl: string,
+): Promise<SyncCapabilitiesFromMasterDataResult> {
+  const rows = await loadMasterDataModulePermissions(masterDataDatabaseUrl);
+  const { capabilities: mapped, syncedSourcePairs, skipped, skippedSamples } =
+    mapCatalogRows(rows);
+
+  let inserted = 0;
+  let updated = 0;
+  for (const cap of mapped) {
+    const { existed } = await upsertCapability(userManagementDb, cap);
+    if (existed) {
+      updated += 1;
+    } else {
+      inserted += 1;
+    }
+  }
+
+  const deactivated = await deactivateOrphans(userManagementDb, syncedSourcePairs);
 
   return { inserted, updated, deactivated, skipped, skippedSamples };
 }

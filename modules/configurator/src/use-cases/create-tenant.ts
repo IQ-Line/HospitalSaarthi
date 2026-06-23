@@ -14,7 +14,7 @@ const BRANCH_CODE_PATTERN = /^[A-Z0-9_-]{2,10}$/;
 function normalizeBranchCode(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   if (!trimmed) return null;
-  const normalized = trimmed.replace(/[\u2010-\u2015\u2212]/g, "-").toUpperCase();
+  const normalized = trimmed.replace(/[‐-―−]/g, "-").toUpperCase();
   if (!BRANCH_CODE_PATTERN.test(normalized)) {
     throw new ConfiguratorError(
       400,
@@ -24,11 +24,15 @@ function normalizeBranchCode(value: string | null | undefined): string | null {
   return normalized;
 }
 
-export async function createTenant(
-  tenantRepo: TenantRepo,
-  organizationRepo: OrganizationRepo,
-  data: CreateTenantData,
-): Promise<Tenant> {
+/**
+ * Validates the required core fields and tenant type, returning the trimmed values.
+ * Throws on missing required fields or an unknown tenant type.
+ */
+function validateCoreFields(data: CreateTenantData): {
+  name: string;
+  slug: string;
+  cerbos_scope_key: string;
+} {
   const name = data.name?.trim() ?? "";
   const slug = data.slug?.trim() ?? "";
   const cerbos_scope_key = data.cerbos_scope_key?.trim() ?? "";
@@ -41,6 +45,40 @@ export async function createTenant(
   if (!TENANT_TYPES.has(data.type)) {
     throw new ConfiguratorError(400, "invalid tenant type");
   }
+  return { name, slug, cerbos_scope_key };
+}
+
+/**
+ * Validates a branch (child) tenant: parent existence/ownership, branch_type, and
+ * branch_code uniqueness within the organization. Only invoked when parent_tenant_id is set.
+ */
+async function validateBranchTenant(
+  tenantRepo: TenantRepo,
+  data: CreateTenantData,
+  parentTenantId: string,
+): Promise<void> {
+  const parent = await tenantRepo.findById(parentTenantId);
+  if (!parent || parent.org_id !== data.org_id) {
+    throw new ConfiguratorError(400, "parent tenant not found for this organization");
+  }
+  const bc = normalizeBranchCode(data.branch_code);
+  if (!data.branch_type || !BRANCH_TYPES.has(data.branch_type)) {
+    throw new ConfiguratorError(400, "branch_type is required for branch tenants");
+  }
+  if (bc) {
+    const dupBranch = await tenantRepo.findByOrgIdAndBranchCode(data.org_id, bc);
+    if (dupBranch) {
+      throw new ConfiguratorError(409, "branch_code already exists for this organization", "CONFLICT");
+    }
+  }
+}
+
+export async function createTenant(
+  tenantRepo: TenantRepo,
+  organizationRepo: OrganizationRepo,
+  data: CreateTenantData,
+): Promise<Tenant> {
+  const { name, slug, cerbos_scope_key } = validateCoreFields(data);
 
   const org = await organizationRepo.findById(data.org_id);
   if (!org) {
@@ -48,20 +86,7 @@ export async function createTenant(
   }
 
   if (data.parent_tenant_id) {
-    const parent = await tenantRepo.findById(data.parent_tenant_id);
-    if (!parent || parent.org_id !== data.org_id) {
-      throw new ConfiguratorError(400, "parent tenant not found for this organization");
-    }
-    const bc = normalizeBranchCode(data.branch_code);
-    if (!data.branch_type || !BRANCH_TYPES.has(data.branch_type)) {
-      throw new ConfiguratorError(400, "branch_type is required for branch tenants");
-    }
-    if (bc) {
-      const dupBranch = await tenantRepo.findByOrgIdAndBranchCode(data.org_id, bc);
-      if (dupBranch) {
-        throw new ConfiguratorError(409, "branch_code already exists for this organization", "CONFLICT");
-      }
-    }
+    await validateBranchTenant(tenantRepo, data, data.parent_tenant_id);
   }
 
   const slugTaken = await tenantRepo.findBySlug(slug);
