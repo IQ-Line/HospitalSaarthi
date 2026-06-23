@@ -1,155 +1,11 @@
--- Inventory module — masters, item catalog, GRN, stock, indents.
--- Source: hims-backend/src/db/schema/inventory/* (store-scoped alignment).
+-- Inventory module — operational catalog (stores, items), GRN, stock, indents.
+-- Reference masters live in master-data (global_master / tenant_master) — see
+-- modules/master-data/alembic/versions/044_inventory_masters_catalog.py.
 -- Idempotent boot DDL: never DROP live tables (data must survive service restarts).
 
 CREATE SCHEMA IF NOT EXISTS inventory;
 
--- ─── Master: categories ──────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_categories (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  parent_category_id uuid,
-  description text,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_categories_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_inventory_master_categories_tenant_parent
-  ON inventory.master_categories (iq_tenant_id, parent_category_id);
-
--- ─── Master: item types ──────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_item_types (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_item_types_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_item_types_tenant_name_ci
-  ON inventory.master_item_types (iq_tenant_id, lower(btrim(name)));
-
--- ─── Master: UOMs ────────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_uoms (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  abbreviation text NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_uoms_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_uoms_tenant_name_ci
-  ON inventory.master_uoms (iq_tenant_id, lower(btrim(name)));
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_uoms_tenant_abbreviation_ci
-  ON inventory.master_uoms (iq_tenant_id, lower(btrim(abbreviation)));
-
--- ─── Master: manufacturers ───────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_manufacturers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  code text,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_manufacturers_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
--- ─── Master: HSN/GST ─────────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_hsn_gst (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  hsn_code text NOT NULL,
-  effective_from date NOT NULL,
-  cgst_pct numeric(8, 4) NOT NULL,
-  sgst_pct numeric(8, 4) NOT NULL,
-  igst_pct numeric(8, 4) NOT NULL,
-  supporting_document_url text,
-  remarks text,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_hsn_gst_pkey PRIMARY KEY (iq_tenant_id, id),
-  CONSTRAINT master_hsn_gst_hsn_code_format_chk CHECK (hsn_code ~ '^\d{4,8}$'),
-  CONSTRAINT master_hsn_gst_rates_non_negative_chk CHECK (
-    cgst_pct >= 0 AND sgst_pct >= 0 AND igst_pct >= 0
-  ),
-  CONSTRAINT master_hsn_gst_remarks_max_length_chk CHECK (
-    remarks IS NULL OR char_length(remarks) <= 200
-  )
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_hsn_gst_tenant_code_effective
-  ON inventory.master_hsn_gst (iq_tenant_id, hsn_code, effective_from);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_hsn_gst_active_combo
-  ON inventory.master_hsn_gst (
-    iq_tenant_id,
-    hsn_code,
-    effective_from,
-    cgst_pct,
-    sgst_pct,
-    igst_pct
-  )
-  WHERE is_active = true;
-
--- ─── Master: storage conditions ──────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_storage_conditions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  name text NOT NULL,
-  description text NOT NULL,
-  is_active boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_storage_conditions_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
--- ─── Master: store types ─────────────────────────────────────────────────────
-
-CREATE TABLE IF NOT EXISTS inventory.master_store_types (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  code text NOT NULL,
-  name text NOT NULL,
-  description text NOT NULL DEFAULT '',
-  is_active boolean NOT NULL DEFAULT true,
-  can_receive_stock boolean NOT NULL DEFAULT false,
-  can_dispense boolean NOT NULL DEFAULT false,
-  can_issue_to_ward boolean NOT NULL DEFAULT false,
-  track_batch_expiry boolean NOT NULL DEFAULT true,
-  indent_authority boolean NOT NULL DEFAULT false,
-  default_indent_target_store_id uuid,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT master_store_types_pkey PRIMARY KEY (iq_tenant_id, id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_store_types_tenant_code_ci
-  ON inventory.master_store_types (iq_tenant_id, lower(btrim(code)));
-
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_master_store_types_tenant_name_ci
-  ON inventory.master_store_types (iq_tenant_id, lower(btrim(name)));
-
-CREATE INDEX IF NOT EXISTS idx_inventory_master_store_types_tenant_active
-  ON inventory.master_store_types (iq_tenant_id, is_active);
-
--- ─── Master: stores ──────────────────────────────────────────────────────────
+-- ─── Stores ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS inventory.stores (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -490,152 +346,12 @@ CREATE INDEX IF NOT EXISTS idx_inventory_indent_lines_indent
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'master_categories_parent_fk'
-  ) THEN
-    ALTER TABLE inventory.master_categories
-      ADD CONSTRAINT master_categories_parent_fk
-      FOREIGN KEY (iq_tenant_id, parent_category_id)
-      REFERENCES inventory.master_categories (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_stores_store_type_fk'
-  ) THEN
-    ALTER TABLE inventory.stores
-      ADD CONSTRAINT inventory_stores_store_type_fk
-      FOREIGN KEY (iq_tenant_id, store_type_id)
-      REFERENCES inventory.master_store_types (iq_tenant_id, id)
-      ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'inventory_stores_indent_target_store_fk'
   ) THEN
     ALTER TABLE inventory.stores
       ADD CONSTRAINT inventory_stores_indent_target_store_fk
       FOREIGN KEY (iq_tenant_id, indent_target_store_id)
       REFERENCES inventory.stores (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'master_store_types_default_indent_target_fk'
-  ) THEN
-    ALTER TABLE inventory.master_store_types
-      ADD CONSTRAINT master_store_types_default_indent_target_fk
-      FOREIGN KEY (iq_tenant_id, default_indent_target_store_id)
-      REFERENCES inventory.stores (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_store_code_sequences_store_type_fk'
-  ) THEN
-    ALTER TABLE inventory.store_code_sequences
-      ADD CONSTRAINT inventory_store_code_sequences_store_type_fk
-      FOREIGN KEY (iq_tenant_id, store_type_id)
-      REFERENCES inventory.master_store_types (iq_tenant_id, id)
-      ON DELETE CASCADE;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_item_code_sequences_item_type_fk'
-  ) THEN
-    ALTER TABLE inventory.item_code_sequences
-      ADD CONSTRAINT inventory_item_code_sequences_item_type_fk
-      FOREIGN KEY (iq_tenant_id, item_type_id)
-      REFERENCES inventory.master_item_types (iq_tenant_id, id)
-      ON DELETE CASCADE;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_category_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_category_fk
-      FOREIGN KEY (iq_tenant_id, category_id)
-      REFERENCES inventory.master_categories (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_sub_category_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_sub_category_fk
-      FOREIGN KEY (iq_tenant_id, sub_category_id)
-      REFERENCES inventory.master_categories (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_item_type_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_item_type_fk
-      FOREIGN KEY (iq_tenant_id, item_type_id)
-      REFERENCES inventory.master_item_types (iq_tenant_id, id)
-      ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_manufacturer_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_manufacturer_fk
-      FOREIGN KEY (iq_tenant_id, manufacturer_id)
-      REFERENCES inventory.master_manufacturers (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_hsn_gst_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_hsn_gst_fk
-      FOREIGN KEY (iq_tenant_id, hsn_gst_id)
-      REFERENCES inventory.master_hsn_gst (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_purchase_uom_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_purchase_uom_fk
-      FOREIGN KEY (iq_tenant_id, purchase_uom_id)
-      REFERENCES inventory.master_uoms (iq_tenant_id, id)
-      ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_consumption_uom_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_consumption_uom_fk
-      FOREIGN KEY (iq_tenant_id, consumption_uom_id)
-      REFERENCES inventory.master_uoms (iq_tenant_id, id)
-      ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_sale_uom_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_sale_uom_fk
-      FOREIGN KEY (iq_tenant_id, sale_uom_id)
-      REFERENCES inventory.master_uoms (iq_tenant_id, id)
-      ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_items_storage_condition_fk'
-  ) THEN
-    ALTER TABLE inventory.items
-      ADD CONSTRAINT inventory_items_storage_condition_fk
-      FOREIGN KEY (iq_tenant_id, storage_condition_id)
-      REFERENCES inventory.master_storage_conditions (iq_tenant_id, id)
       ON DELETE SET NULL;
   END IF;
 
@@ -647,16 +363,6 @@ BEGIN
       FOREIGN KEY (iq_tenant_id, inventory_store_id)
       REFERENCES inventory.stores (iq_tenant_id, id)
       ON DELETE RESTRICT;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'inventory_grns_manufacturer_fk'
-  ) THEN
-    ALTER TABLE inventory.grns
-      ADD CONSTRAINT inventory_grns_manufacturer_fk
-      FOREIGN KEY (iq_tenant_id, manufacturer_id)
-      REFERENCES inventory.master_manufacturers (iq_tenant_id, id)
-      ON DELETE SET NULL;
   END IF;
 
   IF NOT EXISTS (
@@ -795,13 +501,6 @@ END $$;
 DO $$
 BEGIN
   IF current_setting('citus.coordinator_node_count', true) IS NOT NULL THEN
-    PERFORM create_distributed_table('inventory.master_categories', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_item_types', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_uoms', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_manufacturers', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_hsn_gst', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_storage_conditions', 'iq_tenant_id');
-    PERFORM create_distributed_table('inventory.master_store_types', 'iq_tenant_id');
     PERFORM create_distributed_table('inventory.stores', 'iq_tenant_id');
     PERFORM create_distributed_table('inventory.store_code_sequences', 'iq_tenant_id');
     PERFORM create_distributed_table('inventory.item_code_sequences', 'iq_tenant_id');

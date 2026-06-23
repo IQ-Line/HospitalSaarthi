@@ -18,171 +18,10 @@ import {
 export const INVENTORY_SCHEMA_NAME = "inventory" as const;
 export const inventorySchema = pgSchema(INVENTORY_SCHEMA_NAME);
 
-// ─── Master: categories ──────────────────────────────────────────────────────
+// Reference masters (categories, UOMs, store types, …) live in master-data
+// (global_master / tenant_master). Operational tables below hold UUID refs only.
 
-export const inventoryMasterCategories = inventorySchema.table(
-  "master_categories",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    name: text("name").notNull(),
-    parent_category_id: uuid("parent_category_id"),
-    description: text("description"),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    index("idx_inventory_master_categories_tenant_parent").on(
-      t.iq_tenant_id,
-      t.parent_category_id,
-    ),
-  ],
-);
-
-// ─── Master: item types ──────────────────────────────────────────────────────
-
-export const inventoryMasterItemTypes = inventorySchema.table(
-  "master_item_types",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    name: text("name").notNull(),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    uniqueIndex("uq_inventory_master_item_types_tenant_name_ci").on(
-      t.iq_tenant_id,
-      t.name,
-    ),
-  ],
-);
-
-// ─── Master: UOMs ────────────────────────────────────────────────────────────
-
-export const inventoryMasterUoms = inventorySchema.table(
-  "master_uoms",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    name: text("name").notNull(),
-    abbreviation: text("abbreviation").notNull(),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    uniqueIndex("uq_inventory_master_uoms_tenant_name_ci").on(t.iq_tenant_id, t.name),
-    uniqueIndex("uq_inventory_master_uoms_tenant_abbreviation_ci").on(
-      t.iq_tenant_id,
-      t.abbreviation,
-    ),
-  ],
-);
-
-// ─── Master: manufacturers ───────────────────────────────────────────────────
-
-export const inventoryMasterManufacturers = inventorySchema.table(
-  "master_manufacturers",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    name: text("name").notNull(),
-    code: text("code"),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
-);
-
-// ─── Master: HSN/GST ───────────────────────────────────────────────────────
-
-export const inventoryMasterHsnGst = inventorySchema.table(
-  "master_hsn_gst",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    hsn_code: text("hsn_code").notNull(),
-    effective_from: date("effective_from").notNull(),
-    cgst_pct: numeric("cgst_pct", { precision: 8, scale: 4 }).notNull(),
-    sgst_pct: numeric("sgst_pct", { precision: 8, scale: 4 }).notNull(),
-    igst_pct: numeric("igst_pct", { precision: 8, scale: 4 }).notNull(),
-    supporting_document_url: text("supporting_document_url"),
-    remarks: text("remarks"),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    uniqueIndex("uq_inventory_master_hsn_gst_tenant_code_effective").on(
-      t.iq_tenant_id,
-      t.hsn_code,
-      t.effective_from,
-    ),
-  ],
-);
-
-// ─── Master: storage conditions ──────────────────────────────────────────────
-
-export const inventoryMasterStorageConditions = inventorySchema.table(
-  "master_storage_conditions",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    name: text("name").notNull(),
-    description: text("description").notNull(),
-    is_active: boolean("is_active").notNull().default(true),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
-);
-
-// ─── Master: store types ─────────────────────────────────────────────────────
-
-export const inventoryMasterStoreTypes = inventorySchema.table(
-  "master_store_types",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    code: text("code").notNull(),
-    name: text("name").notNull(),
-    description: text("description").notNull().default(""),
-    is_active: boolean("is_active").notNull().default(true),
-    can_receive_stock: boolean("can_receive_stock").notNull().default(false),
-    can_dispense: boolean("can_dispense").notNull().default(false),
-    can_issue_to_ward: boolean("can_issue_to_ward").notNull().default(false),
-    track_batch_expiry: boolean("track_batch_expiry").notNull().default(true),
-    indent_authority: boolean("indent_authority").notNull().default(false),
-    default_indent_target_store_id: uuid("default_indent_target_store_id"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    uniqueIndex("uq_inventory_master_store_types_tenant_code_ci").on(
-      t.iq_tenant_id,
-      t.code,
-    ),
-    uniqueIndex("uq_inventory_master_store_types_tenant_name_ci").on(
-      t.iq_tenant_id,
-      t.name,
-    ),
-    index("idx_inventory_master_store_types_tenant_active").on(
-      t.iq_tenant_id,
-      t.is_active,
-    ),
-  ],
-);
-
-// ─── Master: stores ──────────────────────────────────────────────────────────
+// ─── Stores ──────────────────────────────────────────────────────────────────
 
 export const inventoryStores = inventorySchema.table(
   "stores",
@@ -212,13 +51,6 @@ export const inventoryStores = inventorySchema.table(
     index("idx_inventory_stores_tenant_branch").on(t.iq_tenant_id, t.branch_id),
     index("idx_inventory_stores_tenant_store_type").on(t.iq_tenant_id, t.store_type_id),
     foreignKey({
-      name: "inventory_stores_store_type_fk",
-      columns: [t.iq_tenant_id, t.store_type_id],
-      foreignColumns: [inventoryMasterStoreTypes.iq_tenant_id, inventoryMasterStoreTypes.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
       name: "inventory_stores_indent_target_store_fk",
       columns: [t.iq_tenant_id, t.indent_target_store_id],
       foreignColumns: [t.iq_tenant_id, t.id],
@@ -237,16 +69,7 @@ export const inventoryStoreCodeSequences = inventorySchema.table(
     store_type_id: uuid("store_type_id").notNull(),
     last_sequence: integer("last_sequence").notNull().default(0),
   },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.store_type_id] }),
-    foreignKey({
-      name: "inventory_store_code_sequences_store_type_fk",
-      columns: [t.iq_tenant_id, t.store_type_id],
-      foreignColumns: [inventoryMasterStoreTypes.iq_tenant_id, inventoryMasterStoreTypes.id],
-    })
-      .onDelete("cascade")
-      .onUpdate("no action"),
-  ],
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.store_type_id] })],
 );
 
 export const inventoryItemCodeSequences = inventorySchema.table(
@@ -256,16 +79,7 @@ export const inventoryItemCodeSequences = inventorySchema.table(
     item_type_id: uuid("item_type_id").notNull(),
     last_sequence: integer("last_sequence").notNull().default(0),
   },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] }),
-    foreignKey({
-      name: "inventory_item_code_sequences_item_type_fk",
-      columns: [t.iq_tenant_id, t.item_type_id],
-      foreignColumns: [inventoryMasterItemTypes.iq_tenant_id, inventoryMasterItemTypes.id],
-    })
-      .onDelete("cascade")
-      .onUpdate("no action"),
-  ],
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] })],
 );
 
 // ─── Item catalog ────────────────────────────────────────────────────────────
@@ -325,72 +139,6 @@ export const inventoryItems = inventorySchema.table(
     index("idx_inventory_items_tenant_active").on(t.iq_tenant_id, t.is_active),
     index("idx_inventory_items_category").on(t.iq_tenant_id, t.category_id),
     index("idx_inventory_items_item_type").on(t.iq_tenant_id, t.item_type_id),
-    foreignKey({
-      name: "inventory_items_category_fk",
-      columns: [t.iq_tenant_id, t.category_id],
-      foreignColumns: [inventoryMasterCategories.iq_tenant_id, inventoryMasterCategories.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_sub_category_fk",
-      columns: [t.iq_tenant_id, t.sub_category_id],
-      foreignColumns: [inventoryMasterCategories.iq_tenant_id, inventoryMasterCategories.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_item_type_fk",
-      columns: [t.iq_tenant_id, t.item_type_id],
-      foreignColumns: [inventoryMasterItemTypes.iq_tenant_id, inventoryMasterItemTypes.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_manufacturer_fk",
-      columns: [t.iq_tenant_id, t.manufacturer_id],
-      foreignColumns: [inventoryMasterManufacturers.iq_tenant_id, inventoryMasterManufacturers.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_hsn_gst_fk",
-      columns: [t.iq_tenant_id, t.hsn_gst_id],
-      foreignColumns: [inventoryMasterHsnGst.iq_tenant_id, inventoryMasterHsnGst.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_purchase_uom_fk",
-      columns: [t.iq_tenant_id, t.purchase_uom_id],
-      foreignColumns: [inventoryMasterUoms.iq_tenant_id, inventoryMasterUoms.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_consumption_uom_fk",
-      columns: [t.iq_tenant_id, t.consumption_uom_id],
-      foreignColumns: [inventoryMasterUoms.iq_tenant_id, inventoryMasterUoms.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_sale_uom_fk",
-      columns: [t.iq_tenant_id, t.sale_uom_id],
-      foreignColumns: [inventoryMasterUoms.iq_tenant_id, inventoryMasterUoms.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_items_storage_condition_fk",
-      columns: [t.iq_tenant_id, t.storage_condition_id],
-      foreignColumns: [
-        inventoryMasterStorageConditions.iq_tenant_id,
-        inventoryMasterStorageConditions.id,
-      ],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
   ],
 );
 
@@ -428,13 +176,6 @@ export const inventoryGrns = inventorySchema.table(
       foreignColumns: [inventoryStores.iq_tenant_id, inventoryStores.id],
     })
       .onDelete("restrict")
-      .onUpdate("no action"),
-    foreignKey({
-      name: "inventory_grns_manufacturer_fk",
-      columns: [t.iq_tenant_id, t.manufacturer_id],
-      foreignColumns: [inventoryMasterManufacturers.iq_tenant_id, inventoryMasterManufacturers.id],
-    })
-      .onDelete("set null")
       .onUpdate("no action"),
   ],
 );

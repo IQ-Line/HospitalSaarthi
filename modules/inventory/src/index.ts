@@ -1,13 +1,6 @@
 export {
   INVENTORY_SCHEMA_NAME,
   inventorySchema,
-  inventoryMasterCategories,
-  inventoryMasterItemTypes,
-  inventoryMasterUoms,
-  inventoryMasterManufacturers,
-  inventoryMasterHsnGst,
-  inventoryMasterStorageConditions,
-  inventoryMasterStoreTypes,
   inventoryStores,
   inventoryStoreCodeSequences,
   inventoryItemCodeSequences,
