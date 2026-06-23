@@ -15,27 +15,40 @@ export function matchesAgeGroup(age: number, group: string): boolean {
   return true;
 }
 
+function matchesDoctorScope(row: OpdPatientVisitRow, doctorScope: OpdDoctorScope): boolean {
+  if (doctorScope === 'myPatients') return row.isOwnPatient;
+  if (doctorScope === 'otherPatients') return !row.isOwnPatient;
+  return true;
+}
+
+function matchesSearch(row: OpdPatientVisitRow, q: string): boolean {
+  if (!q) return true;
+  const hay = `${row.visitNumber} ${row.patientName} ${row.patientId}`.toLowerCase();
+  return hay.includes(q);
+}
+
+function matchesFieldFilters(row: OpdPatientVisitRow, filters: OpdPatientsFilters): boolean {
+  if (filters.gender && row.gender !== filters.gender) return false;
+  if (filters.ageGroup && !matchesAgeGroup(row.age, filters.ageGroup)) return false;
+  if (filters.status && row.status !== filters.status) return false;
+  if (filters.doctorId && row.doctorId !== filters.doctorId) return false;
+  if (filters.startDate && row.visitCreatedAt < filters.startDate) return false;
+  if (filters.endDate && row.visitCreatedAt > filters.endDate) return false;
+  return true;
+}
+
 export function filterOpdPatientRows(
   rows: OpdPatientVisitRow[],
   filters: OpdPatientsFilters,
   doctorScope: OpdDoctorScope,
 ): OpdPatientVisitRow[] {
   const q = filters.search.trim().toLowerCase();
-  return rows.filter((row) => {
-    if (doctorScope === 'myPatients' && !row.isOwnPatient) return false;
-    if (doctorScope === 'otherPatients' && row.isOwnPatient) return false;
-    if (q) {
-      const hay = `${row.visitNumber} ${row.patientName} ${row.patientId}`.toLowerCase();
-      if (!hay.includes(q)) return false;
-    }
-    if (filters.gender && row.gender !== filters.gender) return false;
-    if (filters.ageGroup && !matchesAgeGroup(row.age, filters.ageGroup)) return false;
-    if (filters.status && row.status !== filters.status) return false;
-    if (filters.doctorId && row.doctorId !== filters.doctorId) return false;
-    if (filters.startDate && row.visitCreatedAt < filters.startDate) return false;
-    if (filters.endDate && row.visitCreatedAt > filters.endDate) return false;
-    return true;
-  });
+  return rows.filter(
+    (row) =>
+      matchesDoctorScope(row, doctorScope) &&
+      matchesSearch(row, q) &&
+      matchesFieldFilters(row, filters),
+  );
 }
 
 export function computeOpdPatientsStats(rows: OpdPatientVisitRow[]): OpdPatientsStats {

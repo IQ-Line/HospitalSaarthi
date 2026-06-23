@@ -121,6 +121,83 @@ export async function createDoctorConsultationTariffs(
   return created;
 }
 
+type ExistingTariffIndex = {
+  byId: Map<string, TariffService>;
+  byDept: Map<string, TariffService>;
+};
+
+function indexExistingTariffs(existing: TariffService[]): ExistingTariffIndex {
+  return {
+    byId: new Map(existing.map((row) => [row.id, row])),
+    byDept: new Map(
+      existing
+        .filter((row) => row.department_id)
+        .map((row) => [row.department_id!, row] as const),
+    ),
+  };
+}
+
+/**
+ * Find the existing tariff a form row should update: prefer an explicit
+ * service_id match, else fall back to an unclaimed department match.
+ */
+function matchExistingTariff(
+  row: DoctorConsultationTariffInput,
+  index: ExistingTariffIndex,
+  keptIds: Set<string>,
+): TariffService | undefined {
+  if (row.service_id && index.byId.has(row.service_id)) {
+    return index.byId.get(row.service_id);
+  }
+  if (row.department_id) {
+    const byDept = index.byDept.get(row.department_id);
+    if (byDept && !keptIds.has(byDept.id)) return byDept;
+  }
+  return undefined;
+}
+
+function lookupDepartment(
+  row: DoctorConsultationTariffInput,
+  departments: DepartmentRef[],
+): DepartmentRef {
+  const dept = departments.find((d) => d.id === row.department_id);
+  if (!dept) throw new Error('Selected department is no longer available');
+  return dept;
+}
+
+async function createMissingTariffs(
+  providerId: string,
+  providerName: string,
+  toCreate: DoctorConsultationTariffInput[],
+  departments: DepartmentRef[],
+  keptIds: Set<string>,
+  iqTenantId?: string,
+): Promise<void> {
+  if (toCreate.length === 0) return;
+  const created = await createDoctorConsultationTariffs(
+    providerId,
+    providerName,
+    toCreate,
+    departments,
+    iqTenantId,
+  );
+  for (const svc of created.data ?? []) {
+    if (svc.id) keptIds.add(svc.id);
+  }
+}
+
+async function deactivateRemovedTariffs(
+  existing: TariffService[],
+  keptIds: Set<string>,
+  iqTenantId?: string,
+): Promise<void> {
+  for (const svc of existing) {
+    if (!keptIds.has(svc.id)) {
+      await updateTariffService(svc.id, { is_active: false }, iqTenantId);
+    }
+  }
+}
+
 /** Create, update, or deactivate consultation tariffs to match the form. */
 export async function syncDoctorConsultationTariffs(
   providerId: string,
@@ -130,68 +207,34 @@ export async function syncDoctorConsultationTariffs(
   iqTenantId?: string,
 ): Promise<void> {
   const existing = await listDoctorConsultationTariffs(providerId, iqTenantId);
-  const existingById = new Map(existing.map((row) => [row.id, row]));
-  const existingByDept = new Map(
-    existing
-      .filter((row) => row.department_id)
-      .map((row) => [row.department_id!, row] as const),
-  );
+  const index = indexExistingTariffs(existing);
   const keptIds = new Set<string>();
-
   const toCreate: DoctorConsultationTariffInput[] = [];
 
   for (const row of rows) {
-    const description = metaDescription(row);
-    const dept = departments.find((d) => d.id === row.department_id);
-    if (!dept) throw new Error('Selected department is no longer available');
+    const dept = lookupDepartment(row, departments);
+    const existingRow = matchExistingTariff(row, index, keptIds);
 
-    let existingRow =
-      row.service_id && existingById.has(row.service_id)
-        ? existingById.get(row.service_id)
-        : undefined;
-    if (!existingRow && row.department_id) {
-      const byDept = existingByDept.get(row.department_id);
-      if (byDept && !keptIds.has(byDept.id)) {
-        existingRow = byDept;
-      }
-    }
-
-    if (existingRow) {
-      await updateTariffService(
-        existingRow.id,
-        {
-          department_id: row.department_id,
-          base_price: row.base_price,
-          tax_percentage: row.tax_percentage,
-          description,
-          is_active: true,
-          service_name: `${providerName.trim()} — ${dept.name} Consultation`,
-        },
-        iqTenantId,
-      );
-      keptIds.add(existingRow.id);
+    if (!existingRow) {
+      toCreate.push(row);
       continue;
     }
 
-    toCreate.push(row);
-  }
-
-  if (toCreate.length > 0) {
-    const created = await createDoctorConsultationTariffs(
-      providerId,
-      providerName,
-      toCreate,
-      departments,
+    await updateTariffService(
+      existingRow.id,
+      {
+        department_id: row.department_id,
+        base_price: row.base_price,
+        tax_percentage: row.tax_percentage,
+        description: metaDescription(row),
+        is_active: true,
+        service_name: `${providerName.trim()} — ${dept.name} Consultation`,
+      },
       iqTenantId,
     );
-    for (const svc of created.data ?? []) {
-      if (svc.id) keptIds.add(svc.id);
-    }
+    keptIds.add(existingRow.id);
   }
 
-  for (const svc of existing) {
-    if (!keptIds.has(svc.id)) {
-      await updateTariffService(svc.id, { is_active: false }, iqTenantId);
-    }
-  }
+  await createMissingTariffs(providerId, providerName, toCreate, departments, keptIds, iqTenantId);
+  await deactivateRemovedTariffs(existing, keptIds, iqTenantId);
 }
