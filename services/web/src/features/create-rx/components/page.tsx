@@ -14,6 +14,7 @@ import {
   fetchOpdPrescriptionSession,
   saveOpdPrescriptionDraft,
 } from '../api/opd-prescription';
+import type { OpdPrescriptionSession } from '../api/opd-prescription';
 import { fetchCreateRxVisitContext } from '../api/visit-context';
 import {
   prepareCreateRxFormDataForSession,
@@ -24,6 +25,7 @@ import {
   VISITPAD_SECTION_LABELS,
 } from '../lib/visitpad-validation';
 import { resolveCreateRxSession } from '../lib/resolve-create-rx-session';
+import type { CreateRxFormData, CreateRxVisitContext } from '../types';
 import { useCreateRxStore } from '../create-rx.store';
 import { ConsultationStatusModal } from './consultation-status-modal';
 import { DocumentsTab } from './documents-tab';
@@ -40,6 +42,98 @@ interface PageProps {
   mode?: 'edit' | 'view';
   /** False when opening a brand-new consultation (Start RX). Defaults to true. */
   loadPrescription?: boolean;
+}
+
+interface CreateRxLoadArgs {
+  visitId: string;
+  patientId?: string;
+  mode: 'edit' | 'view';
+  loadPrescription: boolean;
+}
+
+type CreateRxLoadResult =
+  | { kind: 'no-tenant' }
+  | { kind: 'not-found' }
+  | {
+      kind: 'ready';
+      context: CreateRxVisitContext;
+      isReadOnly: boolean;
+      formData: CreateRxFormData;
+      prescriptionId: string | null;
+    };
+
+/**
+ * Resolve the prescription session and the EMPI patient key for a visit load.
+ *
+ * ``patientKey`` is derived from the *fetched* prescription (matching the original
+ * order: it is computed before any bootstrap reassignment), so a freshly
+ * bootstrapped draft never influences which patient context is fetched.
+ */
+async function resolvePrescriptionForLoad(
+  visitId: string,
+  patientId: string | undefined,
+  loadPrescription: boolean,
+): Promise<{ prescription: OpdPrescriptionSession | null; patientKey: string }> {
+  const fetched = loadPrescription
+    ? await fetchOpdPrescriptionSession(visitId)
+    : null;
+  const patientKey = fetched?.patient_id ?? patientId?.trim() ?? visitId;
+
+  if (fetched || !patientId?.trim()) {
+    return { prescription: fetched, patientKey };
+  }
+  try {
+    return {
+      prescription: await bootstrapOpdPrescriptionForVisit(visitId, patientId),
+      patientKey,
+    };
+  } catch {
+    /* End/save will auto-ensure on server; ignore if OPD unreachable here */
+    return { prescription: null, patientKey };
+  }
+}
+
+/** Pure async load pipeline for a Create-RX visit; React state is handled by the caller. */
+async function loadCreateRxSession({
+  visitId,
+  patientId,
+  mode,
+  loadPrescription,
+}: CreateRxLoadArgs): Promise<CreateRxLoadResult> {
+  if (!resolveOpdConsultationTenantId()) {
+    return { kind: 'no-tenant' };
+  }
+
+  const { prescription, patientKey } = await resolvePrescriptionForLoad(
+    visitId,
+    patientId,
+    loadPrescription,
+  );
+
+  if (mode === 'edit' && visitId.trim()) {
+    try {
+      await updateRegistrationVisitStatus(visitId.trim(), 'in_progress');
+    } catch {
+      /* Non-blocking — save/end will still attempt status updates */
+    }
+  }
+
+  const ctx = await fetchCreateRxVisitContext(patientKey);
+  if (!ctx) return { kind: 'not-found' };
+
+  ctx.visit.id = prescription ? prescription.visit_id : visitId;
+  const session = resolveCreateRxSession(ctx, mode, prescription);
+  const formData = prepareCreateRxFormDataForSession(
+    prescription?.form_data,
+    session.isReadOnly,
+  );
+  return {
+    kind: 'ready',
+    context: session.context,
+    isReadOnly: session.isReadOnly,
+    formData,
+    prescriptionId: session.prescriptionId,
+  };
 }
 
 export function Page({
@@ -68,50 +162,30 @@ export function Page({
     const load = async () => {
       setLoading(true);
       try {
-        if (!resolveOpdConsultationTenantId()) {
+        const result = await loadCreateRxSession({
+          visitId,
+          patientId,
+          mode,
+          loadPrescription,
+        });
+
+        if (result.kind === 'no-tenant') {
           toast.error('Tenant context is missing. Sign in again and retry.');
           resetForVisit(null, false);
           return;
         }
-
-        let prescription = loadPrescription
-          ? await fetchOpdPrescriptionSession(visitId)
-          : null;
-
-        const patientKey = prescription?.patient_id ?? patientId?.trim() ?? visitId;
-        if (!prescription && patientId?.trim()) {
-          try {
-            prescription = await bootstrapOpdPrescriptionForVisit(visitId, patientId);
-          } catch {
-            /* End/save will auto-ensure on server; ignore if OPD unreachable here */
-          }
-        }
-
-        if (mode === 'edit' && visitId.trim()) {
-          try {
-            await updateRegistrationVisitStatus(visitId.trim(), 'in_progress');
-          } catch {
-            /* Non-blocking — save/end will still attempt status updates */
-          }
-        }
-        const ctx = await fetchCreateRxVisitContext(patientKey);
         if (cancelled) return;
-        if (!ctx) {
+        if (result.kind === 'not-found') {
           resetForVisit(null, false);
           return;
         }
 
-        if (prescription) {
-          ctx.visit.id = prescription.visit_id;
-        } else {
-          ctx.visit.id = visitId;
-        }
-        const session = resolveCreateRxSession(ctx, mode, prescription);
-        const formData = prepareCreateRxFormDataForSession(
-          prescription?.form_data,
-          session.isReadOnly,
+        resetForVisit(
+          result.context,
+          result.isReadOnly,
+          result.formData,
+          result.prescriptionId,
         );
-        resetForVisit(session.context, session.isReadOnly, formData, session.prescriptionId);
         void queryClient.invalidateQueries({ queryKey: opdPatientsQueryKeys.all });
       } catch {
         if (!cancelled) {

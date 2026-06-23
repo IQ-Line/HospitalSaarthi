@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, type UseFormReturn } from 'react-hook-form';
 import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
@@ -113,6 +113,13 @@ function defaultUnitSelectOptions(
     });
   }
   return list;
+}
+
+/** RHF `setValueAs` for the critical-range numeric inputs: blank/NaN -> null. */
+function vitalCriticalSetValueAs(v: unknown): number | null {
+  if (v === '' || v === null || v === undefined) return null;
+  const n = typeof v === 'number' ? v : +`${v}`;
+  return n !== n ? null : n;
 }
 
 function criticalCell(low: number | null | undefined, high: number | null | undefined) {
@@ -774,6 +781,261 @@ function VitalCreateDialog({
   );
 }
 
+function VitalEditDefaultUnitField({
+  form,
+  unitRows,
+  defaultUnitOptions,
+  unitsLoading,
+}: {
+  form: UseFormReturn<VisitpadVitalEditFormSchema>;
+  unitRows: VisitpadUnit[];
+  defaultUnitOptions: { code: string; label: string }[];
+  unitsLoading: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>Default unit code</Label>
+      {defaultUnitOptions.length > 0 ? (
+        <Select
+          value={form.watch('default_unit_code')}
+          onValueChange={(c) => {
+            form.setValue('default_unit_code', c, { shouldDirty: true });
+            const row = unitRows.find((u) => u.code === c);
+            if (row) form.setValue('unit', row.display_name, { shouldDirty: true });
+          }}
+          disabled={unitsLoading}
+        >
+          <SelectTrigger id="vp-ve-def">
+            <SelectValue placeholder={unitsLoading ? 'Loading units…' : 'Select unit code…'} />
+          </SelectTrigger>
+          <SelectContent>
+            {defaultUnitOptions.map((o) => (
+              <SelectItem key={o.code} value={o.code}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input
+          id="vp-ve-def"
+          maxLength={64}
+          {...form.register('default_unit_code')}
+          disabled={unitsLoading}
+        />
+      )}
+      {defaultUnitOptions.length === 0 && !unitsLoading ? (
+        <p className="text-muted-foreground text-xs">
+          Add units under Visitpad → Units to enable the catalog dropdown.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function VitalEditPartnerVitalField({
+  form,
+  vital,
+  pairOptions,
+  vitalsLoading,
+}: {
+  form: UseFormReturn<VisitpadVitalEditFormSchema>;
+  vital: VisitpadVital;
+  pairOptions: VisitpadVital[];
+  vitalsLoading: boolean;
+}) {
+  return (
+    <div className="space-y-2 sm:col-span-2">
+      <Label htmlFor="vp-ve-pair">Partner vital</Label>
+      <Select
+        value={
+          form.watch('pair_code')?.trim() ? (form.watch('pair_code') as string) : VITAL_PARTNER_UNSET
+        }
+        onValueChange={(code) =>
+          form.setValue('pair_code', code === VITAL_PARTNER_UNSET ? null : code, {
+            shouldDirty: true,
+          })
+        }
+        disabled={vitalsLoading}
+      >
+        <SelectTrigger id="vp-ve-pair">
+          <SelectValue placeholder={vitalsLoading ? 'Loading vitals…' : 'Select partner vital…'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={VITAL_PARTNER_UNSET}>Select partner vital…</SelectItem>
+          {pairOptions.map((v) => (
+            <SelectItem key={v.id} value={v.code}>
+              {v.name} ({v.code})
+            </SelectItem>
+          ))}
+          {vital.pair_code && !pairOptions.some((v) => v.code === vital.pair_code) ? (
+            <SelectItem value={vital.pair_code}>{vital.pair_code} — not in current list</SelectItem>
+          ) : null}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function VitalEditFields({
+  form,
+  vital,
+  unitRows,
+  defaultUnitOptions,
+  pairOptions,
+  unitsLoading,
+  vitalsLoading,
+}: {
+  form: UseFormReturn<VisitpadVitalEditFormSchema>;
+  vital: VisitpadVital;
+  unitRows: VisitpadUnit[];
+  defaultUnitOptions: { code: string; label: string }[];
+  pairOptions: VisitpadVital[];
+  unitsLoading: boolean;
+  vitalsLoading: boolean;
+}) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="space-y-2 sm:col-span-2">
+        <Label>Code (read-only)</Label>
+        <Input value={vital.code} readOnly className="bg-muted font-mono text-sm" />
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor="vp-ve-name">Name</Label>
+        <Input id="vp-ve-name" maxLength={256} {...form.register('name')} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="vp-ve-short">Short name</Label>
+        <Input id="vp-ve-short" maxLength={64} {...form.register('short_name')} />
+      </div>
+      <div className="space-y-2">
+        <Label>Category</Label>
+        <Select
+          value={form.watch('category')}
+          onValueChange={(x) =>
+            form.setValue('category', x as VisitpadVitalEditFormSchema['category'])
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VISITPAD_VITAL_CATEGORIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Data type</Label>
+        <Select
+          value={form.watch('data_type')}
+          onValueChange={(x) =>
+            form.setValue('data_type', x as VisitpadVitalEditFormSchema['data_type'])
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VISITPAD_VITAL_DATA_TYPES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <VitalEditDefaultUnitField
+        form={form}
+        unitRows={unitRows}
+        defaultUnitOptions={defaultUnitOptions}
+        unitsLoading={unitsLoading}
+      />
+      <div className="space-y-2">
+        <Label htmlFor="vp-ve-unit">Unit label</Label>
+        <Input id="vp-ve-unit" maxLength={128} {...form.register('unit')} />
+      </div>
+      <div className="space-y-2">
+        <Label>Input method</Label>
+        <Select
+          value={form.watch('input_method')}
+          onValueChange={(x) =>
+            form.setValue('input_method', x as VisitpadVitalEditFormSchema['input_method'])
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VISITPAD_VITAL_INPUT_METHODS.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor="vp-ve-snomed">SNOMED observable</Label>
+        <Input id="vp-ve-snomed" maxLength={64} {...form.register('snomed_observable_code')} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="vp-ve-cl">Critical low</Label>
+        <Input
+          id="vp-ve-cl"
+          type="number"
+          step="any"
+          {...form.register('critical_low', { setValueAs: vitalCriticalSetValueAs })}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="vp-ve-ch">Critical high</Label>
+        <Input
+          id="vp-ve-ch"
+          type="number"
+          step="any"
+          {...form.register('critical_high', { setValueAs: vitalCriticalSetValueAs })}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <FormToggleRow
+          id="vp-ve-paired"
+          label="Paired capture"
+          description="Partner vital is required when on."
+          checked={!!form.watch('is_paired')}
+          onCheckedChange={(c) => form.setValue('is_paired', c)}
+        />
+      </div>
+      {form.watch('is_paired') ? (
+        <VitalEditPartnerVitalField
+          form={form}
+          vital={vital}
+          pairOptions={pairOptions}
+          vitalsLoading={vitalsLoading}
+        />
+      ) : null}
+      <div className="space-y-2">
+        <RequiredLabel htmlFor="vp-ve-order">Display order</RequiredLabel>
+        <Input
+          id="vp-ve-order"
+          type="number"
+          {...form.register('display_order', { valueAsNumber: true })}
+        />
+      </div>
+      <div className="sm:col-span-2">
+        <CatalogActiveSwitch
+          id="vp-ve-act"
+          checked={!!form.watch('is_active')}
+          onCheckedChange={(c) => form.setValue('is_active', c)}
+        />
+      </div>
+    </div>
+  );
+}
+
 function VitalEditDialog({
   vital,
   open,
@@ -882,219 +1144,15 @@ function VitalEditDialog({
       onSubmit={form.handleSubmit(submit)}
     >
       {vital ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2 sm:col-span-2">
-            <Label>Code (read-only)</Label>
-            <Input value={vital.code} readOnly className="bg-muted font-mono text-sm" />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ve-name">Name</Label>
-            <Input id="vp-ve-name" maxLength={256} {...form.register('name')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-short">Short name</Label>
-            <Input id="vp-ve-short" maxLength={64} {...form.register('short_name')} />
-          </div>
-          <div className="space-y-2">
-            <Label>Category</Label>
-            <Select
-              value={form.watch('category')}
-              onValueChange={(x) =>
-                form.setValue('category', x as VisitpadVitalEditFormSchema['category'])
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_VITAL_CATEGORIES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Data type</Label>
-            <Select
-              value={form.watch('data_type')}
-              onValueChange={(x) =>
-                form.setValue('data_type', x as VisitpadVitalEditFormSchema['data_type'])
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_VITAL_DATA_TYPES.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Default unit code</Label>
-            {defaultUnitOptions.length > 0 ? (
-              <Select
-                value={form.watch('default_unit_code')}
-                onValueChange={(c) => {
-                  form.setValue('default_unit_code', c, { shouldDirty: true });
-                  const row = unitRows.find((u) => u.code === c);
-                  if (row) form.setValue('unit', row.display_name, { shouldDirty: true });
-                }}
-                disabled={unitsLoading}
-              >
-                <SelectTrigger id="vp-ve-def">
-                  <SelectValue
-                    placeholder={unitsLoading ? 'Loading units…' : 'Select unit code…'}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {defaultUnitOptions.map((o) => (
-                    <SelectItem key={o.code} value={o.code}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                id="vp-ve-def"
-                maxLength={64}
-                {...form.register('default_unit_code')}
-                disabled={unitsLoading}
-              />
-            )}
-            {defaultUnitOptions.length === 0 && !unitsLoading ? (
-              <p className="text-muted-foreground text-xs">
-                Add units under Visitpad → Units to enable the catalog dropdown.
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-unit">Unit label</Label>
-            <Input id="vp-ve-unit" maxLength={128} {...form.register('unit')} />
-          </div>
-          <div className="space-y-2">
-            <Label>Input method</Label>
-            <Select
-              value={form.watch('input_method')}
-              onValueChange={(x) =>
-                form.setValue('input_method', x as VisitpadVitalEditFormSchema['input_method'])
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {VISITPAD_VITAL_INPUT_METHODS.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="vp-ve-snomed">SNOMED observable</Label>
-            <Input id="vp-ve-snomed" maxLength={64} {...form.register('snomed_observable_code')} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-cl">Critical low</Label>
-            <Input
-              id="vp-ve-cl"
-              type="number"
-              step="any"
-              {...form.register('critical_low', {
-                setValueAs: (v) => {
-                  if (v === '' || v === null || v === undefined) return null;
-                  const n = typeof v === 'number' ? v : +`${v}`;
-                  return n !== n ? null : n;
-                },
-              })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vp-ve-ch">Critical high</Label>
-            <Input
-              id="vp-ve-ch"
-              type="number"
-              step="any"
-              {...form.register('critical_high', {
-                setValueAs: (v) => {
-                  if (v === '' || v === null || v === undefined) return null;
-                  const n = typeof v === 'number' ? v : +`${v}`;
-                  return n !== n ? null : n;
-                },
-              })}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <FormToggleRow
-              id="vp-ve-paired"
-              label="Paired capture"
-              description="Partner vital is required when on."
-              checked={!!form.watch('is_paired')}
-              onCheckedChange={(c) => form.setValue('is_paired', c)}
-            />
-          </div>
-          {form.watch('is_paired') ? (
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="vp-ve-pair">Partner vital</Label>
-              <Select
-                value={
-                  form.watch('pair_code')?.trim()
-                    ? (form.watch('pair_code') as string)
-                    : VITAL_PARTNER_UNSET
-                }
-                onValueChange={(code) =>
-                  form.setValue(
-                    'pair_code',
-                    code === VITAL_PARTNER_UNSET ? null : code,
-                    { shouldDirty: true },
-                  )
-                }
-                disabled={vitalsLoading}
-              >
-                <SelectTrigger id="vp-ve-pair">
-                  <SelectValue placeholder={vitalsLoading ? 'Loading vitals…' : 'Select partner vital…'} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={VITAL_PARTNER_UNSET}>Select partner vital…</SelectItem>
-                  {pairOptions.map((v) => (
-                    <SelectItem key={v.id} value={v.code}>
-                      {v.name} ({v.code})
-                    </SelectItem>
-                  ))}
-                  {vital.pair_code &&
-                  !pairOptions.some((v) => v.code === vital.pair_code) ? (
-                    <SelectItem value={vital.pair_code}>
-                      {vital.pair_code} — not in current list
-                    </SelectItem>
-                  ) : null}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
-          <div className="space-y-2">
-            <RequiredLabel htmlFor="vp-ve-order">Display order</RequiredLabel>
-            <Input
-              id="vp-ve-order"
-              type="number"
-              {...form.register('display_order', { valueAsNumber: true })}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <CatalogActiveSwitch
-              id="vp-ve-act"
-              checked={!!form.watch('is_active')}
-              onCheckedChange={(c) => form.setValue('is_active', c)}
-            />
-          </div>
-        </div>
+        <VitalEditFields
+          form={form}
+          vital={vital}
+          unitRows={unitRows}
+          defaultUnitOptions={defaultUnitOptions}
+          pairOptions={pairOptions}
+          unitsLoading={unitsLoading}
+          vitalsLoading={vitalsLoading}
+        />
       ) : null}
     </EntityFormDialog>
   );
