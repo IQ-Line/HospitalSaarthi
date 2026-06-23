@@ -582,32 +582,57 @@ describe("OpenAPI/runtime coherence", () => {
     );
 
     const openApiServerPrefix = "/api/user-management";
-    const managedRoutes = routes.filter((route) => {
-      const p = route.path.startsWith(openApiServerPrefix)
-        ? route.path.slice(openApiServerPrefix.length) || "/"
-        : route.path;
-      return [
-        "/auth/me",
-        "/auth/principal",
-        "/capabilities",
-        "/capabilities/assignable",
-        "/capabilities/:id",
-        "/users",
-        "/users/:id",
-        "/users/:id/roles",
-        "/users/:id/roles/:roleId",
-        "/users/:id/capabilities",
-        "/users/:id/effective-capabilities",
-        "/users/:id/deactivate",
-        "/users/:id/activate",
-        "/roles",
-        "/roles/:id",
-        "/roles/:id/capabilities",
-      ].includes(p);
-    });
-    expect(managedRoutes.length).toBeGreaterThan(0);
-    for (const route of managedRoutes) {
-      expect(route.authMode).toBe("protected");
+    // Collapse path params to a single token so Fastify (`:id`) and OpenAPI
+    // (`{id}`) templates compare equal: /users/:id -> /users/{}, /users/{id} -> /users/{}.
+    const normalizePath = (p: string): string => p.replace(/[:{][^/}]+}?/g, "{}");
+
+    // Documented paths = the keys directly under `paths:` (2-space-indented lines
+    // starting with `/`). Only path keys start with `/`, so this is unambiguous —
+    // the same regex shape the public-route block check above relies on.
+    const documentedPaths = new Set<string>();
+    for (const match of spec.matchAll(/\n {2}(\/[^\s:]*):/g)) {
+      const path = match[1];
+      if (path) documentedPaths.add(normalizePath(path));
+    }
+
+    // Real module routes (Fastify auto-adds HEAD for every GET and OPTIONS for
+    // CORS — those are never documented and are not part of the contract).
+    const runtimeRoutes = routes
+      .filter((route) => route.method !== "HEAD" && route.method !== "OPTIONS")
+      .map((route) => {
+        const stripped = route.path.startsWith(openApiServerPrefix)
+          ? route.path.slice(openApiServerPrefix.length) || "/"
+          : route.path;
+        return { ...route, normPath: normalizePath(stripped) };
+      });
+    expect(runtimeRoutes.length).toBeGreaterThan(0);
+
+    // The `/internal/*` surface (service-to-service + diagnostics handlers) is
+    // deliberately NOT part of the public v1 OpenAPI contract — a different
+    // audience (other backend services, not API consumers). It is exempt from
+    // the documented-in-spec guard but is still required to be authMode-protected
+    // below. This is a principled CATEGORY exemption, not a per-route allowlist:
+    // any new PUBLIC route that is undocumented still fails this test.
+    const isInternalSurface = (normPath: string): boolean => normPath.startsWith("/internal/");
+
+    // (vet P3) DERIVE-FROM-SPEC drift guard: every public runtime route must be
+    // documented. This replaces a hand-maintained allowlist that silently
+    // ignored undocumented routes (the GET /providers drift slipped past it).
+    const undocumented = runtimeRoutes
+      .filter((route) => !isInternalSurface(route.normPath) && !documentedPaths.has(route.normPath))
+      .map((route) => `${route.method} ${route.normPath}`);
+    expect(undocumented).toEqual([]);
+
+    // authMode coherence: every route registered in this harness is "protected"
+    // except the one public route /auth/api-key/validate (X-API-Key) — the
+    // /internal diagnostics routes here are protected. (The one public /internal
+    // route — the entitlement-cache invalidate hook — guards itself with a shared
+    // secret and is only mounted when its resolver dep is wired, so it is absent
+    // here; if it were added this loop would force a conscious public-set update.)
+    // This keeps any protected route from silently downgrading to public.
+    for (const route of runtimeRoutes) {
+      const expected = route.normPath === "/auth/api-key/validate" ? "public" : "protected";
+      expect(route.authMode, `${route.method} ${route.normPath}`).toBe(expected);
     }
 
     await app.close();
