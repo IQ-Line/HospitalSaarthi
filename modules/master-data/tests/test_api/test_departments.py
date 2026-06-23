@@ -57,6 +57,18 @@ class FakeDepartmentRepository:
         return page, total
 
     def create_department(self, department):
+        # Mirror what the real repo's flush does: populate the columns whose
+        # values are DB/ORM-generated on insert (id, is_deleted, timestamps), so
+        # the response model can validate the returned row.
+        now = datetime.now(UTC)
+        if getattr(department, "id", None) is None:
+            department.id = uuid4()
+        if getattr(department, "is_deleted", None) is None:
+            department.is_deleted = False
+        if getattr(department, "created_at", None) is None:
+            department.created_at = now
+        if getattr(department, "updated_at", None) is None:
+            department.updated_at = now
         self._rows.append(department)
         return department
 

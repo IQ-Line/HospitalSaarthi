@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.schemas.visitpad._code import VISITPAD_CATALOG_CODE_PATTERN
+from app.schemas.visitpad._code import VISITPAD_UNIT_CODE_PATTERN
 
 
 class VisitpadUnitDimension(StrEnum):
@@ -54,9 +54,9 @@ class VisitpadUnitCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     code: str = Field(
-        min_length=3,
+        min_length=1,
         max_length=9,
-        pattern=VISITPAD_CATALOG_CODE_PATTERN,
+        pattern=VISITPAD_UNIT_CODE_PATTERN,
         description="Trimmed and stored lowercase; uniqueness is case-insensitive among active rows.",
     )
     display_name: str = Field(min_length=1, max_length=256)
