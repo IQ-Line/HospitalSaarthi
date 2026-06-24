@@ -77,9 +77,12 @@ export async function pushHealthInformationForSession(
     session: AbdmSession<"abdm.m3.hip.v1">;
     parsed: ParsedHiRequest;
     patientId: string;
+    /** CM-issued txn — must match ack + notify (defaults to parsed.transactionId). */
+    transactionId?: string;
   },
   deps: AbdmAdapterDeps,
 ): Promise<string[]> {
+  const transactionId = input.transactionId ?? input.parsed.transactionId;
   assertFlowKind(input.session, "abdm.m3.hip.v1");
   if (!deps.dataPush) {
     throw new Error("HipDataPushClient not configured");
@@ -160,7 +163,7 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_ENCRYPTED,
     contextMerge: {
       dataPushUrl,
-      transactionId: input.parsed.transactionId,
+      transactionId,
     },
   });
 
@@ -173,7 +176,7 @@ export async function pushHealthInformationForSession(
   const pushBody: HipDataPushRequest = {
     pageNumber: 0,
     pageCount: 1,
-    transactionId: input.parsed.transactionId,
+    transactionId,
     entries,
     keyMaterial,
   };
@@ -181,7 +184,7 @@ export async function pushHealthInformationForSession(
   await deps.dataPush.push({
     dataPushUrl,
     body: pushBody as unknown as Record<string, unknown>,
-    requestId: input.parsed.transactionId,
+    requestId: transactionId,
     iqTenantId: input.iqTenantId,
     xHipId: deps.xHipId,
     xCmId: deps.xCmId,

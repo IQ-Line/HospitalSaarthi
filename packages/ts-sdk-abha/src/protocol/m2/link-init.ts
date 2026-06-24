@@ -12,10 +12,19 @@ export interface LinkInitLinkBody {
   meta: LinkInitLinkMeta;
 }
 
-/** §5.3.6 — inbound link/init. */
+/** §5.3.6 — inbound link/init (CM may send `link` or PHR `patient` selection). */
+export interface LinkInitPatientSelection {
+  referenceNumber?: string;
+  careContexts?: Array<{ referenceNumber: string; display?: string }>;
+  hiType?: string;
+  count?: number;
+}
+
 export interface LinkInitRequest {
   transactionId: string;
-  link: LinkInitLinkBody;
+  abhaAddress?: string;
+  patient?: LinkInitPatientSelection[];
+  link?: LinkInitLinkBody;
 }
 
 /** §5.3.7 — outbound on-init. */

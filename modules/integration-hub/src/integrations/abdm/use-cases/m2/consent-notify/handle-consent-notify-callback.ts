@@ -1,6 +1,7 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
 import { AbdmUseCaseError } from "../../../lib/m1-errors.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
+import { filterConsentCareContexts } from "../../../lib/filter-consent-care-contexts.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import type {
   ConsentNotifyRequest,
@@ -72,7 +73,20 @@ export async function handleConsentNotifyCallback(
     return;
   }
 
-  const abhaAddress = notification.consentDetail.patient.id;
+  const detail = notification.consentDetail;
+  const abhaAddress = detail.patient.id;
+  const requestedHiTypes = Array.isArray(detail.hiTypes) ? detail.hiTypes : [];
+  const filteredCareContexts = filterConsentCareContexts({
+    hiTypes: requestedHiTypes,
+    careContexts: detail.careContexts,
+  });
+
+  const linkSession = await deps.sessions.findLatestLinkedUserLinkByAbhaAddress({
+    iqTenantId: input.iqTenantId,
+    abhaAddress,
+  });
+  const linkCtx = linkSession?.context as { patientId?: string } | undefined;
+
   let patientId: string;
   try {
     patientId = await resolveConsentPatientId({
@@ -80,6 +94,8 @@ export async function handleConsentNotifyCallback(
       abhaAddress,
       empi: deps.empi,
       registration: deps.registration,
+      careContexts: detail.careContexts,
+      userLinkPatientId: linkCtx?.patientId,
     });
   } catch (e) {
     const message =
@@ -111,11 +127,11 @@ export async function handleConsentNotifyCallback(
     iqTenantId: input.iqTenantId,
     consentId: notification.consentId,
     patientId,
-    hipId: notification.consentDetail.hip.id,
-    hiuId: notification.consentDetail.hiu?.id ?? deps.xHiuId,
+    hipId: detail.hip.id,
+    hiuId: detail.hiu?.id ?? deps.xHiuId,
     status: notification.status,
-    dataEraseAt: new Date(notification.consentDetail.permission.dataEraseAt),
-    grantedAt: new Date(notification.consentDetail.createdAt),
+    dataEraseAt: new Date(detail.permission.dataEraseAt),
+    grantedAt: new Date(detail.createdAt),
     artefactJson: notification as unknown as Record<string, unknown>,
     signature: notification.signature,
     signatureValid,
@@ -125,6 +141,16 @@ export async function handleConsentNotifyCallback(
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
     state: "CONSENT_PERSISTED",
+    contextMerge: {
+      consentId: notification.consentId,
+      abhaAddress,
+      hiuRequestMetaData: filteredCareContexts,
+      careContexts: filteredCareContexts,
+      requestedHiTypes,
+      status: notification.status,
+      patientId,
+      userLinkSessionId: linkSession?.sessionId,
+    },
   });
 
   const ackBody: OnConsentNotifyRequest = {
@@ -153,7 +179,7 @@ export async function handleConsentNotifyCallback(
       createConsentGrantedEnvelope(input.iqTenantId, {
         consentId: notification.consentId,
         patientId,
-        dataEraseAt: notification.consentDetail.permission.dataEraseAt,
+        dataEraseAt: detail.permission.dataEraseAt,
       }),
     );
   }

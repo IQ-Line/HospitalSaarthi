@@ -56,6 +56,7 @@ export function buildMockAbdmDeps(
       overrides.empi ??
       ({
         findPatientByAbhaAddress: async () => null,
+        findPatientByAbhaNumber: async () => null,
         findPatientByDemographics: async () => null,
         findAbhaAddressByPatientId: async () => null,
         findM2PatientProfile: async () => null,

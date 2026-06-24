@@ -73,6 +73,10 @@ function collectSmsConfig(): Record<string, string> {
     "ABDM_SMS_TWILIO_ACCOUNT_SID",
     "ABDM_SMS_TWILIO_AUTH_TOKEN",
     "ABDM_SMS_TWILIO_FROM",
+    "MSG91_URL",
+    "MSG91_AUTH_KEY",
+    "MSG91_TEMPLATE_ID",
+    "MSG91_EXPIRY",
   ] as const;
   const out: Record<string, string> = {};
   for (const key of keys) {

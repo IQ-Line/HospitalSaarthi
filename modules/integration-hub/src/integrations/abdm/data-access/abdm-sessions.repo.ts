@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, sql } from "@hims/ts-sdk-db";
+import { and, desc, eq, sql } from "@hims/ts-sdk-db";
 import type { EventBus } from "@hims/ts-sdk-events";
 import { abdmSessions } from "../schema/tables.js";
 import type { AbdmSessionsPort } from "../ports.js";
@@ -221,6 +221,29 @@ export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {
           eq(abdmSessions.request_id, input.requestId),
         ),
       )
+      .limit(1);
+    const row = rows[0];
+    return row ? rowToSession(row, this.tokenCrypto) : null;
+  }
+
+  async findLatestLinkedUserLinkByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<AbdmSession | null> {
+    const abha = input.abhaAddress.trim();
+    if (!abha) return null;
+    const rows = await this.db
+      .select()
+      .from(abdmSessions)
+      .where(
+        and(
+          eq(abdmSessions.iq_tenant_id, input.iqTenantId),
+          eq(abdmSessions.flow_kind, "abdm.m2.user-initiated-link.v1"),
+          eq(abdmSessions.state, "LINKED"),
+          sql`lower(${abdmSessions.context}->>'abhaAddress') = lower(${abha})`,
+        ),
+      )
+      .orderBy(desc(abdmSessions.updated_at))
       .limit(1);
     const row = rows[0];
     return row ? rowToSession(row, this.tokenCrypto) : null;

@@ -63,13 +63,24 @@ export class HttpEmpiClient implements EmpiClient {
 
   async findPatientByDemographics(input: {
     iqTenantId: string;
-    identifiers: Array<{ type: string; value: string }>;
+    identifiers?: Array<{ type: string; value: string }>;
+    first_name?: string;
+    gender?: string;
+    phone_number?: string;
+    year_of_birth?: number;
   }): Promise<{ patientId: string; score: number } | null> {
     if (!this.baseUrl) return null;
     const url = new URL(
       `${EMPI_API_PREFIX}/patients/find-by-demographics`,
       this.baseUrl.replace(/\/+$/, ""),
     );
+    const body: Record<string, unknown> = {};
+    if (input.identifiers?.length) body.identifiers = input.identifiers;
+    if (input.first_name?.trim()) body.first_name = input.first_name.trim();
+    if (input.gender) body.gender = input.gender;
+    if (input.phone_number?.trim()) body.phone_number = input.phone_number.trim();
+    if (typeof input.year_of_birth === "number") body.year_of_birth = input.year_of_birth;
+    if (Object.keys(body).length === 0) return null;
     try {
       const res = await fetchWithTimeout(url.toString(), {
         method: "POST",
@@ -78,7 +89,7 @@ export class HttpEmpiClient implements EmpiClient {
           "x-tenant-id": input.iqTenantId,
           Accept: "application/json",
         },
-        body: JSON.stringify({ identifiers: input.identifiers }),
+        body: JSON.stringify(body),
       });
       if (res.status === 404) return null;
       if (!res.ok) {
@@ -119,6 +130,56 @@ export class HttpEmpiClient implements EmpiClient {
     return profile?.abhaAddress ?? null;
   }
 
+  async findPatientByAbhaNumber(input: {
+    iqTenantId: string;
+    abhaNumber: string;
+  }): Promise<{ patientId: string } | null> {
+    if (!this.baseUrl) return null;
+    const url = new URL(`${EMPI_API_PREFIX}/patients`, this.baseUrl.replace(/\/+$/, ""));
+    url.searchParams.set("abha_number", input.abhaNumber);
+    url.searchParams.set("limit", "1");
+    try {
+      const res = await fetchWithTimeout(url.toString(), {
+        method: "GET",
+        headers: {
+          "x-tenant-id": input.iqTenantId,
+          Accept: "application/json",
+        },
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) {
+        abdmWarn("abdm.empi.find_by_abha_number_failed", {
+          status: res.status,
+          abhaNumber: input.abhaNumber,
+        });
+        if (isClientError(res.status)) return null;
+        if (isServerOrUnavailable(res.status)) {
+          throw new EmpiClientError(
+            `EMPI find by ABHA number failed: HTTP ${res.status}`,
+            res.status,
+          );
+        }
+        return null;
+      }
+      const json = (await res.json()) as {
+        data?: Array<{ id?: string }>;
+      };
+      const row = json.data?.[0];
+      const patientId = row?.id;
+      if (!patientId) return null;
+      return { patientId };
+    } catch (e) {
+      if (e instanceof EmpiClientError) throw e;
+      abdmWarn("abdm.empi.find_by_abha_number_error", {
+        abhaNumber: input.abhaNumber,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      throw new EmpiClientError(
+        e instanceof Error ? e.message : "EMPI find by ABHA number network error",
+      );
+    }
+  }
+
   async findM2PatientProfile(input: {
     iqTenantId: string;
     patientId: string;
@@ -155,6 +216,10 @@ export class NoOpEmpiClient implements EmpiClient {
   }
 
   async findPatientByDemographics(): Promise<null> {
+    return null;
+  }
+
+  async findPatientByAbhaNumber(): Promise<null> {
     return null;
   }
 

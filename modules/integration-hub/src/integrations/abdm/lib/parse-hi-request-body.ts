@@ -25,7 +25,7 @@ export function parseHiRequestBody(
   const peerPublicKey = hi?.keyMaterial?.dhPublicKey?.keyValue ?? "";
   const peerNonce = hi?.keyMaterial?.nonce ?? "";
   const transactionId =
-    hi?.transactionId ?? body.transactionId ?? inboundRequestId;
+    body.transactionId ?? hi?.transactionId ?? inboundRequestId;
   if (!consentId || !dataPushUrl || !peerPublicKey || !peerNonce) {
     return null;
   }
