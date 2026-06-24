@@ -9,10 +9,10 @@ Visitpad rows are tenant-scoped in ``master_global`` until ``011`` splits ``mast
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "009_visitpad_units"
 down_revision: str | Sequence[str] | None = "008_module_permissions"

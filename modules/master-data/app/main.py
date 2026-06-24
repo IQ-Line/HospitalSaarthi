@@ -7,7 +7,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
 from app.core.config import get_settings
-from app.core.database import database_target_label, reset_database_engine, verify_database_connection
+from app.core.database import (
+    database_target_label,
+    reset_database_engine,
+    verify_database_connection,
+)
 from app.core.logging import configure_logging
 from app.middleware.auth_middleware import BearerAuthContextMiddleware
 from app.middleware.request_context import RequestContextMiddleware

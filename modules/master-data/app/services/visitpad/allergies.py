@@ -6,7 +6,10 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from app.catalog.visitpad.table_models import visitpad_allergen_model, visitpad_allergy_reaction_model
+from app.catalog.visitpad.table_models import (
+    visitpad_allergen_model,
+    visitpad_allergy_reaction_model,
+)
 from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
 from app.schemas.visitpad.allergen import (

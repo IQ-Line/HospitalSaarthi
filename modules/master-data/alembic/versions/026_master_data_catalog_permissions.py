@@ -1,4 +1,5 @@
-"""Seed Master Data catalog permissions (read, create, edit, delete) in ``master_global.permissions`` only.
+"""Seed Master Data catalog permissions (read, create, edit, delete) in
+``master_global.permissions`` only.
 
 Revision ID: 026_master_data_catalog_permissions
 Revises: 025_visitpad_templates_catalog_manage

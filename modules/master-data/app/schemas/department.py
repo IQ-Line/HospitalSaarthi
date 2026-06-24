@@ -44,7 +44,11 @@ class DepartmentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
-    code: str = Field(min_length=1, max_length=64, description="Unique among active rows in this catalog scope.")
+    code: str = Field(
+        min_length=1,
+        max_length=64,
+        description="Unique among active rows in this catalog scope.",
+    )
     type: DepartmentType
     description: str | None = None
     is_active: bool = True

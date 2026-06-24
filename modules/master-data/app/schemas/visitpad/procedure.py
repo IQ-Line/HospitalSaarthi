@@ -3,10 +3,10 @@
 import re
 from datetime import datetime
 from enum import StrEnum
+from typing import Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from typing import Self
 
 _PROCEDURE_CATALOG_CODE = re.compile(r"^[A-Za-z0-9_]{3,9}$")
 
@@ -64,7 +64,10 @@ class VisitpadProcedureCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     cpt_code: str = Field(
-        description="Tenant-unique procedure catalog code (legacy Integrator “procedure code”; not AMA CPT).",
+        description=(
+            "Tenant-unique procedure catalog code "
+            "(legacy Integrator “procedure code”; not AMA CPT)."
+        ),
     )
     short_name: str | None = Field(default=None, max_length=64)
     official_descriptor: str | None = Field(default=None, max_length=512)

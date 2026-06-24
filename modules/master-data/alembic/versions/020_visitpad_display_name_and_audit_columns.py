@@ -1,10 +1,12 @@
-"""Visitpad catalog symmetry: ``units.display_label`` → ``display_name``; add ``created_by`` / ``updated_by``.
+"""Visitpad catalog symmetry: ``units.display_label`` → ``display_name``; add ``created_by`` /
+``updated_by``.
 
 Revision ID: 020_vp_disp_nm_audit_cols (≤32 chars for ``alembic_version.version_num``)
 Revises: 019_tm_iq_tenant_id_col
 
 - Renames ``display_label`` to ``display_name`` on ``units`` (``public`` + ``master_tenant``).
-- Adds nullable UUID ``created_by`` and ``updated_by`` to all Visitpad catalog tables in both schemas.
+- Adds nullable UUID ``created_by`` and ``updated_by`` to all Visitpad catalog tables in both
+  schemas.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -14,10 +16,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
+from schema_names import TENANT_SCHEMA as _TM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "020_vp_disp_nm_audit_cols"
 down_revision: str | Sequence[str] | None = "019_tm_iq_tenant_id_col"

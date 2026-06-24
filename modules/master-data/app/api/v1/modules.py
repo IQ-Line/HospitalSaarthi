@@ -43,7 +43,10 @@ def get_modules(
         description="Filter by module kind(s). Comma-separated: ?module_kind=product,foundation",
     )] = None,
     visibility: Annotated[VisibilityScope | None, Query(
-        description="Filter by visibility scope: 'tenant' (default for tenant admins) or 'superadmin'. Omit to return all.",
+        description=(
+            "Filter by visibility scope: 'tenant' (default for tenant admins) "
+            "or 'superadmin'. Omit to return all."
+        ),
     )] = None,
 ) -> ModuleListResponse:
     kinds: list[ModuleKind] | None = None
@@ -53,7 +56,10 @@ def get_modules(
             kinds = [ModuleKind(v) for v in raw]
         except ValueError:
             from fastapi import HTTPException
-            raise HTTPException(status_code=422, detail=f"Invalid module_kind value(s): {module_kind}")
+
+            raise HTTPException(
+                status_code=422, detail=f"Invalid module_kind value(s): {module_kind}"
+            ) from None
     modules = list_modules(repository, category=category, module_kinds=kinds, visibility=visibility)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
@@ -71,7 +77,10 @@ def get_modules(
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     visibility: Annotated[VisibilityScope | None, Query(
-        description="Filter by visibility scope. Tenant admins should pass 'tenant'; superadmins omit to see all.",
+        description=(
+            "Filter by visibility scope. Tenant admins should pass 'tenant'; "
+            "superadmins omit to see all."
+        ),
     )] = None,
 ) -> ModuleNavListResponse:
     modules = list_modules_for_nav(repository, visibility=visibility)

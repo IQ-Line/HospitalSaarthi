@@ -1,4 +1,6 @@
-"""Visitpad catalog tables in ``master_global`` (rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
+"""Visitpad catalog tables in ``master_global``.
+
+(rx_columns, allergens, complaints, diagnoses, vitals, medicines, …).
 
 Revision ID: 010_visitpad_catalog
 Revises: 009_visitpad_units
@@ -7,10 +9,10 @@ Revises: 009_visitpad_units
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "010_visitpad_catalog"
 down_revision: str | Sequence[str] | None = "009_visitpad_units"
@@ -152,8 +154,18 @@ def upgrade() -> None:
         sa.Column("display_name", sa.String(length=256), nullable=False),
         sa.Column("body_system", sa.String(length=64), nullable=False),
         sa.Column("triage_priority", sa.String(length=32), nullable=False),
-        sa.Column("synonyms", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
-        sa.Column("is_paediatric_relevant", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "synonyms",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
+        sa.Column(
+            "is_paediatric_relevant",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
@@ -279,13 +291,33 @@ def upgrade() -> None:
         sa.Column("data_type", sa.String(length=32), nullable=False),
         sa.Column("unit", sa.String(length=128), nullable=False),
         sa.Column("default_unit_code", sa.String(length=64), nullable=False),
-        sa.Column("allowed_units", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
+        sa.Column(
+            "allowed_units",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
         sa.Column("critical_low", sa.Double(), nullable=True),
         sa.Column("critical_high", sa.Double(), nullable=True),
         sa.Column("reference_kind", sa.String(length=64), nullable=False),
-        sa.Column("reference_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_OBJECT),
-        sa.Column("normal_range_adult", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_OBJECT),
-        sa.Column("normal_range_paediatric", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_OBJECT),
+        sa.Column(
+            "reference_json",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_OBJECT,
+        ),
+        sa.Column(
+            "normal_range_adult",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_OBJECT,
+        ),
+        sa.Column(
+            "normal_range_paediatric",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_OBJECT,
+        ),
         sa.Column("input_method", sa.String(length=32), nullable=False),
         sa.Column("is_paired", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("pair_code", sa.String(length=64), nullable=True),
@@ -330,14 +362,29 @@ def upgrade() -> None:
         sa.Column("display_name", sa.String(length=512), nullable=False),
         sa.Column("generic_name", sa.String(length=512), nullable=False),
         sa.Column("short_name", sa.String(length=256), nullable=True),
-        sa.Column("brand_names", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
+        sa.Column(
+            "brand_names",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
         sa.Column("drug_class", sa.String(length=256), nullable=False),
         sa.Column("drug_subclass", sa.String(length=256), nullable=True),
         sa.Column("dosage_form", sa.String(length=128), nullable=False),
-        sa.Column("route_of_admin", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
+        sa.Column(
+            "route_of_admin",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
         sa.Column("strength_value", sa.Double(), nullable=True),
         sa.Column("strength_unit", sa.String(length=32), nullable=True),
-        sa.Column("strength_display", sa.String(length=256), nullable=False, server_default=sa.text("''")),
+        sa.Column(
+            "strength_display",
+            sa.String(length=256),
+            nullable=False,
+            server_default=sa.text("''"),
+        ),
         sa.Column("concentration_value", sa.Double(), nullable=True),
         sa.Column("concentration_unit", sa.String(length=32), nullable=True),
         sa.Column("volume_per_unit", sa.Double(), nullable=True),
@@ -350,13 +397,43 @@ def upgrade() -> None:
         sa.Column("expiry_tracking", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("is_dispensable", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("schedule", sa.String(length=16), nullable=False),
-        sa.Column("is_controlled_substance", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "is_controlled_substance",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
         sa.Column("is_narcotic", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("requires_prescription", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("is_restricted_antibiotic", sa.Boolean(), nullable=False, server_default=sa.text("false")),
-        sa.Column("allergen_classes", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
-        sa.Column("contraindications", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
-        sa.Column("search_tags", postgresql.JSONB(astext_type=sa.Text()), nullable=False, server_default=_JSONB_EMPTY_ARRAY),
+        sa.Column(
+            "requires_prescription",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+        sa.Column(
+            "is_restricted_antibiotic",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
+        sa.Column(
+            "allergen_classes",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
+        sa.Column(
+            "contraindications",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
+        sa.Column(
+            "search_tags",
+            postgresql.JSONB(astext_type=sa.Text()),
+            nullable=False,
+            server_default=_JSONB_EMPTY_ARRAY,
+        ),
         sa.Column("atc_code", sa.String(length=32), nullable=True),
         sa.Column("rxnorm_code", sa.String(length=32), nullable=True),
         sa.Column("snomed_substance_code", sa.String(length=64), nullable=True),
@@ -366,7 +443,12 @@ def upgrade() -> None:
         sa.Column("pediatric_use", sa.String(length=32), nullable=True),
         sa.Column("max_dose_per_day_value", sa.Double(), nullable=True),
         sa.Column("max_dose_per_day_unit", sa.String(length=32), nullable=True),
-        sa.Column("black_box_warning", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "black_box_warning",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
         sa.Column("black_box_warning_text", sa.String(length=2048), nullable=True),
         sa.Column("default_dose_value", sa.Double(), nullable=True),
         sa.Column("default_dose_unit", sa.String(length=32), nullable=True),
@@ -417,7 +499,12 @@ def upgrade() -> None:
         sa.Column("category", sa.String(length=64), nullable=False),
         sa.Column("billing_category", sa.String(length=64), nullable=False),
         sa.Column("duration_minutes", sa.Integer(), nullable=False, server_default=sa.text("0")),
-        sa.Column("requires_consent", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "requires_consent",
+            sa.Boolean(),
+            nullable=False,
+            server_default=sa.text("false"),
+        ),
         sa.Column("type_modality", sa.String(length=128), nullable=True),
         sa.Column("display_order", sa.Integer(), nullable=False, server_default=sa.text("0")),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),

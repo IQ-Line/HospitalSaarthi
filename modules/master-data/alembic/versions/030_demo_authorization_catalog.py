@@ -41,20 +41,63 @@ _MODULE_SEEDS: tuple[tuple[str, str, str, str, str, int], ...] = (
 
 # UM user/role/capability CRUD comes from ``028`` on L2 modules (``users:read``, …).
 # Demo-only product permissions (shell, visitpad, OPD, EMPI, role.assign).
-# ``permissions.action`` must satisfy ``permissions_action_check`` (create/read/update/delete/manage).
+# ``permissions.action`` must satisfy ``permissions_action_check``
+# (create/read/update/delete/manage).
 # Runtime capability actions (assign, view, access) are derived from ``permission_slug`` on UM sync.
 _PERMISSION_SEEDS: tuple[tuple[str, str, str, str, str], ...] = (
     ("b1000002-0005-4001-8001-000000000005", "role.assign", "Assign role", "manage", "user-roles"),
-    ("c1000001-0001-4001-8001-000000000001", "opd.visit.create", "Create OPD visit", "create", "opd"),
+    (
+        "c1000001-0001-4001-8001-000000000001",
+        "opd.visit.create",
+        "Create OPD visit",
+        "create",
+        "opd",
+    ),
     ("c1000001-0002-4001-8001-000000000002", "opd.visit.read", "Read OPD visit", "read", "opd"),
     ("c1000001-0003-4001-8001-000000000003", "opd.patient.read", "Read OPD patient", "read", "opd"),
-    ("f1000001-0001-4001-8001-000000000001", "shell.access", "Master Data shell", "read", "master-data"),
-    ("f1000001-0002-4001-8001-000000000002", "visitpad.view", "Visitpad view", "read", "visitpad-templates"),
-    ("f1000001-0003-4001-8001-000000000003", "visitpad.create", "Visitpad create", "create", "visitpad-templates"),
-    ("f1000002-0001-4001-8001-000000000001", "shell.access", "Configurator shell", "read", "configurator"),
-    ("f1000003-0001-4001-8001-000000000001", "shell.access", "Frontdesk shell", "read", "frontdesk"),
+    (
+        "f1000001-0001-4001-8001-000000000001",
+        "shell.access",
+        "Master Data shell",
+        "read",
+        "master-data",
+    ),
+    (
+        "f1000001-0002-4001-8001-000000000002",
+        "visitpad.view",
+        "Visitpad view",
+        "read",
+        "visitpad-templates",
+    ),
+    (
+        "f1000001-0003-4001-8001-000000000003",
+        "visitpad.create",
+        "Visitpad create",
+        "create",
+        "visitpad-templates",
+    ),
+    (
+        "f1000002-0001-4001-8001-000000000001",
+        "shell.access",
+        "Configurator shell",
+        "read",
+        "configurator",
+    ),
+    (
+        "f1000003-0001-4001-8001-000000000001",
+        "shell.access",
+        "Frontdesk shell",
+        "read",
+        "frontdesk",
+    ),
     ("f1000004-0001-4001-8001-000000000001", "empi.patient.read", "Read patient", "read", "empi"),
-    ("f1000004-0002-4001-8001-000000000002", "empi.patient.create", "Register patient", "create", "empi"),
+    (
+        "f1000004-0002-4001-8001-000000000002",
+        "empi.patient.create",
+        "Register patient",
+        "create",
+        "empi",
+    ),
 )
 
 

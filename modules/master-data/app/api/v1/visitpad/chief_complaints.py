@@ -74,7 +74,10 @@ def get_chief_complaints(
     summary="Chief complaint form descriptor",
 )
 def get_chief_complaint_descriptor() -> VisitpadChiefComplaintDescriptor:
-    """Dropdown values and labels — derived from the same enums as create/update (no duplicate client constants)."""
+    """Dropdown values and labels — derived from the same enums as create/update.
+
+    (No duplicate client constants.)
+    """
     return build_visitpad_chief_complaint_descriptor()
 
 

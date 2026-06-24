@@ -1,4 +1,5 @@
-"""Rename catalog schemas: ``global_master`` → ``master_global``, ``tenant_master`` → ``master_tenant``.
+"""Rename catalog schemas: ``global_master`` → ``master_global``,
+``tenant_master`` → ``master_tenant``.
 
 Revision ID: 044_rename_catalog_schemas
 Revises: 043_platform_role_types_super_admin_and_admin

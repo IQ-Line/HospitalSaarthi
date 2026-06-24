@@ -6,11 +6,6 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
-from app.core.catalog_tenant_id import (
-    CATALOG_TENANT_HEADER,
-    IQ_TENANT_ID_HEADER,
-    X_TENANT_ID_HEADER,
-)
 
 TENANT_MASTER_SCHEMA = TENANT_SCHEMA
 GLOBAL_MASTER_SCHEMA = GLOBAL_SCHEMA

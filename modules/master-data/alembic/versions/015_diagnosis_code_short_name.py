@@ -1,4 +1,7 @@
-"""Visitpad ``diagnoses``: add ``code`` + ``short_name``, optional ICD block, uniqueness on ``code``.
+"""Visitpad ``diagnoses``: add ``code`` + ``short_name``, optional ICD block.
+
+Uniqueness moves to ``code``.
+
 
 Revision ID: 015_diagnosis_code_short_name
 Revises: 014_cc_short_name
@@ -16,10 +19,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
+from schema_names import TENANT_SCHEMA as _TM
 from sqlalchemy import text
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "015_diagnosis_code_short_name"
 down_revision: str | Sequence[str] | None = "014_cc_short_name"
@@ -32,7 +36,8 @@ def upgrade() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    # IF EXISTS: some DBs never got the master_tenant ICD index (e.g. partial upgrade paths); 015 must still run.
+    # IF EXISTS: some DBs never got the master_tenant ICD index (e.g. partial upgrade
+    # paths); 015 must still run.
     op.execute(text(f'DROP INDEX IF EXISTS "{_TM}".diagnoses_tenant_icd_active_key'))
     op.execute(text('DROP INDEX IF EXISTS master_global.diagnoses_global_icd_active_key'))
 
@@ -72,7 +77,11 @@ def upgrade() -> None:
             batch.alter_column("code", existing_type=sa.String(length=64), nullable=False)
             batch.alter_column("icd10_code", existing_type=sa.String(length=16), nullable=True)
             batch.alter_column("icd_version", existing_type=sa.String(length=32), nullable=True)
-            batch.alter_column("official_descriptor", existing_type=sa.String(length=512), nullable=True)
+            batch.alter_column(
+                "official_descriptor",
+                existing_type=sa.String(length=512),
+                nullable=True,
+            )
             batch.alter_column("category", existing_type=sa.String(length=64), nullable=True)
 
     op.create_index(
@@ -117,7 +126,11 @@ def downgrade() -> None:
             batch.drop_column("code")
             batch.alter_column("icd10_code", existing_type=sa.String(length=16), nullable=False)
             batch.alter_column("icd_version", existing_type=sa.String(length=32), nullable=False)
-            batch.alter_column("official_descriptor", existing_type=sa.String(length=512), nullable=False)
+            batch.alter_column(
+                "official_descriptor",
+                existing_type=sa.String(length=512),
+                nullable=False,
+            )
             batch.alter_column("category", existing_type=sa.String(length=64), nullable=False)
 
     # Re-create ICD uniqueness (fails if NULL ICD rows exist — downgrade is best-effort).

@@ -12,7 +12,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "025_visitpad_templates_catalog_manage"
 down_revision: str | Sequence[str] | None = "024_visitpad_templates_module_catalog"
@@ -61,13 +60,15 @@ def upgrade() -> None:
             '{MP_MANAGE_ID}'::uuid,
             'visitpad-templates-catalog-manage',
             '{MODULE_VISITPAD_ID}'::uuid,
-            (SELECT id FROM master_global.permissions WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted LIMIT 1),
+            (SELECT id FROM master_global.permissions
+             WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted LIMIT 1),
             false,
             true,
             false,
             now(),
             now()
-        WHERE EXISTS (SELECT 1 FROM master_global.modules WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
+        WHERE EXISTS (SELECT 1 FROM master_global.modules
+                      WHERE id = '{MODULE_VISITPAD_ID}'::uuid AND NOT is_deleted)
           AND EXISTS (
               SELECT 1 FROM master_global.permissions
               WHERE slug = 'visitpad-templates-catalog-manage' AND NOT is_deleted

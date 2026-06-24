@@ -12,10 +12,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM
 
 revision: str = "032_picklist_values_catalog"
 down_revision: str | Sequence[str] | None = "031_picklist_catalog_seed"

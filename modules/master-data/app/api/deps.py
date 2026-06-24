@@ -21,13 +21,13 @@ from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
 from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
 from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
+from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
 from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
+from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
 from app.repositories.visitpad.medicine import VisitpadMedicineRepository
 from app.repositories.visitpad.procedure import VisitpadProcedureRepository
 from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
-from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
 from app.repositories.visitpad.unit import VisitpadUnitRepository
-from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
 from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
 from app.repositories.visitpad.vital import VisitpadVitalRepository
 
@@ -42,12 +42,16 @@ def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> C
         tid = try_parse_iq_tenant_id(catalog_tenant_header)
     except CatalogTenantIdError as exc:
         if exc.code == "empty":
-            detail = "Invalid iq_tenant_id: empty value. Omit the header for the shared global catalog."
+            detail = (
+                "Invalid iq_tenant_id: empty value. "
+                "Omit the header for the shared global catalog."
+            )
         elif exc.code == "invalid_uuid":
             detail = (
                 "Invalid iq_tenant_id: expected a canonical UUID string "
                 "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
-                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (master_global schema)."
+                "Numeric-only legacy keys are not accepted. "
+                "Omit the header for the global catalog (master_global schema)."
             )
         else:
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."

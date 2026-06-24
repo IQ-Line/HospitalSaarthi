@@ -15,9 +15,9 @@ from app.api.v1.visitpad.diagnoses import router as visitpad_diagnoses_router
 from app.api.v1.visitpad.manufacturers import router as visitpad_manufacturers_router
 from app.api.v1.visitpad.medicines import router as visitpad_medicines_router
 from app.api.v1.visitpad.procedures import router as visitpad_procedures_router
-from app.api.v1.visitpad.vaccines import router as visitpad_vaccines_router
 from app.api.v1.visitpad.rx_columns import router as visitpad_rx_columns_router
 from app.api.v1.visitpad.units import conversions_router, units_router
+from app.api.v1.visitpad.vaccines import router as visitpad_vaccines_router
 from app.api.v1.visitpad.vitals import router as visitpad_vitals_router
 
 api_router = APIRouter()

@@ -131,7 +131,11 @@ def get_allergen_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@allergens_router.get("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Get allergen")
+@allergens_router.get(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Get allergen",
+)
 def get_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
@@ -142,7 +146,11 @@ def get_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@allergens_router.patch("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Update allergen")
+@allergens_router.patch(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Update allergen",
+)
 def patch_allergen(
     allergen_id: UUID,
     payload: VisitpadAllergenUpdate,
@@ -160,7 +168,11 @@ def patch_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@allergens_router.delete("/{allergen_id}", response_model=VisitpadAllergenSingleResponse, summary="Soft-delete allergen")
+@allergens_router.delete(
+    "/{allergen_id}",
+    response_model=VisitpadAllergenSingleResponse,
+    summary="Soft-delete allergen",
+)
 def delete_allergen(
     allergen_id: UUID,
     repository: Annotated[VisitpadAllergenRepository, Depends(get_visitpad_allergen_repository)],
@@ -173,7 +185,11 @@ def delete_allergen(
     return VisitpadAllergenSingleResponse(data=VisitpadAllergenResponse.model_validate(row))
 
 
-@reactions_router.get("", response_model=VisitpadAllergyReactionListResponse, summary="List reactions")
+@reactions_router.get(
+    "",
+    response_model=VisitpadAllergyReactionListResponse,
+    summary="List reactions",
+)
 def get_reactions(
     repository: Annotated[
         VisitpadAllergyReactionRepository,
@@ -213,7 +229,9 @@ def post_reaction(
 ) -> VisitpadAllergyReactionSingleResponse:
     row = create_visitpad_allergy_reaction(repository, payload=payload)
     session.commit()
-    return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
+    return VisitpadAllergyReactionSingleResponse(
+        data=VisitpadAllergyReactionResponse.model_validate(row)
+    )
 
 
 @reactions_router.post(
@@ -272,7 +290,9 @@ def get_reaction(
     row = get_visitpad_allergy_reaction_by_id(repository, row_id=reaction_id)
     if row is None:
         raise ResourceNotFoundError("No allergy reaction with this id.")
-    return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
+    return VisitpadAllergyReactionSingleResponse(
+        data=VisitpadAllergyReactionResponse.model_validate(row)
+    )
 
 
 @reactions_router.patch(
@@ -297,7 +317,9 @@ def patch_reaction(
     if row is None:
         raise ResourceNotFoundError("No allergy reaction with this id.")
     session.commit()
-    return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
+    return VisitpadAllergyReactionSingleResponse(
+        data=VisitpadAllergyReactionResponse.model_validate(row)
+    )
 
 
 @reactions_router.delete(
@@ -317,4 +339,6 @@ def delete_reaction(
     if row is None:
         raise ResourceNotFoundError("No allergy reaction with this id.")
     session.commit()
-    return VisitpadAllergyReactionSingleResponse(data=VisitpadAllergyReactionResponse.model_validate(row))
+    return VisitpadAllergyReactionSingleResponse(
+        data=VisitpadAllergyReactionResponse.model_validate(row)
+    )

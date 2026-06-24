@@ -9,10 +9,10 @@ Partial unique indexes: ``slug`` and ``(module_id, permission_id)`` among active
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "008_module_permissions"
 down_revision: str | Sequence[str] | None = "007_system_roles_catalog"

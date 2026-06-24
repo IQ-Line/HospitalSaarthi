@@ -112,7 +112,11 @@ def get_procedure_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Get procedure")
+@router.get(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Get procedure",
+)
 def get_procedure(
     procedure_id: UUID,
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],
@@ -123,7 +127,11 @@ def get_procedure(
     return VisitpadProcedureSingleResponse(data=VisitpadProcedureResponse.model_validate(row))
 
 
-@router.patch("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Update procedure")
+@router.patch(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Update procedure",
+)
 def patch_procedure(
     procedure_id: UUID,
     payload: VisitpadProcedureUpdate,
@@ -141,7 +149,11 @@ def patch_procedure(
     return VisitpadProcedureSingleResponse(data=VisitpadProcedureResponse.model_validate(row))
 
 
-@router.delete("/{procedure_id}", response_model=VisitpadProcedureSingleResponse, summary="Soft-delete procedure")
+@router.delete(
+    "/{procedure_id}",
+    response_model=VisitpadProcedureSingleResponse,
+    summary="Soft-delete procedure",
+)
 def delete_procedure(
     procedure_id: UUID,
     repository: Annotated[VisitpadProcedureRepository, Depends(get_visitpad_procedure_repository)],

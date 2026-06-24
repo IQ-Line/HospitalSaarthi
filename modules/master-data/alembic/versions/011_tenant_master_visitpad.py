@@ -1,10 +1,13 @@
-"""Create ``master_tenant`` with full Visitpad copies, then drop ``tenant_id`` from ``master_global`` catalog tables.
+"""Create ``master_tenant`` with full Visitpad copies, then drop ``tenant_id`` from
+``master_global`` catalog tables.
 
 Revision ID: 011_tenant_master_visitpad
 Revises: 010_visitpad_catalog
 
-**Local / fresh DB only:** copies any existing ``master_global`` Visitpad rows into ``master_tenant``, then reshapes
-``master_global`` for global rows (no ``tenant_id``). Visitpad ``master_tenant`` columns are renamed to ``iq_tenant_id`` in this revision.
+**Local / fresh DB only:** copies any existing ``master_global`` Visitpad rows into
+``master_tenant``, then reshapes
+``master_global`` for global rows (no ``tenant_id``). Visitpad ``master_tenant`` columns are
+renamed to ``iq_tenant_id`` in this revision.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -14,10 +17,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
+from schema_names import TENANT_SCHEMA as _TM
 from sqlalchemy import text
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "011_tenant_master_visitpad"
 down_revision: str | Sequence[str] | None = "010_visitpad_catalog"
@@ -64,16 +68,25 @@ def upgrade() -> None:
 
     for table in _VISITPAD_TABLES:
         op.execute(
-            text(f'CREATE TABLE master_tenant."{table}" (LIKE master_global."{table}" INCLUDING ALL)')
+            text(
+                f'CREATE TABLE master_tenant."{table}" '
+                f'(LIKE master_global."{table}" INCLUDING ALL)'
+            )
         )
-        op.execute(text(f'INSERT INTO master_tenant."{table}" SELECT * FROM master_global."{table}"'))
+        op.execute(
+            text(
+                f'INSERT INTO master_tenant."{table}" '
+                f'SELECT * FROM master_global."{table}"'
+            )
+        )
         op.execute(
             text(
                 f'ALTER TABLE {_TM}."{table}" RENAME COLUMN tenant_id TO iq_tenant_id'
             )
         )
 
-    # Collapse duplicate natural keys in master_global before dropping tenant_id (keeps smallest id).
+    # Collapse duplicate natural keys in master_global before dropping tenant_id
+    # (keeps smallest id).
     op.execute(
         text(
             """

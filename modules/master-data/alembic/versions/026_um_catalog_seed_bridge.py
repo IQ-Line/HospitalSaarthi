@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from alembic import op
-
 revision: str = "026_um_catalog_seed"
 down_revision: str | Sequence[str] | None = "025_visitpad_templates_catalog_manage"
 branch_labels: str | Sequence[str] | None = None

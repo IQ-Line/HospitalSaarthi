@@ -34,9 +34,13 @@ from app.services.visitpad.platform_bulk_import import import_visitpad_manufactu
 router = APIRouter(prefix="/visitpad/manufacturers", tags=["Visitpad — Manufacturers"])
 
 
-@router.get("", response_model=VisitpadManufacturerListResponse, summary="List manufacturers")
+@router.get(
+    "", response_model=VisitpadManufacturerListResponse, summary="List manufacturers"
+)
 def get_manufacturers(
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -63,7 +67,9 @@ def get_manufacturers(
 )
 def post_manufacturer(
     payload: VisitpadManufacturerCreate,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = create_visitpad_manufacturer(repository, payload=payload)
@@ -78,7 +84,9 @@ def post_manufacturer(
 )
 def post_manufacturers_import_from_platform(
     payload: VisitpadPlatformImportRequest,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadPlatformImportSingleResponse:
     try:
@@ -100,16 +108,24 @@ def post_manufacturers_import_from_platform(
     summary="List tenant manufacturer codes (lowercase) for import-from-platform matching",
 )
 def get_manufacturer_import_keys(
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
 ) -> VisitpadCatalogKeysResponse:
     require_visitpad_tenant_catalog_scope(repository.scope)
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{manufacturer_id}", response_model=VisitpadManufacturerSingleResponse, summary="Get manufacturer")
+@router.get(
+    "/{manufacturer_id}",
+    response_model=VisitpadManufacturerSingleResponse,
+    summary="Get manufacturer",
+)
 def get_manufacturer(
     manufacturer_id: UUID,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
 ) -> VisitpadManufacturerSingleResponse:
     row = get_visitpad_manufacturer_by_id(repository, row_id=manufacturer_id)
     if row is None:
@@ -125,7 +141,9 @@ def get_manufacturer(
 def patch_manufacturer(
     manufacturer_id: UUID,
     payload: VisitpadManufacturerUpdate,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = update_visitpad_manufacturer(repository, row_id=manufacturer_id, payload=payload)
@@ -142,7 +160,9 @@ def patch_manufacturer(
 )
 def delete_manufacturer(
     manufacturer_id: UUID,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = soft_delete_visitpad_manufacturer(repository, row_id=manufacturer_id)

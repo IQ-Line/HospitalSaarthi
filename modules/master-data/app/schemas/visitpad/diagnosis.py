@@ -59,7 +59,10 @@ class VisitpadDiagnosisSingleResponse(BaseModel):
 
 
 class VisitpadDiagnosisCreate(BaseModel):
-    """Legacy-style row: ``code`` + ``display_name`` (+ optional SNOMED / flags). ICD block is optional."""
+    """Legacy-style row: ``code`` + ``display_name`` (+ optional SNOMED / flags).
+
+    ICD block is optional.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -103,7 +106,8 @@ class VisitpadDiagnosisCreate(BaseModel):
         )
         if has_icd and not complete_icd:
             raise ValueError(
-                "When enriching with ICD, provide icd10_code, icd_version, official_descriptor, and category together.",
+                "When enriching with ICD, provide icd10_code, icd_version, "
+                "official_descriptor, and category together.",
             )
         return self
 
@@ -146,7 +150,8 @@ class VisitpadDiagnosisUpdate(BaseModel):
         )
         if not all_icd:
             raise ValueError(
-                "When updating ICD fields, set icd10_code, icd_version, official_descriptor, and category together "
+                "When updating ICD fields, set icd10_code, icd_version, "
+                "official_descriptor, and category together "
                 "(or set all four to null to clear ICD enrichment).",
             )
         return self

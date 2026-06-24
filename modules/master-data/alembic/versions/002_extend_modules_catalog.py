@@ -7,10 +7,10 @@ Revises: 001_initial_schema
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM
 
 revision: str = "002_extend_modules_catalog"
 down_revision: str | Sequence[str] | None = "001_initial_schema"
@@ -65,7 +65,8 @@ def upgrade() -> None:
         schema=_GM,
     )
 
-    # Citus reference tables: backfill every row (no WHERE) so slugs are unique before the constraint.
+    # Citus reference tables: backfill every row (no WHERE) so slugs are unique
+    # before the constraint.
     op.execute(
         sa.text(
             f"""

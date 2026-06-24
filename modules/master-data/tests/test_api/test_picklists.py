@@ -100,7 +100,9 @@ def test_list_picklists_empty(picklist_client: TestClient) -> None:
     assert body["total"] == 0
 
 
-def test_list_picklists_and_values(picklist_client: TestClient, picklist_sqlite_session: Session) -> None:
+def test_list_picklists_and_values(
+    picklist_client: TestClient, picklist_sqlite_session: Session
+) -> None:
     picklist_id, value_id = _seed_picklist_with_values(picklist_sqlite_session)
 
     listed = picklist_client.get("/api/v1/master-data/picklists")

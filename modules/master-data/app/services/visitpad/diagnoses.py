@@ -18,7 +18,9 @@ def _norm_opt_str(v: str | None) -> str | None:
     return s if s else None
 
 
-def _icd_block_from_create(payload: VisitpadDiagnosisCreate) -> tuple[str | None, str | None, str | None, str | None]:
+def _icd_block_from_create(
+    payload: VisitpadDiagnosisCreate,
+) -> tuple[str | None, str | None, str | None, str | None]:
     if (
         payload.icd10_code
         and payload.icd10_code.strip()

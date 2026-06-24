@@ -120,7 +120,11 @@ def get_medicine(
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
 
 
-@router.patch("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Update medicine")
+@router.patch(
+    "/{medicine_id}",
+    response_model=VisitpadMedicineSingleResponse,
+    summary="Update medicine",
+)
 def patch_medicine(
     medicine_id: UUID,
     payload: VisitpadMedicineUpdate,
@@ -138,7 +142,11 @@ def patch_medicine(
     return VisitpadMedicineSingleResponse(data=VisitpadMedicineResponse.model_validate(row))
 
 
-@router.delete("/{medicine_id}", response_model=VisitpadMedicineSingleResponse, summary="Soft-delete medicine")
+@router.delete(
+    "/{medicine_id}",
+    response_model=VisitpadMedicineSingleResponse,
+    summary="Soft-delete medicine",
+)
 def delete_medicine(
     medicine_id: UUID,
     repository: Annotated[VisitpadMedicineRepository, Depends(get_visitpad_medicine_repository)],

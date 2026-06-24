@@ -212,7 +212,9 @@ def test_visitpad_rx_column_bulk_import_from_platform(visitpad_catalog_client: T
     assert len(err) == 1
 
 
-def test_visitpad_vital_bulk_import_long_code_from_platform(visitpad_catalog_client: TestClient) -> None:
+def test_visitpad_vital_bulk_import_long_code_from_platform(
+    visitpad_catalog_client: TestClient,
+) -> None:
     body = {
         "code": "systolic_bp",
         "name": "Systolic BP",

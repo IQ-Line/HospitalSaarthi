@@ -11,11 +11,12 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
+from schema_names import TENANT_SCHEMA as _TM
 from sqlalchemy import text
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "023_vp_vaccines_manufacturers"
 down_revision: str | Sequence[str] | None = "022_tm_iq_tenant_uuid"

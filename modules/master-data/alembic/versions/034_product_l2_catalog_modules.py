@@ -68,7 +68,8 @@ _FRONTDESK_L2_SEEDS: tuple[tuple[str, str, str, str], ...] = (
 
 _PERMISSION_SLUGS: tuple[str, ...] = ("read", "create", "edit", "delete")
 
-# Slugs owned by this revision (``frontdesk`` L1 may also exist from ``030`` — not dropped on downgrade).
+# Slugs owned by this revision (``frontdesk`` L1 may also exist from ``030`` —
+# not dropped on downgrade).
 _DOWNGRADE_MODULE_SLUGS: tuple[str, ...] = (
     "billing-and-finance",
     *(slug for _, _, slug, _ in _BILLING_L2_SEEDS),

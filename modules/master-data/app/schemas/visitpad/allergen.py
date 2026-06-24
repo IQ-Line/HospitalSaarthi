@@ -60,7 +60,9 @@ class VisitpadAllergenCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=256)
     allergen_type: VisitpadAllergenType = VisitpadAllergenType.other
     drug_class: str | None = Field(default=None, max_length=256)
-    reaction_severity_default: VisitpadReactionSeverityDefault = VisitpadReactionSeverityDefault.unknown
+    reaction_severity_default: VisitpadReactionSeverityDefault = (
+        VisitpadReactionSeverityDefault.unknown
+    )
     snomed_code: str | None = Field(default=None, max_length=64)
     display_order: int = 0
     is_active: bool = True

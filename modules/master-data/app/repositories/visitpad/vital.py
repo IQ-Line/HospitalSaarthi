@@ -13,7 +13,10 @@ from app.catalog.visitpad.table_models import visitpad_vital_model
 from app.core.catalog_scope import CatalogScope
 from app.repositories.paged_window import fetch_page_with_window_total
 from app.repositories.visitpad._list_filters import append_is_active_filter
-from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError, is_unique_violation
+from app.repositories.visitpad.integrity import (
+    DuplicateVisitpadCatalogKeyError,
+    is_unique_violation,
+)
 
 
 class VisitpadVitalRepository:

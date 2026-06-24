@@ -157,7 +157,11 @@ _RXCOLUMN_L4_SEEDS: tuple[tuple[str, str, str], ...] = (
     ("Diet Type", "diet-type", "Rx column section: diet type."),
     ("Method Strength", "method-strength", "Rx column section: method / strength."),
     ("Route", "route", "Rx column section: route."),
-    ("Time Of Administration", "time-of-administration", "Rx column section: time of administration."),
+    (
+        "Time Of Administration",
+        "time-of-administration",
+        "Rx column section: time of administration.",
+    ),
 )
 
 

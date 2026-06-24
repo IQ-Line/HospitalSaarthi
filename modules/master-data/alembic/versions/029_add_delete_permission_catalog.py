@@ -1,4 +1,5 @@
-"""Add ``delete`` permission and L2+ module_permissions links (for DBs that ran ``026``/``028`` before delete existed).
+"""Add ``delete`` permission and L2+ module_permissions links (for DBs that ran \
+``026``/``028`` before delete existed).
 
 Revision ID: 029_add_delete_permission_catalog
 Revises: 028_core_module_permissions_catalog

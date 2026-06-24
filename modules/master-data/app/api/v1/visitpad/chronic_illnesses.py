@@ -79,7 +79,9 @@ def post_chronic_illness(
 ) -> VisitpadChronicIllnessSingleResponse:
     row = create_visitpad_chronic_illness(repository, payload=payload)
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.post(
@@ -138,7 +140,9 @@ def get_chronic_illness(
     row = get_visitpad_chronic_illness_by_id(repository, row_id=chronic_illness_id)
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.patch(
@@ -163,7 +167,9 @@ def patch_chronic_illness(
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.delete(
@@ -183,4 +189,6 @@ def delete_chronic_illness(
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )

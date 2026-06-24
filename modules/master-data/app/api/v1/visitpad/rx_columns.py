@@ -65,7 +65,9 @@ def get_visitpad_rx_columns(
 )
 def get_rx_column_import_keys(
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
-    section: Annotated[VisitpadRxColumnSection, Query(description="Same section as the import dialog.")],
+    section: Annotated[
+        VisitpadRxColumnSection, Query(description="Same section as the import dialog.")
+    ],
 ) -> VisitpadCatalogKeysResponse:
     require_visitpad_tenant_catalog_scope(repository.scope)
     return VisitpadCatalogKeysResponse(
@@ -96,7 +98,10 @@ def post_visitpad_rx_column(
 )
 def post_rx_columns_import_from_platform(
     payload: VisitpadPlatformImportRequest,
-    section: Annotated[VisitpadRxColumnSection, Query(description="Must match the platform row's section.")],
+    section: Annotated[
+        VisitpadRxColumnSection,
+        Query(description="Must match the platform row's section."),
+    ],
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadPlatformImportSingleResponse:
@@ -114,7 +119,11 @@ def post_rx_columns_import_from_platform(
     return VisitpadPlatformImportSingleResponse(data=data)
 
 
-@router.get("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Get Rx column")
+@router.get(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Get Rx column",
+)
 def get_visitpad_rx_column(
     rx_column_id: UUID,
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],
@@ -125,7 +134,11 @@ def get_visitpad_rx_column(
     return VisitpadRxColumnSingleResponse(data=VisitpadRxColumnResponse.model_validate(row))
 
 
-@router.patch("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Update Rx column")
+@router.patch(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Update Rx column",
+)
 def patch_visitpad_rx_column(
     rx_column_id: UUID,
     payload: VisitpadRxColumnUpdate,
@@ -143,7 +156,11 @@ def patch_visitpad_rx_column(
     return VisitpadRxColumnSingleResponse(data=VisitpadRxColumnResponse.model_validate(row))
 
 
-@router.delete("/{rx_column_id}", response_model=VisitpadRxColumnSingleResponse, summary="Soft-delete Rx column")
+@router.delete(
+    "/{rx_column_id}",
+    response_model=VisitpadRxColumnSingleResponse,
+    summary="Soft-delete Rx column",
+)
 def delete_visitpad_rx_column(
     rx_column_id: UUID,
     repository: Annotated[VisitpadRxColumnRepository, Depends(get_visitpad_rx_column_repository)],

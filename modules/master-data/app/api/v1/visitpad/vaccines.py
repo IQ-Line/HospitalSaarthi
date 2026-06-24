@@ -117,7 +117,11 @@ def get_vaccine(
     return VisitpadVaccineSingleResponse(data=VisitpadVaccineResponse.model_validate(row))
 
 
-@router.patch("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Update vaccine")
+@router.patch(
+    "/{vaccine_id}",
+    response_model=VisitpadVaccineSingleResponse,
+    summary="Update vaccine",
+)
 def patch_vaccine(
     vaccine_id: UUID,
     payload: VisitpadVaccineUpdate,
@@ -131,7 +135,11 @@ def patch_vaccine(
     return VisitpadVaccineSingleResponse(data=VisitpadVaccineResponse.model_validate(row))
 
 
-@router.delete("/{vaccine_id}", response_model=VisitpadVaccineSingleResponse, summary="Soft-delete vaccine")
+@router.delete(
+    "/{vaccine_id}",
+    response_model=VisitpadVaccineSingleResponse,
+    summary="Soft-delete vaccine",
+)
 def delete_vaccine(
     vaccine_id: UUID,
     repository: Annotated[VisitpadVaccineRepository, Depends(get_visitpad_vaccine_repository)],

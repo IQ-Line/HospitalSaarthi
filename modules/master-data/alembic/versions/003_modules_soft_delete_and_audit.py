@@ -7,10 +7,10 @@ Revises: 002_extend_modules_catalog
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "003_soft_delete_audit"
 down_revision: str | Sequence[str] | None = "002_extend_modules_catalog"

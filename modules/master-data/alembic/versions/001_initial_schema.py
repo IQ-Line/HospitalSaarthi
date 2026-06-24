@@ -8,10 +8,10 @@ Create Date: 2026-05-04
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM
 
 revision: str = "001_initial_schema"
 down_revision: str | Sequence[str] | None = None

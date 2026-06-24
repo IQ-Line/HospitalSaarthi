@@ -1,4 +1,6 @@
-"""Add optional ``short_name`` to Visitpad ``chief_complaints`` (``master_global`` + ``master_tenant``).
+"""Add optional ``short_name`` to Visitpad ``chief_complaints``.
+
+(``master_global`` + ``master_tenant``).
 
 Revision ID: 014_cc_short_name
 Revises: 013_tm_tenant_id_int
@@ -11,9 +13,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import TENANT_SCHEMA as _TM
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "014_cc_short_name"
 down_revision: str | Sequence[str] | None = "013_tm_tenant_id_int"

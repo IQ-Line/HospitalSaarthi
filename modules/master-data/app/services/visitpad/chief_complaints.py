@@ -8,7 +8,10 @@ from uuid import UUID
 
 from app.catalog.visitpad.table_models import visitpad_chief_complaint_model
 from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
-from app.schemas.visitpad.chief_complaint import VisitpadChiefComplaintCreate, VisitpadChiefComplaintUpdate
+from app.schemas.visitpad.chief_complaint import (
+    VisitpadChiefComplaintCreate,
+    VisitpadChiefComplaintUpdate,
+)
 
 
 def _norm_opt_str(v: str | None) -> str | None:

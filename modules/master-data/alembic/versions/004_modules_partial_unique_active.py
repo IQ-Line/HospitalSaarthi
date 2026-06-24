@@ -11,8 +11,9 @@ Revises: 003_soft_delete_audit
 
 from collections.abc import Sequence
 
+from schema_names import GLOBAL_SCHEMA as _GM
+
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "004_partial_unique"
 down_revision: str | Sequence[str] | None = "003_soft_delete_audit"

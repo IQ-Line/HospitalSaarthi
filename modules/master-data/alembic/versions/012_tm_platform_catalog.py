@@ -1,13 +1,16 @@
-"""Create ``master_tenant`` tables for platform catalog (modules, permissions, system_roles, module_permissions).
+"""Create ``master_tenant`` tables for platform catalog (modules, permissions, system_roles,
+module_permissions).
 
-Each table mirrors ``master_global`` plus ``iq_tenant_id`` (UUID) and tenant-scoped partial unique indexes.
+Each table mirrors ``master_global`` plus ``iq_tenant_id`` (UUID) and tenant-scoped partial unique
+indexes.
 Rows start empty; global catalog remains in ``master_global``.
 
 Revision ID: 012_tm_platform_catalog (≤32 chars for ``alembic_version.version_num``).
 Revises: 011_tenant_master_visitpad
 
-Chain order: all ``master_global``-only revisions through ``010`` run first; ``011`` performs Visitpad dual-schema
-(data copy before ``master_global`` reshape); **this** revision adds platform ``master_tenant`` tables only after ``011``.
+Chain order: all ``master_global``-only revisions through ``010`` run first; ``011`` performs
+Visitpad dual-schema (data copy before ``master_global`` reshape); **this** revision adds platform
+``master_tenant`` tables only after ``011``.
 
 SQLite / non-PostgreSQL: no-op (tests use ORM ``create_all`` only).
 """
@@ -17,10 +20,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import TENANT_SCHEMA as _TM
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "012_tm_platform_catalog"
 down_revision: str | Sequence[str] | None = "011_tenant_master_visitpad"

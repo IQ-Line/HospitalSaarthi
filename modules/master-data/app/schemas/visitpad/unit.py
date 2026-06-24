@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.visitpad._code import VISITPAD_UNIT_CODE_PATTERN
 
@@ -57,7 +57,9 @@ class VisitpadUnitCreate(BaseModel):
         min_length=1,
         max_length=9,
         pattern=VISITPAD_UNIT_CODE_PATTERN,
-        description="Trimmed and stored lowercase; uniqueness is case-insensitive among active rows.",
+        description=(
+            "Trimmed and stored lowercase; uniqueness is case-insensitive among active rows."
+        ),
     )
     display_name: str = Field(min_length=1, max_length=256)
     dimension: VisitpadUnitDimension = VisitpadUnitDimension.other

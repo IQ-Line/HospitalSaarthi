@@ -13,11 +13,12 @@ from app.repositories.module_permission_repository import DuplicateModulePermiss
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
-from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
 from app.repositories.visitpad.conversion import (
     DuplicateVisitpadUnitConversionKeyError,
 )
+from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
 from app.repositories.visitpad.unit import DuplicateVisitpadUnitKeyError
+from app.services.department_service import DepartmentNotFoundError
 from app.services.module_permission_service import (
     InvalidModulePermissionReferenceError,
     ModulePermissionNotFoundError,
@@ -28,7 +29,6 @@ from app.services.module_service import (
     ModuleNotFoundError,
     ParentModuleNotFoundError,
 )
-from app.services.department_service import DepartmentNotFoundError
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (

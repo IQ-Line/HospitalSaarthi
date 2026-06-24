@@ -1,4 +1,6 @@
-"""Add ``short_name`` and ``snomed_code`` to Visitpad ``allergy_reactions`` (public + master_tenant).
+"""Add ``short_name`` and ``snomed_code`` to Visitpad ``allergy_reactions``.
+
+(public + master_tenant).
 
 Revision ID: 016_allergy_react_snomed (≤32 chars for ``alembic_version.version_num``)
 Revises: 015_diagnosis_code_short_name
@@ -11,9 +13,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from schema_names import GLOBAL_SCHEMA as _GM
+from schema_names import TENANT_SCHEMA as _TM
 
 from alembic import op
-from schema_names import GLOBAL_SCHEMA as _GM, TENANT_SCHEMA as _TM
 
 revision: str = "016_allergy_react_snomed"
 down_revision: str | Sequence[str] | None = "015_diagnosis_code_short_name"

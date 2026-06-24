@@ -1,4 +1,7 @@
-"""SQLAlchemy models for Visitpad ``units``: global rows (no ``iq_tenant_id``) vs ``master_tenant`` rows."""
+"""SQLAlchemy models for Visitpad ``units``.
+
+Global rows (no ``iq_tenant_id``) vs ``master_tenant`` rows.
+"""
 
 from __future__ import annotations
 

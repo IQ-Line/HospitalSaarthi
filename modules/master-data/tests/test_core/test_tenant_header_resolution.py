@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from uuid import UUID
-
 from app.core.catalog_tenant_id import (
     IQ_TENANT_ID_HEADER,
     X_TENANT_ID_HEADER,

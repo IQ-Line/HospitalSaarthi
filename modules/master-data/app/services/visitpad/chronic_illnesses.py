@@ -8,7 +8,10 @@ from uuid import UUID
 
 from app.catalog.visitpad.table_models import visitpad_chronic_illness_model
 from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
-from app.schemas.visitpad.chronic_illness import VisitpadChronicIllnessCreate, VisitpadChronicIllnessUpdate
+from app.schemas.visitpad.chronic_illness import (
+    VisitpadChronicIllnessCreate,
+    VisitpadChronicIllnessUpdate,
+)
 
 
 def _norm_opt_str(v: str | None) -> str | None:

@@ -210,9 +210,13 @@ def update_visitpad_medicine(
     if "is_restricted_antibiotic" in dump and payload.is_restricted_antibiotic is not None:
         row.is_restricted_antibiotic = payload.is_restricted_antibiotic
     if "allergen_classes" in dump:
-        row.allergen_classes = [] if payload.allergen_classes is None else list(payload.allergen_classes)
+        row.allergen_classes = (
+            [] if payload.allergen_classes is None else list(payload.allergen_classes)
+        )
     if "contraindications" in dump:
-        row.contraindications = [] if payload.contraindications is None else list(payload.contraindications)
+        row.contraindications = (
+            [] if payload.contraindications is None else list(payload.contraindications)
+        )
     if "search_tags" in dump:
         row.search_tags = [] if payload.search_tags is None else list(payload.search_tags)
     if "atc_code" in dump:

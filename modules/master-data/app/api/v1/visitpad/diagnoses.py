@@ -109,7 +109,11 @@ def get_diagnosis_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Get diagnosis")
+@router.get(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Get diagnosis",
+)
 def get_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
@@ -120,7 +124,11 @@ def get_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.patch("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Update diagnosis")
+@router.patch(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Update diagnosis",
+)
 def patch_diagnosis(
     diagnosis_id: UUID,
     payload: VisitpadDiagnosisUpdate,
@@ -138,7 +146,11 @@ def patch_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.delete("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Soft-delete diagnosis")
+@router.delete(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Soft-delete diagnosis",
+)
 def delete_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],

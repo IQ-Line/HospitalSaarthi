@@ -3,7 +3,8 @@
 Revision ID: 013_tm_tenant_id_int (≤32 chars for ``alembic_version.version_num``).
 Revises: 012_tm_platform_catalog
 
-**No-op (fresh local DB):** superseded by ``011`` / ``012`` creating ``iq_tenant_id`` as UUID directly.
+**No-op (fresh local DB):** superseded by ``011`` / ``012`` creating ``iq_tenant_id`` as UUID
+directly.
 Revision retained for Alembic chain continuity only.
 
 SQLite / non-PostgreSQL: no-op.

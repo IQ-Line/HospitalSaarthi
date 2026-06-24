@@ -42,7 +42,12 @@ class FakeModuleRepository:
     def list_modules(self, *, category=None, module_kinds=None, visibility=None):
         rows = [_sample_module_row()]
         if module_kinds:
-            rows = [r for r in rows if r.module_kind in [k.value if hasattr(k, 'value') else k for k in module_kinds]]
+            rows = [
+                r
+                for r in rows
+                if r.module_kind
+                in [k.value if hasattr(k, 'value') else k for k in module_kinds]
+            ]
         if visibility is not None:
             v = visibility.value if hasattr(visibility, 'value') else visibility
             rows = [r for r in rows if r.visibility_scope == v]

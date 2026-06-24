@@ -72,7 +72,9 @@ def test_visitpad_vaccine_global_crud(visitpad_api_client: TestClient) -> None:
     assert body["iq_tenant_id"] is None
     vid = body["id"]
 
-    r2 = visitpad_api_client.get("/api/v1/master-data/visitpad/vaccines", params={"search": "VC_TEST"})
+    r2 = visitpad_api_client.get(
+        "/api/v1/master-data/visitpad/vaccines", params={"search": "VC_TEST"}
+    )
     assert r2.status_code == 200
     assert r2.json()["total"] >= 1
 
