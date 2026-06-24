@@ -27,8 +27,14 @@ from sqlalchemy.orm import Session
 from opd.core.config import get_service_integration_settings, get_settings
 from opd.core.database import get_session_factory
 from opd.data_access.health_document_repo import HealthDocumentRepository
-from opd.data_access.prescription_bundle import get_prescription_by_visit_id
-from opd.data_access.prescription_form_data import _merge_form_data, effective_form_data
+from opd.data_access.prescription_form_data import (
+    _merge_form_data,
+    build_form_data_from_prescription_model,
+)
+from opd.data_access.prescription_repository import (
+    PrescriptionNotFoundError,
+    PrescriptionRepository,
+)
 from opd.data_access.registration_patient_snapshot import load_op_consult_patient_fields
 from opd.data_access.registration_patient_source import load_visit_patient_source
 from opd.integrations.clinical_form_helpers import (
@@ -53,9 +59,9 @@ from opd.integrations.op_consult_report import (
     OP_CONSULT_HI_TYPE,
     OPD_SLIP_HI_TYPE,
 )
-from opd.models.prescription_row import Prescription
 from opd.lib import azure_blob_storage
 from opd.lib.clinical_report_context import ClinicalReportContext, resolve_clinical_report_context
+from opd.models.prescription import PrescriptionModel
 from opd.services.clinical_documents_service import (
     PdfPlatformRenderError,
     get_clinical_report_pdf,
@@ -213,22 +219,32 @@ log_abdm_m2_console = _log_abdm_m2
 
 
 def _resolve_abdm_form_data(
-    session: Session,
-    rx: Prescription,
+    rx: PrescriptionModel,
     *,
     form_data_override: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Merge DB + normalized clinical with optional end-consult payload."""
-    effective = effective_form_data(session, rx)
-    if not form_data_override:
-        return effective
+    """Build ABDM form_data from the normalized aggregate, layering an optional override.
 
-    merged = _merge_form_data(effective, form_data_override)
+    No-override path (normalized ``/finalize``): the normalized child tables are the
+    single source — read straight off the eager-loaded aggregate.
+
+    Override path (legacy JSONB ``/visits`` & ``/patients`` end-consult, live until the
+    FE cutover): the FE-posted blob still carries clinical sections that the JSONB write
+    path never synced to child tables (it syncs only legacy_vitals + vaccines), so we keep
+    merging it *over* the normalized base — override wins per section — to avoid regressing
+    that flow. Once the FE posts the normalized ``/finalize`` everywhere, the override and
+    this branch go away.
+    """
+    base = build_form_data_from_prescription_model(rx)
+    if not form_data_override:
+        return base
+
+    merged = _merge_form_data(base, form_data_override)
     override_rows = immunization_rows_from_form_data(form_data_override)
     if override_rows:
         merged["immunizations"] = override_rows
     elif not immunization_rows_from_form_data(merged):
-        fallback_rows = immunization_rows_from_form_data(effective)
+        fallback_rows = immunization_rows_from_form_data(base)
         if fallback_rows:
             merged["immunizations"] = fallback_rows
     return merged
@@ -241,11 +257,16 @@ def _load_visit_clinical_snapshot(
     *,
     form_data_override: dict[str, Any] | None = None,
 ) -> _VisitClinicalSnapshot | None:
-    bundle = get_prescription_by_visit_id(session, tenant_id, visit_id)
-    if bundle is None:
+    try:
+        # get_by_visit_id filters deleted_at IS NULL — a soft-deleted prescription is
+        # intentionally NOT sourced for ABDM-M2 (we never push a deleted record to ABDM).
+        # Deliberate semantics change from the replaced JSONB get_prescription_by_visit_id,
+        # which had no such filter; locked by a test in test_abdm_m2_sourcing_equivalence.py.
+        rx = PrescriptionRepository(session).get_by_visit_id(tenant_id, visit_id)
+    except PrescriptionNotFoundError:
         return None
 
-    patient_fields = load_op_consult_patient_fields(session, tenant_id, bundle.patient_id) or {}
+    patient_fields = load_op_consult_patient_fields(session, tenant_id, rx.patient_id) or {}
     patient_name = text(patient_fields.get("patient_name")) or "Patient"
     gender_raw = text(patient_fields.get("gender")).lower()
     patient_gender: str | None = None
@@ -262,8 +283,7 @@ def _load_visit_clinical_snapshot(
         birth_date = None
 
     form_data = _resolve_abdm_form_data(
-        session,
-        bundle.rx,
+        rx,
         form_data_override=form_data_override,
     )
     _log_abdm_m2(
@@ -275,13 +295,13 @@ def _load_visit_clinical_snapshot(
     visit_number = source.visit_number if source else str(visit_id)
 
     return _VisitClinicalSnapshot(
-        patient_id=bundle.patient_id,
+        patient_id=rx.patient_id,
         patient_name=patient_name,
         patient_gender=patient_gender,
         patient_birth_date=birth_date,
         patient_abha_address=abha_address,
-        practitioner_name=_resolve_practitioner_name(tenant_id, bundle.rx.doctor_id),
-        practitioner_registration_id=str(bundle.rx.doctor_id),
+        practitioner_name=_resolve_practitioner_name(tenant_id, rx.doctor_id),
+        practitioner_registration_id=str(rx.doctor_id),
         clinical_summary=clinical_summary_from_form_data(form_data),
         form_data=form_data,
         visit_number=visit_number,
