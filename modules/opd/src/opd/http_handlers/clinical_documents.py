@@ -9,7 +9,10 @@ from fastapi.responses import Response
 from opd.core.deps import DbSession, TenantId
 from opd.lib.build_clinical_report_payload import ClinicalReportType
 from opd.lib.clinical_report_context import ClinicalReportContext
-from opd.services.clinical_documents_service import get_clinical_report_html, get_clinical_report_pdf
+from opd.services.clinical_documents_service import (
+    get_clinical_report_html,
+    get_clinical_report_pdf,
+)
 
 router = APIRouter(prefix="/visits", tags=["ClinicalDocuments"])
 

@@ -19,7 +19,8 @@ _FORM_DATA_ATTR = object()
 
 IMMUNIZATION_META_PREFIX = "__hims_immunization_v1:"
 
-# Create-RX vitals grid codes → prescription_legacy_vitals columns (matches web opd-legacy-vitals.ts)
+# Create-RX vitals grid codes → prescription_legacy_vitals columns
+# (matches web opd-legacy-vitals.ts)
 FORM_VITAL_TO_LEGACY_COLUMN: dict[str, str] = {
     "systolic_bp": "bp_systolic",
     "diastolic_bp": "bp_diastolic",
@@ -90,7 +91,9 @@ def _vitals_has_content(vitals: Any) -> bool:
 def _stored_form_data_has_content(stored: dict[str, Any]) -> bool:
     if not stored:
         return False
-    if _list_has_content(stored.get("chiefComplaints")) or _list_has_content(stored.get("chief_complaints")):
+    if _list_has_content(stored.get("chiefComplaints")) or _list_has_content(
+        stored.get("chief_complaints")
+    ):
         return True
     if _list_has_content(stored.get("immunizations")):
         return True
@@ -215,7 +218,10 @@ def _form_vitals_to_legacy_columns(vitals: dict[str, Any]) -> dict[str, int | fl
         if not text:
             continue
         column = FORM_VITAL_TO_LEGACY_COLUMN.get(code, code)
-        if column not in _LEGACY_VITAL_COLUMNS and column not in FORM_VITAL_TO_LEGACY_COLUMN.values():
+        if (
+            column not in _LEGACY_VITAL_COLUMNS
+            and column not in FORM_VITAL_TO_LEGACY_COLUMN.values()
+        ):
             continue
         try:
             out[column] = _coerce_vital_number(text)
@@ -382,7 +388,8 @@ def _load_normalized_clinical_impl(session: Session, prescription_id: UUID) -> d
     med_rows = session.execute(
         text(
             f"""
-            SELECT line_no, medicine_id, name, strength, dosage, duration, frequency, quantity, route
+            SELECT line_no, medicine_id, name, strength, dosage, duration,
+                   frequency, quantity, route
             FROM {medicines_table}
             WHERE prescription_id = :pid
             ORDER BY line_no
@@ -643,7 +650,11 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
         if key not in merged:
             merged[key] = value
             continue
-        if isinstance(merged[key], list) and key == "immunizations" and _immunization_list_has_content(value):
+        if (
+            isinstance(merged[key], list)
+            and key == "immunizations"
+            and _immunization_list_has_content(value)
+        ):
             merged[key] = value
         elif isinstance(merged[key], list) and key != "immunizations" and _list_has_content(value):
             merged[key] = value
@@ -667,9 +678,9 @@ def _merge_form_data(base: dict[str, Any], stored: dict[str, Any]) -> dict[str, 
     )
     for key in list_keys:
         if key == "immunizations":
-            if not _immunization_list_has_content(merged.get(key)) and _immunization_list_has_content(
-                base.get(key)
-            ):
+            if not _immunization_list_has_content(
+                merged.get(key)
+            ) and _immunization_list_has_content(base.get(key)):
                 merged[key] = base[key]
             continue
         if not _list_has_content(merged.get(key)) and _list_has_content(base.get(key)):

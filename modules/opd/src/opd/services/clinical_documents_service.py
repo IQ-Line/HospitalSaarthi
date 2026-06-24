@@ -7,8 +7,14 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from opd.data_access.prescription_form_data import effective_form_data_for_prescription
-from opd.data_access.prescription_repository import PrescriptionNotFoundError, PrescriptionRepository
-from opd.data_access.registration_patient_source import VisitPatientSource, load_visit_patient_source
+from opd.data_access.prescription_repository import (
+    PrescriptionNotFoundError,
+    PrescriptionRepository,
+)
+from opd.data_access.registration_patient_source import (
+    VisitPatientSource,
+    load_visit_patient_source,
+)
 from opd.lib.build_clinical_report_payload import (
     ClinicalReportType,
     build_clinical_report_request,
@@ -150,7 +156,10 @@ _CLINICAL_REPORT_TYPES: tuple[ClinicalReportType, ...] = (
 
 
 def _unavailable_all_reports(reason: str) -> dict[str, dict[str, object]]:
-    return {report_type: {"available": False, "reason": reason} for report_type in _CLINICAL_REPORT_TYPES}
+    return {
+        report_type: {"available": False, "reason": reason}
+        for report_type in _CLINICAL_REPORT_TYPES
+    }
 
 
 def _availability_for_prescription(
@@ -164,7 +173,9 @@ def _availability_for_prescription(
 ) -> dict[str, dict[str, object]]:
     prescription = prescription_to_detail(prescription_row)
     if prescription.status != PrescriptionStatus.FINAL:
-        return _unavailable_all_reports("Reports are available only after consultation is completed")
+        return _unavailable_all_reports(
+            "Reports are available only after consultation is completed"
+        )
 
     form_data = effective_form_data_for_prescription(session, tenant_id, prescription_row.id)
     resolved = resolve_clinical_report_context(

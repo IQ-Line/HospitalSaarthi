@@ -33,7 +33,12 @@ def upgrade() -> None:
         sa.Column("blob_url", sa.Text(), nullable=False),
         sa.Column("mime_type", sa.Text(), nullable=False),
         sa.Column("file_size_bytes", sa.BigInteger(), nullable=True),
-        sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "uploaded_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("status", sa.Text(), nullable=False, server_default="active"),
         sa.Column(
             "created_at",
@@ -71,5 +76,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("health_documents_tenant_visit_idx", table_name="health_documents", schema=SCHEMA)
-    op.drop_index("health_documents_tenant_patient_idx", table_name="health_documents", schema=SCHEMA)
+    op.drop_index(
+        "health_documents_tenant_patient_idx",
+        table_name="health_documents",
+        schema=SCHEMA,
+    )
     op.drop_table("health_documents", schema=SCHEMA)

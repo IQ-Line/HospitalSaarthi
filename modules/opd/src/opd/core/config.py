@@ -98,7 +98,9 @@ class AzureBlobSettings(BaseSettings):
     connection_string: str = Field(default="", validation_alias="AZURE_STORAGE_CONNECTION_STRING")
     account_name: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT")
     account_key: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT_KEY")
-    container_name: str = Field(default="hmis-patient-docs", validation_alias="AZURE_BLOB_CONTAINER")
+    container_name: str = Field(
+        default="hmis-patient-docs", validation_alias="AZURE_BLOB_CONTAINER"
+    )
 
 
 @lru_cache

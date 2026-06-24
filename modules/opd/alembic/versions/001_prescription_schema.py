@@ -88,7 +88,10 @@ def upgrade() -> None:
             "visit_id",
             postgresql.UUID(as_uuid=True),
             nullable=False,
-            comment="Logical ref registration.registration.visit_id; UNIQUE 1:1; no cross-schema FK",
+            comment=(
+                "Logical ref registration.registration.visit_id; "
+                "UNIQUE 1:1; no cross-schema FK"
+            ),
         ),
         sa.Column("patient_id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("doctor_id", postgresql.UUID(as_uuid=True), nullable=False),

@@ -74,7 +74,10 @@ def test_immunization_inputs_from_vaccines_required() -> None:
             "vaccines_required": [
                 {
                     "name": "Polio",
-                    "instructions": "__hims_immunization_v1:{\"dateOfDose\":\"2019-05-01\",\"doseNumber\":2}",
+                    "instructions": (
+                        "__hims_immunization_v1:"
+                        "{\"dateOfDose\":\"2019-05-01\",\"doseNumber\":2}"
+                    ),
                 }
             ]
         }
@@ -106,6 +109,8 @@ def test_abdm_immunization_debug_reports_gate() -> None:
     assert debug["resolved_vaccine_names"] == ["BCG"]
     assert debug["immunizations_len"] == 1
 
-    empty = abdm_immunization_debug({"immunizations": [{}], "chiefComplaints": [{"complaint": "x"}]})
+    empty = abdm_immunization_debug(
+        {"immunizations": [{}], "chiefComplaints": [{"complaint": "x"}]}
+    )
     assert empty["has_immunization_data"] is False
     assert empty["resolved_row_count"] == 0

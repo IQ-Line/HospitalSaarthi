@@ -43,7 +43,9 @@ def is_ndhm_facility_id(value: str | None) -> bool:
     return _NDHM_FACILITY_ID_RE.match(value.strip()) is not None
 
 
-def resolve_report_logo_url(*, web_origin: str = "", logo_path: str = "/reportLogo.svg") -> str | None:
+def resolve_report_logo_url(
+    *, web_origin: str = "", logo_path: str = "/reportLogo.svg"
+) -> str | None:
     """Build an absolute logo URL for server-side pdf-platform renders."""
     origin = web_origin.strip().rstrip("/")
     path = (logo_path or "/reportLogo.svg").strip()
@@ -280,7 +282,9 @@ def resolve_clinical_report_context(
 
     facility_name = base.facility_name
     if not facility_name and tenant_row:
-        facility_name = _text(tenant_row.get("hip_display_name")) or _text(tenant_row.get("tenant_name"))
+        facility_name = _text(tenant_row.get("hip_display_name")) or _text(
+            tenant_row.get("tenant_name")
+        )
 
     facility_address = base.facility_address
     if not facility_address and tenant_row:

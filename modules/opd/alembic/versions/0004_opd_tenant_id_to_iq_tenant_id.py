@@ -41,7 +41,8 @@ def upgrade() -> None:
             "DO $$ DECLARE r record; BEGIN "
             "FOR r IN SELECT table_name FROM information_schema.columns "
             "WHERE table_schema='opd' AND column_name='tenant_id' LOOP "
-            "EXECUTE format('ALTER TABLE opd.%I RENAME COLUMN tenant_id TO iq_tenant_id', r.table_name); "
+            "EXECUTE format('ALTER TABLE opd.%I RENAME COLUMN tenant_id TO iq_tenant_id', "
+            "r.table_name); "
             "END LOOP; END $$;"
         )
     )
@@ -55,7 +56,8 @@ def downgrade() -> None:
             "DO $$ DECLARE r record; BEGIN "
             "FOR r IN SELECT table_name FROM information_schema.columns "
             "WHERE table_schema='opd' AND column_name='iq_tenant_id' LOOP "
-            "EXECUTE format('ALTER TABLE opd.%I RENAME COLUMN iq_tenant_id TO tenant_id', r.table_name); "
+            "EXECUTE format('ALTER TABLE opd.%I RENAME COLUMN iq_tenant_id TO tenant_id', "
+            "r.table_name); "
             "END LOOP; END $$;"
         )
     )

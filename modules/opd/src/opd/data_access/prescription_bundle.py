@@ -67,7 +67,9 @@ def _ensure_visit_row(session: Session, rx: Prescription) -> Visit:
     return visit
 
 
-def bundle_from_prescription(session: Session, tenant_id: UUID, rx: Prescription) -> PrescriptionBundle:
+def bundle_from_prescription(
+    session: Session, tenant_id: UUID, rx: Prescription
+) -> PrescriptionBundle:
     if rx.tenant_id != tenant_id:
         raise ValueError("prescription tenant mismatch")
 

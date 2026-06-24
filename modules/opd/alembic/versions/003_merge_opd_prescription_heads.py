@@ -15,8 +15,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from alembic import op
-
 revision: str = "003_merge_opd_prescription_heads"
 down_revision: str | Sequence[str] | None = (
     "002_health_documents",

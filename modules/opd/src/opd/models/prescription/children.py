@@ -107,7 +107,9 @@ class PrescriptionChiefComplaintModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_chief_complaints"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("iq_tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"),
+        UniqueConstraint(
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"
+        ),
         _SCHEMA,
     )
 
@@ -128,7 +130,9 @@ class PrescriptionDiagnosisModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_diagnoses"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("iq_tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"),
+        UniqueConstraint(
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"
+        ),
         _SCHEMA,
     )
 
@@ -316,7 +320,10 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "iq_tenant_id", "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
+            "iq_tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_ordered_imaging_line_key",
         ),
         _SCHEMA,
     )
@@ -343,7 +350,10 @@ class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "iq_tenant_id", "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
+            "iq_tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_vaccines_required_line_key",
         ),
         _SCHEMA,
     )

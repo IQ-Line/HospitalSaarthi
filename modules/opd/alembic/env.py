@@ -5,14 +5,13 @@ from pathlib import Path
 # Migration revisions import alembic/schema_names.py without pulling in the app package.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from schema_names import VERSION_TABLE
 from sqlalchemy import engine_from_config, pool, text
 
 from alembic import context
 from opd.core.config import get_settings
 from opd.core.schemas import SCHEMA
 from opd.models import Base
-
-from schema_names import VERSION_TABLE
 
 config = context.config
 

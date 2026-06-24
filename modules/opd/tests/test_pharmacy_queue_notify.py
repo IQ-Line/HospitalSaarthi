@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, date, datetime
 from uuid import uuid4
 
-from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_projection
 from opd.lib import http_pharmacy_gateway
+from opd.lib.pharmacy_queue_notify import notify_pharmacy_queue_projection
 from opd.models.prescription_row import Prescription
 from opd.models.registration_patient_snapshot import RegistrationPatientSnapshot
 from opd.models.registration_visit import RegistrationVisit

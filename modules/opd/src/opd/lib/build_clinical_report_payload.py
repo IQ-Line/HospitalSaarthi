@@ -406,7 +406,11 @@ def clinical_payload_to_form_data(clinical: PrescriptionClinicalPayload) -> dict
             vitals[code] = value
 
     mh = clinical.medical_history
-    chronic = clinical.medical_history_chronic_illnesses[0].illness_text if clinical.medical_history_chronic_illnesses else ""
+    chronic = (
+        clinical.medical_history_chronic_illnesses[0].illness_text
+        if clinical.medical_history_chronic_illnesses
+        else ""
+    )
 
     return {
         "vitals": vitals,
@@ -484,8 +488,12 @@ def clinical_payload_to_form_data(clinical: PrescriptionClinicalPayload) -> dict
             {
                 "id": str(index + 1),
                 "steps": str(row.steps_count) if row.steps_count is not None else "",
-                "sleepDuration": str(row.sleep_duration_min) if row.sleep_duration_min is not None else "",
-                "caloriesBurned": str(row.calories_burned) if row.calories_burned is not None else "",
+                "sleepDuration": (
+                    str(row.sleep_duration_min) if row.sleep_duration_min is not None else ""
+                ),
+                "caloriesBurned": (
+                    str(row.calories_burned) if row.calories_burned is not None else ""
+                ),
                 "exerciseType": row.exercise_types[0] if row.exercise_types else "",
             }
             for index, row in enumerate(clinical.physical_activities)

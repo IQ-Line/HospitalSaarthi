@@ -10,10 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import opd.models.prescription_row  # noqa: F401 — registers phase-0 prescriptions on LegacyBase
 from opd.core.database import get_db_session
 from opd.main import create_app
-import opd.models.prescription_row  # noqa: F401 — registers phase-0 prescriptions on LegacyBase
-
 from opd.models import Base
 from opd.models.legacy_base import LegacyBase
 from opd.models.registration_visit import RegistrationVisit
@@ -32,7 +31,7 @@ def client() -> Generator[TestClient, None, None]:
         poolclass=StaticPool,
     )
     phase0_base_tables = (
-        Base.metadata.tables[f"opd.visits"],
+        Base.metadata.tables["opd.visits"],
         Base.metadata.tables["registration.visit"],
     )
     for table in (*phase0_base_tables, *LegacyBase.metadata.tables.values()):
@@ -242,7 +241,6 @@ def test_list_patients_returns_completed_encounter(client: TestClient) -> None:
     from opd.core.database import get_db_session
 
     tenant = uuid.UUID(TENANT)
-    patient = uuid.UUID(PATIENT)
     visit = uuid.UUID(VISIT)
     now = datetime.now(UTC)
 

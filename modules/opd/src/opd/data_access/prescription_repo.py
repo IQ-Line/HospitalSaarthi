@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
-
-from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -160,7 +159,9 @@ class PrescriptionRepository:
             patient_id,
         )
 
-    def get_latest_visit_with_prescription(self, patient_id: UUID) -> bundle_api.PrescriptionBundle | None:
+    def get_latest_visit_with_prescription(
+        self, patient_id: UUID
+    ) -> bundle_api.PrescriptionBundle | None:
         return self.get_latest_prescription(patient_id)
 
     def _resolve_doctor_id_for_visit(
@@ -349,7 +350,10 @@ class PrescriptionRepository:
         patient_id: UUID,
         form_data: dict[str, Any],
     ) -> tuple[Visit, Prescription]:
-        """Persist final prescription for a registration encounter id (OPD visit id = registration visit id)."""
+        (
+            "Persist final prescription for a registration encounter id (OPD visit id ="
+            " registration visit id)."
+        )
         visit = self._session.get(Visit, visit_id)
         if visit is None:
             visit, rx = self.ensure_registration_encounter(visit_id, patient_id)
@@ -442,7 +446,9 @@ class PrescriptionRepository:
         self._session.flush()
         return visit, rx
 
-    def end_consultation(self, patient_id: UUID, form_data: dict[str, Any]) -> tuple[Visit, Prescription]:
+    def end_consultation(
+        self, patient_id: UUID, form_data: dict[str, Any]
+    ) -> tuple[Visit, Prescription]:
         visit, rx = self.save_draft(patient_id, form_data)
         now = datetime.now(UTC)
         visit.status = "completed"

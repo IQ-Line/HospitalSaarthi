@@ -45,7 +45,10 @@ def _join_url(base: str, path: str) -> str:
 
 
 def _omit_none(value: Any) -> Any:
-    """Drop null keys — pdf-platform Zod schemas are `.strict()` and reject JSON null on optionals."""
+    (
+        "Drop null keys — pdf-platform Zod schemas are `.strict()` and reject JSON"
+        " null on optionals."
+    )
     if isinstance(value, dict):
         return {key: _omit_none(item) for key, item in value.items() if item is not None}
     if isinstance(value, list):

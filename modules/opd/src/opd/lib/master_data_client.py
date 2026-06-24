@@ -30,7 +30,9 @@ def fetch_visitpad_vitals_catalog(tenant_id: UUID) -> list[dict[str, Any]]:
     )
 
     try:
-        with urllib.request.urlopen(request, timeout=settings.master_data_timeout_seconds) as response:
+        with urllib.request.urlopen(
+            request, timeout=settings.master_data_timeout_seconds
+        ) as response:
             body = response.read().decode("utf-8")
     except urllib.error.URLError:
         return []

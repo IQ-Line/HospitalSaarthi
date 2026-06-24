@@ -3,15 +3,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
-from opd.data_access.visit_status import (
-    effective_encounter_status,
-    resolve_visit_status_for_prescription,
-    resolve_visit_statuses_for_prescriptions,
-)
 from opd.data_access.registration_visit_repo import (
     effective_visit_status,
     opd_status_filter_to_registration,
     registration_status_to_opd_visit_status,
+)
+from opd.data_access.visit_status import (
+    effective_encounter_status,
+    resolve_visit_status_for_prescription,
+    resolve_visit_statuses_for_prescriptions,
 )
 from opd.models.visit import Visit
 
@@ -98,10 +98,9 @@ def test_resolve_visit_statuses_for_prescriptions_batch(db_session) -> None:
 
 def test_resolve_visit_statuses_for_prescription_model_without_visit_row(db_session) -> None:
     """Batch overlays pass lean PrescriptionModel rows; must not assume form_data exists."""
-    from tests.conftest import TENANT_A
-
     from opd.models.prescription import PrescriptionModel
     from opd.models.prescription.enums import PrescriptionStatus
+    from tests.conftest import TENANT_A
 
     visit_id = uuid4()
     patient_id = uuid4()

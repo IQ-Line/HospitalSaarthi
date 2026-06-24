@@ -24,7 +24,13 @@ def sanitize_filename(name: str) -> str:
 
 
 def generate_secure_filename(extension: str) -> str:
-    ext = extension.lower() if extension.startswith(".") else f".{extension.lower()}" if extension else ""
+    ext = (
+        extension.lower()
+        if extension.startswith(".")
+        else f".{extension.lower()}"
+        if extension
+        else ""
+    )
     return f"{uuid.uuid4().hex}{ext}"
 
 

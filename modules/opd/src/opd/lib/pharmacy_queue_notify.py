@@ -170,7 +170,10 @@ def notify_pharmacy_queue_after_prescription_finalize(
     tenant_id: UUID,
     prescription_id: UUID,
 ) -> None:
-    """Push queue projection for REST ``POST /prescriptions/{id}/finalize`` (normalized aggregate)."""
+    (
+        """Push queue projection for REST ``POST /prescriptions/{id}/finalize`` """
+        """(normalized aggregate)."""
+    )
     from opd.data_access.prescription_repository import (
         PrescriptionNotFoundError,
         PrescriptionRepository,

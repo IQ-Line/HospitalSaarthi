@@ -585,7 +585,9 @@ def _persist_op_consult(
         produced_at=now,
     )
     if ctx is None:
-        _log_abdm_m2("visit %s OPCONSULTATION bundle persist failed care_ref=%s", visit_id, care_ref)
+        _log_abdm_m2(
+            "visit %s OPCONSULTATION bundle persist failed care_ref=%s", visit_id, care_ref
+        )
     else:
         _log_abdm_m2("visit %s OPCONSULTATION bundle persist ok care_ref=%s", visit_id, care_ref)
     return ctx
@@ -602,7 +604,8 @@ def _persist_prescription(
 ) -> M2CareContext | None:
     has_rx = has_prescription_clinical_data(snapshot.form_data)
     _log_abdm_m2(
-        "visit %s PRESCRIPTION gate has_prescription_clinical_data=%s diagnosis_len=%s medicines_len=%s",
+        "visit %s PRESCRIPTION gate has_prescription_clinical_data=%s "
+        "diagnosis_len=%s medicines_len=%s",
         visit_id,
         has_rx,
         len(snapshot.form_data.get("diagnosis") or []),
@@ -749,7 +752,8 @@ def _persist_health_documents(
     for doc in documents:
         if doc.hi_type in (OP_CONSULT_HI_TYPE, OPD_SLIP_HI_TYPE):
             _log_abdm_m2(
-                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s reason=system_generated_type",
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s "
+                "reason=system_generated_type",
                 visit_id,
                 doc.id,
                 doc.hi_type,
@@ -880,7 +884,8 @@ def persist_visit_abdm_bundles(
             return []
 
         _log_abdm_m2(
-            "visit %s bundle persist pipeline: OPCONSULTATION -> PRESCRIPTION -> IMMUNIZATIONRECORD -> HEALTHDOCUMENTRECORD",
+            "visit %s bundle persist pipeline: OPCONSULTATION -> PRESCRIPTION -> "
+            "IMMUNIZATIONRECORD -> HEALTHDOCUMENTRECORD",
             visit_id,
         )
 

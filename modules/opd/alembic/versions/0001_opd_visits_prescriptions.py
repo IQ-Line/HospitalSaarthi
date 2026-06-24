@@ -8,21 +8,22 @@ Create Date: 2026-06-01
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from schema_names import SCHEMA
 
 revision: str = "0001_opd_visits_prescriptions"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def _table_exists(name: str) -> bool:
@@ -40,12 +41,27 @@ def upgrade() -> None:
     if not _table_exists("visits"):
         op.create_table(
             "visits",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+            sa.Column(
+                "id",
+                postgresql.UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
+            ),
             sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("patient_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("status", sa.Text(), nullable=False, server_default="in_progress"),
-            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
             schema=SCHEMA,
         )
     if not _index_exists("visits", "ix_opd_visits_tenant_patient_updated"):
@@ -59,20 +75,46 @@ def upgrade() -> None:
     if not _table_exists("prescriptions"):
         op.create_table(
             "prescriptions",
-            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
+            sa.Column(
+                "id",
+                postgresql.UUID(as_uuid=True),
+                primary_key=True,
+                server_default=sa.text("gen_random_uuid()"),
+            ),
             sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("visit_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("patient_id", postgresql.UUID(as_uuid=True), nullable=False),
             sa.Column("status", sa.Text(), nullable=False, server_default="draft"),
-            sa.Column("form_data", postgresql.JSONB(), nullable=False, server_default=sa.text("'{}'::jsonb")),
+            sa.Column(
+                "form_data",
+                postgresql.JSONB(),
+                nullable=False,
+                server_default=sa.text("'{}'::jsonb"),
+            ),
             sa.Column("finalized_at", sa.DateTime(timezone=True), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.text("now()"),
+            ),
             sa.ForeignKeyConstraint(["visit_id"], [f"{SCHEMA}.visits.id"], ondelete="CASCADE"),
             schema=SCHEMA,
         )
     if not _index_exists("prescriptions", "ix_opd_prescriptions_visit_id"):
-        op.create_index("ix_opd_prescriptions_visit_id", "prescriptions", ["visit_id"], unique=True, schema=SCHEMA)
+        op.create_index(
+            "ix_opd_prescriptions_visit_id",
+            "prescriptions",
+            ["visit_id"],
+            unique=True,
+            schema=SCHEMA,
+        )
     if not _index_exists("prescriptions", "ix_opd_prescriptions_tenant_patient"):
         op.create_index(
             "ix_opd_prescriptions_tenant_patient",

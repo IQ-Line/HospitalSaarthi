@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,6 +10,13 @@ from sqlalchemy.orm import Session
 
 from opd.data_access.prescription_form_data import prescription_form_data_has_content
 from opd.models.visit import Visit
+
+if TYPE_CHECKING:
+    # Annotation-only: these resolvers accept either ORM row (legacy Prescription on
+    # LegacyBase or normalized PrescriptionModel) — both duck-type .status/.id. Imported
+    # under TYPE_CHECKING so `from __future__ import annotations` strings resolve for
+    # type checkers + ruff without a runtime dependency on the soon-retired legacy model.
+    from opd.models.prescription_row import Prescription
 
 
 def _empty_draft_without_clinical_content(
