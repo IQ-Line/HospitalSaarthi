@@ -17,6 +17,7 @@ example file is a review smell.
 | 3005  | user-management-svc         | `services/user-management-svc/.env.example`              |
 | 3006  | registration-svc            | `services/registration-svc/.env.example`                 |
 | 3007  | integration-hub-svc         | `services/integration-hub-svc/.env.example`              |
+| 3008  | analytics-svc               | `services/analytics-svc/.env.example`                    |
 | 3009  | record-foundation-svc       | `services/record-foundation-svc/.env.example`            |
 | 5173  | web (Vite dev server)       | Vite default                                             |
 | 8010  | master-data (Python FastAPI)| `modules/master-data/.env.example`                       |
@@ -88,7 +89,7 @@ only where it needs to; `.env.local` overrides everything for personal needs.
 
 ```bash
 # What ports are currently bound on your machine?
-sudo lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(3000|3001|3002|3003|3004|3005|3006|3007|3009|5173|5433|6432|3593|8010|8020)'
+sudo lsof -nP -iTCP -sTCP:LISTEN | grep -E ':(3000|3001|3002|3003|3004|3005|3006|3007|3008|3009|5173|5433|6432|3593|8010|8020)'
 
 # What ports do the .env.example files document?
 grep -hE '_PORT=' services/*/.env.example

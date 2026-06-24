@@ -21,12 +21,14 @@ interface FacilitySwitcherProps {
   selectedTenantId: string | undefined;
   homeTenantId: string | null;
   onChange: (tenantId: string) => void;
+  label?: string;
 }
 
 export function FacilitySwitcher({
   selectedTenantId,
   homeTenantId,
   onChange,
+  label = 'Facility (superadmin)',
 }: FacilitySwitcherProps) {
   const facilitiesQuery = useDashboardFacilities();
   const facilities = facilitiesQuery.data ?? [];
@@ -56,7 +58,7 @@ export function FacilitySwitcher({
 
   return (
     <div className="w-full max-w-sm space-y-2">
-      <Label htmlFor="dashboard-facility">Facility (superadmin)</Label>
+      <Label htmlFor="dashboard-facility">{label}</Label>
       <Select
         value={displayValue}
         onValueChange={onChange}

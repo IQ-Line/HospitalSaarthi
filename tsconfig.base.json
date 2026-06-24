@@ -41,6 +41,7 @@
       "@hims/registration": ["./modules/registration/src/index.ts"],
       "@hims/record-foundation": ["./modules/record-foundation/src/index.ts"],
       "@hims/pharmacy": ["./modules/pharmacy/src/index.ts"],
+      "@hims/analytics": ["./modules/analytics/src/index.ts"],
       "@hims/master-data": ["./modules/master-data/src/index.ts"]
     }
   },

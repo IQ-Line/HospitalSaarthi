@@ -10,6 +10,7 @@ import { pharmacyModuleManifest } from './manifests/pharmacy.manifest';
 import { masterDataModuleManifest } from './manifests/master-data.manifest';
 import { userManagementModuleManifest } from './manifests/user-management.manifest';
 import { visitpadModuleManifest } from './manifests/visitpad.manifest';
+import { analyticsModuleManifest } from './manifests/analytics.manifest';
 
 const BUILTIN_MODULE_MANIFESTS = [
   dashboardModuleManifest,
@@ -22,6 +23,7 @@ const BUILTIN_MODULE_MANIFESTS = [
   billingAndFinanceModuleManifest,
   visitpadModuleManifest,
   configuratorModuleManifest,
+  analyticsModuleManifest,
 ] as const;
 
 /** Idempotent — registers built-in SPA module manifests at bootstrap. */

@@ -6,7 +6,9 @@ import { resolve } from 'node:path';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, resolve(__dirname, '../..'), '');
-  const bffOrigin = (env.VITE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
+  // Use 127.0.0.1 — on Windows `localhost` often resolves to [::1] first and can hit
+  // another dev server bound only on IPv6 (e.g. a /hims-base-path Vite app on :3000).
+  const bffOrigin = (env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
   const webPort = Number(env.WEB_DEV_PORT ?? '5173');
 
   return {
