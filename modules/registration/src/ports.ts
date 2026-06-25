@@ -33,6 +33,10 @@ export interface RegistrationRepo {
     tenantId: string,
     abhaAddress: string,
   ): Promise<string | undefined>;
+  findAllPatientIdsByAbhaAddress(
+    tenantId: string,
+    abhaAddress: string,
+  ): Promise<string[]>;
   insert(
     tenantId: string,
     input: CreateRegistrationInput,

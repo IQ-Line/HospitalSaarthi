@@ -202,6 +202,10 @@ export interface RegistrationClient {
     iqTenantId: string;
     abhaAddress: string;
   }): Promise<string | null>;
+  findAllPatientIdsByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string[]>;
 }
 
 export interface HealthRecordBundleEntry {
@@ -390,6 +394,17 @@ export interface M3ConsentRequestsPort {
     contextMerge?: Record<string, unknown>;
   }): Promise<void>;
   listActive(iqTenantId: string): Promise<M3ConsentRequestRow[]>;
+  searchForTenant(input: {
+    iqTenantId: string;
+    name?: string;
+    from?: Date;
+    to?: Date;
+    drName?: string;
+    hiTypes?: string[];
+    status?: string;
+    page: number;
+    limit: number;
+  }): Promise<{ rows: M3ConsentRequestRow[]; totalCount: number }>;
   /** Expire stale `AWAITING_PATIENT_APPROVAL` rows past consent TTL. */
   janitor(): Promise<number>;
 }
@@ -456,6 +471,11 @@ export interface M3DataTransfersPort {
   }): Promise<M3DataTransferRow | null>;
   /** HIP push: HIU transfer row created by `start-data-request` for the same consent artefact. */
   findLatestActiveByConsentId(
+    iqTenantId: string,
+    consentId: string,
+  ): Promise<M3DataTransferRow | null>;
+  /** Latest transfer row for a consent artefact (any terminal or in-flight state). */
+  findLatestByConsentId(
     iqTenantId: string,
     consentId: string,
   ): Promise<M3DataTransferRow | null>;

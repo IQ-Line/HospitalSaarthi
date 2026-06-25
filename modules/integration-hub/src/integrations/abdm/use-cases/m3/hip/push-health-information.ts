@@ -10,6 +10,7 @@ import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { isValidFideliusPublicKeyB64 } from "../../../lib/fidelius-public-key.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
+import { collectLocalBundlesForM3Consent } from "../../../lib/resolve-rf-bundles.js";
 
 async function collectRecordFoundationBundles(
   deps: AbdmAdapterDeps,
@@ -21,51 +22,28 @@ async function collectRecordFoundationBundles(
     patientAbhaAddress?: string | null;
   },
 ): Promise<HealthRecordBundleEntry[]> {
-  const triedRefs = new Set<string>();
-  const bundleEntries: HealthRecordBundleEntry[] = [];
-
-  const appendForRef = async (ref: string) => {
-    const key = ref.trim();
-    if (!key || triedRefs.has(key)) return;
-    triedRefs.add(key);
-    const bundles = await deps.recordFoundation.listBundles({
-      iqTenantId: input.iqTenantId,
-      careContextId: key,
+  const abha = input.patientAbhaAddress?.trim() ?? "";
+  if (!abha) {
+    abdmWarn("abdm.m3.hip_push.missing_abha_for_rf_lookup", {
+      consentId: input.consentId,
+      patientId: input.patientId,
     });
-    bundleEntries.push(...bundles);
-  };
-
-  for (const ref of input.careContextReferences) {
-    await appendForRef(ref);
+    return [];
   }
 
-  if (
-    bundleEntries.length === 0 &&
-    process.env["ABDM_M2_MOCK_PLATFORM"] !== "true"
-  ) {
-    let rfPatientId = input.patientId;
-    const abha = input.patientAbhaAddress?.trim();
-    if (abha) {
-      const empiMatch = await deps.empi.findPatientByAbhaAddress({
-        iqTenantId: input.iqTenantId,
-        abhaAddress: abha,
-      });
-      if (empiMatch?.patientId) rfPatientId = empiMatch.patientId;
-    }
+  const bundleEntries = await collectLocalBundlesForM3Consent(deps, {
+    iqTenantId: input.iqTenantId,
+    patientAbhaAddress: abha,
+    careContextReferences: input.careContextReferences,
+    extraPatientIds: [input.patientId],
+  });
 
-    const contexts = await deps.recordFoundation.listCareContexts({
-      iqTenantId: input.iqTenantId,
-      patientId: rfPatientId,
-    });
+  if (bundleEntries.length === 0 && process.env["ABDM_M2_MOCK_PLATFORM"] !== "true") {
     abdmWarn("abdm.m3.hip_push.rf_patient_context_fallback", {
       consentId: input.consentId,
       consentRefs: input.careContextReferences,
-      rfPatientId,
-      rfContextRefs: contexts.map((c) => c.referenceNumber),
+      patientId: input.patientId,
     });
-    for (const ctx of contexts) {
-      await appendForRef(ctx.referenceNumber);
-    }
   }
 
   return bundleEntries;

@@ -72,8 +72,16 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
     tenantId: string,
     abhaAddress: string,
   ): Promise<string | undefined> {
+    const ids = await this.findAllPatientIdsByAbhaAddress(tenantId, abhaAddress);
+    return ids[0];
+  }
+
+  async findAllPatientIdsByAbhaAddress(
+    tenantId: string,
+    abhaAddress: string,
+  ): Promise<string[]> {
     const value = abhaAddress.trim();
-    if (!value) return undefined;
+    if (!value) return [];
     const rows = await this.db
       .select({ patient_id: registrations.patient_id })
       .from(registrations)
@@ -82,9 +90,8 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
           eq(registrations.iq_tenant_id, tenantId),
           sql`trim(${registrations.patient_abha_address}) = ${value}`,
         ),
-      )
-      .limit(1);
-    return rows[0]?.patient_id;
+      );
+    return [...new Set(rows.map((row) => row.patient_id))];
   }
 
   /** Refresh desk-captured ABHA / DOB on an existing registration row (re-intake). */
