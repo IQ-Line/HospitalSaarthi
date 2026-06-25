@@ -674,6 +674,57 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /providers:
+    get:
+      tags:
+        - Users
+      summary: List active providers (doctors) for billing and registration pickers
+      description: >
+        Returns active platform users as a slim provider DTO. Optional filters narrow by department
+        name or master-data department id (resolved to the persisted `users.department` name).
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: department
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Exact match on persisted `users.department` (department name).
+        - name: department_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Master-data department uuid — resolved to department name before filtering.
+      responses:
+        "200":
+          description: Active providers for the tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Provider"
+        "400":
+          description: Invalid department_id (not found in master-data catalog).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users:
     get:
       tags:
@@ -1734,6 +1785,25 @@ components:
         correlation_id:
           type: string
           description: Request correlation identifier.
+    Provider:
+      type: object
+      required:
+        - id
+        - full_name
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        department:
+          type: string
+          nullable: true
+          description: Primary department name from user profile.
+        status:
+          type: string
+          enum: [active, inactive, suspended]
     User:
       type: object
       required:

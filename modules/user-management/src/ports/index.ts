@@ -127,6 +127,8 @@ export type {
   CapabilitySourceCatalog,
 } from "../domain/module-slug.js";
 export type {
+  DepartmentCatalogPort,
+  DepartmentCatalogRequestContext,
   EntitlementRequestContext,
   MasterDataModuleCatalogPort,
   ModuleCatalogPort,

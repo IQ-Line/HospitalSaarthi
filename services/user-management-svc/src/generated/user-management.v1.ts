@@ -78,6 +78,151 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/change-password-complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear must_change_password after user sets a new password
+         * @description Called by the SPA after a successful better-auth password change when the user was flagged with `must_change_password` following an admin reset.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated user profile. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/api-key/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Validate user API key (X-API-Key header) */
+        get: {
+            parameters: {
+                query?: never;
+                header: {
+                    "X-API-Key": string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: components["responses"]["ApiKeyTokenSuccess"];
+                /** @description Missing API key. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Validate user API key and issue tokens
+         * @description Validates `hs_user_{live|test}_…` stored on `user_management.users`. Returns short-lived `access_token` (5 min) and `refresh_token` (7 days). Refresh via `GET /api/auth/token` with `Authorization: Bearer <refresh_token>`.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-API-Key"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": {
+                        api_key?: string;
+                    };
+                };
+            };
+            responses: {
+                200: components["responses"]["ApiKeyTokenSuccess"];
+                /** @description Missing API key. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/principal": {
         parameters: {
             query?: never;
@@ -87,7 +232,7 @@ export interface paths {
         };
         /**
          * Get enriched principal for authorization
-         * @description Returns the exact `PrincipalService.getPrincipal` payload attached by PEP as `request.cerbosPrincipal` (no recomputation). Semantically this matches the Cerbos principal used on checks: `id` is `principal.id`, `roles` is `principal.roles`, and `attributes` is `principal.attr` (same snake_case keys as `principalAttrsForCerbos` in `@hims/ts-sdk-authz`). The HTTP body nests attrs under `attributes` (Cerbos uses `attr`). Session-only JWT fields (`sessionId`, `iat`, `exp`, `iss`, …) are not included here — use the identity layer / token for those. If enrichment did not run, the service responds with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
+         * @description Returns the exact `PrincipalService.getPrincipal` payload attached by PEP as `request.cerbosPrincipal` (no recomputation). Semantically this matches the Cerbos principal used on checks: `id` is `principal.id`, `roles` is `principal.roles`, and `attributes` is `principal.attr` (same snake_case keys as `principalAttrsForCerbos` in `@hims/ts-sdk-authz`). Capability arrays are **effective** runtime keys: stored grants intersected with tenant entitlement (ADR-0032). Stored DB grants are unchanged when modules are disabled. The HTTP body nests attrs under `attributes` (Cerbos uses `attr`). Session-only JWT fields are not included — use the identity layer for those. If enrichment did not run, responds with 500 `CERBOS_PRINCIPAL_UNAVAILABLE`.
          */
         get: {
             parameters: {
@@ -383,7 +528,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List tenant-scoped roles */
+        /**
+         * List tenant-scoped roles
+         * @description Tenant scope is JWT-derived for bearer sessions. Integration callers may use `X-API-Key` (Configurator tenant API key with `opd_slip` purpose); the key binds tenant scope — do not send a conflicting `iq_tenant_id` header.
+         */
         get: {
             parameters: {
                 query?: never;
@@ -869,6 +1017,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List active providers (doctors) for billing and registration pickers
+         * @description Returns active platform users as a slim provider DTO. Optional filters narrow by department name or master-data department id (resolved to the persisted `users.department` name).
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Exact match on persisted `users.department` (department name). */
+                    department?: string;
+                    /** @description Master-data department uuid — resolved to department name before filtering. */
+                    department_id?: string;
+                };
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Active providers for the tenant. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Provider"][];
+                    };
+                };
+                /** @description Invalid department_id (not found in master-data catalog). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                500: components["responses"]["InternalError"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -878,7 +1096,7 @@ export interface paths {
         };
         /**
          * List tenant-scoped platform users (ABAC-filtered)
-         * @description Returns users for the active tenant. Route access is gated on `user.list` (PEP); the list body is filtered using a single Cerbos PlanResources call for `user.read` and the returned query-plan AST (evaluated locally against each row), not per-row CheckResources.
+         * @description Returns users for the active tenant. Route access is gated on `user.list` (PEP); the list body is filtered using a single Cerbos PlanResources call for `user.read` and the returned query-plan AST (evaluated locally against each row), not per-row CheckResources. With `X-API-Key` (tenant `opd_slip` integration key), Cerbos is bypassed and all active users for the key's tenant are returned.
          */
         get: {
             parameters: {
@@ -1189,7 +1407,7 @@ export interface paths {
         };
         /**
          * List applied role templates for a tenant-scoped user
-         * @description Returns the role templates applied to the specified user (`user_roles` associations). Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants). See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities until issue #60.
+         * @description Returns the role templates applied to the specified user (`user_roles` associations). Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants). See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities until issue #60. Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
          */
         get: {
             parameters: {
@@ -1571,7 +1789,7 @@ export interface paths {
         };
         /**
          * Get effective runtime capabilities for a user
-         * @description Returns the runtime-effective capability keys for Cerbos principal enrichment. Primary source is active `user_capabilities` snapshot rows; delegated overlays and clearances are included. Until issue #60, implementation may temporarily union live `user_roles` join `role_capabilities` for active associations (hybrid PEP — see ADR-0031).
+         * @description Returns runtime-effective capability keys for the user: stored grants intersected with tenant entitlement (same semantics as `GET /auth/principal` capability arrays; ADR-0032). Includes delegated overlays and clearances.
          */
         get: {
             parameters: {
@@ -1716,6 +1934,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/users/{id}/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Admin reset a user's password
+         * @description Sets a temporary password via better-auth, revokes all sessions, and sets `must_change_password` so the user must choose a new password on next login. Cerbos action `user.update`. No email is sent — admin delivers the temp password in person.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Temporary password the admin will share with the user. */
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Password reset; user must change password on next login. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Validation error (e.g. password too short, no linked auth account). */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate a tenant-scoped platform user
+         * @description Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active. Uses Cerbos action `user.activate` (paired with `user.deactivate`).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    /**
+                     * @deprecated
+                     * @description Optional diagnostic header. Canonical tenant scope is JWT `iq_tenant_id`. If this header is supplied, runtime requires exact match with JWT tenant scope.
+                     */
+                    iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
+                };
+                path: {
+                    /** @description Platform user id within the current tenant. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description User is now active (or was already active). */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description Request validation error. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Missing or invalid bearer token. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                403: components["responses"]["Forbidden"];
+                /** @description User not found for this tenant. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1811,6 +2189,15 @@ export interface components {
             /** @description Request correlation identifier. */
             correlation_id?: string;
         };
+        Provider: {
+            /** Format: uuid */
+            id: string;
+            full_name: string;
+            /** @description Primary department name from user profile. */
+            department?: string | null;
+            /** @enum {string} */
+            status: "active" | "inactive" | "suspended";
+        };
         User: {
             /** Format: uuid */
             id: string;
@@ -1840,6 +2227,13 @@ export interface components {
              * @enum {string}
              */
             status: "active" | "inactive" | "suspended";
+            /** @description When true, user must set a new password after next login. */
+            must_change_password?: boolean;
+            /**
+             * @description Password recovery routing tier (admin-only for MVP).
+             * @enum {string}
+             */
+            recovery_tier?: "standard" | "admin_only" | "delegated" | "phone_recovery" | "federated";
         };
         /** @description Authorization snapshot for PDP alignment. Maps to Cerbos principal as `{ id, roles, attr: attributes }` after `request.user` is synced from this payload in the enrichment hook (see `@hims/user-management` principal enrichment plugin). */
         Principal: {
@@ -1850,7 +2244,9 @@ export interface components {
                 iq_tenant_id: string;
                 department: string | null;
                 org_id: string | null;
+                /** @description Effective direct capability keys (stored `user_capabilities` ∩ tenant entitlement). */
                 capabilities: string[];
+                /** @description Effective delegated keys (stored grants ∩ tenant entitlement). */
                 delegated_capabilities: string[];
                 /** @description Map of clearance types to levels (e.g. psychiatric, vip). */
                 clearances: {
@@ -1858,6 +2254,8 @@ export interface components {
                 };
                 /** @description Highest clearance tier derived from `clearances` for comparison with `resource.attr.required_clearance` on user resources in Cerbos. */
                 um_clearance_effective_tier: number;
+                /** @description Fingerprint of tenant entitlement capability keys; changes when Configurator tenant module enablement changes. SPA may compare to bust cached principal. */
+                tenant_entitlement_revision?: string;
             };
         };
     };
@@ -1878,6 +2276,31 @@ export interface components {
             };
             content: {
                 "application/json": components["schemas"]["ErrorMessage"];
+            };
+        };
+        /** @description API key valid — tokens issued plus resolved tenant and user profile. */
+        ApiKeyTokenSuccess: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    access_token: string;
+                    /** @enum {string} */
+                    token_type: "Bearer";
+                    /** @description access_token lifetime in seconds (300). */
+                    expires_in: number;
+                    /** @description Pass as Bearer to GET /api/auth/token for a new access JWT. */
+                    refresh_token: string;
+                    /** @description refresh_token lifetime in seconds (604800). */
+                    refresh_expires_in: number;
+                    /**
+                     * Format: uuid
+                     * @description Hospital tenant (`iq_tenant_id`) for the API key owner.
+                     */
+                    tenant_id: string;
+                    user: components["schemas"]["User"];
+                };
             };
         };
     };

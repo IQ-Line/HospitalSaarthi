@@ -32,6 +32,8 @@ export type {
   MasterDataModuleCatalogPort,
   ModuleCatalogPort,
   ModuleEntitlementRequestContext,
+  DepartmentCatalogPort,
+  DepartmentCatalogRequestContext,
   TenantEntitlementPort,
   TenantEntitlementResolverPort,
   TenantEntitlementResolution,

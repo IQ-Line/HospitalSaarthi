@@ -11,9 +11,9 @@ export const frontdeskModuleManifest: ModuleManifest = {
   navigation: [
     {
       id: 'frontdesk-registration',
-      label: 'Registration',
+      label: 'OPD Registration',
       icon: 'clipboard-signature',
-      route: '/frontdesk/visit-registration',
+      route: '/frontdesk/opd-registration',
       catalogModuleSlug: 'registration',
     },
     {
