@@ -61,7 +61,10 @@ describe("pushHealthInformationForSession", () => {
     const listBundles = vi
       .fn()
       .mockImplementation(async ({ careContextId }: { careContextId: string }) => {
-        if (careContextId === "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote") {
+        if (
+          careContextId === "ctx-1" ||
+          careContextId === "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote"
+        ) {
           return [
             {
               careContextReference: careContextId,
@@ -141,7 +144,7 @@ describe("pushHealthInformationForSession", () => {
     ]);
     expect(listBundles).toHaveBeenCalledWith(
       expect.objectContaining({
-        careContextId: "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote",
+        careContextId: "ctx-1",
       }),
     );
     expect(deps.fidelius.encryptBundles).toHaveBeenCalled();

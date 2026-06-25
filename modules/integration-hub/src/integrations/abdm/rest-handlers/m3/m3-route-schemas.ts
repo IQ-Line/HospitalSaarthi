@@ -9,12 +9,33 @@ export const m3PurposeCodes = [
   "PATRQT",
 ] as const;
 
+export const searchConsentRequestsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    name: { type: "string" },
+    from: { type: "string" },
+    to: { type: "string" },
+    drName: { type: "string" },
+    hiTypes: { type: "string" },
+    status: {
+      type: "string",
+      enum: ["requested", "granted", "denied", "expired", "revoked"],
+    },
+    page: { type: "integer", minimum: 1 },
+    limit: { type: "integer", minimum: 1, maximum: 50 },
+  },
+};
+
 export const startConsentRequestBodySchema = {
   type: "object" as const,
   required: ["patientAbhaAddress", "purpose", "hiTypes", "dateRange"],
   additionalProperties: false,
   properties: {
     patientAbhaAddress: { type: "string", minLength: 1 },
+    patientId: { type: "string", minLength: 1 },
+    patientName: { type: "string", minLength: 1 },
+    patientAbhaNumber: { type: "string", minLength: 1 },
     hipId: { type: "string", minLength: 1 },
     purpose: { type: "string", enum: [...m3PurposeCodes] },
     hiTypes: {

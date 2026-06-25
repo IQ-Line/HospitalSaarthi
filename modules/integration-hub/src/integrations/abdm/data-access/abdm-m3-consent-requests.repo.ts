@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, lt } from "@hims/ts-sdk-db";
+import { and, desc, eq, ilike, inArray, lt, or, sql } from "@hims/ts-sdk-db";
 import { abdmM3ConsentRequests } from "../schema/tables.js";
 import type { M3ConsentRequestsPort, M3ConsentRequestRow } from "../ports.js";
 import { M3Hiu } from "../lib/m3-fsm-states.js";
@@ -125,6 +125,114 @@ export class DrizzleM3ConsentRequestsRepo implements M3ConsentRequestsPort {
         ),
       )
       .map(rowToRecord);
+  }
+
+  async searchForTenant(input: {
+    iqTenantId: string;
+    name?: string;
+    from?: Date;
+    to?: Date;
+    drName?: string;
+    hiTypes?: string[];
+    status?: string;
+    page: number;
+    limit: number;
+  }): Promise<{ rows: M3ConsentRequestRow[]; totalCount: number }> {
+    const conditions = [eq(abdmM3ConsentRequests.iq_tenant_id, input.iqTenantId)];
+
+    const name = input.name?.trim();
+    if (name) {
+      const pattern = `%${name}%`;
+      conditions.push(
+        or(
+          ilike(abdmM3ConsentRequests.patient_abha_address, pattern),
+          sql`${abdmM3ConsentRequests.context}->>'patientName' ILIKE ${pattern}`,
+        )!,
+      );
+    }
+
+    const drName = input.drName?.trim();
+    if (drName) {
+      conditions.push(
+        sql`${abdmM3ConsentRequests.context}->>'requesterName' ILIKE ${`%${drName}%`}`,
+      );
+    }
+
+    if (input.from) {
+      conditions.push(sql`${abdmM3ConsentRequests.created_at} >= ${input.from}`);
+    }
+    if (input.to) {
+      conditions.push(sql`${abdmM3ConsentRequests.created_at} <= ${input.to}`);
+    }
+
+    if (input.hiTypes?.length) {
+      conditions.push(
+        sql`${abdmM3ConsentRequests.hi_types} && ARRAY[${sql.join(
+          input.hiTypes.map((t) => sql`${t}`),
+          sql`, `,
+        )}]::text[]`,
+      );
+    }
+
+    const status = input.status?.trim().toLowerCase();
+    if (status === "requested") {
+      conditions.push(
+        inArray(abdmM3ConsentRequests.state, [
+          M3Hiu.CONSENT_INIT_REQUESTED,
+          M3Hiu.AWAITING_PATIENT_APPROVAL,
+        ]),
+      );
+    } else if (status === "granted") {
+      conditions.push(
+        inArray(abdmM3ConsentRequests.state, [
+          M3Hiu.CONSENT_GRANTED,
+          M3Hiu.DATA_REQUESTED,
+          M3Hiu.AWAITING_PUSH,
+          M3Hiu.BUNDLES_RECEIVED,
+          M3Hiu.BUNDLES_DECRYPTED,
+          M3Hiu.RECORDS_INGESTED,
+          M3Hiu.ACKNOWLEDGED,
+        ]),
+      );
+    } else if (status === "denied") {
+      conditions.push(
+        and(
+          eq(abdmM3ConsentRequests.state, M3Hiu.CONSENT_DENIED),
+          sql`COALESCE(${abdmM3ConsentRequests.context}->'error'->>'code', '') <> 'REVOKED'`,
+        )!,
+      );
+    } else if (status === "revoked") {
+      conditions.push(
+        and(
+          eq(abdmM3ConsentRequests.state, M3Hiu.CONSENT_DENIED),
+          sql`${abdmM3ConsentRequests.context}->'error'->>'code' = 'REVOKED'`,
+        )!,
+      );
+    } else if (status === "expired") {
+      conditions.push(eq(abdmM3ConsentRequests.state, M3Hiu.EXPIRED));
+    }
+
+    const where = and(...conditions);
+    const offset = Math.max(0, (input.page - 1) * input.limit);
+
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select()
+        .from(abdmM3ConsentRequests)
+        .where(where)
+        .orderBy(desc(abdmM3ConsentRequests.created_at))
+        .limit(input.limit)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(abdmM3ConsentRequests)
+        .where(where),
+    ]);
+
+    return {
+      rows: rows.map(rowToRecord),
+      totalCount: countRows[0]?.count ?? 0,
+    };
   }
 
   async janitor(): Promise<number> {

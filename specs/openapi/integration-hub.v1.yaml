@@ -914,6 +914,52 @@ paths:
         "400":
           description: Invalid request body (e.g. dataEraseAt not in future)
 
+  /m3/hiu/consent/requests:
+    get:
+      operationId: abdmM3HiuConsentRequestSearch
+      summary: Search HIU consent requests for tenant (staff consent list)
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: name
+          in: query
+          schema: { type: string }
+          description: Patient name or ABHA address (partial match)
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+          description: Filter created_at from (inclusive, start of day)
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+          description: Filter created_at to (inclusive, end of day)
+        - name: drName
+          in: query
+          schema: { type: string }
+          description: Requesting healthcare provider name (partial match)
+        - name: hiTypes
+          in: query
+          schema: { type: string }
+          description: Single HI type filter (PascalCase)
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [requested, granted, denied, expired, revoked]
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+      responses:
+        "200":
+          description: Paginated consent request list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentRequestSearchResponse"
+
   /m3/hiu/consent/request/{sessionId}:
     get:
       operationId: abdmM3HiuConsentRequestGet
@@ -1390,12 +1436,24 @@ components:
           type: string
           description: ABHA address of the patient whose records we want
           example: "test.user@sbx"
+        patientId:
+          type: string
+          description: Optional HIMS patient UUID — used to locate local FHIR bundles when HIP push is pending
+        patientName:
+          type: string
+          description: Optional display name stored for consent list UI
+        patientAbhaNumber:
+          type: string
+          description: Optional ABHA number stored for consent list UI
         hipId:
           type: string
           description: Optional — pin request to a specific HIP. Omit for any HIP holding the records.
         purpose:
           type: string
           enum: [CAREMGT, BTG, PUBHLTH, HPAYMT, DSRCH, PATRQT]
+        requesterName:
+          type: string
+          description: Requesting clinician name (shown as healthcare provider in consent list)
         hiTypes:
           type: array
           items:
@@ -1422,6 +1480,115 @@ components:
         state:
           type: string
           enum: [CONSENT_INIT_REQUESTED]
+
+    M3HiuConsentRequestSearchResponse:
+      type: object
+      required: [sessions, page, limit, totalCount]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/M3HiuConsentListSession"
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalCount:
+          type: integer
+
+    M3HiuConsentListSession:
+      type: object
+      required: [sessionId, consentRequestId, status, identifiers, hiTypes, fromDate, toDate, dataEraseAt, createdAt, updatedAt]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        consentRequestId:
+          type: string
+        status:
+          type: string
+          enum: [REQUESTED, GRANTED, DENIED, EXPIRED, REVOKED]
+        drName:
+          type: string
+        identifiers:
+          type: object
+          properties:
+            name: { type: string }
+            abha_address: { type: string }
+            abha_number: { type: string }
+        fromDate:
+          type: string
+          format: date-time
+        toDate:
+          type: string
+          format: date-time
+        dataEraseAt:
+          type: string
+          format: date-time
+        hiTypes:
+          type: array
+          items: { type: string }
+        purpose:
+          type: object
+          properties:
+            code: { type: string }
+            text: { type: string }
+        consentArtifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/M3HiuConsentListArtifact"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    M3HiuConsentListArtifact:
+      type: object
+      properties:
+        consentId: { type: string }
+        hipId: { type: string }
+        hipName: { type: string }
+        status: { type: string }
+        hiTypes:
+          type: array
+          items: { type: string }
+        careContexts:
+          type: array
+          items:
+            type: object
+            properties:
+              patientReference: { type: string }
+              careContextReference: { type: string }
+        transferId:
+          type: string
+          format: uuid
+          description: Latest data transfer for this artefact, when present
+        dataPushed:
+          $ref: "#/components/schemas/M3HiuConsentListDataPushed"
+          description: Decrypted health records from HIP push (legacy searchConsents parity)
+
+    M3HiuConsentListDataPushed:
+      type: object
+      properties:
+        transactionId:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/M3HiuConsentListDataPushedEntry"
+
+    M3HiuConsentListDataPushedEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        careContextReference:
+          type: string
+        content:
+          type: string
+          description: Decrypted FHIR bundle JSON string
 
     M3HiuConsentRequestState:
       type: object

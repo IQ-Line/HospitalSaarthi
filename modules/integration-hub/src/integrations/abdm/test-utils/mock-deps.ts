@@ -31,6 +31,7 @@ export function buildMockAbdmDeps(
         findBySessionId: async () => null,
         patch: async () => undefined,
         listActive: async () => [],
+        searchForTenant: async () => ({ rows: [], totalCount: 0 }),
         janitor: async () => 0,
       } as AbdmAdapterDeps["m3ConsentRequests"]),
     m3ConsentArtefactsHiu:
@@ -48,6 +49,7 @@ export function buildMockAbdmDeps(
         findByTransferId: async () => null,
         findByOutboundRequestId: async () => null,
         findLatestActiveByConsentId: async () => null,
+        findLatestByConsentId: async () => null,
         patch: async () => undefined,
         patchWithSession: async () => undefined,
         janitor: async () => 0,
@@ -65,6 +67,7 @@ export function buildMockAbdmDeps(
       ({
         findM2PatientProfile: async () => null,
         findPatientIdByAbhaAddress: async () => null,
+        findAllPatientIdsByAbhaAddress: async () => [],
       } as AbdmAdapterDeps["registration"]),
     recordFoundation:
       overrides.recordFoundation ??
