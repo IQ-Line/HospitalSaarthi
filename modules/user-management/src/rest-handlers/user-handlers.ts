@@ -27,6 +27,8 @@ import { listUserRoles } from "../use-cases/list-user-roles.js";
 import type { ListUserRolesDeps } from "../use-cases/list-user-roles.js";
 import { deactivateUser } from "../use-cases/deactivate-user.js";
 import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
+import { resetUserPassword } from "../use-cases/reset-user-password.js";
+import type { ResetUserPasswordDeps, ResetUserPasswordInput } from "../use-cases/reset-user-password.js";
 import { activateUser } from "../use-cases/activate-user.js";
 import type { ActivateUserDeps } from "../use-cases/activate-user.js";
 import { replaceUserCapabilities } from "../use-cases/replace-user-capabilities.js";
@@ -50,6 +52,7 @@ export type UserHandlersDeps = {
   updateUserDeps: UpdateUserDeps;
   deactivateUserDeps: DeactivateUserDeps;
   activateUserDeps: ActivateUserDeps;
+  resetUserPasswordDeps: ResetUserPasswordDeps;
 };
 
 function tenantOnlyResourceAttr(tenantId: string) {
@@ -316,6 +319,27 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
         if (user === null) {
           return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
         }
+        return reply.send(user);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { id: string }; Body: ResetUserPasswordInput }>(
+    "/users/:id/reset-password",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const user = await resetUserPassword(
+          deps.resetUserPasswordDeps,
+          { tenantId, actorId, correlationId: cid },
+          request.params.id,
+          request.body ?? { password: "" },
+        );
         return reply.send(user);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);

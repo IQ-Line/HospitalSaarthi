@@ -1,5 +1,5 @@
 import { createAuthClient } from 'better-auth/react';
-import { inferAdditionalFields, jwtClient } from 'better-auth/client/plugins';
+import { inferAdditionalFields, jwtClient, usernameClient } from 'better-auth/client/plugins';
 import { resolveBrowserApiBaseUrl } from '@/lib/api-base-url';
 
 export const authClient = createAuthClient({
@@ -10,6 +10,7 @@ export const authClient = createAuthClient({
   },
   plugins: [
     jwtClient(),
+    usernameClient(),
     inferAdditionalFields({
       user: {
         iq_tenant_id: { type: 'string', required: true, input: true },

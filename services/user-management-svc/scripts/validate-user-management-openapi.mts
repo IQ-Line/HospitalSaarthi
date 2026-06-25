@@ -268,6 +268,10 @@ async function main(): Promise<void> {
             return { authUserId: input.platformUserId };
           },
         },
+        authPasswordAdmin: {
+          async setUserPassword() {},
+          async revokeUserSessions() {},
+        },
         tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
         masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
       });

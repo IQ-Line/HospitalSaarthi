@@ -16,6 +16,9 @@ export const authUser = auth.table("user", {
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).notNull(),
   iq_tenant_id: text("iq_tenant_id").notNull(),
   platform_user_id: text("platform_user_id").unique(),
+  /** better-auth username plugin — globally unique login handle. */
+  username: text("username").unique(),
+  displayUsername: text("displayUsername"),
 });
 
 export const authSession = auth.table("session", {

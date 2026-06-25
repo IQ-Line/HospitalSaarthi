@@ -7,18 +7,34 @@ import { Button } from '@pulse/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@pulse/ui/dialog';
 import { authClient } from '@/lib/auth-client';
+import { completePasswordChange, fetchAuthMe } from '@/lib/auth-me';
 import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
 
 const signInSchema = z.object({
-  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
+  identifier: z
+    .string()
+    .min(1, 'Email or username is required')
+    .superRefine((value, ctx) => {
+      if (value.includes('@') && !z.string().email().safeParse(value).success) {
+        ctx.addIssue({ code: 'custom', message: 'Enter a valid email' });
+      }
+    }),
   password: z.string().min(1, 'Password is required'),
 });
 
-type SignInValues = z.infer<typeof signInSchema>;
+export type SignInValues = z.infer<typeof signInSchema>;
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
@@ -44,10 +60,11 @@ function LoginPage() {
   const setSession = useAuthStore((s) => s.setSession);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { identifier: '', password: '' },
   });
 
   async function completeSignIn(
@@ -65,6 +82,13 @@ function LoginPage() {
     });
 
     await refreshAuthorizationContext(queryClient);
+
+    const profile = await fetchAuthMe();
+    if (profile.must_change_password === true) {
+      navigate({ to: '/change-password' });
+      return;
+    }
+
     navigate({ to: '/dashboard' });
   }
 
@@ -72,10 +96,16 @@ function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data, error: authError } = await authClient.signIn.email({
-        email: values.email.trim().toLowerCase(),
-        password: values.password,
-      });
+      const identifier = values.identifier.trim();
+      const { data, error: authError } = identifier.includes('@')
+        ? await authClient.signIn.email({
+            email: identifier.toLowerCase(),
+            password: values.password,
+          })
+        : await authClient.signIn.username({
+            username: identifier,
+            password: values.password,
+          });
 
       if (authError) {
         setError(authError.message ?? 'Sign-in failed');
@@ -111,20 +141,46 @@ function LoginPage() {
 
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="identifier">Email or username</Label>
               <Input
-                id="email"
-                type="email"
+                id="identifier"
+                type="text"
                 autoComplete="username"
-                placeholder="you@hospital.org"
-                {...form.register('email')}
+                placeholder="platform or you@hospital.org"
+                {...form.register('identifier')}
               />
-              {form.formState.errors.email && (
-                <p className="text-xs text-destructive">{form.formState.errors.email.message}</p>
+              {form.formState.errors.identifier && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.identifier.message}
+                </p>
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle>Password reset</DialogTitle>
+                      <DialogDescription>
+                        Contact your hospital administrator to reset your password. Recovery is
+                        handled by your admin — not via email.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Button type="button" className="w-full" onClick={() => setForgotOpen(false)}>
+                      Back to login
+                    </Button>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <Input
                 id="password"
                 type="password"

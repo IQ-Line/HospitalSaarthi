@@ -38,6 +38,10 @@ export const users = userManagementSchema.table(
     status: text("status").notNull().default("active"),
     /** Login handle; unique per tenant when set (multiple NULLs allowed). */
     username: text("username"),
+    /** Governs self-service vs admin-only password recovery (Phase 1 MVP). */
+    recovery_tier: text("recovery_tier").notNull().default("standard"),
+    /** When true, user must change password on next successful login. */
+    must_change_password: boolean("must_change_password").notNull().default(false),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
     /** Department-scoped ABAC field. */
@@ -56,6 +60,10 @@ export const users = userManagementSchema.table(
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
+    check(
+      "users_recovery_tier_chk",
+      sql`${t.recovery_tier} in ('standard', 'admin_only', 'delegated', 'phone_recovery', 'federated')`,
+    ),
   ],
 );
 

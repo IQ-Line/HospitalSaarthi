@@ -3,7 +3,7 @@ import { betterAuth, type Auth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { bearer, jwt } from "better-auth/plugins";
+import { bearer, jwt, username } from "better-auth/plugins";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
   assertUserCanAuthenticate,
@@ -98,6 +98,7 @@ export function createHimsBetterAuth(
     }),
     emailAndPassword: {
       enabled: true,
+      revokeSessionsOnPasswordReset: true,
     },
     user: {
       additionalFields: {
@@ -153,6 +154,7 @@ export function createHimsBetterAuth(
     },
     plugins: [
       bearer(),
+      username({ minUsernameLength: 3, maxUsernameLength: 64 }),
       jwt({
         jwks: {
           jwksPath: "/.well-known/jwks.json",

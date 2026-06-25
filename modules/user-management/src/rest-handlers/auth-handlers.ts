@@ -7,6 +7,8 @@ import {
   validateUserApiKey,
   type ValidateUserApiKeyDeps,
 } from "../use-cases/validate-user-api-key.js";
+import { clearMustChangePassword } from "../use-cases/clear-must-change-password.js";
+import type { ClearMustChangePasswordDeps } from "../use-cases/clear-must-change-password.js";
 
 function readApiKeyHeader(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0]?.trim();
@@ -30,6 +32,7 @@ export type AuthHandlersDeps = {
   getUserId: (request: FastifyRequest) => string;
   getUserDeps: GetUserDeps;
   validateUserApiKeyDeps: ValidateUserApiKeyDeps;
+  clearMustChangePasswordDeps: ClearMustChangePasswordDeps;
 };
 
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
@@ -45,6 +48,26 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
         return replyWithUserManagementError(reply, new UserNotFoundError(userId), cid);
       }
       return reply.send(user);
+    },
+  );
+
+  fastify.post(
+    "/auth/change-password-complete",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const userId = deps.getUserId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const user = await clearMustChangePassword(
+          deps.clearMustChangePasswordDeps,
+          { tenantId, actorId: userId, correlationId: cid },
+          userId,
+        );
+        return reply.send(user);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
     },
   );
 
