@@ -27,6 +27,7 @@ import type {
 import { userManagementPlugin } from "./router.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "./test-support/department-catalog-port-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
@@ -94,6 +95,7 @@ const noopTenantModuleEntitlementPort = {
 };
 
 const noopMasterDataModuleCatalogPort = createMasterDataModuleCatalogPortStub();
+const noopDepartmentCatalogPort = createDepartmentCatalogPortStub();
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -434,6 +436,7 @@ describe("OpenAPI/runtime coherence", () => {
           authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -479,6 +482,7 @@ describe("OpenAPI/runtime coherence", () => {
           authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -545,6 +549,7 @@ describe("OpenAPI/runtime coherence", () => {
           authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },

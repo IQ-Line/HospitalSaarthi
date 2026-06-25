@@ -8,6 +8,7 @@ import type {
   AuthAccountProvisioner,
   CapabilityRepository,
   MasterDataModuleCatalogPort,
+  DepartmentCatalogPort,
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
@@ -77,6 +78,7 @@ export interface UserManagementPluginOptions {
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  departmentCatalogPort: DepartmentCatalogPort;
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   runtimeEntitlementIntersection?: boolean;
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
@@ -105,6 +107,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    departmentCatalogPort,
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
@@ -134,6 +137,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   registerUserHandlers(fastify, {
     getTenantId,
     getActorId,
+    departmentCatalogPort,
     createUserDeps: {
       userRepository,
       userProvisioningRepository,

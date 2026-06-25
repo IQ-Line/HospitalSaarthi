@@ -47,6 +47,7 @@ import {
 import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
+import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
 
@@ -182,6 +183,10 @@ async function createApp(): Promise<FastifyInstance> {
     baseUrl: masterDataUrl,
     log: (event, message) => app.log.info(event, message),
   });
+  const departmentCatalogPort = new HttpDepartmentCatalogAdapter({
+    baseUrl: masterDataUrl,
+    log: (event, message) => app.log.info(event, message),
+  });
 
   const { tenantEntitlementResolver, principalService } = createRuntimeEntitlementPrincipalWiring({
     userRepository,
@@ -311,6 +316,7 @@ async function createApp(): Promise<FastifyInstance> {
     authPasswordAdmin,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    departmentCatalogPort,
     tenantEntitlementResolver,
     internalEntitlementCacheApiKey: umInternalApiKey,
     accessTokenIssuer,

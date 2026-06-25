@@ -181,10 +181,11 @@ export type Provider = {
 
 export function providerListOptions(
   tenantScope?: string | null,
-  filter?: { department?: string },
+  filter?: { department?: string; department_id?: string },
 ) {
   const params = new URLSearchParams();
   if (filter?.department) params.set('department', filter.department);
+  if (filter?.department_id) params.set('department_id', filter.department_id);
   const qs = params.toString();
   const url = qs ? `${BASE}/providers?${qs}` : `${BASE}/providers`;
   return queryOptions({
@@ -192,6 +193,7 @@ export function providerListOptions(
       ...userManagementKeys.providerList(),
       tenantScope ?? 'active-tenant',
       filter?.department ?? null,
+      filter?.department_id ?? null,
     ] as const,
     queryFn: () =>
       apiClient<Provider[]>(
@@ -215,11 +217,17 @@ function useUserManagementListTenantScope(): string | null {
 
 export function useProviderList(
   tenantScope?: string | null,
-  options?: { enabled?: boolean; department?: string },
+  options?: { enabled?: boolean; department?: string; department_id?: string },
 ) {
   const listScope = useUserManagementListTenantScope();
   const scope = tenantScope ?? listScope;
-  const filter = options?.department ? { department: options.department } : undefined;
+  const filter =
+    options?.department || options?.department_id
+      ? {
+          ...(options.department ? { department: options.department } : {}),
+          ...(options.department_id ? { department_id: options.department_id } : {}),
+        }
+      : undefined;
   return useQuery({
     ...providerListOptions(scope, filter),
     enabled: options?.enabled ?? true,

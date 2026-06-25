@@ -12,6 +12,7 @@ import { InMemoryUserRepository } from "./data-access/in-memory-user-repository.
 import { userManagementPlugin } from "./router.js";
 import { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "./test-support/department-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -173,6 +174,7 @@ async function createTestApp() {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        departmentCatalogPort: createDepartmentCatalogPortStub(),
       });
     },
     { prefix: "/api/user-management" },
