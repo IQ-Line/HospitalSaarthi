@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 import type { M3ConsentRequestRow } from "../../../ports.js";
-import { toDisplayStatus } from "./search-consent-requests.js";
+import { toDisplayStatus, isConsentHealthDataAccessible } from "./search-consent-requests.js";
 
 function row(overrides: Partial<M3ConsentRequestRow>): M3ConsentRequestRow {
   return {
@@ -53,5 +53,19 @@ describe("toDisplayStatus", () => {
         }),
       ),
     ).toBe("EXPIRED");
+  });
+});
+
+describe("isConsentHealthDataAccessible", () => {
+  it("allows only actively granted consents", () => {
+    expect(isConsentHealthDataAccessible(row({ state: M3Hiu.CONSENT_GRANTED }))).toBe(true);
+    expect(isConsentHealthDataAccessible(row({ state: M3Hiu.AWAITING_PATIENT_APPROVAL }))).toBe(
+      false,
+    );
+    expect(
+      isConsentHealthDataAccessible(
+        row({ state: M3Hiu.CONSENT_GRANTED, dataEraseAt: new Date("2020-01-01") }),
+      ),
+    ).toBe(false);
   });
 });

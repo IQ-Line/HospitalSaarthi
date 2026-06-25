@@ -143,6 +143,11 @@ export function toDisplayStatus(row: M3ConsentRequestRow): ConsentListSession["s
   return "REQUESTED";
 }
 
+/** Health records / attachments are only served while consent is actively granted. */
+export function isConsentHealthDataAccessible(row: M3ConsentRequestRow): boolean {
+  return toDisplayStatus(row) === "GRANTED";
+}
+
 function hasTransferBundleEntries(bundleJson: Record<string, unknown> | null | undefined): boolean {
   if (!bundleJson || typeof bundleJson !== "object") return false;
   const entries = bundleJson["entries"];

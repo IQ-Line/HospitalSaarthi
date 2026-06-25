@@ -184,15 +184,18 @@ export class DrizzleM3ConsentRequestsRepo implements M3ConsentRequestsPort {
       );
     } else if (status === "granted") {
       conditions.push(
-        inArray(abdmM3ConsentRequests.state, [
-          M3Hiu.CONSENT_GRANTED,
-          M3Hiu.DATA_REQUESTED,
-          M3Hiu.AWAITING_PUSH,
-          M3Hiu.BUNDLES_RECEIVED,
-          M3Hiu.BUNDLES_DECRYPTED,
-          M3Hiu.RECORDS_INGESTED,
-          M3Hiu.ACKNOWLEDGED,
-        ]),
+        and(
+          inArray(abdmM3ConsentRequests.state, [
+            M3Hiu.CONSENT_GRANTED,
+            M3Hiu.DATA_REQUESTED,
+            M3Hiu.AWAITING_PUSH,
+            M3Hiu.BUNDLES_RECEIVED,
+            M3Hiu.BUNDLES_DECRYPTED,
+            M3Hiu.RECORDS_INGESTED,
+            M3Hiu.ACKNOWLEDGED,
+          ]),
+          sql`${abdmM3ConsentRequests.data_erase_at} >= NOW()`,
+        )!,
       );
     } else if (status === "denied") {
       conditions.push(
@@ -209,7 +212,23 @@ export class DrizzleM3ConsentRequestsRepo implements M3ConsentRequestsPort {
         )!,
       );
     } else if (status === "expired") {
-      conditions.push(eq(abdmM3ConsentRequests.state, M3Hiu.EXPIRED));
+      conditions.push(
+        or(
+          eq(abdmM3ConsentRequests.state, M3Hiu.EXPIRED),
+          and(
+            inArray(abdmM3ConsentRequests.state, [
+              M3Hiu.CONSENT_GRANTED,
+              M3Hiu.DATA_REQUESTED,
+              M3Hiu.AWAITING_PUSH,
+              M3Hiu.BUNDLES_RECEIVED,
+              M3Hiu.BUNDLES_DECRYPTED,
+              M3Hiu.RECORDS_INGESTED,
+              M3Hiu.ACKNOWLEDGED,
+            ]),
+            sql`${abdmM3ConsentRequests.data_erase_at} < NOW()`,
+          )!,
+        )!,
+      );
     }
 
     const where = and(...conditions);

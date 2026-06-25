@@ -1,6 +1,7 @@
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { extractAttachmentContent } from "../../../lib/fhir-bundle-display.js";
 import { hydrateArtefactDataFromRecordFoundation } from "./hydrate-artefact-data-pushed.js";
+import { isConsentHealthDataAccessible } from "./search-consent-requests.js";
 
 export interface GetM3AttachmentInput {
   sessionId: string;
@@ -25,6 +26,7 @@ async function findEntryContent(
     sessionId: input.sessionId,
   });
   if (!consentRow) return null;
+  if (!isConsentHealthDataAccessible(consentRow)) return null;
 
   const artefacts = await deps.m3ConsentArtefactsHiu.listForRequest(
     input.iqTenantId,

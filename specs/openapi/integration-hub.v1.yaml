@@ -1031,6 +1031,47 @@ paths:
         "404":
           description: Transfer not found
 
+  /m3/hiu/attachment/{sessionId}/{bundleId}/{num}:
+    get:
+      operationId: abdmM3HiuAttachmentGet
+      summary: Download a decrypted attachment from a granted consent health record bundle
+      description: |
+        Returns base64 attachment bytes from a FHIR bundle entry linked to an active GRANTED consent.
+        Access is denied (404) when consent is not granted, revoked, denied, or past dataEraseAt.
+      tags: [M3-HIU-Data]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: bundleId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+          description: FHIR bundle id or care-context reference for the health record
+        - name: num
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: 1-based attachment index within the bundle DocumentReference
+      responses:
+        "200":
+          description: Attachment payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuAttachmentResponse"
+        "404":
+          description: Consent not accessible, attachment not found, or bundle entry missing
+
 components:
   parameters:
     XTenantId:
@@ -1655,3 +1696,25 @@ components:
           properties:
             code: { type: string }
             message: { type: string }
+
+    M3HiuAttachmentResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [attachment]
+          properties:
+            attachment:
+              type: object
+              required: [title, contentType, content]
+              properties:
+                title:
+                  type: string
+                contentType:
+                  type: string
+                  description: MIME type from the FHIR DocumentReference (typically application/pdf)
+                content:
+                  type: string
+                  format: byte
+                  description: Base64-encoded attachment bytes

@@ -15,7 +15,6 @@ export {
   ViewDocumentsDialog,
   recordsFromArtifact,
   recordsFromSession,
-  sessionHasHealthRecords,
 } from './view-documents-modal';
 export type { ConsentHealthRecord } from './view-documents-modal';
 

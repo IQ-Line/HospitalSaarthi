@@ -15,6 +15,7 @@ import {
 import {
   m3SessionIdParamSchema,
   m3TransferIdParamSchema,
+  m3AttachmentParamsSchema,
   searchConsentRequestsQuerySchema,
   startConsentRequestBodySchema,
   startDataRequestBodySchema,
@@ -168,16 +169,18 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m3/hiu/attachment/:sessionId/:bundleId/:num",
+    { schema: { params: m3AttachmentParamsSchema } },
     async (req, reply) => {
       const iqTenantId = req.tenantId?.trim() ?? "";
       if (!iqTenantId) {
         return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
       }
-      const { sessionId, bundleId } = req.params as { sessionId: string; bundleId: string };
-      const num = Number((req.params as { num: string }).num);
-      if (!Number.isFinite(num) || num < 1) {
-        return reply.status(400).send({ error: "BadRequest", message: "invalid attachment num" });
-      }
+      const { sessionId, bundleId, num: numStr } = req.params as {
+        sessionId: string;
+        bundleId: string;
+        num: string;
+      };
+      const num = Number(numStr);
       const result = await getM3Attachment(
         { iqTenantId, sessionId, bundleId, num },
         getAbdmDeps(req),

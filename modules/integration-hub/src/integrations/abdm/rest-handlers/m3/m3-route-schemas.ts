@@ -92,3 +92,18 @@ export const m3TransferIdParamSchema = {
     },
   },
 };
+
+export const m3AttachmentParamsSchema = {
+  type: "object" as const,
+  required: ["sessionId", "bundleId", "num"],
+  additionalProperties: false,
+  properties: {
+    sessionId: {
+      type: "string",
+      pattern:
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    },
+    bundleId: { type: "string", minLength: 1, maxLength: 256 },
+    num: { type: "string", pattern: "^[1-9][0-9]*$" },
+  },
+};
