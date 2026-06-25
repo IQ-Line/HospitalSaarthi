@@ -80,4 +80,26 @@ export class ConfiguratorHttpIntegrationProfileRepo implements IntegrationProfil
     const row = (await res.json()) as Record<string, unknown>;
     return mapConfiguratorProfileRow(row);
   }
+
+  async findAllActiveAbdm(): Promise<TenantIntegrationProfile[]> {
+    const url = `${this.baseUrl}/api/configurator/v1/integration-profiles/active-abdm`;
+    const headers: Record<string, string> = {};
+    if (this.internalApiKey) {
+      headers[INTERNAL_KEY_HEADER] = this.internalApiKey;
+    }
+
+    const res = await this.fetchImpl(url, { method: "GET", headers });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(
+        `configurator active-abdm profile list failed: ${res.status}${body ? ` ${body}` : ""}`,
+      );
+    }
+
+    const rows = (await res.json()) as Record<string, unknown>[];
+    if (!Array.isArray(rows)) {
+      throw new Error("configurator active-abdm profile list returned non-array body");
+    }
+    return rows.map((row) => mapConfiguratorProfileRow(row));
+  }
 }

@@ -11,6 +11,7 @@ export const CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES = [
   // because identity skip logic requires `/` after the normalized prefix.
   "/api/configurator/v1/integration-profiles/by-tenant/",
   "/api/configurator/v1/integration-profiles/by-hip/",
+  "/api/configurator/v1/integration-profiles/active-abdm",
   "/api/configurator/v1/internal/",
   "/api/configurator/v1/branding-logos/ready",
 ] as const;

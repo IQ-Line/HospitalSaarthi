@@ -34,6 +34,7 @@ describe("resolveCallbackTenant", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
     const resolved = await resolveCallbackTenant(
       { "x-tenant-id": "tenant-from-header" },
@@ -49,6 +50,7 @@ describe("resolveCallbackTenant", () => {
       findActiveByHipId: vi.fn(async (hipId: string) =>
         hipId === "IN3610001625" ? { ...sampleProfile, hipId } : undefined,
       ),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const resolved = await resolveCallbackTenant({ "X-HIP-ID": "IN3610001625" }, profiles);
@@ -62,6 +64,7 @@ describe("resolveCallbackTenant", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(async () => undefined),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const resolved = await resolveCallbackTenant({ "X-HIP-ID": "UNKNOWN" }, profiles);
@@ -74,6 +77,7 @@ describe("resolveCallbackTenant", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(async () => undefined),
+      findAllActiveAbdm: vi.fn(),
     };
 
     await expect(
@@ -87,6 +91,7 @@ describe("resolveCallbackTenant", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     await expect(resolveCallbackTenant({}, profiles)).rejects.toThrow(
@@ -100,6 +105,7 @@ describe("resolveCallbackTenantId", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
     const tenant = await resolveCallbackTenantId(
       { "x-tenant-id": "tenant-from-header" },

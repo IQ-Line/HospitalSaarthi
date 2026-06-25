@@ -33,6 +33,7 @@ describe("listTenantIntegrationProfiles", () => {
       findById: vi.fn(),
       findActiveByTenantId: vi.fn(),
       findActiveByHipId: vi.fn(),
+      findAllActiveByKind: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       delete: vi.fn(),

@@ -36,6 +36,7 @@ import {
   nodeEnv,
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
+  INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES,
   type IntegrationHubSharedInfra,
 } from "@hims/integration-hub";
 import {
@@ -238,11 +239,16 @@ async function main() {
 
   const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
 
+  if (identityAuth) {
+    const { identityPlugin } = await import("@hims/ts-sdk-identity");
+    // Register at app root so skipPathPrefixes match full request URLs.
+    await app.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    });
+  }
+
   await app.register(async (api) => {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
-    }
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {

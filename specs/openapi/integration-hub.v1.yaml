@@ -65,6 +65,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/GatewaySessionProbeFail"
 
+  /m0/bridge-services:
+    get:
+      operationId: abdmM0FindBridgeServices
+      summary: Find services registered on the NHA bridge
+      description: |
+        Proxies NHA gateway §3.2.7 `GET /api/hiecm/gateway/v3/bridge-services`.
+        Returns bridge metadata and all service IDs linked to the bridge credentials.
+
+        `x-tenant-id` is optional. When omitted, deployment env credentials
+        (`ABDM_SANDBOX_CLIENT_ID` / `ABDM_SANDBOX_CLIENT_SECRET`) are used.
+        When provided, the active tenant integration profile credentials are used.
+      tags: [M0-Gateway]
+      parameters:
+        - $ref: "#/components/parameters/XTenantIdOptional"
+      security: []
+      responses:
+        "200":
+          description: NHA bridge-services response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NhaBridgeServicesResponse"
+        "404":
+          description: No active integration profile for tenant (when x-tenant-id provided)
+        "502":
+          description: NHA gateway error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayDiscoveryFail"
+
+  /tenant/mapped-facility-ids:
+    get:
+      operationId: abdmM0MappedFacilityIds
+      summary: Mapped facility IDs live on NHA bridge ("ABDM Live")
+      description: |
+        Returns HIP facility IDs that are both configured in Configurator
+        (`tenant_integration_profiles`) and registered as eligible services on the NHA bridge.
+
+        `x-tenant-id` is optional (controls which gateway credentials are used for the NHA call).
+      tags: [M0-Gateway]
+      parameters:
+        - $ref: "#/components/parameters/XTenantIdOptional"
+      security: []
+      responses:
+        "200":
+          description: Facility IDs mapped and live on bridge
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MappedFacilityIdsResponse"
+        "404":
+          description: No active integration profile for tenant (when x-tenant-id provided)
+        "502":
+          description: NHA gateway error
+        "503":
+          description: Configurator profile listing unavailable
+
   /m1/enrol/aadhaar/otp:
     post:
       operationId: abdmM1EnrolAadhaarOtp
@@ -997,6 +1055,17 @@ components:
       description: Hospital tenant UUID (required on every request).
       example: "00000000-0000-4000-8000-0000000000aa"
 
+    XTenantIdOptional:
+      name: x-tenant-id
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: |
+        Optional hospital tenant UUID. When set, tenant integration profile credentials
+        are used for the NHA gateway call; otherwise deployment env credentials apply.
+
   securitySchemes:
     TenantHeader:
       type: apiKey
@@ -1281,6 +1350,79 @@ components:
             code:
               type: string
               nullable: true
+
+    GatewayDiscoveryFail:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+            statusCode:
+              type: integer
+            code:
+              type: string
+              nullable: true
+
+    NhaBridgeInfo:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        active:
+          type: boolean
+        blocklisted:
+          type: boolean
+
+    NhaBridgeService:
+      type: object
+      required: [id, types]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        types:
+          type: array
+          items:
+            type: string
+        endpoints:
+          type: object
+          additionalProperties: true
+
+    NhaBridgeServicesResponse:
+      type: object
+      required: [bridge, services]
+      properties:
+        bridge:
+          $ref: "#/components/schemas/NhaBridgeInfo"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/NhaBridgeService"
+
+    MappedFacilityIdsResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            type: string
+          description: HIP facility IDs configured and live on the NHA bridge
 
     LinkTokenAcquireRequest:
       type: object
