@@ -47,3 +47,10 @@ export type {
   TenantApiKeyEnvironment,
   TenantApiKeyStatus,
 } from './tenant-api-keys';
+export { useBridgeFacilityLinkage } from './bridge-linkage';
+export type {
+  BridgeFacilityLinkageData,
+  BridgeFacilityRow,
+  NhaBridgeInfo,
+  NhaBridgeService,
+} from './bridge-linkage';
