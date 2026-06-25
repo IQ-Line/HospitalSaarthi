@@ -43,6 +43,21 @@ function tenantPluginImpl(
       return;
     }
 
+    // ABDM bridge discovery — optional x-tenant-id (deployment credentials when omitted).
+    if (
+      path === "/api/abdm/v1/m0/bridge-services" ||
+      path === "/api/abdm/v1/tenant/mapped-facility-ids"
+    ) {
+      const headerTenantId = asSingleHeaderValue(
+        request.headers["x-tenant-id"] as string | string[] | undefined,
+      );
+      if (headerTenantId) {
+        request.tenantId = headerTenantId;
+        tenantStorage.enterWith({ tenantId: headerTenantId });
+      }
+      return;
+    }
+
     if (request.authViaApiKey === true && request.tenantId) {
       tenantStorage.enterWith({ tenantId: request.tenantId });
       return;

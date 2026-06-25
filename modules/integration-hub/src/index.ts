@@ -17,6 +17,7 @@ export {
 } from "./lib/configurator-http-integration-profile-repo.js";
 export {
   buildAbdmDepsForTenant,
+  buildDeploymentGatewayClient,
   mapConfiguratorProfileRow,
   type IntegrationHubSharedInfra,
   type IntegrationHubDeploymentConfig,
@@ -142,3 +143,4 @@ export {
   type ResolvedCallbackTenant,
 } from "./integrations/abdm/lib/resolve-callback-tenant.js";
 export type { BuildAbdmDepsOptions } from "./lib/build-abdm-deps.js";
+export { INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, INTEGRATION_HUB_BRIDGE_DISCOVERY_PATHS, isBridgeDiscoveryPath } from "./lib/integration-hub-identity-skip-paths.js";

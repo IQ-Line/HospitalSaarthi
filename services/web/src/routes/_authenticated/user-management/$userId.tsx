@@ -20,6 +20,7 @@ import {
   useUserDetailSuspense,
 } from '@/features/user-management/api/queries';
 import { EditUserDialog } from '@/features/user-management/components/edit-user-dialog';
+import { ResetUserPasswordDialog } from '@/features/user-management/components/reset-user-password-dialog';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { UserAccessPanel } from '@/features/user-management/components/user-access-panel';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -54,6 +55,7 @@ function UserDetailPage() {
   const { tenant: tenantScope } = Route.useSearch();
   const { data: user } = useUserDetailSuspense(userId, tenantScope);
   const [editOpen, setEditOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [activateOpen, setActivateOpen] = useState(false);
 
@@ -89,6 +91,11 @@ function UserDetailPage() {
                 Edit profile
               </Button>
             </CapabilityGate>
+            <CapabilityGate capability={UM_USER_UPDATE}>
+              <Button type="button" variant="outline" onClick={() => setResetOpen(true)}>
+                Reset password
+              </Button>
+            </CapabilityGate>
             {umUserDelete && isActive ? (
               <CapabilityGate capability={UM_USER_DELETE}>
                 <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
@@ -114,6 +121,16 @@ function UserDetailPage() {
           open={editOpen}
           onOpenChange={setEditOpen}
           user={user}
+          tenantScope={tenantScope}
+        />
+      ) : null}
+
+      {umUserUpdate ? (
+        <ResetUserPasswordDialog
+          open={resetOpen}
+          onOpenChange={setResetOpen}
+          userId={user.id}
+          userName={user.full_name}
           tenantScope={tenantScope}
         />
       ) : null}

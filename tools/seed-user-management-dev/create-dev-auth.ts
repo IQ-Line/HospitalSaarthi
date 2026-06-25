@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { betterAuth, type Auth } from "better-auth";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { bearer, jwt } from "better-auth/plugins";
+import { bearer, jwt, username } from "better-auth/plugins";
 import type { DbInstance } from "../../packages/ts-sdk-db/src/index.ts";
 import {
   loadIdentityJwtClaims,
@@ -78,6 +78,7 @@ export function createDevSeedAuth(
     },
     plugins: [
       bearer(),
+      username({ minUsernameLength: 3, maxUsernameLength: 64 }),
       jwt({
         jwks: {
           jwksPath: "/.well-known/jwks.json",

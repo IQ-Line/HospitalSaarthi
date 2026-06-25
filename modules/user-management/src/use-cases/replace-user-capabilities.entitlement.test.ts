@@ -14,7 +14,7 @@ const CAP_OPD = "f47ac10b-58cc-4372-a567-0e02b2c3d672";
 
 const CAP_UM_ROW: Capability = {
   id: CAP_UM,
-  capability_key: "users:users:read",
+  capability_key: "user-management:users:read",
   module: "user-management",
   feature: "users",
   action: "read",

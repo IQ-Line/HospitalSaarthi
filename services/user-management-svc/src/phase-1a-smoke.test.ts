@@ -179,6 +179,10 @@ describe("Phase 1A.12 smoke", () => {
               return { authUserId: input.platformUserId };
             },
           },
+          authPasswordAdmin: {
+            async setUserPassword() {},
+            async revokeUserSessions() {},
+          },
           tenantModuleEntitlementPort: {
             async listTenantEnabledModuleIds() {
               return [];
@@ -223,6 +227,7 @@ describe("Phase 1A.12 smoke", () => {
         payload: {
           full_name: "Smoke User",
           email: "smoke.user@example.com",
+          username: "smokeuser",
           password: "password123",
         },
       });

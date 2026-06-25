@@ -52,6 +52,7 @@ describe("runInboundCallback", () => {
         profiles: {
           findActiveByTenantId: vi.fn(),
           findActiveByHipId: vi.fn(),
+          findAllActiveAbdm: vi.fn(),
         },
       } as never,
       handler: async () => {

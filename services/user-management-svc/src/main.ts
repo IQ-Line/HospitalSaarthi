@@ -14,6 +14,7 @@ import {
   createHimsBetterAuth,
   repairJwksForDevelopment,
 } from "./auth/create-hims-better-auth.js";
+import { createAuthPasswordAdmin } from "./auth/create-auth-password-admin.js";
 import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
 import { registerBetterAuth } from "./auth/register-better-auth.js";
 import {
@@ -220,6 +221,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     principalRoleProjectionRepository,
   });
+  const authPasswordAdmin = createAuthPasswordAdmin(auth);
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
 
   if (process.env.NODE_ENV !== "production") {
@@ -306,6 +308,7 @@ async function createApp(): Promise<FastifyInstance> {
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
+    authPasswordAdmin,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
     tenantEntitlementResolver,

@@ -59,6 +59,7 @@ describe("buildAbdmDepsForTenant", () => {
         return undefined;
       }),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const shared = mockSharedInfra(repo);
@@ -74,6 +75,7 @@ describe("buildAbdmDepsForTenant", () => {
     const repo: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(async () => undefined),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     await expect(buildAbdmDepsForTenant(tenantA, mockSharedInfra(repo))).rejects.toMatchObject({

@@ -14,6 +14,7 @@ import {
   type AuthPrincipalQueryScope,
 } from '@/lib/auth-principal-query';
 import { queryClient } from '@/lib/query-client';
+import { fetchAuthMe } from '@/lib/auth-me';
 import { AppHeader } from '@/components/layout/app-header';
 import { AppSidebar } from '@/components/layout/app-sidebar';
 import { useAuthStore } from '@/stores/auth.store';
@@ -24,13 +25,27 @@ const EMPTY_CAPABILITY_RETRY_MAX = 3;
 const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
 
 export const Route = createFileRoute('/_authenticated')({
-  beforeLoad: async ({ context }: { context: RouterContext }) => {
+  beforeLoad: async ({ context, location }: { context: RouterContext; location: { pathname: string } }) => {
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
       throw redirect({ to: '/login' });
     }
-    // Hydrate capabilities before child route guards (e.g. create-rx) run on hard refresh.
     await refreshAuthorizationContext(context.queryClient);
+
+    const onChangePassword = location.pathname === '/change-password';
+    if (!onChangePassword) {
+      try {
+        const profile = await fetchAuthMe();
+        if (profile.must_change_password === true) {
+          throw redirect({ to: '/change-password' });
+        }
+      } catch (err) {
+        if (err && typeof err === 'object' && 'to' in err) {
+          throw err;
+        }
+        /* auth/me may fail transiently; allow shell to load */
+      }
+    }
   },
   component: AuthenticatedLayout,
 });

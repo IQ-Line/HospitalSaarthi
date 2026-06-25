@@ -53,6 +53,37 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/change-password-complete:
+    post:
+      tags:
+        - Auth
+      summary: Clear must_change_password after user sets a new password
+      description: >
+        Called by the SPA after a successful better-auth password change when the user was
+        flagged with `must_change_password` following an admin reset.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/api-key/validate:
     get:
       tags: [Auth]
@@ -1269,6 +1300,65 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /users/{id}/reset-password:
+    post:
+      tags:
+        - Users
+      summary: Admin reset a user's password
+      description: >
+        Sets a temporary password via better-auth, revokes all sessions, and sets
+        `must_change_password` so the user must choose a new password on next login.
+        Cerbos action `user.update`. No email is sent — admin delivers the temp password in person.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+                  description: Temporary password the admin will share with the user.
+      responses:
+        "200":
+          description: Password reset; user must change password on next login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error (e.g. password too short, no linked auth account).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users/{id}/activate:
     post:
       tags:
@@ -1693,6 +1783,13 @@ components:
           type: string
           enum: [active, inactive, suspended]
           description: Platform user lifecycle state.
+        must_change_password:
+          type: boolean
+          description: When true, user must set a new password after next login.
+        recovery_tier:
+          type: string
+          enum: [standard, admin_only, delegated, phone_recovery, federated]
+          description: Password recovery routing tier (admin-only for MVP).
     Principal:
       type: object
       description: >

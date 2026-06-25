@@ -20,6 +20,7 @@ import type {
   UserAccessRepository,
   UserCapabilityGrant,
   User,
+  UserApiKeyRecord,
   UserRepository,
   UserWithTenant,
 } from "./ports/index.js";
@@ -132,6 +133,11 @@ const noopAuthAccountProvisioner = {
   },
 };
 
+const noopAuthPasswordAdmin = {
+  async setUserPassword() {},
+  async revokeUserSessions() {},
+};
+
 class StubUserRepository implements UserRepository {
   async createUser(_tenantId: string, _input: CreateUserInput): Promise<User> {
     throw new Error("not implemented");
@@ -152,6 +158,15 @@ class StubUserRepository implements UserRepository {
     };
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }
   async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
@@ -416,6 +431,7 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
@@ -460,6 +476,7 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
@@ -525,6 +542,7 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         });
