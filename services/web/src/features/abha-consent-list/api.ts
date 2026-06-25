@@ -220,6 +220,8 @@ const STALE_MS = 30_000;
 export const consentListQueryKeys = {
   all: ['abha-consent-list'] as const,
   list: (params: ConsentListParams) => [...consentListQueryKeys.all, 'list', params] as const,
+  records: (sessionId: string, consentId?: string) =>
+    [...consentListQueryKeys.all, 'records', sessionId, consentId ?? 'all'] as const,
 };
 
 function buildSearchParams(params: ConsentListParams): string {
@@ -240,6 +242,54 @@ function buildSearchParams(params: ConsentListParams): string {
 
 export function fetchConsentList(params: ConsentListParams): Promise<ConsentListResponse> {
   return abdmFetch<ConsentListResponse>(`/m3/hiu/consent/requests?${buildSearchParams(params)}`);
+}
+
+export interface ConsentArtefactRecordsResponse {
+  sessionId: string;
+  artefacts: Array<{
+    consentId: string;
+    hipId: string;
+    hipName?: string;
+    dataPushed?: ConsentListDataPushed;
+  }>;
+}
+
+export function fetchConsentArtefactRecords(
+  sessionId: string,
+  consentId?: string,
+): Promise<ConsentArtefactRecordsResponse> {
+  const sp = consentId ? `?consentId=${encodeURIComponent(consentId)}` : '';
+  return abdmFetch<ConsentArtefactRecordsResponse>(
+    `/m3/hiu/consent/request/${sessionId}/records${sp}`,
+  );
+}
+
+const ALLOWED_INLINE_ATTACHMENT_TYPES = new Set(['application/pdf']);
+
+function resolveAttachmentBlobType(contentType: string): { mime: string; inline: boolean } {
+  const normalized = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (ALLOWED_INLINE_ATTACHMENT_TYPES.has(normalized)) {
+    return { mime: normalized, inline: true };
+  }
+  if (normalized.startsWith('image/')) {
+    return { mime: normalized, inline: true };
+  }
+  return { mime: 'application/octet-stream', inline: false };
+}
+
+function openAttachmentBlob(blob: Blob, title: string, inline: boolean): void {
+  const blobUrl = URL.createObjectURL(blob);
+  if (inline) {
+    window.open(blobUrl, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+    return;
+  }
+  const anchor = document.createElement('a');
+  anchor.href = blobUrl;
+  anchor.download = title || 'report';
+  anchor.rel = 'noopener noreferrer';
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
 export function startM3DataRequest(consentId: string): Promise<{ transferId: string; state: string }> {
@@ -268,7 +318,7 @@ export async function downloadM3Attachment(
   sessionId: string,
   bundleId: string,
   num: number,
-): Promise<{ title: string; blobUrl: string }> {
+): Promise<{ title: string }> {
   const res = await abdmFetch<M3AttachmentResponse>(
     `/m3/hiu/attachment/${sessionId}/${bundleId}/${num}`,
   );
@@ -276,8 +326,11 @@ export async function downloadM3Attachment(
   const binary = atob(attachment.content);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  const blob = new Blob([bytes], { type: attachment.contentType || 'application/pdf' });
-  return { title: attachment.title || 'Report', blobUrl: URL.createObjectURL(blob) };
+  const { mime, inline } = resolveAttachmentBlobType(attachment.contentType || 'application/pdf');
+  const blob = new Blob([bytes], { type: mime });
+  const title = attachment.title || 'Report';
+  openAttachmentBlob(blob, title, inline);
+  return { title };
 }
 
 export function useConsentListQuery(params: ConsentListParams, debouncedSearch: string, debouncedDrName: string) {

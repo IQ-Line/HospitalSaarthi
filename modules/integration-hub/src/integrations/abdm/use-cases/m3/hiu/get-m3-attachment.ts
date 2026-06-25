@@ -1,7 +1,6 @@
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { extractAttachmentContent } from "../../../lib/fhir-bundle-display.js";
-import { hydrateArtefactDataFromRecordFoundation } from "./hydrate-artefact-data-pushed.js";
-import { isConsentHealthDataAccessible } from "./search-consent-requests.js";
+import { isConsentHealthDataAccessible, loadArtefactDataPushed } from "./search-consent-requests.js";
 
 export interface GetM3AttachmentInput {
   sessionId: string;
@@ -38,37 +37,14 @@ async function findEntryContent(
       input.iqTenantId,
       artefact.consentId,
     );
-    let entries = transfer?.bundleJson?.["entries"] as
-      | Array<{ content?: string; careContextReference?: string }>
-      | undefined;
+    const dataPushed = await loadArtefactDataPushed(deps, {
+      iqTenantId: input.iqTenantId,
+      row: consentRow,
+      artefact,
+      transfer: transfer ? { bundleJson: transfer.bundleJson } : undefined,
+    });
 
-    if (!entries?.length) {
-      const contextPatientId =
-        typeof consentRow.context.patientId === "string"
-          ? consentRow.context.patientId.trim()
-          : "";
-      const linkedConsent = await deps.consentArtefacts.findById(
-        input.iqTenantId,
-        artefact.consentId,
-      );
-      const extraPatientIds = [
-        contextPatientId,
-        linkedConsent?.patientId?.trim() ?? "",
-      ].filter(Boolean);
-      const hydrated = await hydrateArtefactDataFromRecordFoundation(deps, {
-        iqTenantId: input.iqTenantId,
-        tenantHipId: deps.xHipId,
-        artefactHipId: artefact.hipId,
-        patientAbhaAddress: consentRow.patientAbhaAddress,
-        sessionId: input.sessionId,
-        careContextReferences: artefact.careContexts.map((c) => c.careContextReference),
-        extraPatientIds,
-        hiTypes: consentRow.hiTypes,
-      });
-      entries = hydrated?.entries;
-    }
-
-    for (const entry of entries ?? []) {
+    for (const entry of dataPushed?.entries ?? []) {
       const content = entry.content ?? "";
       if (!content) continue;
       try {

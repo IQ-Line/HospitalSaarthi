@@ -8,6 +8,13 @@ const HI_TYPE_TO_BUNDLE_TYPE: Record<string, string[]> = {
   OPConsultation: ["OPConsultRecord", "Encounter"],
 };
 
+/** HI types covered by {@link HI_TYPE_TO_BUNDLE_TYPE} — used when session grants all record families. */
+export const M3_FILTERABLE_HI_TYPES = Object.keys(HI_TYPE_TO_BUNDLE_TYPE);
+
+function allHiTypesSelected(sessionHiTypes: string[]): boolean {
+  return M3_FILTERABLE_HI_TYPES.every((hiType) => sessionHiTypes.includes(hiType));
+}
+
 export function mapHiTypesToBundleTypes(hiTypes: string[]): string[] {
   const allowed = new Set<string>();
   for (const hiType of hiTypes) {
@@ -25,7 +32,7 @@ export function filterDataPushedEntry<T extends { bundleType?: string }>(
   const bundleType = entry.bundleType;
   if (!bundleType) return true;
   if (bundleType === "Composition" || bundleType === "Bundle") {
-    return sessionHiTypes.length === 8;
+    return allHiTypesSelected(sessionHiTypes);
   }
   const allowed = mapHiTypesToBundleTypes(sessionHiTypes);
   if (!allowed.length) return true;

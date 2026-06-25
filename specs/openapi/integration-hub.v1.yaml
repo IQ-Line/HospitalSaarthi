@@ -983,6 +983,38 @@ paths:
         "404":
           description: Session not found
 
+  /m3/hiu/consent/request/{sessionId}/records:
+    get:
+      operationId: abdmM3HiuConsentArtefactRecordsGet
+      summary: Lazy-load health record bundles for a granted consent session
+      description: |
+        Resolves decrypted HIP push bundles or local Record Foundation fallback.
+        Not called from the list endpoint — fetch when opening View Documents.
+      tags: [M3-HIU-Consent]
+      parameters:
+        - $ref: "#/components/parameters/XTenantId"
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: consentId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional consent artefact id — omit to load all facilities for the session
+      responses:
+        "200":
+          description: Health record bundles per consent artefact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/M3HiuConsentArtefactRecordsResponse"
+        "404":
+          description: Session not found, consent not accessible, or artefact not found
+
   /m3/hiu/data-request:
     post:
       operationId: abdmM3HiuDataRequestStart
@@ -1630,6 +1662,31 @@ components:
         content:
           type: string
           description: Decrypted FHIR bundle JSON string
+
+    M3HiuConsentArtefactRecordsResponse:
+      type: object
+      required: [sessionId, artefacts]
+      properties:
+        sessionId:
+          type: string
+          format: uuid
+        artefacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/M3HiuConsentArtefactRecordItem"
+
+    M3HiuConsentArtefactRecordItem:
+      type: object
+      required: [consentId, hipId]
+      properties:
+        consentId:
+          type: string
+        hipId:
+          type: string
+        hipName:
+          type: string
+        dataPushed:
+          $ref: "#/components/schemas/M3HiuConsentListDataPushed"
 
     M3HiuConsentRequestState:
       type: object

@@ -86,4 +86,22 @@ describe('transformFhirBundleForView', () => {
       'Consultation Report',
     );
   });
+
+  it('returns a safe fallback when bundle JSON is malformed', () => {
+    const view = transformFhirBundleForView('not-json', {
+      id: 'care-ref-1',
+      content: 'not-json',
+      careContextReference: 'care-ref-1',
+      bundleType: 'OPConsultRecord',
+      CompositionInfo: [{ title: 'Consultation Notes' }],
+    });
+
+    expect(view.id).toBe('care-ref-1');
+    expect(view.bundleType).toBe('OPConsultRecord');
+    expect(view.CompositionInfo?.[0]?.title).toBe('Consultation Notes');
+    expect(view.PatientInfo).toBeUndefined();
+    expect(recordDisplayType({ id: 'care-ref-1', content: 'not-json', bundleType: 'OPConsultRecord' }, view)).toBe(
+      'Consultation Notes',
+    );
+  });
 });

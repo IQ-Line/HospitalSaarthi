@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import {
@@ -9,8 +10,15 @@ import {
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { toast } from 'sonner';
-import type { ConsentListArtifact, ConsentListDataPushedEntry, ConsentListSession } from './api';
-import { downloadM3Attachment } from './api';
+import {
+  consentListQueryKeys,
+  downloadM3Attachment,
+  fetchConsentArtefactRecords,
+  type ConsentArtefactRecordsResponse,
+  type ConsentListArtifact,
+  type ConsentListDataPushedEntry,
+  type ConsentListSession,
+} from './api';
 import {
   capitalize,
   extractPeriodStart,
@@ -79,8 +87,28 @@ export function recordsFromSession(session: ConsentListSession): ConsentHealthRe
   }, []);
 }
 
-export function sessionHasHealthRecords(session: ConsentListSession): boolean {
-  return session.consentArtifacts.some((artifact) => (artifact.dataPushed?.entries?.length ?? 0) > 0);
+function recordsFromFetchedArtefacts(
+  session: ConsentListSession,
+  fetched: ConsentArtefactRecordsResponse,
+  artifact?: ConsentListArtifact | null,
+): ConsentHealthRecord[] {
+  const items = artifact
+    ? fetched.artefacts.filter((item) => item.consentId === artifact.consentId)
+    : fetched.artefacts;
+
+  return items.flatMap((item) => {
+    const meta = session.consentArtifacts.find((a) => a.consentId === item.consentId);
+    const merged: ConsentListArtifact = {
+      consentId: item.consentId,
+      hipId: item.hipId,
+      hipName: item.hipName ?? meta?.hipName,
+      status: meta?.status ?? 'GRANTED',
+      hiTypes: meta?.hiTypes ?? session.hiTypes,
+      careContexts: meta?.careContexts ?? [],
+      ...(item.dataPushed ? { dataPushed: item.dataPushed } : {}),
+    };
+    return recordsFromArtifact(merged, session);
+  });
 }
 
 function DetailField({ label, value }: { label: string; value: string }) {
@@ -142,9 +170,7 @@ function RecordDetails({
     const key = `${attachment.bundleId}-${attachment.num}`;
     setLoadingAttachment(key);
     try {
-      const { blobUrl } = await downloadM3Attachment(sid, attachment.bundleId, attachment.num);
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      await downloadM3Attachment(sid, attachment.bundleId, attachment.num);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load attachment');
     } finally {
@@ -400,15 +426,18 @@ export function ViewDocumentsDialog({
   open,
   onOpenChange,
 }: ViewDocumentsDialogProps) {
+  const sessionId = session?.sessionId;
+  const consentId = artifact?.consentId;
+  const listKey = session ? `${session.sessionId}-${consentId ?? 'all'}` : 'empty';
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: consentListQueryKeys.records(sessionId ?? '', consentId),
+    queryFn: () => fetchConsentArtefactRecords(sessionId!, consentId),
+    enabled: open && !!session && session.status === 'GRANTED',
+  });
+
   const records =
-    session && open
-      ? artifact
-        ? recordsFromArtifact(artifact, session)
-        : recordsFromSession(session)
-      : [];
-  const listKey = session
-    ? `${session.sessionId}-${artifact?.consentId ?? 'all'}`
-    : 'empty';
+    session && data ? recordsFromFetchedArtefacts(session, data, artifact) : [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -420,7 +449,15 @@ export function ViewDocumentsDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {records.length === 0 ? (
+          {isLoading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : isError ? (
+            <p className="py-8 text-center text-sm text-destructive">
+              Failed to load health records. Please try again.
+            </p>
+          ) : records.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               No records available yet. Ensure the consultation was ended (FHIR bundle saved) and
               refresh this list. If consent was just granted, wait for HIP data push or refresh again.
@@ -429,7 +466,7 @@ export function ViewDocumentsDialog({
             <ViewDocumentsList
               key={listKey}
               records={records}
-              sessionId={session.sessionId}
+              sessionId={session!.sessionId}
             />
           )}
         </div>

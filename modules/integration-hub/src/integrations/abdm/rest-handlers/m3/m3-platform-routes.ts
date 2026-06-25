@@ -17,11 +17,13 @@ import {
   m3TransferIdParamSchema,
   m3AttachmentParamsSchema,
   searchConsentRequestsQuerySchema,
+  consentArtefactRecordsQuerySchema,
   startConsentRequestBodySchema,
   startDataRequestBodySchema,
 } from "./m3-route-schemas.js";
 import { searchConsentRequests } from "../../use-cases/m3/hiu/search-consent-requests.js";
 import { getM3Attachment } from "../../use-cases/m3/hiu/get-m3-attachment.js";
+import { getConsentArtefactRecords } from "../../use-cases/m3/hiu/get-consent-artefact-records.js";
 
 function hasTransferBundle(bundleJson: Record<string, unknown> | null | undefined): boolean {
   if (!bundleJson || typeof bundleJson !== "object") return false;
@@ -113,6 +115,32 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
       error: session.context.error,
     });
   },
+  );
+
+  app.get(
+    "/m3/hiu/consent/request/:sessionId/records",
+    {
+      schema: {
+        params: m3SessionIdParamSchema,
+        querystring: consentArtefactRecordsQuerySchema,
+      },
+    },
+    async (req, reply) => {
+      const iqTenantId = req.tenantId?.trim() ?? "";
+      if (!iqTenantId) {
+        return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+      }
+      const sessionId = (req.params as { sessionId: string }).sessionId;
+      const consentId = (req.query as { consentId?: string }).consentId;
+      const result = await getConsentArtefactRecords(
+        { iqTenantId, sessionId, consentId },
+        getAbdmDeps(req),
+      );
+      if (!result) {
+        return reply.status(404).send({ error: "NotFound" });
+      }
+      return reply.status(200).send(result);
+    },
   );
 
   app.post(

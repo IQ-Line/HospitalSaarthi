@@ -221,7 +221,12 @@ export function transformFhirBundleForView(
   try {
     bundle = JSON.parse(contentJson) as FhirResource;
   } catch {
-    return { id: entry?.id ?? 'unknown', bundleType: 'HealthRecord' };
+    return {
+      id: entry?.id ?? entry?.careContextReference ?? 'unknown',
+      bundleType: entry?.bundleType ?? 'HealthRecord',
+      AttachmentRefs: entry?.AttachmentRefs,
+      ...(entry?.CompositionInfo ? { CompositionInfo: entry.CompositionInfo } : {}),
+    };
   }
 
   const bundleId =

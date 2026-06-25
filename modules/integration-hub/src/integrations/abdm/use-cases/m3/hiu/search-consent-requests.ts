@@ -239,6 +239,51 @@ function mapArtifact(
   };
 }
 
+/** Resolve pushed transfer bundles or local Record Foundation fallback (lazy detail path). */
+export async function loadArtefactDataPushed(
+  deps: AbdmAdapterDeps,
+  input: {
+    iqTenantId: string;
+    row: M3ConsentRequestRow;
+    artefact: M3ConsentArtefactHiuRow;
+    transfer?: { bundleJson: Record<string, unknown> | null };
+  },
+): Promise<ConsentListDataPushed | undefined> {
+  const fromTransfer = input.transfer?.bundleJson
+    ? mapDataPushed(
+        input.transfer.bundleJson,
+        input.artefact.consentId,
+        input.row.sessionId,
+        input.row.hiTypes,
+      )
+    : undefined;
+  if (fromTransfer?.entries?.length) return fromTransfer;
+
+  const contextPatientId =
+    typeof input.row.context.patientId === "string" ? input.row.context.patientId.trim() : "";
+  const linkedConsent = await deps.consentArtefacts.findById(
+    input.iqTenantId,
+    input.artefact.consentId,
+  );
+  const extraPatientIds = [
+    contextPatientId,
+    linkedConsent?.patientId?.trim() ?? "",
+    ...extractPatientIdsFromConsentCareContexts(input.artefact.careContexts),
+  ].filter(Boolean);
+
+  return hydrateArtefactDataFromRecordFoundation(deps, {
+    iqTenantId: input.iqTenantId,
+    tenantHipId: deps.xHipId,
+    artefactHipId: input.artefact.hipId,
+    patientAbhaAddress: input.row.patientAbhaAddress,
+    sessionId: input.row.sessionId,
+    careContextReferences: input.artefact.careContexts.map((c) => c.careContextReference),
+    consentCareContexts: input.artefact.careContexts,
+    extraPatientIds,
+    hiTypes: input.row.hiTypes,
+  });
+}
+
 function mapRow(
   row: M3ConsentRequestRow,
   artefacts: ConsentListArtifact[],
@@ -311,48 +356,20 @@ export async function searchConsentRequests(
         input.iqTenantId,
         artefact.consentId,
       );
-      const contextPatientId =
-        typeof row.context.patientId === "string" ? row.context.patientId.trim() : "";
-      const linkedConsent = await deps.consentArtefacts.findById(
-        input.iqTenantId,
-        artefact.consentId,
+      artefacts.push(
+        mapArtifact(
+          artefact,
+          row.sessionId,
+          row.hiTypes,
+          transfer
+            ? {
+                transferId: transfer.transferId,
+                state: transfer.state,
+                bundleJson: transfer.bundleJson,
+              }
+            : undefined,
+        ),
       );
-      const extraPatientIds = [
-        contextPatientId,
-        linkedConsent?.patientId?.trim() ?? "",
-        ...extractPatientIdsFromConsentCareContexts(artefact.careContexts),
-      ].filter(Boolean);
-      let mapped = mapArtifact(
-        artefact,
-        row.sessionId,
-        row.hiTypes,
-        transfer
-          ? {
-              transferId: transfer.transferId,
-              state: transfer.state,
-              bundleJson: transfer.bundleJson,
-            }
-          : undefined,
-      );
-
-      if (!mapped.dataPushed?.entries?.length) {
-        const hydrated = await hydrateArtefactDataFromRecordFoundation(deps, {
-          iqTenantId: input.iqTenantId,
-          tenantHipId: deps.xHipId,
-          artefactHipId: artefact.hipId,
-          patientAbhaAddress: row.patientAbhaAddress,
-          sessionId: row.sessionId,
-          careContextReferences: artefact.careContexts.map((c) => c.careContextReference),
-          consentCareContexts: artefact.careContexts,
-          extraPatientIds,
-          hiTypes: row.hiTypes,
-        });
-        if (hydrated) {
-          mapped = { ...mapped, dataPushed: hydrated, sessionStatus: "REQUESTED" };
-        }
-      }
-
-      artefacts.push(mapped);
     }
     sessions.push(mapRow(row, artefacts));
   }

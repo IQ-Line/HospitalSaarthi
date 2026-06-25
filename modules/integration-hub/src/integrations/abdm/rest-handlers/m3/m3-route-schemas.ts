@@ -27,6 +27,14 @@ export const searchConsentRequestsQuerySchema = {
   },
 };
 
+export const consentArtefactRecordsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    consentId: { type: "string", minLength: 1 },
+  },
+};
+
 export const startConsentRequestBodySchema = {
   type: "object" as const,
   required: ["patientAbhaAddress", "purpose", "hiTypes", "dateRange"],
