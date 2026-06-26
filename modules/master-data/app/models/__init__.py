@@ -30,6 +30,20 @@ from app.models.visitpad.conversion import (
 from app.models.visitpad.vital import VisitpadVitalModel, VisitpadVitalPublicModel
 from app.models.visitpad.manufacturer import VisitpadManufacturerModel, VisitpadManufacturerPublicModel
 from app.models.visitpad.vaccine import VisitpadVaccineModel, VisitpadVaccinePublicModel
+from app.models.inventory import (
+    InventoryCategoryModel,
+    InventoryCategoryPublicModel,
+    InventoryHsnGstModel,
+    InventoryHsnGstPublicModel,
+    InventoryItemTypeModel,
+    InventoryItemTypePublicModel,
+    InventoryStorageConditionModel,
+    InventoryStorageConditionPublicModel,
+    InventoryStoreTypeModel,
+    InventoryStoreTypePublicModel,
+    InventoryUomModel,
+    InventoryUomPublicModel,
+)
 
 __all__ = [
     "Base",
@@ -68,4 +82,16 @@ __all__ = [
     "VisitpadManufacturerPublicModel",
     "VisitpadVaccineModel",
     "VisitpadVaccinePublicModel",
+    "InventoryItemTypeModel",
+    "InventoryItemTypePublicModel",
+    "InventoryCategoryModel",
+    "InventoryCategoryPublicModel",
+    "InventoryUomModel",
+    "InventoryUomPublicModel",
+    "InventoryHsnGstModel",
+    "InventoryHsnGstPublicModel",
+    "InventoryStorageConditionModel",
+    "InventoryStorageConditionPublicModel",
+    "InventoryStoreTypeModel",
+    "InventoryStoreTypePublicModel",
 ]

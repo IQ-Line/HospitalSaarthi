@@ -30,6 +30,12 @@ from app.repositories.visitpad.unit import VisitpadUnitRepository
 from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
 from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
 from app.repositories.visitpad.vital import VisitpadVitalRepository
+from app.repositories.inventory.category import InventoryCategoryRepository
+from app.repositories.inventory.hsn_gst import InventoryHsnGstRepository
+from app.repositories.inventory.item_type import InventoryItemTypeRepository
+from app.repositories.inventory.storage_condition import InventoryStorageConditionRepository
+from app.repositories.inventory.store_type import InventoryStoreTypeRepository
+from app.repositories.inventory.uom import InventoryUomRepository
 
 
 def get_session() -> Generator[Session, None, None]:
@@ -196,3 +202,45 @@ def get_visitpad_manufacturer_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> VisitpadManufacturerRepository:
     return VisitpadManufacturerRepository(session, scope)
+
+
+def get_inventory_item_type_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryItemTypeRepository:
+    return InventoryItemTypeRepository(session, scope)
+
+
+def get_inventory_category_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryCategoryRepository:
+    return InventoryCategoryRepository(session, scope)
+
+
+def get_inventory_uom_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryUomRepository:
+    return InventoryUomRepository(session, scope)
+
+
+def get_inventory_hsn_gst_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryHsnGstRepository:
+    return InventoryHsnGstRepository(session, scope)
+
+
+def get_inventory_storage_condition_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryStorageConditionRepository:
+    return InventoryStorageConditionRepository(session, scope)
+
+
+def get_inventory_store_type_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryStoreTypeRepository:
+    return InventoryStoreTypeRepository(session, scope)
