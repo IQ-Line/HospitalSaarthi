@@ -8,6 +8,7 @@ import {
 } from "../../../lib/m3-runtime-env.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 export interface StartDataRequestInput {
   consentId: string;
@@ -18,9 +19,45 @@ export interface StartDataRequestResult {
   state: string;
 }
 
+const IN_FLIGHT_TRANSFER_STATES = new Set<string>([
+  M3Hiu.DATA_REQUESTED,
+  M3Hiu.AWAITING_PUSH,
+  M3Hiu.BUNDLES_RECEIVED,
+  M3Hiu.BUNDLES_DECRYPTED,
+  M3Hiu.RECORDS_INGESTED,
+]);
+
+function transferHasBundle(bundleJson: Record<string, unknown> | null | undefined): boolean {
+  if (!bundleJson || typeof bundleJson !== "object") return false;
+  const entries = bundleJson["entries"];
+  return Array.isArray(entries) && entries.length > 0;
+}
+
+/** Legacy parity: auto-request HIP data when consent artefact is granted (callbackService). */
+export async function ensureDataRequestForConsent(
+  input: AbdmTenantInput<{ consentId: string }>,
+  deps: AbdmAdapterDeps,
+): Promise<StartDataRequestResult | null> {
+  const artefact = await deps.m3ConsentArtefactsHiu.findById(
+    input.iqTenantId,
+    input.consentId,
+  );
+  if (!artefact || artefact.status !== "GRANTED") return null;
+
+  const existing = await deps.m3DataTransfers.findLatestByConsentId(
+    input.iqTenantId,
+    input.consentId,
+  );
+  if (existing && transferHasBundle(existing.bundleJson)) return null;
+  if (existing && IN_FLIGHT_TRANSFER_STATES.has(existing.state)) return null;
+
+  return startDataRequest(input, deps, { skipSessionStateCheck: true });
+}
+
 export async function startDataRequest(
   input: AbdmTenantInput<StartDataRequestInput>,
   deps: AbdmAdapterDeps,
+  options?: { skipSessionStateCheck?: boolean },
 ): Promise<StartDataRequestResult> {
   const artefact = await deps.m3ConsentArtefactsHiu.findById(
     input.iqTenantId,
@@ -34,7 +71,13 @@ export async function startDataRequest(
     iqTenantId: input.iqTenantId,
     consentRequestId: artefact.consentRequestId,
   });
-  if (!consentRow || consentRow.state !== M3Hiu.CONSENT_GRANTED) {
+  if (!consentRow) {
+    throw new Error("Consent request not found");
+  }
+  if (
+    !options?.skipSessionStateCheck &&
+    consentRow.state !== M3Hiu.CONSENT_GRANTED
+  ) {
     throw new Error("Consent not in GRANTED state");
   }
 
@@ -46,7 +89,10 @@ export async function startDataRequest(
     throw new Error("Session not found");
   }
   assertFlowKind(session, "abdm.m3.hiu.v1");
-  if (session.state !== M3Hiu.CONSENT_GRANTED) {
+  if (
+    !options?.skipSessionStateCheck &&
+    session.state !== M3Hiu.CONSENT_GRANTED
+  ) {
     throw new Error("Session not ready for data request");
   }
 

@@ -1,4 +1,7 @@
-export { registerM0Routes } from "./m0/index.js";
+export {
+  registerM0Routes,
+  registerM0DiscoveryRoutes,
+} from "./m0/index.js";
 export { registerM1Routes } from "./m1/index.js";
 export {
   registerM2CallbackRoutes,

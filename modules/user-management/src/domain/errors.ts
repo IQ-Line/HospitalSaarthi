@@ -7,6 +7,11 @@ export type ValidationIssue =
   | "password_invalid_type"
   | "password_required"
   | "password_too_short"
+  | "username_invalid_type"
+  | "username_required"
+  | "username_invalid_length"
+  | "username_invalid_format"
+  | "auth_user_not_linked"
   | "route_id_invalid"
   | "create_user_capability_ids_invalid"
   | "create_user_role_template_ids_invalid"
@@ -54,6 +59,26 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   password_too_short: {
     code: "PASSWORD_TOO_SHORT",
     message: "password must be at least 8 characters long.",
+  },
+  username_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "username must be a string.",
+  },
+  username_required: {
+    code: "USERNAME_REQUIRED",
+    message: "username is required to create a login account.",
+  },
+  username_invalid_length: {
+    code: "INVALID_INPUT",
+    message: "username must be between 3 and 64 characters.",
+  },
+  username_invalid_format: {
+    code: "INVALID_INPUT",
+    message: "username may only contain letters, numbers, underscores, and hyphens.",
+  },
+  auth_user_not_linked: {
+    code: "AUTH_USER_NOT_LINKED",
+    message: "User has no linked authentication account.",
   },
   route_id_invalid: {
     code: "INVALID_INPUT",
@@ -159,6 +184,13 @@ export class ValidationError extends UserManagementError {
 export class UserNotFoundError extends UserManagementError {
   constructor(public readonly userId?: string) {
     super("USER_NOT_FOUND", "User not found for this tenant.");
+  }
+}
+
+/** Inactive or suspended users must not sign in or receive access tokens. */
+export class UserAccountDisabledError extends UserManagementError {
+  constructor(message = "This account has been deactivated.") {
+    super("USER_ACCOUNT_DISABLED", message);
   }
 }
 

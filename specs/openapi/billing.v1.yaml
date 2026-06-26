@@ -639,6 +639,7 @@ paths:
         - { name: department_id, in: query, required: false, schema: { type: string, format: uuid }, description: Filter by master-data department id. }
         - { name: department, in: query, required: false, schema: { type: string, format: uuid }, description: Alias for department_id. }
         - { name: provider_id, in: query, required: false, schema: { type: string, format: uuid }, description: Filter by doctor/provider user id (consultation tariffs). }
+        - { name: doctor_id, in: query, required: false, schema: { type: string, format: uuid }, description: Alias for `provider_id` — filter consultation tariffs by doctor user id. }
         - { name: is_active, in: query, required: false, schema: { type: boolean } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: cursor, in: query, required: false, schema: { type: string } }

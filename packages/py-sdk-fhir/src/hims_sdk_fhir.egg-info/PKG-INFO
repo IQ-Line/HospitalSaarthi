@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: hims_sdk_fhir
+Version: 0.1.0
+Summary: Python mirror of @hims/ts-sdk-fhir — FHIR R4 + NRCeS profile primitives and HI-Type Document Bundle composers (OP Consultation, Prescription, Immunization, Health Document).
+Requires-Python: >=3.12

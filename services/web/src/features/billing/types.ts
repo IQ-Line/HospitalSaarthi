@@ -74,6 +74,8 @@ export type ServicesListParams = {
   department_id?: string;
   /** User-management user id for doctor consultation rows. */
   provider_id?: string;
+  /** Alias for `provider_id`. */
+  doctor_id?: string;
   is_active?: boolean;
   limit?: number;
   cursor?: string;

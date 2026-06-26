@@ -5,6 +5,7 @@ import type {
   ListUsersOptions,
   UpdateUserInput,
   User,
+  UserApiKeyRecord,
   UserRepository,
   UserWithTenant,
 } from "../ports/index.js";
@@ -20,6 +21,15 @@ class MemUserRepo implements UserRepository {
     return this.user;
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }
   async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
@@ -113,5 +123,36 @@ describe("deactivateUser", () => {
     expect(out?.status).toBe("inactive");
     expect(events).toContain(USER_MANAGEMENT_EVENT_USER_UPDATED);
     expect(events).toContain(USER_MANAGEMENT_EVENT_USER_DEACTIVATED);
+  });
+
+  it("revokes auth sessions when deactivating an active user", async () => {
+    const active: User = {
+      id: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
+      full_name: "Y",
+      status: "active",
+    };
+    const revoke = vi.fn(async () => {});
+    const eventBus: EventBus = {
+      async connect() {},
+      async disconnect() {},
+      async publish() {},
+      async subscribe(): Promise<Subscription> {
+        return { async unsubscribe() {} };
+      },
+    };
+    await deactivateUser(
+      {
+        userRepository: new MemUserRepo({ ...active }),
+        eventBus,
+        authSessionRevoker: { revokeAllSessionsForPlatformUser: revoke },
+      },
+      {
+        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d481",
+        correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
+      },
+      active.id,
+    );
+    expect(revoke).toHaveBeenCalledWith(active.id);
   });
 });

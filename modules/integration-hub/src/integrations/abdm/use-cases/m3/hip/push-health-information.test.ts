@@ -14,9 +14,12 @@ function hipSession(): AbdmSession<"abdm.m3.hip.v1"> {
 
 describe("pushHealthInformationForSession", () => {
   it("fails before encrypt when Record Foundation returns zero bundles", async () => {
+    const encryptBundles = vi.fn();
+    const dataPush = vi.fn();
+    const listCareContexts = vi.fn().mockResolvedValue([]);
     const deps = {
-      dataPush: { push: vi.fn() },
-      fidelius: { encryptBundles: vi.fn() },
+      dataPush: { push: dataPush },
+      fidelius: { encryptBundles },
       m3ConsentArtefactsHiu: {
         findById: vi.fn().mockResolvedValue({
           careContexts: [{ careContextReference: "VISIT-1" }],
@@ -25,7 +28,7 @@ describe("pushHealthInformationForSession", () => {
       consentArtefacts: { findById: vi.fn().mockResolvedValue(null) },
       recordFoundation: {
         listBundles: vi.fn().mockResolvedValue([]),
-        listCareContexts: vi.fn().mockResolvedValue([]),
+        listCareContexts,
       },
       empi: { findPatientByAbhaAddress: vi.fn().mockResolvedValue(null) },
       sessions: { patch: vi.fn().mockResolvedValue(undefined) },
@@ -52,13 +55,15 @@ describe("pushHealthInformationForSession", () => {
       ),
     ).rejects.toThrow(/No bundles from Record Foundation/);
 
-    expect(deps.fidelius.encryptBundles).not.toHaveBeenCalled();
-    expect(deps.dataPush.push).not.toHaveBeenCalled();
-    expect(deps.recordFoundation.listCareContexts).not.toHaveBeenCalled();
+    expect(encryptBundles).not.toHaveBeenCalled();
+    expect(dataPush).not.toHaveBeenCalled();
+    expect(listCareContexts).not.toHaveBeenCalled();
   });
 
   it("does not fall back to all patient care contexts when consent refs miss bundles", async () => {
     vi.stubEnv("ABDM_M2_MOCK_PLATFORM", "false");
+    const encryptBundles = vi.fn();
+    const dataPush = vi.fn();
     const listBundles = vi.fn().mockResolvedValue([]);
     const listCareContexts = vi.fn().mockResolvedValue([
       {
@@ -69,8 +74,8 @@ describe("pushHealthInformationForSession", () => {
       },
     ]);
     const deps = {
-      dataPush: { push: vi.fn() },
-      fidelius: { encryptBundles: vi.fn() },
+      dataPush: { push: dataPush },
+      fidelius: { encryptBundles },
       m3ConsentArtefactsHiu: {
         findById: vi.fn().mockResolvedValue({
           careContexts: [{ careContextReference: "stale-ref_OPConsultNote" }],
@@ -108,8 +113,8 @@ describe("pushHealthInformationForSession", () => {
       ),
     ).rejects.toThrow(/No bundles from Record Foundation/);
 
-    expect(listCareContexts).not.toHaveBeenCalled();
-    expect(deps.fidelius.encryptBundles).not.toHaveBeenCalled();
-    expect(deps.dataPush.push).not.toHaveBeenCalled();
+    expect(listBundles).not.toHaveBeenCalled();
+    expect(encryptBundles).not.toHaveBeenCalled();
+    expect(dataPush).not.toHaveBeenCalled();
   });
 });

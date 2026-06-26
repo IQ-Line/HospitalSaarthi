@@ -53,6 +53,37 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/change-password-complete:
+    post:
+      tags:
+        - Auth
+      summary: Clear must_change_password after user sets a new password
+      description: >
+        Called by the SPA after a successful better-auth password change when the user was
+        flagged with `must_change_password` following an admin reset.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/api-key/validate:
     get:
       tags: [Auth]
@@ -641,6 +672,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /providers:
+    get:
+      tags:
+        - Users
+      summary: List active providers (doctors) for billing and registration pickers
+      description: >
+        Returns active platform users as a slim provider DTO. Optional filters narrow by department
+        name or master-data department id (resolved to the persisted `users.department` name).
+      security:
+        - bearerAuth: []
+        - tenantApiKey: []
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: department
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Exact match on persisted `users.department` (department name).
+        - name: department_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Master-data department uuid — resolved to department name before filtering.
+      responses:
+        "200":
+          description: Active providers for the tenant.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Provider"
+        "400":
+          description: Invalid department_id (not found in master-data catalog).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "500":
           $ref: "#/components/responses/InternalError"
   /users:
@@ -1269,6 +1351,111 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /users/{id}/reset-password:
+    post:
+      tags:
+        - Users
+      summary: Admin reset a user's password
+      description: >
+        Sets a temporary password via better-auth, revokes all sessions, and sets
+        `must_change_password` so the user must choose a new password on next login.
+        Cerbos action `user.update`. No email is sent — admin delivers the temp password in person.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  minLength: 8
+                  description: Temporary password the admin will share with the user.
+      responses:
+        "200":
+          description: Password reset; user must change password on next login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Validation error (e.g. password too short, no linked auth account).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /users/{id}/activate:
+    post:
+      tags:
+        - Users
+      summary: Reactivate a tenant-scoped platform user
+      description: >
+        Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active.
+        Uses Cerbos action `user.activate` (paired with `user.deactivate`).
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Platform user id within the current tenant.
+      responses:
+        "200":
+          description: User is now active (or was already active).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Request validation error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
 components:
   responses:
     Forbidden:
@@ -1598,6 +1785,25 @@ components:
         correlation_id:
           type: string
           description: Request correlation identifier.
+    Provider:
+      type: object
+      required:
+        - id
+        - full_name
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        department:
+          type: string
+          nullable: true
+          description: Primary department name from user profile.
+        status:
+          type: string
+          enum: [active, inactive, suspended]
     User:
       type: object
       required:
@@ -1647,6 +1853,13 @@ components:
           type: string
           enum: [active, inactive, suspended]
           description: Platform user lifecycle state.
+        must_change_password:
+          type: boolean
+          description: When true, user must set a new password after next login.
+        recovery_tier:
+          type: string
+          enum: [standard, admin_only, delegated, phone_recovery, federated]
+          description: Password recovery routing tier (admin-only for MVP).
     Principal:
       type: object
       description: >

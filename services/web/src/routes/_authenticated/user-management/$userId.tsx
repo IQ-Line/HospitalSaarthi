@@ -13,13 +13,14 @@ import {
   UM_USER_READ,
   UM_USER_UPDATE,
 } from '@/lib/runtime-capability-keys';
-import { useDeactivateUser } from '@/features/user-management/api/mutations';
+import { useActivateUser, useDeactivateUser } from '@/features/user-management/api/mutations';
 import {
   userCapabilitiesOptions,
   userDetailOptions,
   useUserDetailSuspense,
 } from '@/features/user-management/api/queries';
 import { EditUserDialog } from '@/features/user-management/components/edit-user-dialog';
+import { ResetUserPasswordDialog } from '@/features/user-management/components/reset-user-password-dialog';
 import { UserManagementPageShell } from '@/features/user-management/components/user-management-page-shell';
 import { UserAccessPanel } from '@/features/user-management/components/user-access-panel';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -54,11 +55,15 @@ function UserDetailPage() {
   const { tenant: tenantScope } = Route.useSearch();
   const { data: user } = useUserDetailSuspense(userId, tenantScope);
   const [editOpen, setEditOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
 
   const umUserUpdate = useCapability(UM_USER_UPDATE);
   const umUserDelete = useCapability(UM_USER_DELETE);
   const deactivate = useDeactivateUser(userId, tenantScope);
+  const activate = useActivateUser(userId, tenantScope);
+  const isActive = user.status === 'active';
 
   return (
     <>
@@ -70,8 +75,8 @@ function UserDetailPage() {
           .filter(Boolean)
           .join(' · ')}
         pageContext={
-          <Badge variant={user.status === 'active' ? 'default' : 'secondary'}>
-            {user.status === 'active' ? 'Active' : 'Inactive'}
+          <Badge variant={isActive ? 'default' : 'secondary'}>
+            {isActive ? 'Active' : 'Inactive'}
           </Badge>
         }
         actions={
@@ -86,10 +91,22 @@ function UserDetailPage() {
                 Edit profile
               </Button>
             </CapabilityGate>
-            {umUserDelete && user.status === 'active' ? (
+            <CapabilityGate capability={UM_USER_UPDATE}>
+              <Button type="button" variant="outline" onClick={() => setResetOpen(true)}>
+                Reset password
+              </Button>
+            </CapabilityGate>
+            {umUserDelete && isActive ? (
               <CapabilityGate capability={UM_USER_DELETE}>
                 <Button type="button" variant="destructive" onClick={() => setDeactivateOpen(true)}>
                   Deactivate
+                </Button>
+              </CapabilityGate>
+            ) : null}
+            {umUserDelete && !isActive ? (
+              <CapabilityGate capability={UM_USER_DELETE}>
+                <Button type="button" onClick={() => setActivateOpen(true)}>
+                  Activate
                 </Button>
               </CapabilityGate>
             ) : null}
@@ -108,6 +125,16 @@ function UserDetailPage() {
         />
       ) : null}
 
+      {umUserUpdate ? (
+        <ResetUserPasswordDialog
+          open={resetOpen}
+          onOpenChange={setResetOpen}
+          userId={user.id}
+          userName={user.full_name}
+          tenantScope={tenantScope}
+        />
+      ) : null}
+
       <ConfirmDialog
         open={deactivateOpen}
         onOpenChange={setDeactivateOpen}
@@ -118,6 +145,19 @@ function UserDetailPage() {
         onConfirm={() => {
           deactivate.mutate(undefined, {
             onSuccess: () => setDeactivateOpen(false),
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={activateOpen}
+        onOpenChange={setActivateOpen}
+        title="Activate this user?"
+        description={`${user.full_name} will be able to sign in again.`}
+        confirmLabel={activate.isPending ? 'Activating...' : 'Activate'}
+        onConfirm={() => {
+          activate.mutate(undefined, {
+            onSuccess: () => setActivateOpen(false),
           });
         }}
       />

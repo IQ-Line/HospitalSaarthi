@@ -22,6 +22,7 @@ type BetterAuthServerApi = {
         name: string;
         password: string;
         platform_user_id: string;
+        username: string;
       };
     }): Promise<unknown>;
   };
@@ -83,6 +84,7 @@ export function createPasswordAuthAccountProvisioner(
             password: input.password,
             iq_tenant_id: input.tenantId,
             platform_user_id: input.platformUserId,
+            username: input.username,
           },
         });
       } catch (error) {

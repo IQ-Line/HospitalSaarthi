@@ -132,6 +132,34 @@ resourcePolicy:
               )
             )
 
+    # Platform super-admin may update users in a tenant selected via cross-tenant header.
+    - actions:
+        - "user.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "users:users:update" in request.principal.attr.capabilities ||
+              "users:users:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "user.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
+            has(request.principal.attr.role_codes) &&
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "users:users:update" in request.principal.attr.capabilities ||
+              "users:users:update" in request.principal.attr.delegated_capabilities
+            )
+
     - actions:
         - "user.deactivate"
       roles: ["*"]
@@ -161,4 +189,91 @@ resourcePolicy:
                 has(request.principal.attr.clearances) &&
                 size(request.principal.attr.clearances) > 0
               )
+            )
+
+    # Platform super-admin may deactivate users in a tenant selected via cross-tenant header.
+    - actions:
+        - "user.deactivate"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "user.deactivate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
+            has(request.principal.attr.role_codes) &&
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "user.activate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
+            ) &&
+            (
+              !has(request.resource.attr.department) ||
+              request.resource.attr.department == null ||
+              request.resource.attr.department == "" ||
+              !has(request.principal.attr.department) ||
+              request.principal.attr.department == null ||
+              request.principal.attr.department == "" ||
+              request.resource.attr.department == request.principal.attr.department
+            ) &&
+            (
+              !has(request.resource.attr.required_clearance) ||
+              request.resource.attr.required_clearance <= 0 ||
+              (
+                request.principal.attr.um_clearance_effective_tier >= request.resource.attr.required_clearance &&
+                has(request.principal.attr.clearances) &&
+                size(request.principal.attr.clearances) > 0
+              )
+            )
+
+    # Platform super-admin may reactivate users in a tenant selected via cross-tenant header.
+    - actions:
+        - "user.activate"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "user.activate"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
+            has(request.principal.attr.role_codes) &&
+            "super-admin" in request.principal.attr.role_codes &&
+            (
+              "users:users:delete" in request.principal.attr.capabilities ||
+              "users:users:delete" in request.principal.attr.delegated_capabilities
             )

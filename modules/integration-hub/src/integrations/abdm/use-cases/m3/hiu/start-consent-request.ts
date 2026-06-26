@@ -22,8 +22,15 @@ const PURPOSE_TEXT: Record<PurposeCode, string> = {
   PATRQT: "Self Requested",
 };
 
+/** Sandbox + legacy default; ABDM rejects empty REGNO ("Invalid Identifier value"). */
+const DEFAULT_REQUESTER_REGNO =
+  process.env["ABDM_M3_REQUESTER_REGNO"]?.trim() || "MH1001";
+
 export interface StartConsentRequestInput {
   patientAbhaAddress: string;
+  patientId?: string;
+  patientName?: string;
+  patientAbhaNumber?: string;
   hipId?: string;
   purpose: PurposeCode;
   hiTypes: HiTypePascal[];
@@ -100,7 +107,7 @@ export async function startConsentRequest(
         name: input.requesterName?.trim() || "Hospital Staff",
         identifier: {
           type: "REGNO",
-          value: input.requesterRegNo?.trim() ?? "",
+          value: input.requesterRegNo?.trim() || DEFAULT_REQUESTER_REGNO,
           system: "https://www.mciindia.org",
         },
       },
@@ -109,7 +116,7 @@ export async function startConsentRequest(
         accessMode: "VIEW",
         dateRange: permissionDateRange,
         dataEraseAt,
-        frequency: { unit: "HOUR", value: 1, repeats: 0 },
+        frequency: { unit: "DAY", value: 0, repeats: 0 },
       },
     },
   };
@@ -137,7 +144,15 @@ export async function startConsentRequest(
     dataEraseAt: new Date(dataEraseAt),
     state: M3Hiu.CONSENT_INIT_REQUESTED,
     consentArtefactIds: [],
-    context: { outboundRequestId },
+    context: {
+      outboundRequestId,
+      ...(input.patientId?.trim() ? { patientId: input.patientId.trim() } : {}),
+      ...(input.requesterName?.trim() ? { requesterName: input.requesterName.trim() } : {}),
+      ...(input.patientName?.trim() ? { patientName: input.patientName.trim() } : {}),
+      ...(input.patientAbhaNumber?.trim()
+        ? { patientAbhaNumber: input.patientAbhaNumber.trim() }
+        : {}),
+    },
   });
 
   return { sessionId: session.sessionId, state: M3Hiu.CONSENT_INIT_REQUESTED };

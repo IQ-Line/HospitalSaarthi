@@ -8,6 +8,7 @@ import type {
   UserRepository,
 } from "../ports/index.js";
 import { UserNotFoundError } from "../domain/errors.js";
+import { assertUserCanAuthenticate } from "../authn/assert-user-can-authenticate.js";
 import { effectiveUmClearanceTierFromClearances } from "../domain/um-clearance-tier.js";
 import {
   computeEffectivePrincipalCapabilities,
@@ -100,6 +101,7 @@ export class DefaultPrincipalService {
     if (user === null) {
       throw new UserNotFoundError(context.userId);
     }
+    assertUserCanAuthenticate(user);
 
     const roles = await projectPrincipalRoles(
       {

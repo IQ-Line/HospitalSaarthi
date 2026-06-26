@@ -10,6 +10,7 @@ import type {
   CreateUserBody,
   ReplaceRoleCapabilitiesBody,
   ReplaceUserCapabilitiesBody,
+  ResetUserPasswordBody,
   UmRole,
   UmUser,
   UpdateRoleBody,
@@ -109,6 +110,41 @@ export function useDeactivateUser(userId: string, tenantScope?: string | null) {
       qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
         /* best-effort */
       });
+    },
+  });
+}
+
+export function useActivateUser(userId: string, tenantScope?: string | null) {
+  const qc = useQueryClient();
+  const scopeKey = userTenantScopeKey(tenantScope);
+  return useMutation({
+    mutationFn: () =>
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}/activate`,
+        { method: 'POST' },
+        userTenantApiContext(tenantScope),
+      ),
+    onSuccess: (user) => {
+      qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
+      qc.invalidateQueries({ queryKey: userManagementKeys.userList() }).catch(() => {
+        /* best-effort */
+      });
+    },
+  });
+}
+
+export function useResetUserPassword(userId: string, tenantScope?: string | null) {
+  const qc = useQueryClient();
+  const scopeKey = userTenantScopeKey(tenantScope);
+  return useMutation({
+    mutationFn: (body: ResetUserPasswordBody) =>
+      apiClient<UmUser>(
+        `${BASE}/users/${encodeURIComponent(userId)}/reset-password`,
+        { method: 'POST', body: JSON.stringify(body) },
+        userTenantApiContext(tenantScope),
+      ),
+    onSuccess: (user) => {
+      qc.setQueryData(userManagementKeys.userDetail(userId, scopeKey), user);
     },
   });
 }

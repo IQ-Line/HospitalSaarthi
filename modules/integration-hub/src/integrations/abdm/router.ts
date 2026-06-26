@@ -4,6 +4,7 @@ import type { IntegrationHubSharedInfra } from "../../lib/build-abdm-deps.js";
 import { integrationContextResolver } from "../../lib/integration-context-resolver.js";
 import {
   registerM0Routes,
+  registerM0DiscoveryRoutes,
   registerM1Routes,
   registerM2PlatformRoutes,
   registerM3PlatformRoutes,
@@ -15,11 +16,17 @@ async function abdmAdapterRouter(
   app: FastifyInstance,
   sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
-  await app.register(integrationContextResolver(sharedInfra));
-  await registerM0Routes(app);
-  await registerM1Routes(app);
-  await registerM2PlatformRoutes(app);
-  await registerM3PlatformRoutes(app);
+  await app.register(async (discovery) => {
+    await registerM0DiscoveryRoutes(discovery, sharedInfra);
+  });
+
+  await app.register(async (platform) => {
+    await platform.register(integrationContextResolver(sharedInfra));
+    await registerM0Routes(platform);
+    await registerM1Routes(platform);
+    await registerM2PlatformRoutes(platform);
+    await registerM3PlatformRoutes(platform);
+  });
 }
 
 export function createRouter(sharedInfra: IntegrationHubSharedInfra) {

@@ -6,6 +6,7 @@ import { logRejectedNonEntitledCapabilityId } from "../http/log-rejected-non-ent
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type {
   CreateUserInput,
+  DepartmentCatalogPort,
   ReplaceUserCapabilitiesInput,
   UpdateUserInput,
 } from "../ports/index.js";
@@ -27,6 +28,10 @@ import { listUserRoles } from "../use-cases/list-user-roles.js";
 import type { ListUserRolesDeps } from "../use-cases/list-user-roles.js";
 import { deactivateUser } from "../use-cases/deactivate-user.js";
 import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
+import { resetUserPassword } from "../use-cases/reset-user-password.js";
+import type { ResetUserPasswordDeps, ResetUserPasswordInput } from "../use-cases/reset-user-password.js";
+import { activateUser } from "../use-cases/activate-user.js";
+import type { ActivateUserDeps } from "../use-cases/activate-user.js";
 import { replaceUserCapabilities } from "../use-cases/replace-user-capabilities.js";
 import type { ReplaceUserCapabilitiesDeps } from "../use-cases/replace-user-capabilities.js";
 import { updateUser } from "../use-cases/update-user.js";
@@ -36,6 +41,7 @@ export type UserHandlersDeps = {
   /** Tenant scope for persistence (typically JWT-derived via router). */
   getTenantId: (request: FastifyRequest) => string;
   getActorId: (request: FastifyRequest) => string;
+  departmentCatalogPort: DepartmentCatalogPort;
   createUserDeps: CreateUserDeps;
   applyRoleTemplateDeps: ApplyRoleTemplateDeps;
   detachRoleTemplateDeps: DetachRoleTemplateDeps;
@@ -47,6 +53,8 @@ export type UserHandlersDeps = {
   replaceUserCapabilitiesDeps: ReplaceUserCapabilitiesDeps;
   updateUserDeps: UpdateUserDeps;
   deactivateUserDeps: DeactivateUserDeps;
+  activateUserDeps: ActivateUserDeps;
+  resetUserPasswordDeps: ResetUserPasswordDeps;
 };
 
 function tenantOnlyResourceAttr(tenantId: string) {
@@ -253,12 +261,31 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.get<{ Querystring: { department?: string } }>(
+  fastify.get<{ Querystring: { department?: string; department_id?: string } }>(
     "/providers",
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
-      const department = request.query.department?.trim() || undefined;
+      const departmentId = request.query.department_id?.trim() || undefined;
+      let department = request.query.department?.trim() || undefined;
+
+      if (departmentId) {
+        const resolvedName = await deps.departmentCatalogPort.resolveDepartmentName(departmentId, {
+          iqTenantId: tenantId,
+          authorization:
+            typeof request.headers.authorization === "string"
+              ? request.headers.authorization
+              : undefined,
+        });
+        if (!resolvedName) {
+          return reply.status(400).send({
+            error: "invalid_department_id",
+            message: "No department found for the given department_id.",
+          });
+        }
+        department = resolvedName;
+      }
+
       const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
         tenantId,
         department ? { department } : undefined,
@@ -307,6 +334,50 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       try {
         const user = await deactivateUser(
           deps.deactivateUserDeps,
+          { tenantId, actorId, correlationId: cid },
+          request.params.id,
+        );
+        if (user === null) {
+          return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
+        }
+        return reply.send(user);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { id: string }; Body: ResetUserPasswordInput }>(
+    "/users/:id/reset-password",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const user = await resetUserPassword(
+          deps.resetUserPasswordDeps,
+          { tenantId, actorId, correlationId: cid },
+          request.params.id,
+          request.body ?? { password: "" },
+        );
+        return reply.send(user);
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    "/users/:id/activate",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const actorId = deps.getActorId(request);
+      const cid = request.correlationId ?? request.id;
+      try {
+        const user = await activateUser(
+          deps.activateUserDeps,
           { tenantId, actorId, correlationId: cid },
           request.params.id,
         );
