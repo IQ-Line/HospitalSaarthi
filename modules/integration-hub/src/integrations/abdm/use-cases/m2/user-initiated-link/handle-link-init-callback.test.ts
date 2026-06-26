@@ -60,7 +60,7 @@ function mockSessions(): AbdmSessionsPort {
     async findByFlowAndRequestId() {
       return null;
     },
-    async findAddContextsNotifiedByCareContextReference() {
+    async findLatestLinkedUserLinkByAbhaAddress() {
       return null;
     },
   };
@@ -79,6 +79,13 @@ describe("handleLinkInitCallback", () => {
         transactionId: txnId,
         patientId: "52d1f69a-c028-41a0-9741-db961460ef07",
         abhaAddress: "wardhan_00@sbx",
+        careContexts: [
+          {
+            referenceNumber: "f8fa989e-65cb-42ca-964c-b03036a40452_OPConsultNote",
+            display: "OP visit",
+            hiType: "OPCONSULTATION",
+          },
+        ],
       },
     });
     const row = await sessions.findUserLinkByTransactionId({
@@ -152,5 +159,78 @@ describe("handleLinkInitCallback", () => {
     expect(linkOtpStore.peekOtp("00000000-0000-4000-8000-0000000000aa", linkRef)).toMatch(
       /^\d{6}$/,
     );
+    expect(after?.context.careContexts).toEqual([
+      {
+        referenceNumber: "f8fa989e-65cb-42ca-964c-b03036a40452_OPConsultNote",
+        display: "f8fa989e-65cb-42ca-964c-b03036a40452_OPConsultNote",
+        hiType: "OPConsultation",
+      },
+    ]);
+  });
+
+  it("drops care contexts not present in discover session", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const sendOtp = vi.fn().mockResolvedValue(undefined);
+    const sessions = mockSessions();
+    const txnId = randomUUID();
+    await sessions.create({
+      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+      flowKind: "abdm.m2.user-initiated-link.v1",
+      initialContext: {
+        transactionId: txnId,
+        patientId: "52d1f69a-c028-41a0-9741-db961460ef07",
+        abhaAddress: "wardhan_00@sbx",
+        careContexts: [
+          {
+            referenceNumber: "known-cc-1",
+            display: "Known",
+            hiType: "OPCONSULTATION",
+          },
+        ],
+      },
+    });
+    const row = await sessions.findUserLinkByTransactionId({
+      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+      transactionId: txnId,
+    });
+    if (row) row.txnId = txnId;
+
+    const deps = buildMockAbdmDeps({
+      sessions,
+      gateway: { post } as never,
+      sms: { sendOtp },
+      linkOtpStore: new InMemoryLinkOtpStore(),
+      empi: {
+        findM2PatientProfile: async () => null,
+        findPatientByAbhaAddress: async () => null,
+        findPatientByDemographics: async () => null,
+        findPatientByAbhaNumber: async () => null,
+        findAbhaAddressByPatientId: async () => null,
+      },
+    });
+
+    await handleLinkInitCallback(
+      {
+        iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        abhaAddress: "wardhan_00@sbx",
+        patient: [
+          {
+            referenceNumber: "52d1f69a-c028-41a0-9741-db961460ef07",
+            careContexts: [{ referenceNumber: "injected-cc-1" }],
+            hiType: "OPConsultation",
+            count: 1,
+          },
+        ],
+      },
+      deps,
+    );
+
+    const after = await sessions.findUserLinkByTransactionId({
+      iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+      transactionId: txnId,
+    });
+    expect(after?.context.careContexts).toEqual([]);
   });
 });

@@ -18,9 +18,25 @@ export function patientIdFromConsentCareContexts(careContexts: unknown): string 
   return undefined;
 }
 
+async function validatePatientReferenceForAbha(input: {
+  iqTenantId: string;
+  abhaAddress: string;
+  patientReference: string;
+  empi: EmpiClient;
+}): Promise<boolean> {
+  const abhaForRef = await input.empi.findAbhaAddressByPatientId({
+    iqTenantId: input.iqTenantId,
+    patientId: input.patientReference,
+  });
+  return (
+    abhaForRef?.trim().toLowerCase() === input.abhaAddress.trim().toLowerCase()
+  );
+}
+
 /**
- * Resolves patient for consent persistence — LIMS order:
- * careContext patientReference → user-initiated link session → EMPI → registration.
+ * Resolves patient for consent persistence — EMPI is canonical authority:
+ * EMPI by ABHA → user-initiated link session → registration → validated patientReference.
+ * careContext patientReference disambiguates only when validated against the ABHA via EMPI.
  */
 export async function resolveConsentPatientId(input: {
   iqTenantId: string;
@@ -31,12 +47,20 @@ export async function resolveConsentPatientId(input: {
   userLinkPatientId?: string | null;
 }): Promise<string> {
   const fromCareContexts = patientIdFromConsentCareContexts(input.careContexts);
-  if (fromCareContexts) {
-    abdmWarn("abdm.m2.consent.care_context_patient_ref", {
-      abhaAddress: input.abhaAddress,
-      patientId: fromCareContexts,
-    });
-    return fromCareContexts;
+
+  const empiPatient = await input.empi.findPatientByAbhaAddress({
+    iqTenantId: input.iqTenantId,
+    abhaAddress: input.abhaAddress,
+  });
+  if (empiPatient?.patientId) {
+    if (fromCareContexts && fromCareContexts !== empiPatient.patientId) {
+      abdmWarn("abdm.m2.consent.patient_ref_mismatch", {
+        abhaAddress: input.abhaAddress,
+        empiPatientId: empiPatient.patientId,
+        careContextPatientId: fromCareContexts,
+      });
+    }
+    return empiPatient.patientId;
   }
 
   const fromLinkSession = input.userLinkPatientId?.trim();
@@ -46,14 +70,6 @@ export async function resolveConsentPatientId(input: {
       patientId: fromLinkSession,
     });
     return fromLinkSession;
-  }
-
-  const empiPatient = await input.empi.findPatientByAbhaAddress({
-    iqTenantId: input.iqTenantId,
-    abhaAddress: input.abhaAddress,
-  });
-  if (empiPatient?.patientId) {
-    return empiPatient.patientId;
   }
 
   const registrationPatientId = await input.registration?.findPatientIdByAbhaAddress({
@@ -67,6 +83,27 @@ export async function resolveConsentPatientId(input: {
     });
     return registrationPatientId;
   }
+
+  if (fromCareContexts) {
+    const refValid = await validatePatientReferenceForAbha({
+      iqTenantId: input.iqTenantId,
+      abhaAddress: input.abhaAddress,
+      patientReference: fromCareContexts,
+      empi: input.empi,
+    });
+    if (refValid) {
+      abdmWarn("abdm.m2.consent.validated_care_context_patient_ref", {
+        abhaAddress: input.abhaAddress,
+        patientId: fromCareContexts,
+      });
+      return fromCareContexts;
+    }
+    abdmWarn("abdm.m2.consent.unvalidated_care_context_patient_ref", {
+      abhaAddress: input.abhaAddress,
+      patientReference: fromCareContexts,
+    });
+  }
+
   if (process.env["ABDM_M2_MOCK_PLATFORM"] === "true") {
     const mockId =
       process.env["ABDM_MOCK_PATIENT_ID"]?.trim() || DEFAULT_MOCK_PATIENT_ID;

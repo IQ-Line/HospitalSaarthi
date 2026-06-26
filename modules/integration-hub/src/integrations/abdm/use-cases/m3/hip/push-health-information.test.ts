@@ -54,43 +54,23 @@ describe("pushHealthInformationForSession", () => {
 
     expect(deps.fidelius.encryptBundles).not.toHaveBeenCalled();
     expect(deps.dataPush.push).not.toHaveBeenCalled();
+    expect(deps.recordFoundation.listCareContexts).not.toHaveBeenCalled();
   });
 
-  it("falls back to Record Foundation patient care contexts when consent refs miss bundles", async () => {
+  it("does not fall back to all patient care contexts when consent refs miss bundles", async () => {
     vi.stubEnv("ABDM_M2_MOCK_PLATFORM", "false");
-    const listBundles = vi
-      .fn()
-      .mockImplementation(async ({ careContextId }: { careContextId: string }) => {
-        if (careContextId === "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote") {
-          return [
-            {
-              careContextReference: careContextId,
-              contentJson: JSON.stringify({
-                resourceType: "Bundle",
-                entry: [
-                  {
-                    resource: {
-                      resourceType: "Patient",
-                      name: [{ text: "Yashi Verma" }],
-                    },
-                  },
-                ],
-              }),
-              media: "application/fhir+json",
-            },
-          ];
-        }
-        return [];
-      });
-    const deps = {
-      dataPush: { push: vi.fn().mockResolvedValue(undefined) },
-      fidelius: {
-        encryptBundles: vi.fn().mockResolvedValue({
-          encryptedPayloads: ["enc"],
-          ourPublicKey: "MIIBtest",
-          ourNonce: "nonce",
-        }),
+    const listBundles = vi.fn().mockResolvedValue([]);
+    const listCareContexts = vi.fn().mockResolvedValue([
+      {
+        id: "ctx-1",
+        referenceNumber: "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote",
+        display: "OP consultation",
+        hiType: "opd_visit",
       },
+    ]);
+    const deps = {
+      dataPush: { push: vi.fn() },
+      fidelius: { encryptBundles: vi.fn() },
       m3ConsentArtefactsHiu: {
         findById: vi.fn().mockResolvedValue({
           careContexts: [{ careContextReference: "stale-ref_OPConsultNote" }],
@@ -98,17 +78,7 @@ describe("pushHealthInformationForSession", () => {
         }),
       },
       consentArtefacts: { findById: vi.fn().mockResolvedValue(null) },
-      recordFoundation: {
-        listBundles,
-        listCareContexts: vi.fn().mockResolvedValue([
-          {
-            id: "ctx-1",
-            referenceNumber: "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote",
-            display: "OP consultation",
-            hiType: "opd_visit",
-          },
-        ]),
-      },
+      recordFoundation: { listBundles, listCareContexts },
       empi: {
         findPatientByAbhaAddress: vi
           .fn()
@@ -119,32 +89,27 @@ describe("pushHealthInformationForSession", () => {
       xCmId: "sbx",
     } as unknown as AbdmAdapterDeps;
 
-    const careRefs = await pushHealthInformationForSession(
-      {
-        iqTenantId: "1e8b5a2b-c4a2-4405-baad-c39b515a3426",
-        session: hipSession(),
-        parsed: {
-          consentId: "consent-stale",
-          transactionId: "txn-1",
-          dataPushUrl: "https://apissbx.abdm.gov.in/push",
-          peerPublicKey:
-            "BCpsBW37KgfLyjxJK0zHHG26hDjxzK368DEO4PapzFhQM0cghZ/phanikKuvJh5/anTnHitVHKMn0Owr1HvcH1fm0DpA=",
-          peerNonce: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    await expect(
+      pushHealthInformationForSession(
+        {
+          iqTenantId: "1e8b5a2b-c4a2-4405-baad-c39b515a3426",
+          session: hipSession(),
+          parsed: {
+            consentId: "consent-stale",
+            transactionId: "txn-1",
+            dataPushUrl: "https://apissbx.abdm.gov.in/push",
+            peerPublicKey:
+              "BCpsBW37KgfLyjxJK0zHHG26hDjxzK368DEO4PapzFhQM0cghZziKuvJh5/anTnHitVHKMn0Owr1HvcH1fm0DpA=",
+            peerNonce: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          },
+          patientId: "00000000-0000-4000-8000-000000000001",
         },
-        patientId: "00000000-0000-4000-8000-000000000001",
-      },
-      deps,
-    );
+        deps,
+      ),
+    ).rejects.toThrow(/No bundles from Record Foundation/);
 
-    expect(careRefs).toEqual([
-      "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote",
-    ]);
-    expect(listBundles).toHaveBeenCalledWith(
-      expect.objectContaining({
-        careContextId: "0fe7bcc3-7a7b-4673-a819-450d02ee9498_OPConsultNote",
-      }),
-    );
-    expect(deps.fidelius.encryptBundles).toHaveBeenCalled();
-    expect(deps.dataPush.push).toHaveBeenCalled();
+    expect(listCareContexts).not.toHaveBeenCalled();
+    expect(deps.fidelius.encryptBundles).not.toHaveBeenCalled();
+    expect(deps.dataPush.push).not.toHaveBeenCalled();
   });
 });

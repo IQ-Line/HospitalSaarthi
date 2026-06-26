@@ -83,6 +83,15 @@ async function resolveLinkInitPhone(
   return deps.defaultSmsPhoneNo;
 }
 
+function intersectWithDiscovered(
+  selected: SelectedCareContext[],
+  discovered: SelectedCareContext[],
+): SelectedCareContext[] {
+  if (selected.length === 0) return discovered;
+  const allowed = new Set(discovered.map((c) => c.referenceNumber));
+  return selected.filter((c) => allowed.has(c.referenceNumber));
+}
+
 export async function handleLinkInitCallback(
   input: AbdmTenantInput<LinkInitRequest & { inboundRequestId: string }>,
   deps: AbdmAdapterDeps,
@@ -101,9 +110,18 @@ export async function handleLinkInitCallback(
   };
 
   const selectedContexts = extractSelectedCareContexts(input);
+  const discoveredContexts = sessionCtx.careContexts ?? [];
+  const careContexts = intersectWithDiscovered(selectedContexts, discoveredContexts);
+
+  if (selectedContexts.length > 0 && careContexts.length === 0) {
+    abdmWarn("abdm.m2.link_init.invalid_care_context_selection", {
+      sessionId: session.sessionId,
+      selectedCount: selectedContexts.length,
+      discoveredCount: discoveredContexts.length,
+    });
+  }
+
   const abhaAddress = input.abhaAddress?.trim() || sessionCtx.abhaAddress;
-  const careContexts =
-    selectedContexts.length > 0 ? selectedContexts : (sessionCtx.careContexts ?? []);
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

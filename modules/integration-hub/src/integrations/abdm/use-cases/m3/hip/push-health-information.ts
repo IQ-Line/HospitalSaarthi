@@ -16,9 +16,7 @@ async function collectRecordFoundationBundles(
   input: {
     iqTenantId: string;
     careContextReferences: string[];
-    patientId: string;
     consentId: string;
-    patientAbhaAddress?: string | null;
   },
 ): Promise<HealthRecordBundleEntry[]> {
   const triedRefs = new Set<string>();
@@ -37,35 +35,6 @@ async function collectRecordFoundationBundles(
 
   for (const ref of input.careContextReferences) {
     await appendForRef(ref);
-  }
-
-  if (
-    bundleEntries.length === 0 &&
-    process.env["ABDM_M2_MOCK_PLATFORM"] !== "true"
-  ) {
-    let rfPatientId = input.patientId;
-    const abha = input.patientAbhaAddress?.trim();
-    if (abha) {
-      const empiMatch = await deps.empi.findPatientByAbhaAddress({
-        iqTenantId: input.iqTenantId,
-        abhaAddress: abha,
-      });
-      if (empiMatch?.patientId) rfPatientId = empiMatch.patientId;
-    }
-
-    const contexts = await deps.recordFoundation.listCareContexts({
-      iqTenantId: input.iqTenantId,
-      patientId: rfPatientId,
-    });
-    abdmWarn("abdm.m3.hip_push.rf_patient_context_fallback", {
-      consentId: input.consentId,
-      consentRefs: input.careContextReferences,
-      rfPatientId,
-      rfContextRefs: contexts.map((c) => c.referenceNumber),
-    });
-    for (const ctx of contexts) {
-      await appendForRef(ctx.referenceNumber);
-    }
   }
 
   return bundleEntries;
@@ -105,9 +74,7 @@ export async function pushHealthInformationForSession(
   const bundleEntries = await collectRecordFoundationBundles(deps, {
     iqTenantId: input.iqTenantId,
     careContextReferences,
-    patientId: input.patientId,
     consentId: input.parsed.consentId,
-    patientAbhaAddress: m3Artefact?.patientAbhaAddress ?? null,
   });
 
   if (bundleEntries.length === 0) {

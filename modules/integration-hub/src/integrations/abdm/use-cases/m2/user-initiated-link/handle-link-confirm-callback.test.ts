@@ -62,7 +62,7 @@ function mockSessions(session: AbdmSession): AbdmSessionsPort {
     async findByFlowAndRequestId() {
       return null;
     },
-    async findAddContextsNotifiedByCareContextReference() {
+    async findLatestLinkedUserLinkByAbhaAddress() {
       return null;
     },
   };
@@ -154,5 +154,69 @@ describe("handleLinkConfirmCallback", () => {
     expect(markLinked).toHaveBeenCalledOnce();
 
     vi.useRealTimers();
+  });
+
+  it("rejects invalid OTP and does not publish care contexts", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const markLinked = vi.fn().mockResolvedValue(undefined);
+    const linkRefNumber = "link-ref-2";
+    const tenantId = "00000000-0000-4000-8000-0000000000aa";
+    const sessionId = randomUUID();
+    const otpStore = new InMemoryLinkOtpStore();
+    await otpStore.put({
+      iqTenantId: tenantId,
+      linkRefNumber,
+      otp: "654321",
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const sessions = mockSessions({
+      iqTenantId: tenantId,
+      sessionId,
+      flowKind: "abdm.m2.user-initiated-link.v1",
+      state: "OTP_DISPATCHED",
+      txnId: randomUUID(),
+      requestId: null,
+      xToken: null,
+      tToken: null,
+      context: {
+        linkRefNumber,
+        patientId: "52d1f69a-c028-41a0-9741-db961460ef07",
+        abhaAddress: "patient@sbx",
+        careContexts: [
+          {
+            referenceNumber: "cc-op-1",
+            display: "OP visit",
+            hiType: "OPCONSULTATION",
+          },
+        ],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const deps = buildMockAbdmDeps({
+      gateway: { post },
+      sessions,
+      linkOtpStore: otpStore,
+      careContextLinkState: { listLinkedReferences: async () => new Set(), markLinked },
+    });
+
+    await handleLinkConfirmCallback(
+      {
+        iqTenantId: tenantId,
+        confirmation: { token: "000000", linkRefNumber },
+        inboundRequestId: randomUUID(),
+      },
+      deps,
+    );
+
+    expect(post).not.toHaveBeenCalled();
+    expect(markLinked).not.toHaveBeenCalled();
+    const after = await sessions.findUserLinkByLinkRefNumber({
+      iqTenantId: tenantId,
+      linkRefNumber,
+    });
+    expect(after?.state).toBe("FAILED");
   });
 });

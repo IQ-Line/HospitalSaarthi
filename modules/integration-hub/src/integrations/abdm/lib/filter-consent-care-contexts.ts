@@ -17,10 +17,8 @@ export function filterConsentCareContexts(input: {
   careContexts: unknown;
 }): ConsentCareContextRef[] {
   const requested = input.hiTypes.filter(Boolean);
-  if (
-    requested.length > 0 &&
-    !requested.some((type) => SUPPORTED_HI_TYPES.has(type))
-  ) {
+  if (requested.length === 0) return [];
+  if (!requested.some((type) => SUPPORTED_HI_TYPES.has(type))) {
     return [];
   }
 

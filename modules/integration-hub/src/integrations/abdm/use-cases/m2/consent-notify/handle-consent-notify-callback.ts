@@ -81,6 +81,27 @@ export async function handleConsentNotifyCallback(
     careContexts: detail.careContexts,
   });
 
+  if (notification.status === "GRANTED" && filteredCareContexts.length === 0) {
+    abdmWarn("abdm.m2.consent.no_supported_care_contexts", {
+      abhaAddress,
+      consentId: notification.consentId,
+      requestId: input.inboundRequestId,
+      requestedHiTypes,
+    });
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: "FAILED",
+      contextMerge: {
+        error: {
+          code: "NO_SUPPORTED_CARE_CONTEXTS",
+          message: "Consent grants no supported care contexts for this HIP",
+        },
+      },
+    });
+    return;
+  }
+
   const linkSession = await deps.sessions.findLatestLinkedUserLinkByAbhaAddress({
     iqTenantId: input.iqTenantId,
     abhaAddress,
@@ -123,6 +144,14 @@ export async function handleConsentNotifyCallback(
     return;
   }
 
+  const persistedNotification = {
+    ...notification,
+    consentDetail: {
+      ...detail,
+      careContexts: filteredCareContexts,
+    },
+  };
+
   await deps.consentArtefacts.upsert({
     iqTenantId: input.iqTenantId,
     consentId: notification.consentId,
@@ -132,7 +161,7 @@ export async function handleConsentNotifyCallback(
     status: notification.status,
     dataEraseAt: new Date(detail.permission.dataEraseAt),
     grantedAt: new Date(detail.createdAt),
-    artefactJson: notification as unknown as Record<string, unknown>,
+    artefactJson: persistedNotification as unknown as Record<string, unknown>,
     signature: notification.signature,
     signatureValid,
   });

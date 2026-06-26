@@ -12,6 +12,12 @@ type SelectedCareContext = {
 };
 
 const PUBLISH_DELAY_MS = 2000;
+const DEFAULT_LINK_OTP_MAX_ATTEMPTS = 5;
+
+function linkOtpMaxAttempts(): number {
+  const parsed = Number(process.env["ABDM_LINK_OTP_MAX_ATTEMPTS"] ?? DEFAULT_LINK_OTP_MAX_ATTEMPTS);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_LINK_OTP_MAX_ATTEMPTS;
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -92,7 +98,37 @@ export async function handleLinkConfirmCallback(
     patientId?: string;
     abhaAddress?: string;
     careContexts?: SelectedCareContext[];
+    otpAttemptCount?: number;
   };
+
+  const maxAttempts = linkOtpMaxAttempts();
+  const attemptCount = (ctx.otpAttemptCount ?? 0) + 1;
+  await deps.sessions.patch({
+    iqTenantId: input.iqTenantId,
+    sessionId: session.sessionId,
+    contextMerge: { otpAttemptCount: attemptCount },
+  });
+
+  if (attemptCount > maxAttempts) {
+    abdmWarn("abdm.m2.link_confirm.otp_attempts_exceeded", {
+      sessionId: session.sessionId,
+      linkRefNumber: input.confirmation.linkRefNumber,
+      attemptCount,
+      maxAttempts,
+    });
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: "FAILED",
+      contextMerge: {
+        error: {
+          code: ABDM_ERROR_CODES.INVALID_REQUEST,
+          message: "OTP attempt limit exceeded",
+        },
+      },
+    });
+    return;
+  }
 
   let otpValid = false;
   const phoneNo = ctx.phoneNo?.trim();
