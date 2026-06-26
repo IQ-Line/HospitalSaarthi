@@ -42,6 +42,8 @@ export const inventoryStores = inventorySchema.table(
     indent_authority: boolean("indent_authority").notNull().default(false),
     indent_target_store_id: uuid("indent_target_store_id"),
     is_active: boolean("is_active").notNull().default(true),
+    created_by: uuid("created_by"),
+    updated_by: uuid("updated_by"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -129,6 +131,8 @@ export const inventoryItems = inventorySchema.table(
     supply_attributes: jsonb("supply_attributes").notNull().default({}),
     is_lot_tracked: boolean("is_lot_tracked").notNull().default(true),
     is_serial_tracked: boolean("is_serial_tracked").notNull().default(false),
+    created_by: uuid("created_by"),
+    updated_by: uuid("updated_by"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -202,6 +206,7 @@ export const inventoryGrnLines = inventorySchema.table(
     line_remarks: text("line_remarks"),
     sort_order: integer("sort_order").notNull().default(0),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
@@ -240,6 +245,7 @@ export const inventoryLots = inventorySchema.table(
     unit_cost: numeric("unit_cost", { precision: 12, scale: 4 }),
     notes: text("notes"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
@@ -269,6 +275,9 @@ export const inventoryStock = inventorySchema.table(
     inventory_store_id: uuid("inventory_store_id").notNull(),
     lot_id: uuid("lot_id"),
     quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull().default("0"),
+    created_by: uuid("created_by"),
+    updated_by: uuid("updated_by"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -380,6 +389,7 @@ export const inventoryIndentLines = inventorySchema.table(
     preferred_lot_id: uuid("preferred_lot_id"),
     sort_order: integer("sort_order").notNull().default(0),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),

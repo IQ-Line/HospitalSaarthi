@@ -5,7 +5,7 @@ import { createDb, sql } from "@hims/ts-sdk-db";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
 
-const MIGRATION_FILES = ["0000_inventory_schema.sql"] as const;
+const MIGRATION_FILES = ["0000_inventory_schema.sql", "0001_inventory_audit_columns.sql"] as const;
 
 /** Applies `inventory` schema DDL (idempotent — safe to run on every dev boot). */
 export async function applyInventorySchemaMigration(connectionString: string): Promise<void> {

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS inventory.stores (
   indent_authority boolean NOT NULL DEFAULT false,
   indent_target_store_id uuid,
   is_active boolean NOT NULL DEFAULT true,
+  created_by uuid,
+  updated_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT stores_pkey PRIMARY KEY (iq_tenant_id, id),
@@ -97,6 +99,8 @@ CREATE TABLE IF NOT EXISTS inventory.items (
   supply_attributes jsonb NOT NULL DEFAULT '{}'::jsonb,
   is_lot_tracked boolean NOT NULL DEFAULT true,
   is_serial_tracked boolean NOT NULL DEFAULT false,
+  created_by uuid,
+  updated_by uuid,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT items_pkey PRIMARY KEY (iq_tenant_id, id),
@@ -197,6 +201,7 @@ CREATE TABLE IF NOT EXISTS inventory.grn_lines (
   line_remarks text,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT grn_lines_pkey PRIMARY KEY (iq_tenant_id, id),
   CONSTRAINT grn_lines_purchase_to_base_factor_positive_chk CHECK (purchase_to_base_factor > 0)
 );
@@ -219,6 +224,7 @@ CREATE TABLE IF NOT EXISTS inventory.lots (
   unit_cost numeric(12, 4),
   notes text,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT lots_pkey PRIMARY KEY (iq_tenant_id, id)
 );
 
@@ -239,6 +245,9 @@ CREATE TABLE IF NOT EXISTS inventory.stock (
   inventory_store_id uuid NOT NULL,
   lot_id uuid,
   quantity numeric(12, 3) NOT NULL DEFAULT 0,
+  created_by uuid,
+  updated_by uuid,
+  created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT stock_pkey PRIMARY KEY (iq_tenant_id, id)
 );
@@ -328,6 +337,7 @@ CREATE TABLE IF NOT EXISTS inventory.indent_lines (
   preferred_lot_id uuid,
   sort_order integer NOT NULL DEFAULT 0,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT indent_lines_pkey PRIMARY KEY (iq_tenant_id, id),
   CONSTRAINT indent_lines_requested_qty_positive_chk CHECK (requested_qty > 0),
   CONSTRAINT indent_lines_approved_le_requested_chk CHECK (
