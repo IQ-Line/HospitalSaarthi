@@ -851,6 +851,22 @@ importers:
         specifier: ^4.20.5
         version: 4.21.0
 
+  services/inventory-svc:
+    dependencies:
+      '@hims/inventory':
+        specifier: workspace:*
+        version: link:../../modules/inventory
+      '@hims/ts-sdk-openapi':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-openapi
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+    devDependencies:
+      tsx:
+        specifier: ^4.20.5
+        version: 4.21.0
+
   services/pharmacy-svc:
     dependencies:
       '@hims/pharmacy':

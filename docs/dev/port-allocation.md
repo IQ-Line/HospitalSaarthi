@@ -13,11 +13,12 @@ example file is a review smell.
 | 3001  | configurator-svc            | `services/configurator-svc/.env.example`                 |
 | 3002  | empi-svc                    | `services/empi-svc/.env.example`                         |
 | 3003  | billing-svc                 | `services/billing-svc/.env.example`                      |
-| 3004  | pharmacy-svc                | `services/pharmacy-svc/.env.example`                     |
 | 3005  | user-management-svc         | `services/user-management-svc/.env.example`              |
 | 3006  | registration-svc            | `services/registration-svc/.env.example`                 |
 | 3007  | integration-hub-svc         | `services/integration-hub-svc/.env.example`              |
 | 3009  | record-foundation-svc       | `services/record-foundation-svc/.env.example`            |
+| 3004  | pharmacy-svc                | `services/pharmacy-svc/.env.example`                     |
+| 3008  | inventory-svc               | `services/inventory-svc/.env.example`                    |
 | 5173  | web (Vite dev server)       | Vite default                                             |
 | 8010  | master-data (Python FastAPI)| `modules/master-data/.env.example`                       |
 | 8020  | opd-svc                     | `services/opd-svc/.env.example`                          |

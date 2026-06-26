@@ -1,0 +1,14 @@
+{
+  "name": "@hims/inventory-svc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hims/inventory": "workspace:*",
+    "@hims/ts-sdk-openapi": "workspace:*",
+    "fastify": "^5.3.3"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}
