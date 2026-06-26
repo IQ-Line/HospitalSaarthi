@@ -4,6 +4,7 @@ import type { OnConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
+import { filterConsentCareContexts } from "../../../lib/filter-consent-care-contexts.js";
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
@@ -91,7 +92,18 @@ export async function handleM3HipConsentNotifyBridge(
   }
 
   const hiTypes = Array.isArray(detail.hiTypes) ? detail.hiTypes : row.hiTypes;
-  const careContexts = Array.isArray(detail.careContexts) ? detail.careContexts : [];
+  const filteredCareContexts = filterConsentCareContexts({
+    hiTypes,
+    careContexts: detail.careContexts,
+  });
+  const persistedConsentDetail = {
+    ...detail,
+    careContexts: filteredCareContexts,
+  };
+  const persistedNotification = {
+    ...notification,
+    consentDetail: persistedConsentDetail,
+  };
 
   await deps.m3ConsentArtefactsHiu.upsert({
     iqTenantId: input.iqTenantId,
@@ -103,10 +115,14 @@ export async function handleM3HipConsentNotifyBridge(
     dataEraseAt: new Date(detail.permission.dataEraseAt),
     grantedAt: new Date(detail.createdAt),
     hiTypes,
-    careContexts,
-    artefactJson: { consentDetail: detail, signature: notification.signature },
+    careContexts: filteredCareContexts,
+    artefactJson: {
+      consentDetail: persistedConsentDetail,
+      signature: notification.signature,
+    },
     signature: notification.signature,
     signatureValid,
+    receivedAt: new Date(),
   });
 
   await deps.consentArtefacts.upsert({
@@ -118,7 +134,7 @@ export async function handleM3HipConsentNotifyBridge(
     status: "GRANTED",
     dataEraseAt: new Date(detail.permission.dataEraseAt),
     grantedAt: new Date(detail.createdAt),
-    artefactJson: notification as unknown as Record<string, unknown>,
+    artefactJson: persistedNotification as unknown as Record<string, unknown>,
     signature: notification.signature,
     signatureValid,
   });

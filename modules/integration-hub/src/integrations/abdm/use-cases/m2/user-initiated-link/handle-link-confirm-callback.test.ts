@@ -219,4 +219,117 @@ describe("handleLinkConfirmCallback", () => {
     });
     expect(after?.state).toBe("FAILED");
   });
+
+  it("locks out after OTP attempt limit is exceeded", async () => {
+    vi.stubEnv("ABDM_LINK_OTP_MAX_ATTEMPTS", "2");
+    const post = vi.fn().mockResolvedValue({});
+    const linkRefNumber = "link-ref-limit";
+    const tenantId = "00000000-0000-4000-8000-0000000000aa";
+    const otpStore = new InMemoryLinkOtpStore();
+    await otpStore.put({
+      iqTenantId: tenantId,
+      linkRefNumber,
+      otp: "123456",
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const sessions = mockSessions({
+      iqTenantId: tenantId,
+      sessionId: randomUUID(),
+      flowKind: "abdm.m2.user-initiated-link.v1",
+      state: "OTP_DISPATCHED",
+      txnId: randomUUID(),
+      requestId: null,
+      xToken: null,
+      tToken: null,
+      context: {
+        linkRefNumber,
+        otpAttemptCount: 2,
+        patientId: "52d1f69a-c028-41a0-9741-db961460ef07",
+        abhaAddress: "patient@sbx",
+        careContexts: [],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const deps = buildMockAbdmDeps({
+      gateway: { post },
+      sessions,
+      linkOtpStore: otpStore,
+    });
+
+    await handleLinkConfirmCallback(
+      {
+        iqTenantId: tenantId,
+        confirmation: { token: "123456", linkRefNumber },
+        inboundRequestId: randomUUID(),
+      },
+      deps,
+    );
+
+    expect(post).not.toHaveBeenCalled();
+    const after = await sessions.findUserLinkByLinkRefNumber({
+      iqTenantId: tenantId,
+      linkRefNumber,
+    });
+    expect(after?.state).toBe("FAILED");
+    expect((after?.context as { error?: { message?: string } }).error?.message).toBe(
+      "OTP attempt limit exceeded",
+    );
+  });
+
+  it("rejects expired OTP without publishing", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const linkRefNumber = "link-ref-expired";
+    const tenantId = "00000000-0000-4000-8000-0000000000aa";
+    const otpStore = new InMemoryLinkOtpStore();
+    await otpStore.put({
+      iqTenantId: tenantId,
+      linkRefNumber,
+      otp: "123456",
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+
+    const sessions = mockSessions({
+      iqTenantId: tenantId,
+      sessionId: randomUUID(),
+      flowKind: "abdm.m2.user-initiated-link.v1",
+      state: "OTP_DISPATCHED",
+      txnId: randomUUID(),
+      requestId: null,
+      xToken: null,
+      tToken: null,
+      context: {
+        linkRefNumber,
+        patientId: "52d1f69a-c028-41a0-9741-db961460ef07",
+        abhaAddress: "patient@sbx",
+        careContexts: [],
+      },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const deps = buildMockAbdmDeps({
+      gateway: { post },
+      sessions,
+      linkOtpStore: otpStore,
+    });
+
+    await handleLinkConfirmCallback(
+      {
+        iqTenantId: tenantId,
+        confirmation: { token: "123456", linkRefNumber },
+        inboundRequestId: randomUUID(),
+      },
+      deps,
+    );
+
+    expect(post).not.toHaveBeenCalled();
+    const after = await sessions.findUserLinkByLinkRefNumber({
+      iqTenantId: tenantId,
+      linkRefNumber,
+    });
+    expect(after?.state).toBe("FAILED");
+  });
 });

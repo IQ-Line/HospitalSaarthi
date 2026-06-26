@@ -110,7 +110,7 @@ export class HttpEmpiClient implements EmpiClient {
       };
       const patientId = json.patientId ?? json.id;
       if (!patientId) return null;
-      return { patientId, score: json.score ?? 1 };
+      return { patientId, score: json.score ?? 0 };
     } catch (e) {
       if (e instanceof EmpiClientError) throw e;
       abdmWarn("abdm.empi.find_by_demographics_error", {

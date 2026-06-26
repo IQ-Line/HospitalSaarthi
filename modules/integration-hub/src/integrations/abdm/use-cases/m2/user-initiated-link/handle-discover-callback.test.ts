@@ -267,4 +267,40 @@ describe("handleDiscoverCallback", () => {
       { referenceNumber: "ref-open", display: "Open visit" },
     ]);
   });
+
+  it("rejects demographics-only match below minimum EMPI score", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const sessions = mockSessions();
+    const deps = buildMockAbdmDeps({
+      sessions,
+      gateway: { post } as never,
+      empi: {
+        findPatientByAbhaAddress: async () => null,
+        findPatientByAbhaNumber: async () => null,
+        findPatientByDemographics: async () => ({
+          patientId: "weak-match-patient",
+          score: 0.5,
+        }),
+      },
+    });
+
+    await handleDiscoverCallback(
+      {
+        iqTenantId: "00000000-0000-4000-8000-0000000000aa",
+        inboundRequestId: randomUUID(),
+        transactionId: randomUUID(),
+        patient: {
+          name: "Test User",
+          gender: "M",
+          yearOfBirth: 1990,
+          verifiedIdentifiers: [{ type: "MOBILE", value: "9876543210" }],
+        },
+      },
+      deps,
+    );
+
+    expect(post).toHaveBeenCalledOnce();
+    const call = post.mock.calls[0]![0] as { body: { error?: { code: string } } };
+    expect(call.body.error?.code).toBe("ABDM-1010");
+  });
 });
