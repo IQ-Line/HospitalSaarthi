@@ -1,10 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { VisitRegistrationPage } from '@/features/frontdesk/components/visit-registration-page';
+import { OpdRegistrationListPage } from '@/features/frontdesk/components/opd-registration-list-page';
 
 export const Route = createFileRoute('/_authenticated/frontdesk/opd-registration')({
   component: OpdRegistrationRoute,
 });
 
 function OpdRegistrationRoute() {
-  return <VisitRegistrationPage pageTitle="OPD Registration" />;
+  return <OpdRegistrationListPage />;
 }
