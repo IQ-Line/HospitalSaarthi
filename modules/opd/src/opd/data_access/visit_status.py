@@ -12,11 +12,11 @@ from opd.data_access.prescription_form_data import prescription_form_data_has_co
 from opd.models.visit import Visit
 
 if TYPE_CHECKING:
-    # Annotation-only: these resolvers accept either ORM row (legacy Prescription on
-    # LegacyBase or normalized PrescriptionModel) — both duck-type .status/.id. Imported
-    # under TYPE_CHECKING so `from __future__ import annotations` strings resolve for
-    # type checkers + ruff without a runtime dependency on the soon-retired legacy model.
-    from opd.models.prescription_row import Prescription
+    # Annotation-only: resolvers accept the normalized PrescriptionModel aggregate
+    # (duck-typed on .status/.id). Imported under TYPE_CHECKING so the
+    # `from __future__ import annotations` string annotations resolve for type
+    # checkers + ruff without a runtime import.
+    from opd.models.prescription import PrescriptionModel
 
 
 def _empty_draft_without_clinical_content(
@@ -76,7 +76,7 @@ def resolve_visit_status_for_prescription(
     visit_id: UUID,
     prescription_status: str,
     *,
-    rx: Prescription | None = None,
+    rx: PrescriptionModel | None = None,
 ) -> str:
     """Queue status for normalized prescription reads (joins opd.visits when present)."""
     return resolve_visit_statuses_for_prescriptions(
@@ -92,7 +92,7 @@ def resolve_visit_statuses_for_prescriptions(
     tenant_id: UUID,
     entries: list[tuple[UUID, str]],
     *,
-    rx_by_visit_id: dict[UUID, Prescription] | None = None,
+    rx_by_visit_id: dict[UUID, PrescriptionModel] | None = None,
 ) -> dict[UUID, str]:
     """Batch queue-status resolution for many visit + prescription-status pairs."""
     if not entries:
