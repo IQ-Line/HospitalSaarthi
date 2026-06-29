@@ -27,10 +27,7 @@ from sqlalchemy.orm import Session
 from opd.core.config import get_service_integration_settings, get_settings
 from opd.core.database import get_session_factory
 from opd.data_access.health_document_repo import HealthDocumentRepository
-from opd.data_access.prescription_form_data import (
-    _merge_form_data,
-    build_form_data_from_prescription_model,
-)
+from opd.data_access.prescription_form_data import build_form_data_from_prescription_model
 from opd.data_access.prescription_repository import (
     PrescriptionNotFoundError,
     PrescriptionRepository,
@@ -42,7 +39,6 @@ from opd.integrations.clinical_form_helpers import (
     clinical_summary_from_form_data,
     has_immunization_data,
     has_prescription_clinical_data,
-    immunization_rows_from_form_data,
     text,
 )
 from opd.integrations.fhir_bundle_mappers import (
@@ -61,7 +57,6 @@ from opd.integrations.op_consult_report import (
 )
 from opd.lib import azure_blob_storage
 from opd.lib.clinical_report_context import ClinicalReportContext, resolve_clinical_report_context
-from opd.models.prescription import PrescriptionModel
 from opd.services.clinical_documents_service import (
     PdfPlatformRenderError,
     get_clinical_report_pdf,
@@ -214,48 +209,10 @@ def _log_abdm_m2_exception(message: str, *args: Any) -> None:
     traceback.print_exc()
 
 
-# Public alias for HTTP handlers that queue the background pipeline.
-log_abdm_m2_console = _log_abdm_m2
-
-
-def _resolve_abdm_form_data(
-    rx: PrescriptionModel,
-    *,
-    form_data_override: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Build ABDM form_data from the normalized aggregate, layering an optional override.
-
-    No-override path (normalized ``/finalize``): the normalized child tables are the
-    single source — read straight off the eager-loaded aggregate.
-
-    Override path (legacy JSONB ``/visits`` & ``/patients`` end-consult, live until the
-    FE cutover): the FE-posted blob still carries clinical sections that the JSONB write
-    path never synced to child tables (it syncs only legacy_vitals + vaccines), so we keep
-    merging it *over* the normalized base — override wins per section — to avoid regressing
-    that flow. Once the FE posts the normalized ``/finalize`` everywhere, the override and
-    this branch go away.
-    """
-    base = build_form_data_from_prescription_model(rx)
-    if not form_data_override:
-        return base
-
-    merged = _merge_form_data(base, form_data_override)
-    override_rows = immunization_rows_from_form_data(form_data_override)
-    if override_rows:
-        merged["immunizations"] = override_rows
-    elif not immunization_rows_from_form_data(merged):
-        fallback_rows = immunization_rows_from_form_data(base)
-        if fallback_rows:
-            merged["immunizations"] = fallback_rows
-    return merged
-
-
 def _load_visit_clinical_snapshot(
     session: Session,
     tenant_id: UUID,
     visit_id: UUID,
-    *,
-    form_data_override: dict[str, Any] | None = None,
 ) -> _VisitClinicalSnapshot | None:
     try:
         # get_by_visit_id filters deleted_at IS NULL — a soft-deleted prescription is
@@ -282,10 +239,7 @@ def _load_visit_clinical_snapshot(
     if not isinstance(birth_date, date):
         birth_date = None
 
-    form_data = _resolve_abdm_form_data(
-        rx,
-        form_data_override=form_data_override,
-    )
+    form_data = build_form_data_from_prescription_model(rx)
     _log_abdm_m2(
         "visit %s clinical snapshot immunization gate: %s",
         visit_id,
@@ -848,7 +802,6 @@ def persist_visit_abdm_bundles(
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
-    form_data: dict[str, Any] | None = None,
 ) -> list[M2CareContext]:
     """
     Create care contexts + store FHIR bundles in Record Foundation for all applicable HI-Types.
@@ -870,12 +823,7 @@ def persist_visit_abdm_bundles(
     session = get_session_factory()()
     contexts: list[M2CareContext] = []
     try:
-        snapshot = _load_visit_clinical_snapshot(
-            session,
-            tenant_id,
-            visit_id,
-            form_data_override=form_data,
-        )
+        snapshot = _load_visit_clinical_snapshot(session, tenant_id, visit_id)
         if snapshot is None:
             _log_abdm_m2(
                 "visit %s bundle persist skipped — no prescription snapshot found",
@@ -990,23 +938,16 @@ def trigger_m2_after_end_consultation(
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
-    form_data: dict[str, Any] | None = None,
 ) -> None:
     """
     Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
     Non-blocking best-effort — failures are logged only.
     """
-    _log_abdm_m2(
-        "visit %s end-consultation trigger started form_data_passed=%s immunization_debug=%s",
-        visit_id,
-        form_data is not None,
-        abdm_immunization_debug(form_data or {}),
-    )
+    _log_abdm_m2("visit %s end-consultation trigger started", visit_id)
     contexts = persist_visit_abdm_bundles(
         tenant_id=tenant_id,
         patient_id=patient_id,
         visit_id=visit_id,
-        form_data=form_data,
     )
 
     settings = get_settings()

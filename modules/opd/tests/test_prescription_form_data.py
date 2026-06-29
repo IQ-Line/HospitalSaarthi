@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import uuid
-
 from opd.data_access.prescription_form_data import (
     _legacy_columns_to_form_vitals,
     _vaccine_db_to_immunization_row,
@@ -29,36 +27,6 @@ def test_vitals_has_content() -> None:
     assert not _vitals_has_content({})
     assert not _vitals_has_content({"systolic_bp": ""})
     assert _vitals_has_content({"systolic_bp": "120"})
-
-
-def test_merge_enriches_stored_medicines_missing_catalog_ids() -> None:
-    from opd.data_access.prescription_form_data import _merge_form_data
-
-    med_id = uuid.uuid4()
-    merged = _merge_form_data(
-        {
-            "medicines": [
-                {
-                    "id": "row-1",
-                    "medicineId": str(med_id),
-                    "medicine_id": str(med_id),
-                    "medicine": "Paracetamol",
-                }
-            ]
-        },
-        {
-            "medicines": [
-                {
-                    "id": "stored-1",
-                    "medicine": "Paracetamol",
-                    "strength": "500mg",
-                }
-            ],
-        },
-    )
-
-    assert merged["medicines"][0]["medicineId"] == str(med_id)
-    assert merged["medicines"][0]["medicine_id"] == str(med_id)
 
 
 def test_effective_form_data_loads_vaccines_required_as_immunizations() -> None:

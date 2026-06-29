@@ -2,14 +2,11 @@
 
 WHY THIS EXISTS
 ---------------
-The ABDM-M2 automation is the platform's integration USP, and the consolidation
-plan (docs/architecture/cleanup/opd-prescription-api-comparison.md §4 step 2) will
-*re-point* the bundle source from the JSONB ``effective_form_data`` merge to the
-normalized ``PrescriptionModel`` repo. Before that re-point, the pipeline had no
-test that asserted the actual HTTP payloads Record Foundation and the integration
-hub receive: ``test_abdm_m2_multi_hi_type`` mocks **every** ``_persist_*`` function,
-so the care-context POST body, the bundle POST body, and the M2 orchestration body
-were never pinned.
+The ABDM-M2 automation is the platform's integration USP. This module pins the
+actual HTTP payloads Record Foundation and the integration hub receive, which the
+heavily-mocked ``test_abdm_m2_multi_hi_type`` does not: it mocks **every**
+``_persist_*`` function, so the care-context POST body, the bundle POST body, and
+the M2 orchestration body were never asserted.
 
 This module pins exactly that. It drives the **real** pipeline
 (``trigger_m2_after_end_consultation`` -> ``persist_visit_abdm_bundles`` -> real
@@ -22,28 +19,14 @@ from a fixed clinical snapshot, mocking only the genuine boundaries:
   * ``_render_report_pdf_base64`` -- the external PDF-platform call.
   * ``HealthDocumentRepository`` -- the blob/health-document boundary.
 
-SCOPE (read before trusting this as a re-point safety net)
-----------------------------------------------------------
-This pins the persist/bundle/HTTP contract **below the snapshot boundary** only.
+SCOPE
+-----
+This pins the persist/bundle/HTTP contract **below the snapshot boundary** only:
 ``_load_visit_clinical_snapshot`` is mocked *wholesale* and fed a hand-built
-``_VisitClinicalSnapshot`` -- but that loader is exactly the code step 3 rewrites
-(JSONB ``effective_form_data`` merge -> normalized ``PrescriptionModel`` sourcing).
-So this test proves the persist side is preserved; it proves **nothing** about
-whether normalized rows produce an equivalent snapshot. It does NOT exercise the
-sourcing chain step 3 touches (``effective_form_data`` / ``_merge_form_data`` /
-immunization dedup / gender-abha-birthdate derivation / visit_number lookup).
-
-Consequences, stated honestly:
-  * The safety net is **only half-built** until step 3 adds its complementary
-    sourcing-equivalence test: seed normalized child tables, run the REAL
-    ``_load_visit_clinical_snapshot`` (no sourcing mock), and assert the produced
-    snapshot -> same care_refs / resource types / clinical strings asserted here.
-    Per the plan (§5), the ``form_data`` column drop is gated on that test passing.
-  * This test survives the re-point unchanged **only if** step 3 keeps
-    ``_VisitClinicalSnapshot.form_data`` form-shaped. Plan §4.2 ("delete the
-    form_data round-trip converters") may change that field's shape; if so this
-    test's ``RICH_FORM_DATA`` + the mappers' consumption must change in lockstep --
-    treat that as a forced re-examination signal, not a silent break.
+``_VisitClinicalSnapshot``. The complementary ``test_abdm_m2_sourcing_equivalence.py``
+exercises the real snapshot sourcing (normalized ``PrescriptionModel`` ->
+``build_form_data_from_prescription_model``) that this test stubs out, so the two
+together cover the snapshot source and the persist/HTTP contract end to end.
 
 The SDK builders mint non-deterministic resource ids + timestamps, so assertions
 target stable facts: the deterministic ``identifier.value`` (== care_ref), the

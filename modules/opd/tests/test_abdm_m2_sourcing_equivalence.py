@@ -152,12 +152,11 @@ def _run_pipeline_capture(
     *,
     visit_id: UUID,
     patient_id: UUID,
-    form_data_override: dict | None = None,
 ) -> _CapturedPosts:
     """Single source of pipeline wiring: run the REAL persist pipeline, capture RF POSTs.
 
     Seeding is the caller's job (so soft-delete / sparse / rich variants compose freely).
-    ``form_data_override`` defaults to None -> exercises the no-override normalized branch.
+    The pipeline sources clinical content solely from the normalized aggregate.
     """
     captured = _CapturedPosts()
 
@@ -195,7 +194,6 @@ def _run_pipeline_capture(
             tenant_id=TENANT_A,
             patient_id=patient_id,
             visit_id=visit_id,
-            form_data=form_data_override,
         )
 
     return captured
@@ -315,46 +313,3 @@ def test_soft_deleted_prescription_yields_no_bundles(db_session: Session) -> Non
 
     assert captured.care_contexts == []
     assert captured.bundles == []
-
-
-def test_override_supplies_sections_missing_from_normalized_base(db_session: Session) -> None:
-    """D-a coverage: the live JSONB end-consult override wins over a sparse normalized base.
-
-    Seeds a normalized aggregate with ONLY a chief complaint (no dx/meds — mirroring the
-    JSONB write path that never synced them to child tables), then passes an end-consult
-    override carrying diagnosis + medicine. Proves the kept override-merge branch routes
-    blob-only clinical content into the bundles (the interim production path).
-    """
-    override_dx = "Override-only dengue"
-    override_med = "Override-only Azithromycin"
-
-    visit_id = uuid4()
-    patient_id = uuid4()
-    _seed_normalized_prescription(
-        db_session,
-        visit_id=visit_id,
-        patient_id=patient_id,
-        clinical={"chief_complaints": [{"line_no": 1, "complaint_text": COMPLAINT_TEXT}]},
-    )
-
-    captured = _run_pipeline_capture(
-        db_session,
-        visit_id=visit_id,
-        patient_id=patient_id,
-        form_data_override={
-            "diagnosis": [{"notes": override_dx}],
-            "medicines": [{"medicine": override_med, "dosage": "500mg"}],
-        },
-    )
-
-    # Prescription bundle now fires off the override-supplied dx/meds the normalized base lacked.
-    rx_ref = _expected_refs(visit_id)[abdm_m2.HI_TYPE_PRESCRIPTION]
-    rx_blob = json.dumps(captured.bundle_for_care_ref(rx_ref))
-    assert override_dx in rx_blob
-    assert override_med in rx_blob
-
-    # The normalized-base section (chief complaint) still survives the merge into OP consult.
-    op_ref = _expected_refs(visit_id)[abdm_m2.HI_TYPE_OP_CONSULT]
-    op_blob = json.dumps(captured.bundle_for_care_ref(op_ref))
-    assert override_dx in op_blob
-    assert COMPLAINT_TEXT in op_blob
