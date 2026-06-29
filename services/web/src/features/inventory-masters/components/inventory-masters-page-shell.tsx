@@ -47,12 +47,6 @@ export function InventoryMastersPageShell({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/master-data/departments">Master Data</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
             <BreadcrumbPage>{INVENTORY_MASTER_PAGE_TITLE}</BreadcrumbPage>
           </BreadcrumbItem>
           {activeTab ? (

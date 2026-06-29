@@ -3,7 +3,7 @@ import { InventoryMastersTabPage } from '@/features/inventory-masters/components
 import { requireInventoryMasterTabAccess } from '@/lib/inventory-masters-route-access';
 
 export const Route = createFileRoute(
-  '/_authenticated/master-data/inventory-supply-masters/storage-conditions',
+  '/_authenticated/inventory-supply-masters/storage-conditions',
 )({
   beforeLoad: requireInventoryMasterTabAccess('storage-conditions'),
   component: () => <InventoryMastersTabPage tabId="storage-conditions" />,

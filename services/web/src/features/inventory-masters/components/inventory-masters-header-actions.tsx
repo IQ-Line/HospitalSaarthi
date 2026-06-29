@@ -13,7 +13,7 @@ export function InventoryMastersHeaderActions({
   addLabel,
 }: InventoryMastersHeaderActionsProps) {
   const { canCreate, canMutate } = useCatalogModuleCrud(catalogModuleSlug, {
-    productModuleSlug: 'master-data',
+    productModuleSlug: 'inventory-master',
   });
 
   const placeholder = (action: string) => {

@@ -39,12 +39,5 @@ export const masterDataModuleManifest: ModuleManifest = {
       route: '/master-data/departments',
       catalogModuleSlug: 'departments',
     },
-    {
-      id: 'master-data-inventory-supply-masters',
-      label: 'Inventory & Supply Masters',
-      icon: 'package',
-      route: '/master-data/inventory-supply-masters/item-master',
-      catalogModuleSlug: 'inventory-master',
-    },
   ],
 };

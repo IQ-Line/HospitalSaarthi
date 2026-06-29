@@ -1,12 +1,25 @@
+import { redirect } from '@tanstack/react-router';
 import { principalGrantsCatalogRouteAccess } from '@/lib/catalog-route-access';
 import {
   INVENTORY_MASTER_DEFAULT_ROUTE,
   INVENTORY_MASTER_TABS,
 } from '@/features/inventory-masters/inventory-masters-nav-model';
 import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
+import { resolveTenantAdmin } from '@/lib/platform-admin';
+import { useAuthStore } from '@/stores/auth.store';
+import { usePermissionsStore } from '@/stores/permissions.store';
 
-export const INVENTORY_MASTER_CATALOG_PRODUCT_SLUGS = ['master-data', 'inventory-master'] as const;
-export const INVENTORY_MASTER_ROUTE_PREFIX = '/master-data/inventory-supply-masters';
+export const INVENTORY_MASTER_CATALOG_PRODUCT_SLUGS = ['inventory-master'] as const;
+export const INVENTORY_MASTER_ROUTE_PREFIX = '/inventory-supply-masters';
+
+export function assertInventorySupplyMastersTenantAdmin(): void {
+  const authRoles = useAuthStore.getState().roles;
+  const principalRoles = usePermissionsStore.getState().roles;
+  const accessToken = useAuthStore.getState().accessToken;
+  if (!resolveTenantAdmin({ principalRoles, authRoles, accessToken })) {
+    throw redirect({ to: '/dashboard' });
+  }
+}
 
 export function principalGrantsInventoryMasterRouteAccess(
   capabilityKeys: ReadonlySet<string>,
