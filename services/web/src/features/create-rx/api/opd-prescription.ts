@@ -12,7 +12,6 @@ import type {
   OpdPrescriptionCreateBody,
   OpdPrescriptionFinalizeBody,
   OpdPrescriptionSingleResponse,
-  OpdPrescriptionStatus,
   OpdPrescriptionUpdateBody,
 } from './opd-prescription-types';
 import type { OpdPrescriptionSession } from './opd-prescription-types';
@@ -64,17 +63,9 @@ function resolveOpdDoctorId(): string {
 
 export type { OpdPrescriptionSession } from './opd-prescription-types';
 
-/** Visit summary for legacy status helpers (OPD visits list is deprecated for queues). */
-export interface OpdVisitSummary {
-  visit_id: string;
-  patient_id: string;
-  status: 'registered' | 'in_progress' | 'completed' | 'cancelled';
-  updated_at: string;
-}
-
 export function prescriptionStatusToVisitStatus(
   prescriptionStatus: 'draft' | 'final' | 'cancelled',
-): OpdVisitSummary['status'] {
+): 'registered' | 'in_progress' | 'completed' | 'cancelled' {
   if (prescriptionStatus === 'final') return 'completed';
   if (prescriptionStatus === 'cancelled') return 'cancelled';
   return 'in_progress';
@@ -95,27 +86,6 @@ async function fetchPrescriptionDetail(
     }
     throw error;
   }
-}
-
-/** Latest prescription status per registration visit id (404 → omitted). */
-export async function fetchPrescriptionStatusesByVisitIds(
-  visitIds: readonly string[],
-): Promise<Map<string, OpdPrescriptionStatus>> {
-  const unique = [...new Set(visitIds.map((id) => id.trim()).filter(Boolean))];
-  if (unique.length === 0) return new Map();
-
-  const pairs = await Promise.all(
-    unique.map(async (visitId) => {
-      const session = await fetchPrescriptionByVisitId(visitId);
-      return session ? ([visitId, session.prescription_status] as const) : null;
-    }),
-  );
-
-  const map = new Map<string, OpdPrescriptionStatus>();
-  for (const pair of pairs) {
-    if (pair) map.set(pair[0], pair[1]);
-  }
-  return map;
 }
 
 export async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPrescriptionSession | null> {
@@ -302,63 +272,4 @@ export async function endConsultation(
   }
 
   return session;
-}
-
-/** OPD `GET /visits` enforces `limit` ≤ 100 (see opd.v1.yaml). */
-export const OPD_VISITS_LIST_MAX = 100;
-
-interface OpdVisitListApiResponse {
-  items: Array<{
-    visit_id: string;
-    patient_id: string;
-    status: string;
-    updated_at: string;
-  }>;
-}
-
-/** @deprecated Patient queues use registration visits; kept for optional overlays. */
-export async function listOpdVisits(
-  params: { patientId?: string; limit?: number } = {},
-): Promise<OpdVisitSummary[]> {
-  const sp = new URLSearchParams();
-  if (params.patientId?.trim()) sp.set('patient_id', params.patientId.trim());
-  if (params.limit != null) sp.set('limit', String(Math.min(params.limit, OPD_VISITS_LIST_MAX)));
-  const qs = sp.toString();
-  const response = await apiClient<OpdVisitListApiResponse>(
-    `${OPD_PREFIX}/visits${qs ? `?${qs}` : ''}`,
-  );
-  return response.items.map((item) => ({
-    visit_id: item.visit_id,
-    patient_id: item.patient_id,
-    status: item.status as OpdVisitSummary['status'],
-    updated_at: item.updated_at,
-  }));
-}
-
-export async function listOpdVisitsForPatient(
-  patientId: string,
-  limit = OPD_VISITS_LIST_MAX,
-): Promise<OpdVisitSummary[]> {
-  return listOpdVisits({ patientId: requirePatientId(patientId), limit });
-}
-
-export async function listOpdVisitsForPatients(
-  patientIds: string[],
-): Promise<OpdVisitSummary[]> {
-  const unique = [...new Set(patientIds.map((id) => id.trim()).filter(Boolean))];
-  if (unique.length === 0) return [];
-  const pages = await Promise.all(
-    unique.map((patientId) => listOpdVisits({ patientId, limit: OPD_VISITS_LIST_MAX })),
-  );
-  return pages.flat();
-}
-
-export async function findLatestOpdVisitForPatient(
-  patientId: string,
-): Promise<OpdVisitSummary | undefined> {
-  const items = await listOpdVisitsForPatient(patientId, 50);
-  if (items.length === 0) return undefined;
-  return items.reduce((latest, item) =>
-    item.updated_at > latest.updated_at ? item : latest,
-  );
 }
