@@ -1,23 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { EventBus, Subscription } from "@hims/ts-sdk-events";
+import { InProcessEventBus } from "@hims/ts-sdk-events";
 import { InMemoryRoleRepository } from "../../../src/data-access/in-memory-role-repository.js";
 import { createRole } from "../../../src/use-cases/create-role.js";
+
+// createRole does not publish events, so a real (unconnected) bus simply satisfies the dep.
+function makeDeps(roleRepository = new InMemoryRoleRepository()) {
+  return { roleRepository, eventBus: new InProcessEventBus() };
+}
+
+const ctx = { tenantId: "tenant-a", actorId: "actor-1", correlationId: "c1" };
 
 describe("createRole", () => {
   it("allows multiple roles with the same role_type and different codes", async () => {
     const roleRepository = new InMemoryRoleRepository();
-    const deps = {
-      roleRepository,
-      eventBus: {
-        async connect() {},
-        async disconnect() {},
-        async publish() {},
-        async subscribe() {
-          return { unsubscribe: async () => {} } as unknown as Subscription;
-        },
-      } satisfies EventBus,
-    };
-    const ctx = { tenantId: "tenant-a", actorId: "actor-1", correlationId: "c1" };
+    const deps = makeDeps(roleRepository);
 
     const first = await createRole(deps, ctx, {
       code: "doctor",
@@ -33,6 +29,57 @@ describe("createRole", () => {
     expect(first.role_type).toBe("doctor");
     expect(second.role_type).toBe("doctor");
     expect(first.code).not.toBe(second.code);
-    expect((await roleRepository.listRoles("tenant-a"))).toHaveLength(2);
+    expect(await roleRepository.listRoles("tenant-a")).toHaveLength(2);
+  });
+
+  it("rejects creating a role whose code is the reserved platform super-admin code", async () => {
+    const deps = makeDeps();
+    await expect(
+      createRole(deps, ctx, { code: "super-admin", role_type: "admin", display_name: "X" }),
+    ).rejects.toMatchObject({ issue: "role_code_reserved", code: "ROLE_CODE_RESERVED" });
+  });
+
+  it("rejects the reserved code regardless of case / whitespace, and persists nothing", async () => {
+    const deps = makeDeps();
+    for (const code of [" Super-Admin ", "SUPER-ADMIN"]) {
+      await expect(
+        createRole(deps, ctx, { code, role_type: "admin", display_name: "X" }),
+      ).rejects.toMatchObject({ issue: "role_code_reserved" });
+    }
+    expect(await deps.roleRepository.listRoles("tenant-a")).toHaveLength(0);
+  });
+
+  it("allows a tenant's own admin role (a non-reserved code) — the reservation is narrow", async () => {
+    const deps = makeDeps();
+    const role = await createRole(deps, ctx, {
+      code: "tenant-admin",
+      role_type: "admin",
+      display_name: "Hospital Admin",
+    });
+    expect(role.code).toBe("tenant-admin");
+    expect(await deps.roleRepository.listRoles("tenant-a")).toHaveLength(1);
+  });
+
+  // role_type is also projected into principal role codes (see the bypass-vector test),
+  // so it must be reserved on the same axis as code — a benign code does not excuse it.
+  it("rejects a role whose role_type is the reserved platform code, and persists nothing", async () => {
+    const deps = makeDeps();
+    await expect(
+      createRole(deps, ctx, { code: "helper", role_type: "super-admin", display_name: "X" }),
+    ).rejects.toMatchObject({ issue: "role_type_reserved", code: "ROLE_TYPE_RESERVED" });
+    await expect(
+      createRole(deps, ctx, { code: "helper", role_type: " SUPER-ADMIN ", display_name: "X" }),
+    ).rejects.toMatchObject({ issue: "role_type_reserved" });
+    expect(await deps.roleRepository.listRoles("tenant-a")).toHaveLength(0);
+  });
+
+  it("allows a non-reserved role_type", async () => {
+    const deps = makeDeps();
+    const role = await createRole(deps, ctx, {
+      code: "er-doctor",
+      role_type: "doctor",
+      display_name: "ER Doctor",
+    });
+    expect(role.role_type).toBe("doctor");
   });
 });

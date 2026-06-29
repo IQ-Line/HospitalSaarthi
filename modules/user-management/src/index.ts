@@ -113,8 +113,12 @@ export {
   isPlatformSuperAdminRole,
   resolveEffectiveTenantId,
   resolveJwtTenantIdFromRequest,
-  PLATFORM_SUPER_ADMIN_ROLE,
 } from "./http/resolve-effective-tenant-id.js";
+export {
+  PLATFORM_SUPER_ADMIN_ROLE,
+  RESERVED_ROLE_CODES,
+  isReservedRoleCode,
+} from "./domain/reserved-role-codes.js";
 export {
   syncSuperAdminCapabilitySnapshots,
   type SyncSuperAdminCapabilitySnapshotsInput,

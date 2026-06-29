@@ -1,6 +1,5 @@
 import type { FastifyRequest } from "fastify";
-
-export const PLATFORM_SUPER_ADMIN_ROLE = "super-admin";
+import { PLATFORM_SUPER_ADMIN_ROLE } from "../domain/reserved-role-codes.js";
 
 function pickNonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;

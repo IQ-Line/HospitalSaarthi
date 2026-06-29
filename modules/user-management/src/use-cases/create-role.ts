@@ -1,6 +1,7 @@
 import type { EventBus } from "@hims/ts-sdk-events";
 import { normalizeRoleCode } from "../domain/normalize-role-code.js";
 import { normalizeRoleType } from "../domain/normalize-role-type.js";
+import { isReservedRoleCode } from "../domain/reserved-role-codes.js";
 import { ValidationError } from "../domain/errors.js";
 import type { CreateRoleInput, Role, RoleRepository } from "../ports/index.js";
 
@@ -28,7 +29,12 @@ export async function createRole(
   const code = normalizeRoleCode(input.code);
   const role_type = normalizeRoleType(input.role_type);
   if (code.length === 0) throw new ValidationError("role_code_empty");
+  if (isReservedRoleCode(code)) throw new ValidationError("role_code_reserved");
   if (role_type.length === 0) throw new ValidationError("role_type_empty");
+  // role_type is ALSO projected into the principal's role codes (see
+  // drizzle-principal-role-projection-repository), so it reaches the same cross-tenant
+  // bypass as code — reserve it on the same axis.
+  if (isReservedRoleCode(role_type)) throw new ValidationError("role_type_reserved");
   if (input.display_name.trim().length === 0) throw new ValidationError("role_display_name_empty");
   return deps.roleRepository.createRole(_ctx.tenantId, {
     ...input,
