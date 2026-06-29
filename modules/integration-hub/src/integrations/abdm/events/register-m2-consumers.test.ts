@@ -53,6 +53,7 @@ describe("registerM2EventConsumers", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(async () => profile),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const shared = {

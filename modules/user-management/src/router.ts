@@ -3,10 +3,12 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
+import type { AuthPasswordAdminPort } from "./ports/auth-password-admin.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
   MasterDataModuleCatalogPort,
+  DepartmentCatalogPort,
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
@@ -72,9 +74,11 @@ export interface UserManagementPluginOptions {
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
   authAccountProvisioner: AuthAccountProvisioner;
+  authPasswordAdmin: AuthPasswordAdminPort;
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  departmentCatalogPort: DepartmentCatalogPort;
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   runtimeEntitlementIntersection?: boolean;
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
@@ -99,9 +103,11 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
+    authPasswordAdmin,
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    departmentCatalogPort,
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
@@ -131,6 +137,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   registerUserHandlers(fastify, {
     getTenantId,
     getActorId,
+    departmentCatalogPort,
     createUserDeps: {
       userRepository,
       userProvisioningRepository,
@@ -183,6 +190,12 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       authSessionRevoker: options.authSessionRevoker,
     },
     activateUserDeps: { userRepository, eventBus },
+    resetUserPasswordDeps: {
+      userRepository,
+      eventBus,
+      authPasswordAdmin,
+      authSessionRevoker: options.authSessionRevoker,
+    },
   });
 
   registerRoleHandlers(fastify, {
@@ -218,6 +231,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       userRepository,
       accessTokenIssuer,
     },
+    clearMustChangePasswordDeps: { userRepository, eventBus },
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

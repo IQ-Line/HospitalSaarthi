@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import fp from "fastify-plugin";
 import { buildAbdmDepsForTenant, type IntegrationHubSharedInfra } from "./build-abdm-deps.js";
 import { IntegrationProfileNotFoundError } from "./integration-hub-errors.js";
+import { isBridgeDiscoveryPath } from "./integration-hub-identity-skip-paths.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -32,18 +32,21 @@ async function resolveIntegrationContext(
 
 /**
  * Loads active ABDM profile and builds per-tenant deps after `tenantPlugin`.
- * Register on platform `/api/abdm/v1` scope only (not `/api/v3` callbacks).
+ * Register on platform `/api/abdm/v1` scope only (not `/api/v3` callbacks or M0 discovery).
+ *
+ * Not wrapped in fastify-plugin — hooks stay encapsulated in the child scope that registers this.
  */
 export function integrationContextResolver(sharedInfra: IntegrationHubSharedInfra) {
-  return fp(
-    async (app: FastifyInstance) => {
-      app.decorate("integrationHubSharedInfra", sharedInfra);
-      app.addHook("preHandler", async (request) => {
-        await resolveIntegrationContext(request, sharedInfra);
-      });
-    },
-    { name: "@hims/integration-hub-context-resolver" },
-  );
+  return async (app: FastifyInstance): Promise<void> => {
+    app.decorate("integrationHubSharedInfra", sharedInfra);
+    app.addHook("preHandler", async (request) => {
+      const path = request.url.split("?")[0] ?? "";
+      if (isBridgeDiscoveryPath(path)) {
+        return;
+      }
+      await resolveIntegrationContext(request, sharedInfra);
+    });
+  };
 }
 
 export { IntegrationProfileNotFoundError };

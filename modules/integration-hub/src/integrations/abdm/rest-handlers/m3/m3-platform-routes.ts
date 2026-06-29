@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply } from "fastify";
 import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import { startConsentRequest } from "../../use-cases/m3/hiu/start-consent-request.js";
 import { startDataRequest } from "../../use-cases/m3/hiu/start-data-request.js";
+import type { SearchConsentRequestsInput } from "../../use-cases/m3/hiu/search-consent-requests.js";
 import type { PurposeCode } from "@hims/ts-sdk-abha/protocol/m3/common.js";
 import type { HiTypePascal } from "@hims/ts-sdk-abha/protocol/m3/common.js";
 import { isM3MockGateway } from "../../lib/m3-runtime-env.js";
@@ -14,9 +15,21 @@ import {
 import {
   m3SessionIdParamSchema,
   m3TransferIdParamSchema,
+  m3AttachmentParamsSchema,
+  searchConsentRequestsQuerySchema,
+  consentArtefactRecordsQuerySchema,
   startConsentRequestBodySchema,
   startDataRequestBodySchema,
 } from "./m3-route-schemas.js";
+import { searchConsentRequests } from "../../use-cases/m3/hiu/search-consent-requests.js";
+import { getM3Attachment } from "../../use-cases/m3/hiu/get-m3-attachment.js";
+import { getConsentArtefactRecords } from "../../use-cases/m3/hiu/get-consent-artefact-records.js";
+
+function hasTransferBundle(bundleJson: Record<string, unknown> | null | undefined): boolean {
+  if (!bundleJson || typeof bundleJson !== "object") return false;
+  const entries = bundleJson["entries"];
+  return Array.isArray(entries) && entries.length > 0;
+}
 
 function sendGatewayError(reply: FastifyReply, err: AbdmGatewayError): unknown {
   const status =
@@ -33,6 +46,20 @@ function sendGatewayError(reply: FastifyReply, err: AbdmGatewayError): unknown {
 }
 
 export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<void> {
+  app.get(
+    "/m3/hiu/consent/requests",
+    { schema: { querystring: searchConsentRequestsQuerySchema } },
+    async (req, reply) => {
+      const iqTenantId = req.tenantId?.trim() ?? "";
+      if (!iqTenantId) {
+        return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+      }
+      const q = req.query as SearchConsentRequestsInput;
+      const result = await searchConsentRequests({ iqTenantId, ...q }, getAbdmDeps(req));
+      return reply.status(200).send(result);
+    },
+  );
+
   app.post(
     "/m3/hiu/consent/request",
     { schema: { body: startConsentRequestBodySchema } },
@@ -43,6 +70,8 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
     }
     const body = req.body as {
       patientAbhaAddress: string;
+      patientName?: string;
+      patientAbhaNumber?: string;
       hipId?: string;
       purpose: PurposeCode;
       hiTypes: HiTypePascal[];
@@ -88,6 +117,32 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
   },
   );
 
+  app.get(
+    "/m3/hiu/consent/request/:sessionId/records",
+    {
+      schema: {
+        params: m3SessionIdParamSchema,
+        querystring: consentArtefactRecordsQuerySchema,
+      },
+    },
+    async (req, reply) => {
+      const iqTenantId = req.tenantId?.trim() ?? "";
+      if (!iqTenantId) {
+        return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+      }
+      const sessionId = (req.params as { sessionId: string }).sessionId;
+      const consentId = (req.query as { consentId?: string }).consentId;
+      const result = await getConsentArtefactRecords(
+        { iqTenantId, sessionId, consentId },
+        getAbdmDeps(req),
+      );
+      if (!result) {
+        return reply.status(404).send({ error: "NotFound" });
+      }
+      return reply.status(200).send(result);
+    },
+  );
+
   app.post(
     "/m3/hiu/data-request",
     { schema: { body: startDataRequestBodySchema } },
@@ -128,7 +183,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
       transferId: transfer.transferId,
       state: transfer.state,
       consentId: transfer.consentId,
-      bundle: transfer.state === M3Hiu.ACKNOWLEDGED ? transfer.bundleJson : undefined,
+      bundle: hasTransferBundle(transfer.bundleJson) ? transfer.bundleJson : undefined,
       error: transfer.error,
       ...(isM3MockGateway()
         ? {
@@ -138,5 +193,30 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
         : {}),
     });
   },
+  );
+
+  app.get(
+    "/m3/hiu/attachment/:sessionId/:bundleId/:num",
+    { schema: { params: m3AttachmentParamsSchema } },
+    async (req, reply) => {
+      const iqTenantId = req.tenantId?.trim() ?? "";
+      if (!iqTenantId) {
+        return reply.status(400).send({ error: "BadRequest", message: "x-tenant-id required" });
+      }
+      const { sessionId, bundleId, num: numStr } = req.params as {
+        sessionId: string;
+        bundleId: string;
+        num: string;
+      };
+      const num = Number(numStr);
+      const result = await getM3Attachment(
+        { iqTenantId, sessionId, bundleId, num },
+        getAbdmDeps(req),
+      );
+      if (!result) {
+        return reply.status(404).send({ error: "NotFound" });
+      }
+      return reply.status(200).send({ data: result });
+    },
   );
 }

@@ -20,12 +20,14 @@ import type {
   UserAccessRepository,
   UserCapabilityGrant,
   User,
+  UserApiKeyRecord,
   UserRepository,
   UserWithTenant,
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "./test-support/department-catalog-port-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "./events/constants.js";
 
@@ -93,6 +95,7 @@ const noopTenantModuleEntitlementPort = {
 };
 
 const noopMasterDataModuleCatalogPort = createMasterDataModuleCatalogPortStub();
+const noopDepartmentCatalogPort = createDepartmentCatalogPortStub();
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -132,6 +135,11 @@ const noopAuthAccountProvisioner = {
   },
 };
 
+const noopAuthPasswordAdmin = {
+  async setUserPassword() {},
+  async revokeUserSessions() {},
+};
+
 class StubUserRepository implements UserRepository {
   async createUser(_tenantId: string, _input: CreateUserInput): Promise<User> {
     throw new Error("not implemented");
@@ -152,6 +160,15 @@ class StubUserRepository implements UserRepository {
     };
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }
   async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {
@@ -416,8 +433,10 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -460,8 +479,10 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -525,8 +546,10 @@ describe("OpenAPI/runtime coherence", () => {
           principalRoleProjectionRepository: new NoopPrincipalRoleProjectionRepository(),
           principalAuthorizationRepository: new NoopPrincipalAuthorizationRepository(),
           authAccountProvisioner: noopAuthAccountProvisioner,
+          authPasswordAdmin: noopAuthPasswordAdmin,
           tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
           masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },

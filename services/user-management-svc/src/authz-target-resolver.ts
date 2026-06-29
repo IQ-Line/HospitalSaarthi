@@ -261,6 +261,17 @@ export function createUserManagementAuthzTargetResolver(
       };
     }
 
+    if (method === "POST" && path === "/users/:id/reset-password") {
+      const id = resolvePathParam(request);
+      if (id === null) return null;
+      return {
+        kind: "user",
+        id,
+        action: "user.update",
+        attr: await userResourceAttr(deps, request, id),
+      };
+    }
+
     if (method === "POST" && path === "/users/:id/activate") {
       const id = resolvePathParam(request);
       if (id === null) return null;
@@ -286,6 +297,15 @@ export function createUserManagementAuthzTargetResolver(
         // could not load the principal used for navigation gating.
         // Cerbos `auth` policy matches principal/resource `iq_tenant_id`; never use cross-tenant
         // header scope here (super-admin `iq_tenant_id` is for operational APIs only).
+        kind: "auth",
+        id: "self",
+        action: "auth.read",
+        attr: authSelfTenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/auth/change-password-complete") {
+      return {
         kind: "auth",
         id: "self",
         action: "auth.read",

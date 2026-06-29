@@ -12,6 +12,7 @@ const MIGRATION_FILES = [
   "0004_roles_role_type.sql",
   "0005_deactivate_noncanonical_capability_actions.sql",
   "0006_user_api_key.sql",
+  "0007_username_and_recovery_tier.sql",
 ] as const;
 
 /**

@@ -148,4 +148,35 @@ export function registerInternalHandlers(
       return reply.send({ patientId });
     },
   );
+
+  app.get<{ Querystring: { abha_address: string } }>(
+    "/internal/patients/patient-ids-by-abha",
+    {
+      schema: {
+        querystring: {
+          type: "object",
+          required: ["abha_address"],
+          additionalProperties: false,
+          properties: { abha_address: { type: "string", minLength: 1 } },
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        assertRegistrationInternalAccess(request);
+      } catch (e) {
+        const statusCode =
+          e && typeof e === "object" && "statusCode" in e && typeof e.statusCode === "number"
+            ? e.statusCode
+            : 403;
+        return reply.code(statusCode).send({ error: e instanceof Error ? e.message : "Forbidden" });
+      }
+
+      const patientIds = await deps.registrationRepo.findAllPatientIdsByAbhaAddress(
+        request.tenantId,
+        request.query.abha_address,
+      );
+      return reply.send({ patientIds });
+    },
+  );
 }

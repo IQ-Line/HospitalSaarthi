@@ -5,6 +5,7 @@ import type {
   ListUsersOptions,
   UpdateUserInput,
   User,
+  UserApiKeyRecord,
   UserRepository,
   UserWithTenant,
 } from "../ports/index.js";
@@ -20,6 +21,15 @@ class MemUserRepo implements UserRepository {
     return this.user;
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }
   async listUsers(_tenantId: string, _options?: ListUsersOptions): Promise<User[]> {

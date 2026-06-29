@@ -1,8 +1,17 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
-import type { DiscoveryRequest, OnDiscoverRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { DiscoveryRequest, OnDiscoverRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
-import { resolveUnifiedLinkHiType } from "../../../lib/m2-link-hi-type.js";
+import { toLinkCareContextHiType } from "../../../lib/m2-hi-type-mapper.js";
+import {
+  buildEmpiDemographicsFromDiscovery,
+  normalizeDiscoveryPatient,
+  resolveDiscoveryAbhaAddress,
+  resolveDiscoveryAbhaNumber,
+  resolveDiscoveryMobile,
+} from "../../../lib/normalize-discovery-patient.js";
+import { MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE } from "../../../lib/m2-empi-match-threshold.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 async function listUnlinkedCareContexts(
   deps: AbdmAdapterDeps,
@@ -21,13 +30,83 @@ async function listUnlinkedCareContexts(
   return all.filter((ctx) => !linked.has(ctx.referenceNumber));
 }
 
+function acceptDemographicsMatch(
+  match: { patientId: string; score: number } | null,
+): { patientId: string } | null {
+  if (!match || match.score < MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE) return null;
+  return { patientId: match.patientId };
+}
+
+async function resolveDiscoverPatient(
+  deps: AbdmAdapterDeps,
+  input: { iqTenantId: string; discoveryPatient: ReturnType<typeof normalizeDiscoveryPatient> },
+): Promise<{ patientId: string; demographics: Record<string, unknown> } | null> {
+  const { iqTenantId, discoveryPatient } = input;
+  const abhaAddress = resolveDiscoveryAbhaAddress(discoveryPatient);
+
+  if (abhaAddress) {
+    const byAbha = await deps.empi.findPatientByAbhaAddress({ iqTenantId, abhaAddress });
+    if (byAbha) return byAbha;
+  }
+
+  const abhaNumber = resolveDiscoveryAbhaNumber(discoveryPatient);
+  if (abhaNumber) {
+    const byNumber = await deps.empi.findPatientByAbhaNumber({ iqTenantId, abhaNumber });
+    if (byNumber) return { patientId: byNumber.patientId, demographics: {} };
+  }
+
+  const demographics = buildEmpiDemographicsFromDiscovery(discoveryPatient);
+  if (demographics) {
+    const match = await deps.empi.findPatientByDemographics({
+      iqTenantId,
+      ...demographics,
+    });
+    const accepted = acceptDemographicsMatch(match);
+    if (accepted) return { patientId: accepted.patientId, demographics: {} };
+    if (match) {
+      abdmWarn("abdm.m2.user_link.discover_demographics_score_rejected", {
+        abhaAddress,
+        score: match.score,
+        threshold: MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE,
+      });
+    }
+  }
+
+  const verified = discoveryPatient?.verifiedIdentifiers;
+  if (verified?.length) {
+    const match = await deps.empi.findPatientByDemographics({
+      iqTenantId,
+      identifiers: verified.map((i: { type: string; value: string }) => ({
+        type: i.type,
+        value: i.value,
+      })),
+    });
+    const accepted = acceptDemographicsMatch(match);
+    if (accepted) return { patientId: accepted.patientId, demographics: {} };
+    if (match) {
+      abdmWarn("abdm.m2.user_link.discover_verified_id_score_rejected", {
+        abhaAddress,
+        score: match.score,
+        threshold: MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE,
+      });
+    }
+  }
+
+  return null;
+}
+
 export async function handleDiscoverCallback(
   input: AbdmTenantInput<DiscoveryRequest & { inboundRequestId: string }>,
   deps: AbdmAdapterDeps,
 ): Promise<void> {
-  const abhaAddress =
-    input.patient[0]?.id ??
-    input.patient[0]?.verifiedIdentifiers?.find((i) => i.type === "ABHA")?.value;
+  const discoveryPatient = normalizeDiscoveryPatient(input.patient);
+  const abhaAddress = resolveDiscoveryAbhaAddress(discoveryPatient);
+  if (!discoveryPatient) {
+    abdmWarn("abdm.m2.user_link.discover_missing_patient", {
+      transactionId: input.transactionId,
+      requestId: input.inboundRequestId,
+    });
+  }
 
   let session = await deps.sessions.findUserLinkByTransactionId({
     iqTenantId: input.iqTenantId,
@@ -49,30 +128,18 @@ export async function handleDiscoverCallback(
     });
   }
 
-  let patient = abhaAddress
-    ? await deps.empi.findPatientByAbhaAddress({
-        iqTenantId: input.iqTenantId,
-        abhaAddress,
-      })
-    : null;
-
-  if (!patient && input.patient[0]?.verifiedIdentifiers?.length) {
-    const match = await deps.empi.findPatientByDemographics({
-      iqTenantId: input.iqTenantId,
-      identifiers: input.patient[0].verifiedIdentifiers.map((i) => ({
-        type: i.type,
-        value: i.value,
-      })),
-    });
-    if (match) {
-      patient = {
-        patientId: match.patientId,
-        demographics: {},
-      };
-    }
-  }
+  const patient = await resolveDiscoverPatient(deps, {
+    iqTenantId: input.iqTenantId,
+    discoveryPatient,
+  });
 
   if (!patient) {
+    abdmWarn("abdm.m2.user_link.discover_no_empi_match", {
+      transactionId: input.transactionId,
+      requestId: input.inboundRequestId,
+      abhaAddress,
+      hasDemographics: Boolean(buildEmpiDemographicsFromDiscovery(discoveryPatient)),
+    });
     const body: OnDiscoverRequest = {
       transactionId: input.transactionId,
       error: {
@@ -100,7 +167,16 @@ export async function handleDiscoverCallback(
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
     state: "PATIENT_MATCHED",
-    contextMerge: { patientId: patient.patientId, abhaAddress },
+    contextMerge: {
+      patientId: patient.patientId,
+      abhaAddress,
+      phoneNo:
+        resolveDiscoveryMobile(discoveryPatient) ??
+        (await deps.empi.findM2PatientProfile({
+          iqTenantId: input.iqTenantId,
+          patientId: patient.patientId,
+        }))?.phoneNo,
+    },
   });
 
   const contexts = await listUnlinkedCareContexts(deps, {
@@ -109,28 +185,31 @@ export async function handleDiscoverCallback(
     abhaAddress,
   });
 
-  const patientPayload =
-    contexts.length > 0
-      ? [
-          {
-            referenceNumber: patient.patientId,
-            display: abhaAddress ?? patient.patientId,
-            careContexts: contexts.map((c) => ({
-              referenceNumber: c.referenceNumber,
-              display: c.display,
-            })),
-            hiType: resolveUnifiedLinkHiType(contexts),
-            count: contexts.length,
-          },
-        ]
-      : [];
+  const display = abhaAddress ?? patient.patientId;
+  const byHiType = new Map<string, typeof contexts>();
+  for (const ctx of contexts) {
+    const hiType = toLinkCareContextHiType(ctx.hiType ?? "OPCONSULTATION");
+    const group = byHiType.get(hiType);
+    if (group) group.push(ctx);
+    else byHiType.set(hiType, [ctx]);
+  }
+
+  const patientPayload = Array.from(byHiType.entries()).map(([hiType, items]) => ({
+    referenceNumber: patient.patientId,
+    display,
+    careContexts: items.map((c) => ({
+      referenceNumber: c.referenceNumber,
+      display: c.display,
+    })),
+    hiType,
+    count: items.length,
+  }));
 
   const body: OnDiscoverRequest = {
     transactionId: input.transactionId,
     ...(patientPayload.length > 0 ? { patient: patientPayload } : {}),
     response: { requestId: input.inboundRequestId },
   };
-
   await deps.gateway.post({
     path: M2_GATEWAY_PATHS.onDiscover,
     body,
@@ -138,7 +217,6 @@ export async function handleDiscoverCallback(
     requestId: input.inboundRequestId,
     xHipId: deps.xHipId,
   });
-
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
     sessionId: session.sessionId,
@@ -147,6 +225,7 @@ export async function handleDiscoverCallback(
       careContexts: contexts.map((c) => ({
         referenceNumber: c.referenceNumber,
         display: c.display,
+        hiType: c.hiType,
       })),
     },
   });

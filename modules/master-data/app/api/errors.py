@@ -14,6 +14,7 @@ from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
 from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
+from app.repositories.inventory.integrity import DuplicateInventoryCatalogKeyError
 from app.repositories.visitpad.conversion import (
     DuplicateVisitpadUnitConversionKeyError,
 )
@@ -36,6 +37,7 @@ from app.services.visitpad.units import (
     VisitpadUnitBlockedByActiveConversionsError,
 )
 from app.services.visitpad.vitals import InvalidVitalRangeError
+from app.services.inventory._errors import InvalidInventoryCatalogError
 
 
 class ResourceNotFoundError(Exception):
@@ -267,6 +269,26 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=409,
             content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(DuplicateInventoryCatalogKeyError)
+    async def _duplicate_inventory_catalog(
+        _request: Request,
+        exc: DuplicateInventoryCatalogKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(InvalidInventoryCatalogError)
+    async def _invalid_inventory_catalog(
+        _request: Request,
+        exc: InvalidInventoryCatalogError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
         )
 
     @app.exception_handler(InvalidVitalRangeError)

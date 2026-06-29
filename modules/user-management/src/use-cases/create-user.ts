@@ -31,6 +31,7 @@ import type { ModuleEntitlementRequestContext } from "../ports/module-integratio
 import type { UserProvisioningRepository } from "../ports/user-provisioning-repository.js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-zA-Z0-9_-]+$/;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -89,6 +90,20 @@ export async function createUser(
   }
   if (input.password.length < 8) {
     throw new ValidationError("password_too_short");
+  }
+
+  if (typeof input.username !== "string") {
+    throw new ValidationError("username_invalid_type");
+  }
+  const username = input.username.trim();
+  if (username === "") {
+    throw new ValidationError("username_required");
+  }
+  if (username.length < 3 || username.length > 64) {
+    throw new ValidationError("username_invalid_length");
+  }
+  if (!USERNAME_RE.test(username)) {
+    throw new ValidationError("username_invalid_format");
   }
 
   if (
@@ -198,11 +213,12 @@ export async function createUser(
     fullName: input.full_name,
     email,
     password: input.password,
+    username,
   });
 
   const linkedUser = await deps.userProvisioningRepository.provisionUserWithAccess(ctx.tenantId, {
     userId,
-    user: { ...input, email },
+    user: { ...input, email, username },
     authUserId: authAccount.authUserId,
     manualCapabilityIds: capabilityIds,
     roleTemplateGrants,

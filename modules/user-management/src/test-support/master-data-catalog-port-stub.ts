@@ -15,6 +15,7 @@ const PERMISSIVE_PERMISSION_SLUGS = [
   "visit.read",
   "visit.create",
   "users.read",
+  "patient.read",
 ] as const;
 
 export function permissiveModulePermissionSourcePairs(

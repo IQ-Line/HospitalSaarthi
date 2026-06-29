@@ -53,6 +53,26 @@ export interface NewPatientIntakeInput {
   intake_completion?: IntakeCompletion;
 }
 
+export interface OpdRegistrationBillingInput {
+  registration_fee?: {
+    item_code?: string | null;
+    line_discount_percentage?: number;
+  } | null;
+  consultation_fee?: {
+    item_code?: string | null;
+    line_discount_percentage?: number;
+  } | null;
+  department_name?: string | null;
+  invoice_discount?: number;
+  amount_paid?: number;
+  payment_method?: "CASH" | "CARD" | "UPI" | "CHEQUE" | "BANK_TRANSFER" | null;
+  payment_notes?: string | null;
+}
+
+export interface OpdRegistrationCompleteInput extends NewPatientIntakeInput {
+  billing?: OpdRegistrationBillingInput;
+}
+
 export interface ExistingPatientVisitInput {
   patient_id: string;
   /** Desk-captured ABHA fields (EMPI may not have address on patient row yet). */

@@ -162,11 +162,20 @@ const noopMasterDataModuleCatalogPort = {
   async resolveModuleSlugsByIds(): Promise<Map<string, string>> {
     return new Map();
   },
+  async resolveModuleKindBySlugs(): Promise<Map<string, string>> {
+    return new Map();
+  },
   async expandEnabledModuleSlugs(moduleSlugs: readonly string[]): Promise<readonly string[]> {
     return moduleSlugs;
   },
   async listActiveModulePermissionSourcePairs(): Promise<ReadonlySet<string>> {
     return new Set();
+  },
+};
+
+const noopDepartmentCatalogPort = {
+  async resolveDepartmentName(): Promise<string | null> {
+    return null;
   },
 };
 
@@ -268,8 +277,13 @@ async function main(): Promise<void> {
             return { authUserId: input.platformUserId };
           },
         },
+        authPasswordAdmin: {
+          async setUserPassword() {},
+          async revokeUserSessions() {},
+        },
         tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
         masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
+        departmentCatalogPort: noopDepartmentCatalogPort,
       });
     },
     { prefix: "/api/user-management" },

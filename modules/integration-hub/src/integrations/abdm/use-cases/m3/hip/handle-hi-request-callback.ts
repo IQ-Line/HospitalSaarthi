@@ -44,10 +44,35 @@ export async function handleHipHiRequestCallback(
       input.iqTenantId,
       parsed.consentId,
     ));
+  // CM hiRequest.transactionId is authoritative (ABDM-1017 if push uses a different id).
   const transactionId =
-    activeTransfer?.cmTransactionId ??
     parsed?.transactionId ??
+    activeTransfer?.cmTransactionId ??
     input.inboundRequestId;
+  if (
+    parsed?.transactionId &&
+    activeTransfer?.cmTransactionId &&
+    activeTransfer.cmTransactionId !== parsed.transactionId
+  ) {
+    abdmWarn("abdm.m3.hip_hi.transaction_id_mismatch", {
+      consentId: parsed.consentId,
+      inboundTransactionId: parsed.transactionId,
+      activeTransferTransactionId: activeTransfer.cmTransactionId,
+      usingTransactionId: transactionId,
+    });
+  }
+  if (
+    input.transactionId &&
+    input.hiRequest?.transactionId &&
+    input.transactionId !== input.hiRequest.transactionId
+  ) {
+    abdmWarn("abdm.m3.hip_hi.inbound_transaction_id_divergence", {
+      consentId: parsed?.consentId,
+      bodyTransactionId: input.transactionId,
+      hiRequestTransactionId: input.hiRequest.transactionId,
+      resolvedTransactionId: transactionId,
+    });
+  }
 
   const ackBody: HipHealthInformationAckRequest = {
     hiRequest: {
@@ -65,6 +90,7 @@ export async function handleHipHiRequestCallback(
         }),
   };
 
+  let ackSucceeded = skipOutboundGatewayInDev();
   if (!skipOutboundGatewayInDev()) {
     try {
       await deps.gateway.post({
@@ -74,6 +100,7 @@ export async function handleHipHiRequestCallback(
         requestId: randomUUID(),
         xHipId: deps.xHipId,
       });
+      ackSucceeded = true;
     } catch (e) {
       const gateway =
         e instanceof AbdmGatewayError
@@ -90,8 +117,22 @@ export async function handleHipHiRequestCallback(
         requestId: input.inboundRequestId,
         ...gateway,
       });
-      // CM already delivered the inbound HI request — still encrypt/push; do not fail the callback.
     }
+  }
+
+  if (!ackSucceeded) {
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: M3Hip.FAILED,
+      contextMerge: {
+        error: {
+          code: "HI_ACK_FAILED",
+          message: "HIP on-request ack to CM failed — push skipped (ABDM-1017)",
+        },
+      },
+    });
+    return;
   }
 
   await deps.sessions.patch({
@@ -142,6 +183,7 @@ export async function handleHipHiRequestCallback(
             session: refreshed,
             parsed,
             patientId,
+            transactionId,
           },
           deps,
         ),
@@ -152,7 +194,7 @@ export async function handleHipHiRequestCallback(
     abdmWarn("abdm.m3.hip_hi.push_failed", {
       sessionId: session.sessionId,
       consentId: parsed.consentId,
-      transactionId: parsed.transactionId,
+      transactionId,
       requestId: input.inboundRequestId,
       message: failureMessage,
     });
