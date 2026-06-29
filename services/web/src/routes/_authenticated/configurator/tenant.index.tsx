@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Eye, GitBranch, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { DataTable } from '@/components/data-table';
 import {
   useOrganization,
@@ -23,6 +24,7 @@ import {
 import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
 import { CreateTenantWizard } from '@/features/configurator/components/create-tenant-wizard';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
+import { BridgeFacilityLinkagePanel } from '@/features/configurator/components/bridge-facility-linkage-panel';
 import { ConfiguratorPageShell } from '@/features/configurator/components/configurator-page-shell';
 import { useScopedOrganizationId } from '@/features/configurator/hooks/use-scoped-organization-id';
 import {
@@ -40,7 +42,17 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { rowMatchesSearch } from '@/features/master-data/table-search';
 import { useCatalogModuleAction } from '@/hooks/use-catalog-module-action';
 
+const TENANT_LIST_TABS = ['tenants', 'bridge-linkage'] as const;
+type TenantListTab = (typeof TENANT_LIST_TABS)[number];
+
+function parseTenantListTab(value: unknown): TenantListTab {
+  return value === 'bridge-linkage' ? 'bridge-linkage' : 'tenants';
+}
+
 export const Route = createFileRoute('/_authenticated/configurator/tenant/')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    tab: parseTenantListTab(search.tab),
+  }),
   beforeLoad: requireCatalogRouteAccess('/configurator/tenant', {
     catalogModuleSlug: 'tenant-modules',
     catalogProductSlugs: ['configurator'],
@@ -78,7 +90,8 @@ function statusBadgeVariant(
 }
 
 function ConfiguratorTenantListPage() {
-  const navigate = useNavigate();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { tab: tabFromSearch } = Route.useSearch();
   const [tableSearch, setTableSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -93,8 +106,24 @@ function ConfiguratorTenantListPage() {
     authRoles,
     accessToken,
   });
+  const activeTab: TenantListTab =
+    tabFromSearch === 'bridge-linkage' && isPlatformSuperAdmin ? 'bridge-linkage' : 'tenants';
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
   const canProvisionTenants = canCreateTenant && !isTenantAdmin;
+
+  useEffect(() => {
+    if (tabFromSearch === 'bridge-linkage' && !isPlatformSuperAdmin) {
+      void navigate({ search: { tab: undefined }, replace: true });
+    }
+  }, [tabFromSearch, isPlatformSuperAdmin, navigate]);
+
+  const setTab = (value: string) => {
+    const nextTab = parseTenantListTab(value);
+    void navigate({
+      search: { tab: nextTab === 'tenants' ? undefined : nextTab },
+      replace: true,
+    });
+  };
 
   const { organizationId, organizationName, isResolving } = useScopedOrganizationId();
   const { data: scopedOrg } = useOrganization(organizationId ?? '', {
@@ -331,70 +360,104 @@ function ConfiguratorTenantListPage() {
     );
   }
 
-  const scopeTitle = isPlatformSuperAdmin
-    ? 'All Tenants'
-    : organizationName
-      ? `Tenants · ${organizationName}`
-      : 'Tenants';
+  const scopeTitle =
+    activeTab === 'bridge-linkage'
+      ? 'Bridge linkage'
+      : isPlatformSuperAdmin
+        ? 'All Tenants'
+        : organizationName
+          ? `Tenants · ${organizationName}`
+          : 'Tenants';
+
+  const scopeDescription =
+    activeTab === 'bridge-linkage'
+      ? 'Bridge ID linking access to health facilities registered on the NHA gateway.'
+      : isPlatformSuperAdmin
+        ? 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.'
+        : isTenantAdmin
+          ? 'Your tenant and its child branches only.'
+          : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.';
 
   return (
     <ConfiguratorPageShell
       section="tenant"
       title={scopeTitle}
-      description={
-        isPlatformSuperAdmin
-          ? 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.'
-          : isTenantAdmin
-            ? 'Your tenant and its child branches only.'
-            : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.'
-      }
+      description={scopeDescription}
       actions={
-        <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter}
-            onValueChange={(value) => setStatusFilter(value)}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="provisioning">Provisioning</SelectItem>
-              <SelectItem value="suspended">Suspended</SelectItem>
-              <SelectItem value="decommissioned">Decommissioned</SelectItem>
-            </SelectContent>
-          </Select>
-          {canProvisionTenants ? (
-            <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
-          ) : null}
-        </div>
+        activeTab === 'tenants' ? (
+          <div className="flex items-center gap-2">
+            <Select
+              value={statusFilter}
+              onValueChange={(value) => setStatusFilter(value)}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="provisioning">Provisioning</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+                <SelectItem value="decommissioned">Decommissioned</SelectItem>
+              </SelectContent>
+            </Select>
+            {canProvisionTenants ? (
+              <Button onClick={() => setIsCreateOpen(true)}>+ Create Tenant</Button>
+            ) : null}
+          </div>
+        ) : null
       }
     >
-      <div className="rounded-lg border">
-        <div className="p-3 border-b">
-          <MasterDataTableToolbar
-            value={tableSearch}
-            onChange={setTableSearch}
-            placeholder="Search name, slug, type, status, contact…"
-          />
+      <Tabs value={activeTab} onValueChange={setTab} className="gap-4">
+        <div className="w-full overflow-x-auto pb-1">
+          <TabsList
+            variant="line"
+            className="inline-flex h-auto min-w-max flex-nowrap justify-start gap-1 bg-transparent p-0"
+          >
+            <TabsTrigger value="tenants" className="shrink-0 text-xs sm:text-sm">
+              Tenants
+            </TabsTrigger>
+            {isPlatformSuperAdmin ? (
+              <TabsTrigger value="bridge-linkage" className="shrink-0 text-xs sm:text-sm">
+                Bridge linkage
+              </TabsTrigger>
+            ) : null}
+          </TabsList>
         </div>
-        <DataTable
-          columns={columns}
-          data={filteredTenants}
-          isLoading={isLoading || isResolving}
-          emptyTitle={
-            isPlatformSuperAdmin ? 'No tenants in this organisation' : 'No branches under your tenant'
-          }
-          emptyDescription={
-            isPlatformSuperAdmin
-              ? 'Create a tenant to provision a new environment under this organisation.'
-              : isTenantAdmin
-                ? 'No branches are configured under your tenant yet.'
-                : 'Add a branch from the actions menu on your tenant row.'
-          }
-        />
-      </div>
+
+        <TabsContent value="tenants" className="mt-0">
+          <div className="rounded-lg border">
+            <div className="p-3 border-b">
+              <MasterDataTableToolbar
+                value={tableSearch}
+                onChange={setTableSearch}
+                placeholder="Search name, slug, type, status, contact…"
+              />
+            </div>
+            <DataTable
+              columns={columns}
+              data={filteredTenants}
+              isLoading={isLoading || isResolving}
+              emptyTitle={
+                isPlatformSuperAdmin ? 'No tenants in this organisation' : 'No branches under your tenant'
+              }
+              emptyDescription={
+                isPlatformSuperAdmin
+                  ? 'Create a tenant to provision a new environment under this organisation.'
+                  : isTenantAdmin
+                    ? 'No branches are configured under your tenant yet.'
+                    : 'Add a branch from the actions menu on your tenant row.'
+              }
+            />
+          </div>
+        </TabsContent>
+
+        {isPlatformSuperAdmin ? (
+          <TabsContent value="bridge-linkage" className="mt-0">
+            <BridgeFacilityLinkagePanel />
+          </TabsContent>
+        ) : null}
+      </Tabs>
 
       <CreateTenantWizard
         open={isCreateOpen}
