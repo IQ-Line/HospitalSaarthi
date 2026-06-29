@@ -11,6 +11,7 @@ import {
   PROFILE_CLIENT_SECRET_REF,
 } from "./per-tenant-secrets.js";
 import type { EventBus } from "@hims/ts-sdk-events";
+import type { DbInstance } from "@hims/ts-sdk-db";
 import type {
   AbdmSessionsPort,
   ConsentArtefactsPort,
@@ -41,6 +42,7 @@ export interface IntegrationHubDeploymentConfig {
 export interface IntegrationHubSharedInfra {
   profiles: IntegrationProfileRepo;
   deployment: IntegrationHubDeploymentConfig;
+  db?: DbInstance;
   sessions: AbdmSessionsPort;
   inboundMessages: InboundMessagesPort;
   linkTokens: LinkTokensPort;

@@ -31,12 +31,14 @@ async function resolveIntegrationContext(
 }
 
 /**
- * Loads active ABDM profile and builds per-tenant deps after `tenantPlugin`.
- * Register on platform `/api/abdm/v1` scope only (not `/api/v3` callbacks or M0 discovery).
- *
- * Not wrapped in fastify-plugin — hooks stay encapsulated in the child scope that registers this.
+ * Registers platform routes with the integration-context `preHandler` on the **same**
+ * Fastify scope. Hook + routes must share one encapsulation context — registering the
+ * resolver and routes as sibling `register()` calls leaves routes outside the hook.
  */
-export function integrationContextResolver(sharedInfra: IntegrationHubSharedInfra) {
+export function registerPlatformRoutesWithIntegrationContext(
+  sharedInfra: IntegrationHubSharedInfra,
+  registerRoutes: (app: FastifyInstance) => Promise<void>,
+): (app: FastifyInstance) => Promise<void> {
   return async (app: FastifyInstance): Promise<void> => {
     app.decorate("integrationHubSharedInfra", sharedInfra);
     app.addHook("preHandler", async (request) => {
@@ -46,7 +48,15 @@ export function integrationContextResolver(sharedInfra: IntegrationHubSharedInfr
       }
       await resolveIntegrationContext(request, sharedInfra);
     });
+    await registerRoutes(app);
   };
+}
+
+/**
+ * @deprecated Use {@link registerPlatformRoutesWithIntegrationContext} and register routes in its callback.
+ */
+export function integrationContextResolver(sharedInfra: IntegrationHubSharedInfra) {
+  return registerPlatformRoutesWithIntegrationContext(sharedInfra, async () => {});
 }
 
 export { IntegrationProfileNotFoundError };
