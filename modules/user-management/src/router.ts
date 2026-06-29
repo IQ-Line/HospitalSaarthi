@@ -16,10 +16,12 @@ import type {
   TenantEntitlementResolverPort,
   TenantModuleEntitlementPort,
   UserAccessRepository,
+  UserActivationStatusReaderPort,
   UserRepository,
 } from "./ports/index.js";
 import type { CachedTenantEntitlementResolver } from "./services/cached-tenant-entitlement-resolver.js";
 import { registerInternalEntitlementCacheHandlers } from "./rest-handlers/internal-entitlement-cache-handlers.js";
+import { registerInternalUserStatusHandlers } from "./rest-handlers/internal-user-status-handlers.js";
 import { TenantMismatchError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
 import {
@@ -78,8 +80,10 @@ export interface UserManagementPluginOptions {
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   runtimeEntitlementIntersection?: boolean;
-  /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
+  /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). Also gates the BFF ban-cutoff route. */
   internalEntitlementCacheApiKey?: string;
+  /** Backs the internal `GET /internal/users/:userId/active` route the BFF edge calls for the D13 ban/revocation cutoff. */
+  userActivationStatusReader?: UserActivationStatusReaderPort;
   accessTokenIssuer: AccessTokenIssuerPort;
   authSessionRevoker?: AuthSessionRevokerPort;
   /** better-auth credential reset for admin recovery Flow A; pairs with authSessionRevoker. */
@@ -108,6 +112,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
+    userActivationStatusReader,
     accessTokenIssuer,
   } = options;
 
@@ -252,6 +257,13 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       tenantModuleEntitlementPort: tenantModuleEntitlementPort as TenantModuleEntitlementPort & {
         invalidateTenantModuleCache?(tenantId?: string): void;
       },
+      internalApiKey: internalEntitlementCacheApiKey,
+    });
+  }
+
+  if (userActivationStatusReader !== undefined) {
+    registerInternalUserStatusHandlers(fastify, {
+      userActivationStatusReader,
       internalApiKey: internalEntitlementCacheApiKey,
     });
   }

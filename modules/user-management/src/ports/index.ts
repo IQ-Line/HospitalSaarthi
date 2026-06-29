@@ -43,6 +43,9 @@ export type {
 
 export type { UserReadListResourceAbac };
 
+export type { UserActivationFacts } from "../domain/user-activation.js";
+export type { UserActivationStatusReaderPort } from "./user-activation-status-reader.js";
+
 export type ListUsersOptions = {
   /** When set, repository applies SQL/in-memory resource ABAC aligned with `user.read` (department + clearance). */
   userReadResourceAbac?: UserReadListResourceAbac;

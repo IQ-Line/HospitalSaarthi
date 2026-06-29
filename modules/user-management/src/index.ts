@@ -130,6 +130,7 @@ export { DrizzleUserAccessRepository } from "./data-access/user-access-repositor
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
+export { DrizzleUserActivationStatusReader } from "./data-access/user-activation-status-reader.js";
 export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
 export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";

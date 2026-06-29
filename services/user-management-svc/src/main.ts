@@ -30,6 +30,7 @@ import {
   DrizzleUserAccessRepository,
   DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
+  DrizzleUserActivationStatusReader,
   createRuntimeEntitlementPrincipalWiring,
   formatRuntimeAuthorizationStartupFailure,
   registerTenantEntitlementCacheEventConsumers,
@@ -47,6 +48,7 @@ import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
+import { USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES } from "./auth/identity-skip-prefixes.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
 import { BetterAuthPasswordResetter } from "./auth/reset-auth-password.js";
 
@@ -142,6 +144,7 @@ async function createApp(): Promise<FastifyInstance> {
   const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
 
   const userRepository = new DrizzleUserRepository(pgDb);
+  const userActivationStatusReader = new DrizzleUserActivationStatusReader(pgDb);
   const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
@@ -273,7 +276,7 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: ["/api/auth", "/docs", "/api/user-management/auth/api-key"],
+    skipPathPrefixes: [...USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES],
   });
 
   await assertCerbosReachable(cerbosUrl);
@@ -312,6 +315,7 @@ async function createApp(): Promise<FastifyInstance> {
     masterDataModuleCatalogPort,
     tenantEntitlementResolver,
     internalEntitlementCacheApiKey: umInternalApiKey,
+    userActivationStatusReader,
     accessTokenIssuer,
     authSessionRevoker,
     authPasswordResetter,
