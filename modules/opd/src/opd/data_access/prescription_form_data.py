@@ -4,16 +4,12 @@ import json
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
 
-from sqlalchemy import exists, or_, select, text
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
     from opd.models.prescription import PrescriptionModel
-
-_FORM_DATA_ATTR = object()
 
 IMMUNIZATION_META_PREFIX = "__hims_immunization_v1:"
 
@@ -64,56 +60,6 @@ def _text(value: Any) -> str:
     if value is None:
         return ""
     return str(value).strip()
-
-
-def _list_has_content(items: Any) -> bool:
-    return isinstance(items, list) and len(items) > 0
-
-
-def _vitals_has_content(vitals: Any) -> bool:
-    if not isinstance(vitals, dict):
-        return False
-    return any(_text(value) for value in vitals.values())
-
-
-def _stored_form_data_has_content(stored: dict[str, Any]) -> bool:
-    if not stored:
-        return False
-    if _list_has_content(stored.get("chiefComplaints")) or _list_has_content(
-        stored.get("chief_complaints")
-    ):
-        return True
-    if _list_has_content(stored.get("immunizations")):
-        return True
-    if _list_has_content(stored.get("medicines")):
-        return True
-    if _vitals_has_content(stored.get("vitals")):
-        return True
-    return False
-
-
-def _prescription_form_data_column(
-    session: Session,
-    prescription_id: UUID,
-    tenant_id: UUID,
-) -> dict[str, Any]:
-    """Read JSONB form_data for normalized PrescriptionModel rows (same table, legacy column)."""
-    try:
-        table = _qualified_table(session, "prescriptions")
-        raw = session.execute(
-            text(
-                f"""
-                SELECT form_data
-                FROM {table}
-                WHERE id = :pid AND iq_tenant_id = :tenant
-                LIMIT 1
-                """
-            ),
-            {"pid": str(prescription_id), "tenant": str(tenant_id)},
-        ).scalar_one_or_none()
-    except (OperationalError, ProgrammingError):
-        return {}
-    return raw if isinstance(raw, dict) else {}
 
 
 def _prescription_model_has_normalized_clinical_content(
@@ -171,25 +117,15 @@ def prescription_form_data_has_content(
     *,
     session: Session | None = None,
 ) -> bool:
-    """True when a draft prescription carries nurse/doctor clinical input (not an empty shell)."""
-    if rx is None:
-        return False
+    """True when a draft prescription carries nurse/doctor clinical input (not an empty shell).
 
-    form_data = getattr(rx, "form_data", _FORM_DATA_ATTR)
-    if form_data is not _FORM_DATA_ATTR:
-        return _stored_form_data_has_content(form_data or {})
-
+    Content lives entirely in the normalized child tables — the legacy ``form_data`` JSONB
+    column is gone (dropped in alembic ``0006``).
+    """
     from opd.models.prescription import PrescriptionModel
 
-    if not isinstance(rx, PrescriptionModel):
+    if not isinstance(rx, PrescriptionModel) or session is None:
         return False
-    if session is None:
-        return False
-
-    if _stored_form_data_has_content(
-        _prescription_form_data_column(session, rx.id, rx.tenant_id)
-    ):
-        return True
     return _prescription_model_has_normalized_clinical_content(session, rx)
 
 
@@ -242,13 +178,6 @@ def _vaccine_db_to_immunization_row(row: dict[str, Any]) -> dict[str, Any]:
         "doseNumber": _text(meta.get("doseNumber")),
         "notes": _text(meta.get("notes")),
     }
-
-
-def _qualified_table(session: Session, table: str) -> str:
-    bind = session.get_bind()
-    if bind is not None and bind.dialect.name == "sqlite":
-        return table
-    return f"opd.{table}"
 
 
 def build_form_data_from_prescription_model(rx: PrescriptionModel) -> dict[str, Any]:

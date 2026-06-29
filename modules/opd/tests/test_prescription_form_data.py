@@ -3,7 +3,6 @@ from __future__ import annotations
 from opd.data_access.prescription_form_data import (
     _legacy_columns_to_form_vitals,
     _vaccine_db_to_immunization_row,
-    _vitals_has_content,
 )
 
 
@@ -21,12 +20,6 @@ def test_legacy_columns_to_form_vitals_maps_create_rx_codes() -> None:
         "diastolic_bp": "80",
         "pulse_rate": "72",
     }
-
-
-def test_vitals_has_content() -> None:
-    assert not _vitals_has_content({})
-    assert not _vitals_has_content({"systolic_bp": ""})
-    assert _vitals_has_content({"systolic_bp": "120"})
 
 
 def test_effective_form_data_loads_vaccines_required_as_immunizations() -> None:
