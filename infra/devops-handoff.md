@@ -2,7 +2,7 @@
 
 **Audience:** DevOps engineers wiring up Jenkins → ACR → AKS for the HIMS platform.
 **Assumes:** Familiarity with Jenkins, Docker, ACR, AKS, `kubectl`. **No prior Nx or monorepo experience required.**
-**Last updated:** 2026-05-20.
+**Last updated:** 2026-06-29.
 
 This document is a tutorial. Read sections 1–5 end-to-end before writing any pipeline code. Then keep sections 6–11 open as reference while you build.
 
@@ -16,31 +16,36 @@ The HIMS platform lives in a **single git repo** ("monorepo") under `/`. The int
 - **`modules/`** — shared business-logic libraries (e.g. `modules/billing`, `modules/user-management`). These are **not deployed standalone**. They are imported by services and bundled into the service's runtime artifact at build time. One exception: `modules/master-data` is a Python FastAPI app that **does** ship as its own image (the only Python service in the platform).
 - **`packages/`** — cross-cutting TypeScript SDKs (`@hims/ts-sdk-db`, `@hims/ts-sdk-openapi`, `@hims/ts-sdk-events`, etc.). Like `modules/`, these are bundled into services, not deployed.
 - **`infra/`** — Dockerfiles (`infra/docker/`), Cerbos policies (`infra/cerbos/`), and the local-dev compose file. This handoff doc lives here too.
-- **`tools/`** — small scripts used by CI / dev tooling. The one you'll care about is `tools/dockerfile-for-svc.sh`.
+- **`tools/`** — small scripts used by CI / dev tooling. Pipeline helpers live under `tools/ci/`; `tools/dockerfile-for-svc.sh` maps Nx project names to Dockerfiles.
 
 When developers push a change, they might touch a service directly OR they might touch a shared library that several services use. The deployment pipeline needs to figure out which **deployable services** are actually affected so it can rebuild only those. That's what **Nx** does for us — see §3.
 
-The total set of images Jenkins ever needs to build is 11. They're enumerated in §2.
+The total set of images Jenkins ever needs to build is **14**. They're enumerated in §2.
 
 ---
 
 ## 2. The deployable services
 
-There are exactly **9** images the pipeline ever has to produce:
+There are exactly **14** images the pipeline ever has to produce. Set `REGISTRY` to match your cluster manifests (e.g. `acriqline.azurecr.io` in `infra/k8s/base/hims-platform.yaml`).
 
-| Service (Nx project name) | Image name in ACR | Dockerfile | Build context | What it is |
+| Service (Nx project name) | Image name in ACR | Dockerfile | Build cache ref | What it is |
 |---|---|---|---|---|
-| `integration-hub-svc` | `hims.azurecr.io/integration-hub-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` (repo root) | TS Fastify; multi-tenant integration hub (ABDM) |
-| `billing-svc` | `hims.azurecr.io/billing-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `configurator-svc` | `hims.azurecr.io/configurator-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `empi-svc` | `hims.azurecr.io/empi-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `registration-svc` | `hims.azurecr.io/registration-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `inventory-svc` | `hims.azurecr.io/inventory-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `user-management-svc` | `hims.azurecr.io/user-management-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
-| `bff` | `hims.azurecr.io/bff:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify; browser-facing proxy |
-| `web` | `hims.azurecr.io/web:<sha>` | `infra/docker/web.Dockerfile` | `.` | React SPA built by Vite, served by Nginx |
-| `master-data` *(also called `master-data-svc`)* | `hims.azurecr.io/master-data:<sha>` | `infra/docker/master-data.Dockerfile` | `.` | Python FastAPI / uvicorn |
-| `cerbos-policies` *(image name: `cerbos`)* | `hims.azurecr.io/cerbos:<sha>` | `infra/docker/cerbos.Dockerfile` | `.` | Cerbos PDP with HIMS policies baked in |
+| `integration-hub-svc` | `<registry>/integration-hub-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify; multi-tenant integration hub (ABDM) |
+| `billing-svc` | `<registry>/billing-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `configurator-svc` | `<registry>/configurator-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `empi-svc` | `<registry>/empi-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `registration-svc` | `<registry>/registration-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `record-foundation-svc` | `<registry>/record-foundation-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `inventory-svc` | `<registry>/inventory-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `pharmacy-svc` | `<registry>/pharmacy-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `user-management-svc` | `<registry>/user-management-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify |
+| `bff` | `<registry>/bff:<sha>` | `infra/docker/node-svc.Dockerfile` | `buildcache/node-svc` | TS Fastify; browser-facing proxy |
+| `web` | `<registry>/web:<sha>` | `infra/docker/web.Dockerfile` | `buildcache/web` | React SPA built by Vite, served by Nginx |
+| `master-data` *(also `master-data-svc`)* | `<registry>/master-data:<sha>` | `infra/docker/master-data.Dockerfile` | `buildcache/master-data` | Python FastAPI / uvicorn |
+| `opd-svc` | `<registry>/opd-svc:<sha>` | `services/opd-svc/Dockerfile` | `buildcache/opd-svc` | Python FastAPI OPD wrapper |
+| `cerbos-policies` *(image name: `cerbos`)* | `<registry>/cerbos:<sha>` | `infra/docker/cerbos.Dockerfile` | `buildcache/cerbos` | Cerbos PDP with HIMS policies baked in |
+
+All images use **repo root** as build context. Build cache refs are pushed to `$REGISTRY/buildcache/<suffix>` by `tools/ci/build-images.sh` (see §6).
 
 ### One callout you must not miss
 
@@ -95,7 +100,7 @@ Each project declares `projectType` (`application` for deployables, `library` fo
 npx nx show projects --type=app
 ```
 
-Output (sorted): `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `integration-hub-svc`, `master-data`, `registration-svc`, `user-management-svc`, `web` — exactly 10 entries (`integration-hub-svc` replaces Phase 0 `abdm-adapter-svc`). `master-data` (the Python service) is an Nx project with `projectType: application` and the `deploy:aks` tag, so it participates in affected detection like any other deployable: change a file under `modules/master-data/` and `--affected` returns `["master-data"]`.
+Output (sorted): `bff`, `billing-svc`, `cerbos-policies`, `configurator-svc`, `empi-svc`, `integration-hub-svc`, `inventory-svc`, `master-data`, `opd-svc`, `pharmacy-svc`, `record-foundation-svc`, `registration-svc`, `user-management-svc`, `web` — exactly **14** entries. `master-data` and `opd-svc` are Python apps with `projectType: application`; changes under `modules/master-data/` or `modules/opd/` affect those projects respectively.
 
 ---
 
@@ -115,6 +120,7 @@ Your Jenkinsfile is responsible for:
 The repo guarantees:
 
 - Every Dockerfile in `infra/docker/` accepts the build args documented in §2 and produces a working image when invoked from the correct build context.
+- `tools/ci/*.sh` scripts implement affected detection, parallel buildx push, and deployment tag management (§6).
 - `tools/dockerfile-for-svc.sh <service>` returns the correct `(dockerfile, context)` pair for every deployable.
 - `nx show projects --affected --type=app` returns the minimal correct rebuild set whenever the base SHA is honest.
 - Every Dockerfile uses `--build-arg SERVICE_NAME=<svc>` for parameterization where applicable; no registry name is hardcoded.
@@ -154,19 +160,42 @@ The pattern is borrowed from `nrwl/nx-set-shas` — the same approach the GitHub
 
 ## 6. A working Jenkinsfile skeleton
 
-Copy-paste this as your starting point, then adapt to your team's declarative-vs-scripted conventions, agent labels, credentials, etc.
+The repo ships CI scripts under `tools/ci/` so Jenkins stays thin — no duplicated bash in the pipeline UI.
 
-The `sh` blocks below use `#!/usr/bin/env bash` and **awk-based parsing** (no process substitution `< <(…)` — that fails in `dash`, which is `/bin/sh` on many Jenkins agents).
+| Script | Purpose |
+|---|---|
+| `tools/ci/determine-affected.sh` | Resolve `BASE`, log diagnostics, write `.ci/affected.env` |
+| `tools/ci/build-images.sh` | Parallel `docker buildx build --push` with ACR registry cache |
+| `tools/ci/build-one-image.sh` | Build/push one service (called by `build-images.sh`) |
+| `tools/ci/move-deployment-tag.sh` | Force-push `last-deployed-<branch>` after successful deploy |
+| `tools/ci/image-name-for-svc.sh` | Nx name → image name (`cerbos-policies` → `cerbos`) |
+| `tools/ci/cache-ref-for-dockerfile.sh` | Dockerfile → `$REGISTRY/buildcache/<suffix>` |
+| `tools/dockerfile-for-svc.sh` | Nx name → Dockerfile + context |
+
+### 6.1 Performance characteristics
+
+- **Parallel builds:** `BUILD_PARALLELISM` (default `4`) builds multiple images concurrently.
+- **Registry cache:** `docker buildx` reads/writes `$REGISTRY/buildcache/<suffix>` so TS services share the `deps` layer from `node-svc.Dockerfile`.
+- **Affected-only:** Typical merges rebuild 1–4 images. If all 14 rebuild, check `last-deployed-<branch>` (see §8).
+
+Copy-paste this as your starting point, then adapt agent labels, credentials, and AKS rollout stages.
 
 ```groovy
 pipeline {
   agent any
 
+  parameters {
+    booleanParam(name: 'FORCE_REBUILD_ALL', defaultValue: false,
+      description: 'Rebuild every deployable app (ignores --affected)')
+  }
+
   environment {
-    REGISTRY     = 'hims.azurecr.io'
-    BRANCH       = "${env.BRANCH_NAME}"     // 'dev', 'master', or 'PR-123'
-    NODE_VERSION = '24'
-    PNPM_VERSION = '10.33.0'
+    REGISTRY            = 'acriqline.azurecr.io'   // must match infra/k8s/base/hims-platform.yaml
+    BRANCH              = "${env.BRANCH_NAME}"
+    NODE_VERSION        = '24'
+    PNPM_VERSION        = '10.33.0'
+    BUILD_PARALLELISM   = '4'
+    DOCKER_BUILDKIT     = '1'
   }
 
   stages {
@@ -192,33 +221,20 @@ pipeline {
       }
     }
 
-    stage('Determine base SHA') {
+    stage('Determine Affected Apps') {
       steps {
+        sh '''#!/usr/bin/env bash
+          set -euo pipefail
+          export BRANCH="${BRANCH}"
+          export CHANGE_ID="${CHANGE_ID:-}"
+          export CHANGE_TARGET="${CHANGE_TARGET:-dev}"
+          export FORCE_REBUILD_ALL="${params.FORCE_REBUILD_ALL}"
+          ./tools/ci/determine-affected.sh
+        '''
         script {
-          if (env.CHANGE_ID) {
-            // PR build — base against the merge target (typically dev)
-            env.BASE = "origin/${env.CHANGE_TARGET}"
-          } else {
-            // Branch build — moving tag, or fall back to HEAD~1
-            env.BASE = sh(
-              returnStdout: true,
-              script: 'git rev-parse "last-deployed-${BRANCH}" 2>/dev/null || echo "HEAD~1"'
-            ).trim()
-          }
-          echo "Affected base: ${env.BASE}"
-        }
-      }
-    }
-
-    stage('Compute affected') {
-      steps {
-        script {
-          def affectedJson = sh(
-            returnStdout: true,
-            script: "npx nx show projects --affected --base=${env.BASE} --head=HEAD --type=app --json"
-          ).trim()
-          env.AFFECTED = affectedJson
-          echo "Affected services: ${env.AFFECTED}"
+          def envFile = readFile('.ci/affected.env')
+          env.BASE = (envFile =~ /BASE=(.*)/)[0][1]
+          env.AFFECTED = (envFile =~ /AFFECTED=(.*)/)[0][1]
         }
       }
     }
@@ -227,56 +243,40 @@ pipeline {
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          az acr login --name hims
+          az acr login --name acriqline
         '''
       }
     }
 
-    stage('Build & push images') {
+    stage('Build And Push Images') {
+      when {
+        expression { return sh(returnStatus: true, script: 'source .ci/affected.env && echo "$AFFECTED" | jq -e "length > 0"') == 0 }
+      }
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          SHA=$(git rev-parse --short HEAD)
-
-          # awk parsing keeps this portable to dash/sh; avoid <(...) process substitution
-          echo "$AFFECTED" | jq -r '.[]' | while read -r svc; do
-            echo "=== building $svc ==="
-
-            # Helper prints "<dockerfile> <context>" — one whitespace-separated line
-            mapping=$(./tools/dockerfile-for-svc.sh "$svc")
-            DOCKERFILE=$(echo "$mapping" | awk '{print $1}')
-            CONTEXT=$(echo "$mapping"   | awk '{print $2}')
-
-            # Nx project name 'cerbos-policies' maps to image name 'cerbos'
-            IMAGE_NAME="$svc"
-            if [ "$svc" = "cerbos-policies" ]; then IMAGE_NAME="cerbos"; fi
-
-            DOCKER_BUILDKIT=1 docker build \\
-              -f "$DOCKERFILE" \\
-              --build-arg SERVICE_NAME="$svc" \\
-              -t "$REGISTRY/$IMAGE_NAME:$SHA" \\
-              -t "$REGISTRY/$IMAGE_NAME:$BRANCH-latest" \\
-              "$CONTEXT"
-
-            docker push "$REGISTRY/$IMAGE_NAME:$SHA"
-            docker push "$REGISTRY/$IMAGE_NAME:$BRANCH-latest"
-          done
+          source .ci/affected.env
+          export REGISTRY="${REGISTRY}"
+          export BRANCH="${BRANCH}"
+          export SHA="$(git rev-parse --short HEAD)"
+          export BUILD_PARALLELISM="${BUILD_PARALLELISM}"
+          ./tools/ci/build-images.sh
         '''
       }
     }
 
     stage('Move deployment tag') {
       when {
-        anyOf {
-          branch 'dev'
-          branch 'master'
+        allOf {
+          anyOf { branch 'dev'; branch 'master' }
+          expression { return currentBuild.currentResult == null || currentBuild.currentResult == 'SUCCESS' }
         }
       }
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
-          git tag -f "last-deployed-${BRANCH}" HEAD
-          git push -f origin "last-deployed-${BRANCH}"
+          export BRANCH="${BRANCH}"
+          ./tools/ci/move-deployment-tag.sh
         '''
       }
     }
@@ -291,13 +291,11 @@ pipeline {
       steps {
         sh '''#!/usr/bin/env bash
           set -euo pipefail
+          source .ci/affected.env
           SHA=$(git rev-parse --short HEAD)
-          # kubectl / ArgoCD / Helm — your pattern goes here.
-          # The loop pattern: for each affected service, roll its Deployment.
           echo "$AFFECTED" | jq -r '.[]' | while read -r svc; do
-            IMAGE_NAME="$svc"
-            if [ "$svc" = "cerbos-policies" ]; then IMAGE_NAME="cerbos"; fi
-            kubectl -n hims set image "deployment/$IMAGE_NAME" \\
+            IMAGE_NAME=$(./tools/ci/image-name-for-svc.sh "$svc")
+            kubectl -n himsv2 set image "deployment/$IMAGE_NAME" \\
               "$IMAGE_NAME=$REGISTRY/$IMAGE_NAME:$SHA"
           done
         '''
@@ -307,12 +305,33 @@ pipeline {
 }
 ```
 
+### 6.2 Local dry-run
+
+```bash
+# Affected detection (no Docker)
+BRANCH=dev ./tools/ci/determine-affected.sh
+source .ci/affected.env
+echo "$AFFECTED" | jq .
+
+# Single image locally (no ACR push) — tests Dockerfile
+DOCKER_BUILDKIT=1 docker build \
+  -f infra/docker/node-svc.Dockerfile \
+  --build-arg SERVICE_NAME=billing-svc \
+  -t hims-billing-svc:local .
+
+# Full CI build + push (requires az acr login)
+az acr login --name acriqline
+source .ci/affected.env
+export REGISTRY=acriqline.azurecr.io BRANCH=dev SHA=$(git rev-parse --short HEAD)
+./tools/ci/build-images.sh
+```
+
 ### Notes on the skeleton
 
-- The `set -euo pipefail` at the top of every `sh` block is deliberate. Without it, a `jq` failure mid-loop silently continues.
-- `echo "$mapping" | awk '{print $1}'` is the portable equivalent of `read -r DOCKERFILE CONTEXT < <(./tools/dockerfile-for-svc.sh "$svc")` — same result, runs in any POSIX shell.
-- `docker push` of both the SHA tag and the `<branch>-latest` tag is intentional. The SHA tag is the immutable canonical reference manifests target; `<branch>-latest` is for human convenience (e.g. when debugging on a dev cluster).
-- The `Move deployment tag` stage runs **only on dev/master** and **only after** all builds + pushes succeed. PR builds never move the tag.
+- `determine-affected.sh` prints `BASE`, commit count, and warns when `last-deployed-<branch>` is hundreds of commits behind (common cause of 30+ minute full-fleet rebuilds).
+- `build-images.sh` uses `docker buildx` with `--cache-from` / `--cache-to type=registry` — ensure the Jenkins agent can push to `$REGISTRY/buildcache/*`.
+- The `Move deployment tag` stage must run **only after** build + push + rollout succeed. Failed runs leave the tag stale; the next success rebuilds everything changed since the old tag.
+- PR builds never move the tag. Set `CHANGE_ID` in the environment so `determine-affected.sh` bases against `origin/$CHANGE_TARGET`.
 
 ---
 
@@ -483,14 +502,16 @@ A second cause: `--base` and `--head` are the same commit (e.g. you set `BASE=HE
 
 ### `nx show projects --affected` returns ALL services for a tiny change
 
-The `--base=` SHA is too far back. Print it and verify it's a real ancestor of `HEAD`:
+The `--base=` SHA is too far back. Run `./tools/ci/determine-affected.sh` and check **Commits since base**. If it is large (e.g. 100+), the `last-deployed-<branch>` tag did not advance after a prior successful deploy (often because an intermediate build failed).
+
+Fix:
 
 ```bash
-echo "BASE=$BASE"
-git log --oneline "$BASE"..HEAD | head -10
+# After a verified-good deploy on dev:
+BRANCH=dev ./tools/ci/move-deployment-tag.sh
 ```
 
-If only one file changed but `$BASE` is hundreds of commits back, the affected set will include everything that depends on anything that changed in that range — which can be the whole repo. Fix by ensuring the moving tag is actually being force-pushed at the end of successful runs.
+Or use the `FORCE_REBUILD_ALL` pipeline parameter when you intentionally need every image.
 
 Second cause: a change to a file in `nx.json`'s `sharedGlobals` (currently `tsconfig.base.json`) invalidates everything by design. Check `nx.json`'s `namedInputs` if this surprises you.
 
@@ -546,13 +567,11 @@ If empty in your checkout, the policies directory isn't being included in CI (ch
 
 Two options, depending on intent:
 
-**Option A: rebuild everything once, don't change the tag.** Add a pipeline parameter (e.g. `FORCE_REBUILD_ALL=true`), and when set, replace the `Compute affected` stage with:
+**Option A: rebuild everything once, don't change the tag.** Set pipeline parameter `FORCE_REBUILD_ALL=true`, or:
 
 ```bash
-AFFECTED=$(npx nx show projects --type=app --json)
+FORCE_REBUILD_ALL=true BRANCH=dev ./tools/ci/determine-affected.sh
 ```
-
-(No `--affected`, no `--base`.) The build loop and rollout proceed normally.
 
 **Option B: delete the moving tag.** Next pipeline run falls back to `HEAD~1`, which rebuilds whatever the most recent commit touched. This is **not** "rebuild everything" — it's "rebuild whatever the last commit affected". Use Option A if you truly want everything.
 
@@ -613,14 +632,14 @@ Use this when you're working in the monorepo and want to verify the deployment p
 npx nx build billing-svc && node --check services/billing-svc/dist/main.js && echo OK
 
 # project-graph sanity in one assertion
-npx nx show projects --type=app --json | jq 'length == 10 and (index("@hims/tsconfig") | not) and (index("master-data") != null)'
+npx nx show projects --type=app --json | jq 'length == 14 and (index("@hims/tsconfig") | not) and (index("master-data") != null)'
 # expect: true
 ```
 
 ### A.2 Nx project graph + helper mapping
 
 ```bash
-# 10 entries; NO @hims/tsconfig; master-data IS present
+# 14 entries; NO @hims/tsconfig; master-data IS present
 npx nx show projects --type=app --json | jq -r '.[]' | sort
 
 # every project resolves to a real Dockerfile + context

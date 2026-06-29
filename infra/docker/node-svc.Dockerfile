@@ -9,6 +9,9 @@
 #     .
 #
 # Build context MUST be the repo root.
+#
+# Stage layout (deps is identical for every SERVICE_NAME — shared via buildcache):
+#   base → deps (workspace pnpm install) → builder (nx build + deploy) → runtime
 
 ARG NODE_VERSION=24
 ARG PNPM_VERSION=10.33.0
@@ -18,11 +21,9 @@ FROM acriqline.azurecr.io/node:24-bookworm-slim AS base
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /repo
 
-# ---------- builder ----------
-FROM base AS builder
-ARG SERVICE_NAME
+# ---------- deps: full workspace install (cacheable across all TS services) ----------
+FROM base AS deps
 
-# Copy workspace manifests + lockfile first for maximum layer cache reuse
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json nx.json ./
 COPY tsup.config.shared.ts ./
 
@@ -33,11 +34,13 @@ COPY modules modules
 COPY packages packages
 COPY tools tools
 
-# Install with pnpm filter, mounted store cache for cross-build reuse on the same agent
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter "@hims/${SERVICE_NAME}..."
+    pnpm install --frozen-lockfile
 
-# Build via nx (driven by the service's project.json build target -> tsup)
+# ---------- builder: per-service compile + production deploy ----------
+FROM deps AS builder
+ARG SERVICE_NAME
+
 RUN npx nx build "${SERVICE_NAME}"
 
 # registration-reports reads this stylesheet at runtime via import.meta.url.
