@@ -4,9 +4,12 @@
     "declaration": false,
     "declarationMap": false,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@pulse/ui/*": ["../../packages/pulse-ui/src/*"]
+      "@pulse/ui/*": ["../../packages/pulse-ui/src/*"],
+      "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"]
     }
   },
   "include": ["src", "test"]
