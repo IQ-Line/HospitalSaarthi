@@ -52,7 +52,8 @@ export function NursePreConsultPanel({ visitId }: NursePreConsultPanelProps) {
   const updateImmunizationRow = useCreateRxStore((s) => s.updateImmunizationRow);
 
   const saveMutation = useMutation({
-    mutationFn: (data: CreateRxFormData) => saveNursePreConsult(visitId, data),
+    mutationFn: (data: CreateRxFormData) =>
+      saveNursePreConsult(visitId, context?.patient.id ?? '', data),
     onError: () => {
       toast.error('Failed to save');
     },

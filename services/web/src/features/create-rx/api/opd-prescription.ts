@@ -8,7 +8,6 @@ import {
   emptyDraftFormData,
   prescriptionDetailToSession,
 } from '../lib/opd-prescription-mapper';
-import { sanitizeCreateRxFormDataForPersist } from '../lib/form-data-session';
 import type {
   OpdPrescriptionCreateBody,
   OpdPrescriptionFinalizeBody,
@@ -64,55 +63,6 @@ function resolveOpdDoctorId(): string {
 }
 
 export type { OpdPrescriptionSession } from './opd-prescription-types';
-
-/** Response from `/visits/{visitId}/prescription` — includes merged Create-RX form_data. */
-export interface OpdVisitPrescriptionResponse {
-  prescription_id: string;
-  visit_id: string;
-  patient_id: string;
-  visit_status: string;
-  prescription_status: OpdPrescriptionStatus;
-  is_read_only: boolean;
-  form_data: CreateRxFormData;
-}
-
-export function visitPrescriptionResponseToSession(
-  response: OpdVisitPrescriptionResponse,
-): OpdPrescriptionSession {
-  return {
-    prescription_id: response.prescription_id,
-    visit_id: response.visit_id,
-    patient_id: response.patient_id,
-    prescription_status: response.prescription_status,
-    is_read_only: response.is_read_only,
-    form_data: response.form_data ?? emptyDraftFormData(),
-  };
-}
-
-/** Persist Create-RX form_data for a registration visit (same path nurse pre-consult uses). */
-async function upsertVisitPrescriptionFormData(
-  visitId: string,
-  formData: CreateRxFormData,
-  options?: { finalize?: boolean; endConsultation?: boolean },
-): Promise<OpdPrescriptionSession> {
-  const visitKey = visitId.trim();
-  if (!visitKey) {
-    throw new Error('Visit id is required for OPD');
-  }
-
-  const path = options?.endConsultation
-    ? `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription/end`
-    : `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription`;
-
-  const response = await apiClient<OpdVisitPrescriptionResponse>(path, {
-    method: options?.endConsultation ? 'POST' : 'PUT',
-    body: JSON.stringify({
-      form_data: sanitizeCreateRxFormDataForPersist(formData),
-      finalize: options?.finalize ?? false,
-    }),
-  });
-  return visitPrescriptionResponseToSession(response);
-}
 
 /** Visit summary for legacy status helpers (OPD visits list is deprecated for queues). */
 export interface OpdVisitSummary {
@@ -172,10 +122,10 @@ export async function fetchPrescriptionByVisitId(visitId: string): Promise<OpdPr
   const visitKey = visitId.trim();
   if (!visitKey) return null;
   try {
-    const response = await apiClient<OpdVisitPrescriptionResponse>(
-      `${OPD_PREFIX}/visits/${encodeURIComponent(visitKey)}/prescription`,
+    const response = await apiClient<OpdPrescriptionSingleResponse>(
+      `${PRESCRIPTIONS_PREFIX}/by-visit/${encodeURIComponent(visitKey)}`,
     );
-    return visitPrescriptionResponseToSession(response);
+    return prescriptionDetailToSession(response.data);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       return null;
@@ -245,7 +195,8 @@ async function ensureDraftPrescription(
 }
 
 /**
- * Load prescription by registration visit id, prescription id, or patient id (legacy route).
+ * Load a prescription by registration visit id, then prescription id, then latest-for-patient.
+ * All three lookups hit the normalized `/prescriptions` family.
  */
 export async function fetchOpdPrescriptionSession(
   visitOrPrescriptionId: string,
@@ -286,20 +237,6 @@ export async function bootstrapOpdPrescriptionForVisit(
   return createPrescriptionForVisit(visitId, patientId);
 }
 
-/** @deprecated Use {@link bootstrapOpdPrescriptionForVisit}. */
-export async function ensureOpdRegistrationEncounter(
-  visitId: string,
-  patientId: string,
-): Promise<OpdPrescriptionSession> {
-  return bootstrapOpdPrescriptionForVisit(visitId, patientId);
-}
-
-export function isPatientScopedOpdRoute(visitId: string, patientId: string): boolean {
-  const visitKey = visitId.trim();
-  const patientKey = patientId.trim();
-  return visitKey.length > 0 && visitKey === patientKey;
-}
-
 export async function saveOpdPrescriptionDraft(
   visitId: string,
   patientId: string,
@@ -307,23 +244,15 @@ export async function saveOpdPrescriptionDraft(
   existingPrescriptionId: string | null,
 ): Promise<OpdPrescriptionSession> {
   const patientKey = requirePatientId(patientId);
-
-  if (isPatientScopedOpdRoute(visitId, patientKey)) {
-    const existing =
-      (existingPrescriptionId && (await fetchPrescriptionDetail(existingPrescriptionId))) ||
-      (await fetchOpdPrescriptionSession(patientKey, patientKey));
-    const rxId =
-      existing?.prescription_id ??
-      (await createPrescriptionForVisit(patientKey, patientKey, formData)).prescription_id;
-    return updatePrescriptionClinical(rxId, formData);
-  }
-
   const visitKey = visitId.trim();
   if (!visitKey) {
     throw new Error('Visit id is required for OPD');
   }
 
-  return upsertVisitPrescriptionFormData(visitKey, formData);
+  const rxId =
+    existingPrescriptionId?.trim() ||
+    (await ensureDraftPrescription(visitKey, patientKey)).prescription_id;
+  return updatePrescriptionClinical(rxId, formData);
 }
 
 /**
@@ -340,15 +269,24 @@ export async function endConsultation(
 
   let session: OpdPrescriptionSession;
   try {
-    session = await endOpdPrescription(visitKey, patientKey, formData, existingPrescriptionId);
+    if (!visitKey) {
+      throw new Error('Visit id is required for OPD');
+    }
+    const rxId =
+      existingPrescriptionId?.trim() ||
+      (await ensureDraftPrescription(visitKey, patientKey)).prescription_id;
+    await updatePrescriptionClinical(rxId, formData);
+    session = await finalizePrescriptionRecord(rxId);
   } catch (error) {
     if (error instanceof ApiError) {
       throw new Error(
         `Could not save prescription (${error.status}): ${error.message || 'OPD service error'}`,
+        { cause: error },
       );
     }
     throw new Error(
       error instanceof Error ? error.message : 'Could not save final prescription.',
+      { cause: error },
     );
   }
 
@@ -359,48 +297,11 @@ export async function endConsultation(
       error instanceof Error
         ? `Prescription saved but visit status was not updated: ${error.message}`
         : 'Prescription saved but visit status was not updated.',
+      { cause: error },
     );
   }
 
   return session;
-}
-
-async function endOpdPrescription(
-  visitId: string,
-  patientId: string,
-  formData: CreateRxFormData,
-  existingPrescriptionId: string | null,
-): Promise<OpdPrescriptionSession> {
-  requireTenantId();
-  const patientKey = requirePatientId(patientId);
-
-  if (isPatientScopedOpdRoute(visitId, patientKey)) {
-    const existing =
-      (existingPrescriptionId && (await fetchPrescriptionDetail(existingPrescriptionId))) ||
-      (await fetchOpdPrescriptionSession(patientKey, patientKey));
-    const rxId =
-      existing?.prescription_id ??
-      (await createPrescriptionForVisit(patientKey, patientKey, formData)).prescription_id;
-    await updatePrescriptionClinical(rxId, formData);
-    return finalizePrescriptionRecord(rxId);
-  }
-
-  const visitKey = visitId.trim();
-  if (!visitKey) {
-    throw new Error('Visit id is required for OPD');
-  }
-
-  return upsertVisitPrescriptionFormData(visitKey, formData, { endConsultation: true });
-}
-
-/** @deprecated Use {@link endConsultation}. */
-export async function endOpdConsultation(
-  visitId: string,
-  patientId: string,
-  formData: CreateRxFormData,
-  existingPrescriptionId: string | null,
-): Promise<OpdPrescriptionSession> {
-  return endOpdPrescription(visitId, patientId, formData, existingPrescriptionId);
 }
 
 /** OPD `GET /visits` enforces `limit` ≤ 100 (see opd.v1.yaml). */

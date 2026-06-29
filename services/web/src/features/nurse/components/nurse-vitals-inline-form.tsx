@@ -54,7 +54,7 @@ export function NurseVitalsInlineForm({
   }, [visitId, patientId, readOnly, resetForVisit]);
 
   const saveMutation = useMutation({
-    mutationFn: (data: CreateRxFormData) => saveNursePreConsult(visitId, data),
+    mutationFn: (data: CreateRxFormData) => saveNursePreConsult(visitId, patientId, data),
     onSuccess: (saved) => {
       toast.success('Vitals saved');
       resetForVisit(null, saved.is_read_only, prepareCreateRxFormDataForSession(saved.form_data, saved.is_read_only));
