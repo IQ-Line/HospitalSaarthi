@@ -8,7 +8,8 @@ import {
   validateAuthConfig,
   type Principal,
 } from '@hims/ts-sdk-identity';
-import { forbidden } from '@hims/ts-sdk-http';
+import { forbidden, unauthorized } from '@hims/ts-sdk-http';
+import { createActiveStatusChecker } from './active-status-check.js';
 import { loadWorkspaceEnv } from './load-workspace-env.js';
 
 const PORT = Number(process.env['BFF_PORT'] ?? 3000);
@@ -305,6 +306,25 @@ export async function buildApp(): Promise<FastifyInstance> {
       ...auth,
       skipPathPrefixes: EDGE_AUTH_SKIP_PREFIXES,
     });
+    // Ban/revocation cutoff (D13): a per-request, cached check against UM that catches
+    // users deactivated or banned AFTER their token was issued. Gated on the S2S secret
+    // — without it the check cannot authenticate to UM, so we skip it (and warn) rather
+    // than fail-open on every request. UM_INTERNAL_API_KEY comes from the workspace .env.
+    const umInternalApiKey = process.env['UM_INTERNAL_API_KEY']?.trim();
+    const checkActive =
+      umInternalApiKey !== undefined && umInternalApiKey.length > 0
+        ? createActiveStatusChecker({
+            userManagementUrl:
+              process.env['USER_MANAGEMENT_URL'] ?? 'http://localhost:3005',
+            internalApiKey: umInternalApiKey,
+            log: app.log,
+          })
+        : undefined;
+    if (checkActive === undefined) {
+      app.log.warn(
+        'UM_INTERNAL_API_KEY unset — edge ban/revocation cutoff DISABLED (stale tokens valid until expiry).',
+      );
+    }
     // Runs after the identity plugin's onRequest hook (registration order), so
     // `request.user` is populated for authenticated routes by the time it fires.
     app.addHook('onRequest', async (request, reply) => {
@@ -321,9 +341,22 @@ export async function buildApp(): Promise<FastifyInstance> {
       }
       canonicalizeTenantHeaders(request);
       normalizeIdentityHeaders(request);
+      // Ban/revocation cutoff: only for authenticated requests (public/skipped routes
+      // carry no principal). Fails open inside the checker, so a UM outage degrades to
+      // the status-quo token-TTL window rather than blocking traffic.
+      const principal = request.user as Principal | undefined;
+      if (checkActive !== undefined && principal && !(await checkActive(principal))) {
+        return unauthorized(
+          reply,
+          request,
+          'USER_INACTIVE',
+          'User account is inactive, suspended, or banned.',
+        );
+      }
     });
     app.log.info(
-      'Edge auth ENABLED — JWT validation + authoritative x-user-id + tenant-scope assertion.',
+      'Edge auth ENABLED — JWT validation + authoritative x-user-id + tenant-scope assertion' +
+        (checkActive !== undefined ? ' + ban cutoff.' : ' (ban cutoff disabled).'),
     );
   } else {
     warnEdgeAuthDisabled(app, isProduction);
