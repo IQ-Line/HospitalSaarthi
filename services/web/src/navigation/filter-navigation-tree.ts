@@ -129,6 +129,9 @@ export function isNavigationNodeVisible(
   if (node.superAdminOnly && !ctx.isSuperAdmin) {
     return false;
   }
+  if (node.tenantAdminOnly && !ctx.isTenantAdmin) {
+    return false;
+  }
   if (!passesRoleGate(node, ctx, parent)) {
     return false;
   }

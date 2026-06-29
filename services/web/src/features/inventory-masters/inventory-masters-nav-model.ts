@@ -3,7 +3,7 @@ import type { InventoryMasterTabId } from './types';
 export type InventoryMasterTabConfig = {
   id: InventoryMasterTabId;
   label: string;
-  route: `/master-data/inventory-supply-masters/${InventoryMasterTabId}`;
+  route: `/inventory-supply-masters/${InventoryMasterTabId}`;
   catalogModuleSlug: string;
   addLabel: string;
   searchPlaceholder: string;
@@ -15,7 +15,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'item-master',
     label: 'Item Master',
-    route: '/master-data/inventory-supply-masters/item-master',
+    route: '/inventory-supply-masters/item-master',
     catalogModuleSlug: 'inventory-master',
     addLabel: 'Add Item',
     searchPlaceholder: 'Search items',
@@ -25,7 +25,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'categories',
     label: 'Item Category / Subcategory',
-    route: '/master-data/inventory-supply-masters/categories',
+    route: '/inventory-supply-masters/categories',
     catalogModuleSlug: 'inventory-categories',
     addLabel: 'Add Product Category',
     searchPlaceholder: 'Search categories',
@@ -35,7 +35,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'item-types',
     label: 'Item Type',
-    route: '/master-data/inventory-supply-masters/item-types',
+    route: '/inventory-supply-masters/item-types',
     catalogModuleSlug: 'inventory-item-types',
     addLabel: 'Add Item Type',
     searchPlaceholder: 'Search item types',
@@ -45,7 +45,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'uom',
     label: 'UOM',
-    route: '/master-data/inventory-supply-masters/uom',
+    route: '/inventory-supply-masters/uom',
     catalogModuleSlug: 'inventory-uoms',
     addLabel: 'Add Unit of Measure',
     searchPlaceholder: 'Search units (name, abbreviation…)',
@@ -55,7 +55,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'storage-conditions',
     label: 'Storage Conditions',
-    route: '/master-data/inventory-supply-masters/storage-conditions',
+    route: '/inventory-supply-masters/storage-conditions',
     catalogModuleSlug: 'inventory-storage-conditions',
     addLabel: 'Add Storage Condition',
     searchPlaceholder: 'Search storage conditions',
@@ -65,7 +65,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'hsn-gst',
     label: 'HSN / GST',
-    route: '/master-data/inventory-supply-masters/hsn-gst',
+    route: '/inventory-supply-masters/hsn-gst',
     catalogModuleSlug: 'inventory-hsn-gst',
     addLabel: 'Add HSN & GST',
     searchPlaceholder: 'Search HSN codes',
@@ -75,7 +75,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'manufacturers',
     label: 'Manufacturer',
-    route: '/master-data/inventory-supply-masters/manufacturers',
+    route: '/inventory-supply-masters/manufacturers',
     catalogModuleSlug: 'manufacturers',
     addLabel: 'Add Manufacturer',
     searchPlaceholder: 'Search manufacturers',
@@ -85,7 +85,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
   {
     id: 'store-types',
     label: 'Store Type',
-    route: '/master-data/inventory-supply-masters/store-types',
+    route: '/inventory-supply-masters/store-types',
     catalogModuleSlug: 'inventory-store-types',
     addLabel: 'Add Store Type',
     searchPlaceholder: 'Search store types',
@@ -97,7 +97,7 @@ export const INVENTORY_MASTER_TABS: readonly InventoryMasterTabConfig[] = [
 export const INVENTORY_MASTER_PAGE_TITLE = 'Inventory & Supply Masters';
 
 export const INVENTORY_MASTER_DEFAULT_ROUTE =
-  INVENTORY_MASTER_TABS[0]?.route ?? '/master-data/inventory-supply-masters/item-master';
+  INVENTORY_MASTER_TABS[0]?.route ?? '/inventory-supply-masters/item-master';
 
 export function getInventoryMasterTabConfig(tabId: InventoryMasterTabId): InventoryMasterTabConfig {
   const tab = INVENTORY_MASTER_TABS.find((entry) => entry.id === tabId);
