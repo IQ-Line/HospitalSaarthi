@@ -27,18 +27,6 @@ function requirePatientId(patientId: string): string {
   return id;
 }
 
-function requireTenantId(): string {
-  const tenantId = resolveOpdConsultationTenantId();
-  if (!tenantId) {
-    throw new Error('Tenant context is missing');
-  }
-  return tenantId;
-}
-
-function tenantQueryParam(tenantId: string): string {
-  return `tenant_id=${encodeURIComponent(tenantId)}`;
-}
-
 function jwtSubject(accessToken: string | null): string | undefined {
   if (!accessToken) return undefined;
   const parts = accessToken.split('.');
@@ -74,10 +62,9 @@ export function prescriptionStatusToVisitStatus(
 async function fetchPrescriptionDetail(
   prescriptionId: string,
 ): Promise<OpdPrescriptionSession | null> {
-  const tenantId = requireTenantId();
   try {
     const response = await apiClient<OpdPrescriptionSingleResponse>(
-      `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId.trim())}?${tenantQueryParam(tenantId)}`,
+      `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId.trim())}`,
     );
     return prescriptionDetailToSession(response.data);
   } catch (error) {
@@ -109,12 +96,9 @@ async function createPrescriptionForVisit(
   patientId: string,
   formData?: CreateRxFormData,
 ): Promise<OpdPrescriptionSession> {
-  const tenantId = requireTenantId();
   const body: OpdPrescriptionCreateBody = {
-    tenant_id: tenantId,
     visit_id: visitId.trim(),
     patient_id: requirePatientId(patientId),
-    doctor_id: resolveOpdDoctorId(),
     clinical: createRxFormDataToClinical(formData ?? emptyDraftFormData()),
   };
   const response = await apiClient<OpdPrescriptionSingleResponse>(PRESCRIPTIONS_PREFIX, {
@@ -128,23 +112,21 @@ async function updatePrescriptionClinical(
   prescriptionId: string,
   formData: CreateRxFormData,
 ): Promise<OpdPrescriptionSession> {
-  const tenantId = requireTenantId();
   const body: OpdPrescriptionUpdateBody = {
     updated_by: resolveOpdDoctorId(),
     clinical: createRxFormDataToClinical(formData),
   };
   const response = await apiClient<OpdPrescriptionSingleResponse>(
-    `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId)}?${tenantQueryParam(tenantId)}`,
+    `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId)}`,
     { method: 'PUT', body: JSON.stringify(body) },
   );
   return prescriptionDetailToSession(response.data);
 }
 
 async function finalizePrescriptionRecord(prescriptionId: string): Promise<OpdPrescriptionSession> {
-  const tenantId = requireTenantId();
   const body: OpdPrescriptionFinalizeBody = { changed_by: resolveOpdDoctorId() };
   const response = await apiClient<OpdPrescriptionSingleResponse>(
-    `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId)}/finalize?${tenantQueryParam(tenantId)}`,
+    `${PRESCRIPTIONS_PREFIX}/${encodeURIComponent(prescriptionId)}/finalize`,
     { method: 'POST', body: JSON.stringify(body) },
   );
   return prescriptionDetailToSession(response.data);
@@ -182,12 +164,11 @@ export async function fetchOpdPrescriptionSession(
   if (byPrescription) return byPrescription;
 
   const patientKey = patientId.trim() || key;
-  const tenantId = resolveOpdConsultationTenantId();
-  if (!tenantId) return null;
+  if (!resolveOpdConsultationTenantId()) return null;
 
   try {
     const list = await apiClient<{ data: Array<{ id: string }>; total: number }>(
-      `${PRESCRIPTIONS_PREFIX}?${tenantQueryParam(tenantId)}&patient_id=${encodeURIComponent(patientKey)}&limit=1`,
+      `${PRESCRIPTIONS_PREFIX}?patient_id=${encodeURIComponent(patientKey)}&limit=1`,
     );
     const latestId = list.data[0]?.id;
     if (!latestId) return null;

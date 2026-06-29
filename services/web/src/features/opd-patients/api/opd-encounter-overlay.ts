@@ -45,10 +45,6 @@ const REPORT_TYPES: ClinicalReportType[] = [
   'immunization',
 ];
 
-function tenantQueryParam(tenantId: string): string {
-  return `tenant_id=${encodeURIComponent(tenantId)}`;
-}
-
 function mapReportAvailability(
   reports?: Partial<Record<string, ClinicalReportAvailabilityDto>> | null,
 ): ClinicalReportAvailability | undefined {
@@ -154,14 +150,13 @@ export function encounterOverlaysToRecord(
 export async function fetchOpdEncounterOverlaysByVisitIds(
   visitIds: readonly string[],
 ): Promise<Map<string, OpdEncounterOverlay>> {
-  const tenantId = resolveOpdConsultationTenantId();
-  if (!tenantId) return new Map();
+  if (!resolveOpdConsultationTenantId()) return new Map();
 
   const unique = [...new Set(visitIds.map((id) => id.trim()).filter(Boolean))];
   if (unique.length === 0) return new Map();
 
   const visitIdsParam = encodeURIComponent(unique.join(','));
-  const url = `${PRESCRIPTIONS_PREFIX}/by-visits?${tenantQueryParam(tenantId)}&visit_ids=${visitIdsParam}`;
+  const url = `${PRESCRIPTIONS_PREFIX}/by-visits?visit_ids=${visitIdsParam}`;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OVERLAY_FETCH_TIMEOUT_MS);

@@ -360,9 +360,10 @@ export async function fetchHistoricalPatientDocuments(
 }
 
 async function listPatientPrescriptions(patientId: string): Promise<OpdPrescriptionListItem[]> {
-  const tenantId = requireTenantId();
+  // tenant is header-authoritative (apiClient injects iq_tenant_id); guard one is selected.
+  requireTenantId();
   const response = await apiClient<{ data: OpdPrescriptionListItem[]; total: number }>(
-    `${OPD_PREFIX}/prescriptions?tenant_id=${encodeURIComponent(tenantId)}&patient_id=${encodeURIComponent(patientId)}&limit=200`,
+    `${OPD_PREFIX}/prescriptions?patient_id=${encodeURIComponent(patientId)}&limit=200`,
   );
   return response.data;
 }

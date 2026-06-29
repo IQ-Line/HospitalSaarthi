@@ -9,6 +9,10 @@ info:
     Prescriptions are 1:1 with a registration visit_id (logical ref; no cross-schema FK).
 
 
+    **Tenancy/actor:** resolved from request headers — ``iq_tenant_id`` (tenant) and ``x-user-id``
+    (acting doctor) — never a query parameter or request body field.
+
+
     **Distribution:** All prescription tables use tenant_id in primary/unique keys for Citus.
 
 
@@ -30,7 +34,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: patient_id
         in: query
         required: true
@@ -84,7 +87,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: visit_id
         in: path
         required: true
@@ -107,7 +109,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: visit_ids
         in: query
         required: false
@@ -131,7 +132,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       responses:
         '200':
@@ -148,7 +148,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -173,7 +172,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       responses:
         '204':
@@ -187,7 +185,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -213,7 +210,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -344,14 +340,6 @@ components:
       name: patientId
       in: path
       required: true
-      schema:
-        type: string
-        format: uuid
-    TenantIdQuery:
-      name: tenant_id
-      in: query
-      required: true
-      description: Tenant isolation key (Citus distribution column).
       schema:
         type: string
         format: uuid
@@ -809,21 +797,13 @@ components:
     PrescriptionCreate:
       type: object
       required:
-      - tenant_id
       - visit_id
       - patient_id
-      - doctor_id
       properties:
-        tenant_id:
-          type: string
-          format: uuid
         visit_id:
           type: string
           format: uuid
         patient_id:
-          type: string
-          format: uuid
-        doctor_id:
           type: string
           format: uuid
         vitals_schema_version:

@@ -153,11 +153,22 @@ describe('saveOpdPrescriptionDraft (normalized)', () => {
       { method: 'PUT', url: `${PRESCRIPTIONS}/rx-created` },
     ]);
     // The create body carries the resolved visit + patient; the update carries clinical.
-    expect(bodyOf('POST', PRESCRIPTIONS)).toMatchObject({
-      visit_id: 'visit-1',
-      patient_id: 'patient-1',
-    });
+    const createBody = bodyOf('POST', PRESCRIPTIONS);
+    expect(createBody).toMatchObject({ visit_id: 'visit-1', patient_id: 'patient-1' });
+    // G3: tenant + doctor are header-authoritative (apiClient injects iq_tenant_id /
+    // x-user-id), never sent in the body — the backend PrescriptionCreate has no such fields.
+    expect(createBody).not.toHaveProperty('tenant_id');
+    expect(createBody).not.toHaveProperty('doctor_id');
     expect(bodyOf('PUT', `${PRESCRIPTIONS}/rx-created`)).toHaveProperty('clinical');
+  });
+
+  it('never sends a vestigial tenant_id query param (tenant is header-authoritative)', async () => {
+    await saveOpdPrescriptionDraft('visit-1', 'patient-1', emptyDraftFormData(), null);
+    const rawUrls = apiClientMock.mock.calls.map(([path]) => String(path));
+    expect(rawUrls.length).toBeGreaterThan(0);
+    for (const url of rawUrls) {
+      expect(url).not.toContain('tenant_id=');
+    }
   });
 
   it('updates directly when a prescription id is already known (no fetch, no create)', async () => {

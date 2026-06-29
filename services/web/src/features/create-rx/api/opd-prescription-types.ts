@@ -74,10 +74,8 @@ export interface OpdPrescriptionListResponse {
 }
 
 export interface OpdPrescriptionCreateBody {
-  tenant_id: string;
   visit_id: string;
   patient_id: string;
-  doctor_id: string;
   vitals_schema_version?: number;
   created_by?: string | null;
   clinical: OpdPrescriptionClinicalPayload;
