@@ -17,8 +17,8 @@ async function collectRecordFoundationBundles(
   input: {
     iqTenantId: string;
     careContextReferences: string[];
-    patientId: string;
     consentId: string;
+    patientId: string;
     patientAbhaAddress?: string | null;
   },
 ): Promise<HealthRecordBundleEntry[]> {
@@ -31,22 +31,12 @@ async function collectRecordFoundationBundles(
     return [];
   }
 
-  const bundleEntries = await collectLocalBundlesForM3Consent(deps, {
+  return collectLocalBundlesForM3Consent(deps, {
     iqTenantId: input.iqTenantId,
     patientAbhaAddress: abha,
     careContextReferences: input.careContextReferences,
     extraPatientIds: [input.patientId],
   });
-
-  if (bundleEntries.length === 0 && process.env["ABDM_M2_MOCK_PLATFORM"] !== "true") {
-    abdmWarn("abdm.m3.hip_push.rf_patient_context_fallback", {
-      consentId: input.consentId,
-      consentRefs: input.careContextReferences,
-      patientId: input.patientId,
-    });
-  }
-
-  return bundleEntries;
 }
 
 export async function pushHealthInformationForSession(
@@ -55,9 +45,12 @@ export async function pushHealthInformationForSession(
     session: AbdmSession<"abdm.m3.hip.v1">;
     parsed: ParsedHiRequest;
     patientId: string;
+    /** CM-issued txn — must match ack + notify (defaults to parsed.transactionId). */
+    transactionId?: string;
   },
   deps: AbdmAdapterDeps,
 ): Promise<string[]> {
+  const transactionId = input.transactionId ?? input.parsed.transactionId;
   assertFlowKind(input.session, "abdm.m3.hip.v1");
   if (!deps.dataPush) {
     throw new Error("HipDataPushClient not configured");
@@ -80,8 +73,8 @@ export async function pushHealthInformationForSession(
   const bundleEntries = await collectRecordFoundationBundles(deps, {
     iqTenantId: input.iqTenantId,
     careContextReferences,
-    patientId: input.patientId,
     consentId: input.parsed.consentId,
+    patientId: input.patientId,
     patientAbhaAddress: m3Artefact?.patientAbhaAddress ?? null,
   });
 
@@ -138,7 +131,7 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_ENCRYPTED,
     contextMerge: {
       dataPushUrl,
-      transactionId: input.parsed.transactionId,
+      transactionId,
     },
   });
 
@@ -151,7 +144,7 @@ export async function pushHealthInformationForSession(
   const pushBody: HipDataPushRequest = {
     pageNumber: 0,
     pageCount: 1,
-    transactionId: input.parsed.transactionId,
+    transactionId,
     entries,
     keyMaterial,
   };
@@ -159,7 +152,7 @@ export async function pushHealthInformationForSession(
   await deps.dataPush.push({
     dataPushUrl,
     body: pushBody as unknown as Record<string, unknown>,
-    requestId: input.parsed.transactionId,
+    requestId: transactionId,
     iqTenantId: input.iqTenantId,
     xHipId: deps.xHipId,
     xCmId: deps.xCmId,

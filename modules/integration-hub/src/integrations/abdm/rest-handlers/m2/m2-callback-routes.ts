@@ -13,15 +13,17 @@ import { handleSmsNotifyCallback } from "../../use-cases/m2/sms-notify/handle-ca
 import { handleHipHiRequestCallback } from "../../use-cases/m3/hip/handle-hi-request-callback.js";
 import { abdmWarn } from "../../lib/abdm-adapter-log.js";
 import { resolveAbhaAddressForTokenCallback } from "../../lib/resolve-token-callback-abha.js";
-import type { OnGenerateTokenSuccessCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { OnLinkCareContextCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { DiscoveryRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { LinkInitRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { LinkConfirmRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { OnAddContextsCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { OnSmsNotifyCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
+import type {
+  ConsentNotifyRequest,
+  DiscoveryRequest,
+  LinkConfirmRequest,
+  LinkInitRequest,
+  OnAddContextsCallback,
+  OnGenerateTokenSuccessCallback,
+  OnLinkCareContextCallback,
+  OnSmsNotifyCallback,
+} from "@hims/ts-sdk-abha/protocol/m2";
+import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3";
 
 /** Gateway callback routes — mounted at `/api/v3` (no `/api/abdm/v1` prefix). */
 export async function registerM2CallbackRoutes(

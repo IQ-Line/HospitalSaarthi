@@ -166,15 +166,5 @@ export async function collectLocalBundlesForM3Consent(
     await appendForRef(ref);
   }
 
-  if (bundleEntries.length === 0) {
-    bundleEntries.push(
-      ...(await listAllLocalBundlesForAbha(deps, {
-        iqTenantId: input.iqTenantId,
-        abhaAddress: abha,
-        extraPatientIds: input.extraPatientIds,
-      })),
-    );
-  }
-
   return bundleEntries;
 }

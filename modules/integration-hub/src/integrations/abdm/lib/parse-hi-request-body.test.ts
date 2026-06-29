@@ -23,7 +23,26 @@ describe("parseHiRequestBody", () => {
     expect(parsed?.peerPublicKey).toBe("pub-key");
   });
 
-  it("prefers hiRequest.transactionId over inbound REQUEST-ID for push correlation", () => {
+  it("prefers top-level transactionId over hiRequest (LIMS / PHR parity)", () => {
+    const parsed = parseHiRequestBody(
+      {
+        transactionId: "body-txn",
+        hiRequest: {
+          transactionId: "hi-txn",
+          consent: { id: "consent-1" },
+          dataPushUrl: "https://apissbx.abdm.gov.in/push",
+          keyMaterial: {
+            nonce: "nonce-abc",
+            dhPublicKey: { keyValue: "pub-key" },
+          },
+        },
+      },
+      "inbound-request-id-header",
+    );
+    expect(parsed?.transactionId).toBe("body-txn");
+  });
+
+  it("falls back to hiRequest.transactionId when body omits it", () => {
     const parsed = parseHiRequestBody(
       {
         hiRequest: {
