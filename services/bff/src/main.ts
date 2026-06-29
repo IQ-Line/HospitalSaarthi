@@ -8,6 +8,7 @@ import {
   validateAuthConfig,
   type Principal,
 } from '@hims/ts-sdk-identity';
+import { forbidden } from '@hims/ts-sdk-http';
 import { loadWorkspaceEnv } from './load-workspace-env.js';
 
 const PORT = Number(process.env['BFF_PORT'] ?? 3000);
@@ -90,6 +91,107 @@ const EDGE_AUTH_SKIP_PREFIXES = [
   '/api/user-management/auth/api-key',
 ];
 
+const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
+
+/**
+ * Platform super-admins legitimately act ACROSS tenants (e.g. provisioning a new
+ * tenant's catalog). Same predicate as the canonical in-house definitions in
+ * modules/user-management/src/http/resolve-effective-tenant-id.ts
+ * (`isPlatformSuperAdminRole`) and services/web/src/lib/platform-admin.ts. The role
+ * string is duplicated in both; no shared home is adopted yet — the natural one is
+ * `@hims/ts-sdk-identity` (already a BFF dependency), deferred to keep this slice
+ * edge-only. At the edge only the verified JWT `roles` claim exists (the Cerbos
+ * `role_codes` enrichment is downstream-only), which is exactly the input this needs.
+ * The `.trim().toLowerCase()` mirrors the SDK's own role normalization (verify.ts)
+ * and the two precedent copies — self-contained, so the check doesn't silently depend
+ * on an undocumented upstream invariant. Exported for direct unit testing.
+ *
+ * GATE (load-bearing, NOT enforced today — see follow-up): this whole cross-tenant
+ * exception assumes `super-admin` is a platform-reserved role code a tenant CANNOT
+ * self-assign. UM has no such reservation yet; a tenant minting a role that normalizes
+ * to `super-admin` would gain cross-tenant bypass platform-wide (here, in UM, and in
+ * configurator — all use this same string match). Must be enforced before multi-tenant
+ * go-live.
+ */
+export function isPlatformSuperAdmin(roles: readonly string[]): boolean {
+  return roles.some(
+    (role) => role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE,
+  );
+}
+
+/** A Fastify header value: proxies may send `string[]`, and it may be absent. */
+type RawHeaderValue = string | string[] | undefined;
+
+function asSingleHeaderValue(value: RawHeaderValue): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string') return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+/**
+ * The tenant the downstream services resolve to: `iq_tenant_id` preferred,
+ * `x-tenant-id` fallback — the SAME precedence OPD (`iq_tenant_id or x_tenant_id`,
+ * modules/opd/src/opd/core/tenant.py) and master-data (catalog_tenant_id.py) use, so
+ * the value asserted here is exactly the value they will scope their queries by.
+ * INVARIANT this relies on: every tenant-consuming downstream resolves iq-before-x.
+ */
+function pickHeaderTenant(request: FastifyRequest): string | undefined {
+  return (
+    asSingleHeaderValue(request.headers['iq_tenant_id'] as RawHeaderValue) ??
+    asSingleHeaderValue(request.headers['x-tenant-id'] as RawHeaderValue)
+  );
+}
+
+/**
+ * Edge tenant-scope assertion — mirrors user-management's
+ * `assertTenantHeaderAllowedForPrincipal`: a request may only carry the tenant scope
+ * of the VERIFIED principal, EXCEPT platform super-admins (who may scope cross-tenant).
+ * An ABSENT tenant header is allowed — it means "global" for master-data's
+ * `master_global` catalog, and identity-only routes carry none.
+ *
+ * For requests routed through this gateway, this is the control that closes the
+ * cross-tenant data gap for the polyglot backends: the Python OPD/master-data services
+ * use the tenant header as the data scope with NO PDP of their own, so without this an
+ * authenticated user could read another tenant's data by changing the header.
+ *
+ * Returns true for public/skipped routes — there is no verified principal, hence no
+ * tenant to pin (e.g. `/api/v3` ABDM callbacks resolve their own tenant downstream).
+ */
+function checkTenantScope(request: FastifyRequest): boolean {
+  const principal = request.user as Principal | undefined;
+  if (!principal) return true;
+  const headerTenant = pickHeaderTenant(request);
+  if (headerTenant === undefined || headerTenant === principal.tenantId) {
+    return true;
+  }
+  return isPlatformSuperAdmin(principal.roles);
+}
+
+/**
+ * After {@link checkTenantScope} ALLOWS an authenticated request, collapse BOTH tenant
+ * headers to the single validated value (or remove both when absent). Passing the
+ * client's headers through unchanged is unsafe: a request allowed because `iq_tenant_id`
+ * matches the principal can still carry a CONFLICTING `x-tenant-id`, and a proxy hop
+ * that drops the underscore header (nginx does this by default — see the note in
+ * master-data's catalog_tenant_id.py) would leave only `x-tenant-id`, letting the
+ * downstream resolve a DIFFERENT tenant. Canonicalizing kills that fallback, exactly as
+ * {@link normalizeIdentityHeaders} does for the `x-user-id`/`iq_user_id` alias pair.
+ * Absent stays absent (master-data `master_global`). Public routes (no principal) are
+ * left untouched — `/api/v3` ABDM callbacks resolve their own tenant from `x-tenant-id`.
+ */
+function canonicalizeTenantHeaders(request: FastifyRequest): void {
+  const principal = request.user as Principal | undefined;
+  if (!principal) return;
+  const effectiveTenant = pickHeaderTenant(request);
+  delete request.headers['iq_tenant_id'];
+  delete request.headers['x-tenant-id'];
+  if (effectiveTenant !== undefined) {
+    request.headers['iq_tenant_id'] = effectiveTenant;
+    request.headers['x-tenant-id'] = effectiveTenant;
+  }
+}
+
 /**
  * Make user identity authoritative at the edge: strip every client-supplied identity
  * alias, then set `x-user-id` from the VERIFIED token subject. Result: identity
@@ -99,22 +201,12 @@ const EDGE_AUTH_SKIP_PREFIXES = [
  * bearer token, so this is the control that closes the impersonation gap. On public
  * (skipped) routes there is no verified identity, so all identity aliases are stripped.
  *
- * SCOPE — TENANT IS NOT ENFORCED HERE (honest gate, NOT a downstream control that
- * exists today): the tenant headers (`iq_tenant_id`, `x-tenant-id`) are passed
- * through UNCHANGED. Edge auth does not decide tenant scope. Two reasons it is left
- * to a later, dedicated pass rather than pinned to the token's tenant here:
- *   1. A super-admin legitimately acts across tenants; deciding whether a principal
- *      MAY act on the requested tenant needs capability/role context that the base
- *      access token does not carry — i.e. an AUTHORIZATION decision (authz phase / D10),
- *      not something the gateway can do correctly from the JWT alone.
- *   2. Inbound ABDM callbacks (`/api/v3`) resolve their tenant FROM `x-tenant-id` /
- *      `X-HIP-ID` (modules/integration-hub/.../lib/resolve-callback-tenant.ts), so the
- *      tenant headers must NOT be stripped on public routes either.
- * KNOWN GAP (pre-existing, owned pre-prod gate): the Python OPD/master-data services
- * use `iq_tenant_id` from the header as the data scope with NO PDP — an empi-class
- * cross-tenant gap. Until those modules derive/enforce tenant scope from the verified
- * principal (the fix empi already shipped), an authenticated user can target another
- * tenant on those paths. The app has not gone live; close before multi-tenant prod.
+ * Tenant scope is handled separately by {@link checkTenantScope} (assert) and
+ * {@link canonicalizeTenantHeaders} (collapse the tenant headers to the validated
+ * value), both run before this in the onRequest hook. Residual gap (owned pre-prod
+ * gate): direct-to-service network access that bypasses this gateway — the Python
+ * services still have no JWT/PDP of their own (a deployment network-policy concern +
+ * the py-sdk-authz initiative).
  */
 function normalizeIdentityHeaders(request: FastifyRequest): void {
   const userId = (request.user as Principal | undefined)?.userId;
@@ -215,11 +307,23 @@ export async function buildApp(): Promise<FastifyInstance> {
     });
     // Runs after the identity plugin's onRequest hook (registration order), so
     // `request.user` is populated for authenticated routes by the time it fires.
-    app.addHook('onRequest', async (request) => {
+    app.addHook('onRequest', async (request, reply) => {
+      // Tenant scope FIRST: reject a request whose tenant header doesn't match the
+      // verified principal (super-admins excepted), then collapse the tenant headers to
+      // the validated value so no conflicting fallback can leak downstream.
+      if (!checkTenantScope(request)) {
+        return forbidden(
+          reply,
+          request,
+          'TENANT_SCOPE_FORBIDDEN',
+          'Requested tenant scope is not permitted for the authenticated principal.',
+        );
+      }
+      canonicalizeTenantHeaders(request);
       normalizeIdentityHeaders(request);
     });
     app.log.info(
-      'Edge auth ENABLED — per-request JWT validation + authoritative x-user-id.',
+      'Edge auth ENABLED — JWT validation + authoritative x-user-id + tenant-scope assertion.',
     );
   } else {
     warnEdgeAuthDisabled(app, isProduction);

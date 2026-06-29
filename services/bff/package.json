@@ -9,6 +9,7 @@
   "dependencies": {
     "@fastify/cors": "^11.0.1",
     "@fastify/http-proxy": "^11.4.4",
+    "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "fastify": "^5.3.3"
   },

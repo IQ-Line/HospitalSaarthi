@@ -697,6 +697,9 @@ importers:
       '@fastify/http-proxy':
         specifier: ^11.4.4
         version: 11.4.4
+      '@hims/ts-sdk-http':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-http
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
