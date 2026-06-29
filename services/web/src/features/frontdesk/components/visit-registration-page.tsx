@@ -1,24 +1,13 @@
-import { ChevronLeft, ChevronRight, RotateCcw, Save, Search } from 'lucide-react';
+import { RotateCcw, Save } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useRouterState } from '@tanstack/react-router';
 import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
-import { Input } from '@pulse/ui/input';
-import { Label } from '@pulse/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@pulse/ui/table';
-import { executeCreateVisitFlow, fetchVisitTypeDecision, listRegistrations, type VisitTypeDecisionResult } from '@/features/frontdesk/api/registrations';
-import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
+import { executeCreateVisitFlow, fetchVisitTypeDecision, type VisitTypeDecisionResult } from '@/features/frontdesk/api/registrations';
 import { indianMobileRegisterOptions } from '@/lib/indian-mobile';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
-import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
 import {
   RegistrationReportsModal,
   type RegistrationReportView,
@@ -40,14 +29,17 @@ import {
   VisitRegistrationSectionMenu,
 } from '@/features/frontdesk/components/visit-registration-sections';
 import { useVisitRegistrationSectionsStore } from '@/features/frontdesk/visit-registration-sections.store';
-import type { CreateVisitRequestBody, RegistrationListItemResponse } from '@/features/frontdesk/types';
+import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import {
+  applyFollowUpPrefill,
+  type OpdRegistrationFollowUpState,
+} from '@/features/frontdesk/lib/apply-follow-up-prefill';
 import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
   buildVisitTypeDecisionPatientPayload,
   computeBillingGrandTotal,
   FIRST_VISIT_TYPE_CODE,
-  FOLLOW_UP_VISIT_TYPE_CODE,
   hasEnteredAgeYmd,
   isFollowUpVisitType,
   isVisitRegistrationFormComplete,
@@ -58,11 +50,6 @@ import {
   parseDateOnly,
   startOfLocalDay,
 } from '@/features/frontdesk/utils/visit-registration-helpers';
-import {
-  effectiveOpdQueueStatus,
-  queueStatusLabel,
-} from '@/features/opd-patients/lib/registration-visit-status';
-import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
@@ -83,10 +70,15 @@ type FormValues = CreateVisitRequestBody;
 
 type VisitSubmitPayload = CreateVisitRequestBody & { existingPatientId?: string };
 
-export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitle?: string }) {
+export function OpdRegistrationCreatePage() {
+  const navigate = useNavigate();
+  const followUpFrom = useRouterState({
+    select: (s) => (s.location.state as OpdRegistrationFollowUpState | undefined)?.followUpFrom,
+  });
+  const followUpAppliedRef = useRef<string | null>(null);
   const [abhaDialogOpen, setAbhaDialogOpen] = useState(false);
   const [abhaDialogFlow, setAbhaDialogFlow] = useState<'create' | 'verify'>('create');
-  const { canCreate, canRead } = useCatalogModuleCrud('registration', {
+  const { canCreate } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',
   });
   const [abhaRegistration, setAbhaRegistration] = useState<RegistrationAbhaContext | null>(
@@ -107,115 +99,10 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
   const abhaIdentifierSyncKeyRef = useRef<string | null>(null);
   const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
   const [isVisitTypeLocked, setIsVisitTypeLocked] = useState(false);
-  const [phase, setPhase] = useState<'list' | 'form'>('list');
   const [reportsModalOpen, setReportsModalOpen] = useState(false);
   const [reportsModal, setReportsModal] = useState<ReportsModalConfig | null>(null);
-  const [invoiceLookupRegistrationId, setInvoiceLookupRegistrationId] = useState<string | null>(
-    null,
-  );
-  const [listSearchDraft, setListSearchDraft] = useState('');
-  const listSearch = useDebouncedValue(listSearchDraft.trim(), 300);
-  const [listPage, setListPage] = useState(1);
   const queryClient = useQueryClient();
   const sectionVisible = useVisitRegistrationSectionsStore((s) => s.visible);
-
-  useEffect(() => {
-    setListPage(1);
-  }, [listSearch]);
-
-  const listQuery = useQuery({
-    queryKey: ['registrations', 'list', listPage, listSearch],
-    queryFn: () =>
-      listRegistrations({
-        page: listPage,
-        limit: 10,
-        q: listSearch || undefined,
-      }),
-    enabled: phase === 'list',
-  });
-
-  const listVisitIds = useMemo(
-    () =>
-      (listQuery.data?.data ?? [])
-        .map((row) => row.id?.trim())
-        .filter((id): id is string => Boolean(id)),
-    [listQuery.data?.data],
-  );
-
-  const encounterOverlayQuery = useQuery({
-    queryKey: ['registrations', 'encounter-overlay', listVisitIds],
-    queryFn: () => fetchOpdEncounterOverlaysByVisitIds(listVisitIds),
-    enabled: phase === 'list' && listVisitIds.length > 0,
-    retry: false,
-    staleTime: 30_000,
-  });
-
-  const openSlipPreview = (row: RegistrationListItemResponse) => {
-    setReportsModal({
-      registrationId: row.registration_id,
-      reportContext: { facility_name: branchLabel },
-      singleView: 'slip',
-      footerMode: 'list',
-    });
-    setReportsModalOpen(true);
-  };
-
-  const openFollowUpVisit = (row: RegistrationListItemResponse) => {
-    setExistingPatientId(row.patient_id);
-    const digits = (row.patient_phone_number ?? '').replace(/\D/g, '');
-    const phone = digits.length >= 10 ? digits.slice(-10) : '';
-    form.setValue('patient.phone', phone, { shouldValidate: true });
-    form.setValue('patient.first_name', row.patient_full_name?.trim() ?? '', { shouldValidate: true });
-    const genderRaw = (row.patient_gender ?? '').trim().toLowerCase();
-    const gender =
-      genderRaw === 'male' || genderRaw === 'm'
-        ? 'male'
-        : genderRaw === 'female' || genderRaw === 'f'
-          ? 'female'
-          : genderRaw === 'other'
-            ? 'other'
-            : '';
-    if (gender) form.setValue('patient.gender', gender, { shouldValidate: true });
-    if (row.patient_date_of_birth) {
-      form.setValue('patient.date_of_birth', row.patient_date_of_birth);
-    }
-    const abhaNumber = row.patient_abha_number?.trim() ?? '';
-    const abhaAddress = row.patient_abha_address?.trim() ?? '';
-    form.setValue('patient.abha_number', abhaNumber);
-    form.setValue('patient.abha_address', abhaAddress);
-    form.setValue('appointment.visit_type_code', FOLLOW_UP_VISIT_TYPE_CODE);
-    form.setValue('appointment.department_id', '');
-    form.setValue('appointment.department_name', '');
-    form.setValue('appointment.provider_id', '');
-    setAbhaRegistration(
-      abhaNumber || abhaAddress
-        ? { sessionId: '', abhaNumber, abhaAddress }
-        : null,
-    );
-    setPhase('form');
-  };
-
-  const openInvoicePreview = async (row: RegistrationListItemResponse) => {
-    setInvoiceLookupRegistrationId(row.registration_id);
-    try {
-      const billId = await resolveRegistrationBillId(row.registration_id, row.id);
-      if (!billId) {
-        toast.error('No invoice found for this registration.');
-        return;
-      }
-      setReportsModal({
-        registrationId: row.registration_id,
-        reportContext: { bill_id: billId, facility_name: branchLabel },
-        singleView: 'receipt',
-        footerMode: 'list',
-      });
-      setReportsModalOpen(true);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    } finally {
-      setInvoiceLookupRegistrationId(null);
-    }
-  };
 
   const form = useForm<FormValues>({
     mode: 'onChange',
@@ -342,7 +229,7 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
   const hasProvider = Boolean(appointmentProviderId?.trim());
   const departmentId = (appointmentDepartmentId ?? '').trim() || null;
   const providersQuery = useProviderList(null, {
-    enabled: phase === 'form',
+    enabled: true,
     department_id: departmentId ?? undefined,
   });
   const tariffs = useVisitRegistrationTariffs(departmentId, appointmentProviderId?.trim() || null);
@@ -426,8 +313,17 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
   const debouncedVisitTypeDecisionKey = useDebouncedValue(visitTypeDecisionKey, 300);
 
   useEffect(() => {
-    if (phase !== 'form') return;
+    if (!followUpFrom) return;
+    const key = followUpFrom.registration_id;
+    if (followUpAppliedRef.current === key) return;
+    followUpAppliedRef.current = key;
+    applyFollowUpPrefill(followUpFrom, form, {
+      setExistingPatientId,
+      setAbhaRegistration,
+    });
+  }, [followUpFrom, form]);
 
+  useEffect(() => {
     const departmentId = (appointmentDepartmentId ?? '').trim();
     if (!departmentId) {
       setVisitDecisionMeta(null);
@@ -460,7 +356,7 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
     return () => {
       cancelled = true;
     };
-  }, [phase, debouncedVisitTypeDecisionKey, appointmentDepartmentId, visitTypeDecisionPatient, form]);
+  }, [debouncedVisitTypeDecisionKey, appointmentDepartmentId, visitTypeDecisionPatient, form]);
 
   const visitTypeHint =
     visitDecisionMeta?.consultation_type === 'free-followup' && visitDecisionMeta.valid_till
@@ -792,203 +688,17 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
 
   return (
     <div className="bg-background">
-      <div
-        className={
-          phase === 'form'
-            ? 'w-full px-3 py-3 md:px-4 md:py-4'
-            : 'mx-auto w-full max-w-[1600px] p-4 md:p-6'
-        }
-      >
-          {phase === 'list' ? (
-          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">{pageTitle}</h1>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                setExistingPatientId(null);
-                setAbhaRegistration(null);
-                setPhase('form');
-              }}
-            >
-              + New registration
-            </Button>
-          </header>
-          ) : (
-          <RegistrationFormHeader
-            searchValue={formSearchDraft}
-            onSearchChange={setFormSearchDraft}
-            onPatientQueue={() => setPhase('list')}
-            actions={<VisitRegistrationSectionMenu />}
-          />
-          )}
+      <div className="w-full px-3 py-3 md:px-4 md:py-4">
+        <RegistrationFormHeader
+          searchValue={formSearchDraft}
+          onSearchChange={setFormSearchDraft}
+          onPatientQueue={() => {
+            void navigate({ to: '/frontdesk/opd-registration' });
+          }}
+          actions={<VisitRegistrationSectionMenu />}
+        />
 
-          {phase === 'list' && canRead ? (
-            <div className="mt-6 space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Registrations
-              </h2>
-              <div className="relative max-w-xl">
-                <Label htmlFor="reg-list-search" className="sr-only">
-                  Search registrations
-                </Label>
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="reg-list-search"
-                  value={listSearchDraft}
-                  onChange={(e) => setListSearchDraft(e.target.value)}
-                  placeholder="Search by UHID, name, or phone number"
-                  className="h-10 pl-9"
-                  autoComplete="off"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Results update as you type. Newest registrations first.
-              </p>
-
-              {listQuery.isError && !(listQuery.error instanceof ApiError && listQuery.error.status === 403) ? (
-                <p className="text-sm text-destructive" role="alert">
-                  {mutationErrorMessage(listQuery.error)}
-                </p>
-              ) : null}
-
-              {listQuery.isFetching ? (
-                <p className="text-sm text-muted-foreground">Loading registrations…</p>
-              ) : null}
-
-              {!listQuery.isFetching && listQuery.data ? (
-                <>
-                  <div className="rounded-md border border-border overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>UHID</TableHead>
-                          <TableHead>Visit ID</TableHead>
-                          <TableHead>Patient</TableHead>
-                          <TableHead>Phone</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Visit type</TableHead>
-                          <TableHead>Registered</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {listQuery.data.data.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={8} className="text-center text-muted-foreground">
-                              No registrations match your search.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          listQuery.data.data.map((row) => {
-                            const invoiceLoading =
-                              invoiceLookupRegistrationId === row.registration_id;
-                            const overlay = row.id
-                              ? encounterOverlayQuery.data?.get(row.id)
-                              : undefined;
-                            const visitStatus = effectiveOpdQueueStatus(
-                              row.registration_status,
-                              overlay?.prescriptionStatus,
-                              overlay?.visitStatus,
-                            );
-                            const statusLabel = queueStatusLabel(visitStatus);
-                            return (
-                            <TableRow key={row.registration_id}>
-                              <TableCell className="font-medium tabular-nums">
-                                {row.patient_uhid ?? '—'}
-                              </TableCell>
-                              <TableCell className="font-medium tabular-nums">
-                                {row.visit_id ?? '—'}
-                              </TableCell>
-                              <TableCell>{row.patient_full_name ?? '—'}</TableCell>
-                              <TableCell className="tabular-nums">{row.patient_phone_number ?? '—'}</TableCell>
-                              <TableCell>{statusLabel}</TableCell>
-                              <TableCell>{row.visit_type_label ?? row.visit_type ?? '—'}</TableCell>
-                              <TableCell className="whitespace-nowrap tabular-nums text-muted-foreground">
-                                {new Date(row.created_at).toLocaleString()}
-                              </TableCell>
-                              <TableCell className="relative text-right">
-                                <div className="flex flex-wrap justify-end gap-2">
-                                  {canCreate ? (
-                                    <Button
-                                      type="button"
-                                      variant="default"
-                                      size="sm"
-                                      title="Open follow-up visit for this patient"
-                                      onClick={() => openFollowUpVisit(row)}
-                                    >
-                                      Follow-up
-                                    </Button>
-                                  ) : null}
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    title="Preview OPD slip"
-                                    onClick={() => openSlipPreview(row)}
-                                  >
-                                    OPD Slip
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={invoiceLoading}
-                                    title="Preview invoice"
-                                    onClick={() => void openInvoicePreview(row)}
-                                  >
-                                    {invoiceLoading ? 'Loading…' : 'Invoice'}
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground">
-                      Page {listQuery.data.page} of {Math.max(1, listQuery.data.total_pages)} —{' '}
-                      {listQuery.data.total} total
-                    </span>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={listPage <= 1 || listQuery.isFetching}
-                        onClick={() => setListPage((p) => Math.max(1, p - 1))}
-                        className="gap-1"
-                      >
-                        <ChevronLeft className="size-4" />
-                        Previous
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={
-                          listQuery.data.total_pages === 0 ||
-                          listPage >= listQuery.data.total_pages ||
-                          listQuery.isFetching
-                        }
-                        onClick={() => setListPage((p) => p + 1)}
-                        className="gap-1"
-                      >
-                        Next
-                        <ChevronRight className="size-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-
-          {phase === 'form' ? (
-          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-3 lg:mt-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="mt-3 lg:mt-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_16rem] lg:items-start">
               <div className="min-w-0 space-y-3">
                 {sectionVisible.patientDetails ? (
@@ -1083,7 +793,6 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
               <RegistrationTodayStatsSidebar />
             </div>
           </form>
-          ) : null}
       </div>
 
       <CreateAbhaDialog
@@ -1102,7 +811,7 @@ export function VisitRegistrationPage({ pageTitle = 'Registration' }: { pageTitl
               const fromRegistrationFlow = reportsModal.footerMode === 'registration';
               setReportsModal(null);
               if (fromRegistrationFlow) {
-                setPhase('list');
+                void navigate({ to: '/frontdesk/opd-registration' });
               }
             }
           }}

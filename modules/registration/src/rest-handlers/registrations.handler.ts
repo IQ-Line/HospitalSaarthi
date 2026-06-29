@@ -7,10 +7,13 @@ import type {
   PicklistReadPort,
   RegistrationRepo,
   VisitRepo,
+  BillingReadPort,
+  BillingWritePort,
 } from "../ports.js";
 import type {
   ExistingPatientVisitInput,
   NewPatientIntakeInput,
+  OpdRegistrationCompleteInput,
 } from "../domain/registration.types.js";
 import { getRegistration } from "../use-cases/get-registration.js";
 import { listRegistrations } from "../use-cases/list-registrations.js";
@@ -18,12 +21,14 @@ import {
   createIntakeForNewPatient,
   createVisitForExistingPatient,
 } from "../use-cases/create-intake-for-new-patient.js";
+import { completeOpdNewPatientRegistration } from "../use-cases/complete-opd-new-patient-registration.js";
 import { getVisitTypeDecision } from "../use-cases/get-visit-type-decision.js";
 import {
   dashboardStatsQuerySchema,
   existingPatientVisitBodySchema,
   listRegistrationsQuerySchema,
   newPatientIntakeBodySchema,
+  opdRegistrationCompleteBodySchema,
   paramsRegistrationIdSchema,
   visitTypeDecisionBodySchema,
 } from "./route-schemas.js";
@@ -63,6 +68,8 @@ export interface RegistrationsHandlerDeps {
   eventBus: EventBus;
   opdGateway?: OpdHttpPort;
   picklistReadPort?: PicklistReadPort;
+  billingWritePort?: BillingWritePort;
+  billingReadPort?: BillingReadPort;
 }
 
 async function loadPicklistLabelMaps(
@@ -347,6 +354,116 @@ export function registerRegistrationsHandler(
       return reply.code(status).send(
         serializeRegistrationWithVisit(intake.result, labelMaps),
       );
+    },
+  );
+
+  app.post<{ Body: OpdRegistrationCompleteInput }>(
+    "/workflows/opd-registrations/complete",
+    {
+      config: { authMode: "protected" as const },
+      schema: { body: opdRegistrationCompleteBodySchema },
+    },
+    async (request, reply) => {
+      const idempotencyKey = readIdempotencyKey(request);
+      if (!idempotencyKey) {
+        return reply.code(400).send(idempotencyKeyRequiredResponse());
+      }
+
+      if (!deps.empiGateway) {
+        return reply.code(503).send({
+          statusCode: 503,
+          error: "Service Unavailable",
+          message: "EMPI patient gateway not configured on this service instance",
+          code: "empi_gateway_not_configured",
+        });
+      }
+
+      if (!deps.billingWritePort) {
+        return reply.code(503).send({
+          statusCode: 503,
+          error: "Service Unavailable",
+          message: "Billing gateway not configured on this service instance",
+          code: "billing_gateway_not_configured",
+        });
+      }
+
+      const authHeader = request.headers.authorization;
+      const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+
+      try {
+        const outcome = await completeOpdNewPatientRegistration(
+          {
+            registrationRepo: deps.registrationRepo,
+            visitRepo: deps.visitRepo,
+            empiGateway: deps.empiGateway,
+            allocateOpVisitId: deps.allocateOpVisitId,
+            eventBus: deps.eventBus,
+            opdGateway: deps.opdGateway,
+            configuratorGateway: deps.configuratorGateway,
+            billingWritePort: deps.billingWritePort,
+            billingReadPort: deps.billingReadPort,
+          },
+          request.tenantId,
+          request.body,
+          {
+            idempotencyKey,
+            actorId: resolveActorId(request),
+            bearerToken,
+          },
+        );
+
+        if (!outcome.ok) {
+          if (outcome.phase === "intake") {
+            if (outcome.kind === "duplicate") {
+              return reply.code(409).send(outcome.body);
+            }
+            if (outcome.kind === "empi_unavailable") {
+              return reply.code(503).send({
+                statusCode: 503,
+                error: "Service Unavailable",
+                message: outcome.body,
+                code: "empi_unavailable",
+              });
+            }
+            return reply.code(outcome.status >= 400 ? outcome.status : 502).send({
+              statusCode: outcome.status,
+              error: "Upstream EMPI error",
+              message: outcome.body,
+            });
+          }
+          if (outcome.phase === "billing") {
+            return reply.code(outcome.status).send({
+              statusCode: outcome.status,
+              error: "Billing Error",
+              message: outcome.message,
+              code: outcome.code,
+              details: outcome.body,
+            });
+          }
+          return reply.code(500).send({
+            statusCode: 500,
+            error: "Internal Server Error",
+            message: outcome.message,
+            code: "visit_complete_failed",
+          });
+        }
+
+        const status = outcome.created ? 201 : 200;
+        const labelMaps = await loadPicklistLabelMaps(deps.picklistReadPort);
+        return reply.code(status).send({
+          ...serializeRegistrationWithVisit(outcome.result, labelMaps),
+          bill_id: outcome.bill_id,
+        });
+      } catch (err) {
+        if (err instanceof RegistrationValidationError) {
+          return reply.code(err.statusCode).send({
+            statusCode: err.statusCode,
+            error: "Bad Request",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
     },
   );
 }
