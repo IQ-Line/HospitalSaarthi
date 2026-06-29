@@ -37,7 +37,7 @@ export function FormToggleRow({
 }
 
 /** react-hook-form field wired to {@link FormToggleRow} (switch-only interaction). */
-export function ControlledFormToggleRow<T extends FieldValues>({
+export function ControlledFormToggleRow<T extends FieldValues, TT extends FieldValues = T>({
   control,
   name,
   id,
@@ -45,7 +45,7 @@ export function ControlledFormToggleRow<T extends FieldValues>({
   description,
   className = 'sm:col-span-2',
 }: {
-  control: Control<T>;
+  control: Control<T, unknown, TT>;
   name: FieldPath<T>;
   id: string;
   label: string;
