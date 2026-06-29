@@ -502,6 +502,7 @@ def clinical_payload_to_form_data(clinical: PrescriptionClinicalPayload) -> dict
             "chronicIllness": chronic,
             "smokingStatus": mh.smoking_status if mh else "",
             "alcoholStatus": mh.alcohol_status if mh else "",
+            "dietType": mh.diet_type if mh else "",
             "historyOfPresentIllness": mh.other_notes if mh else "",
         },
         "carePlan": {

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from opd.lib.build_clinical_report_payload import (
+    _map_medical_history,
     build_clinical_report_request,
+    clinical_payload_to_form_data,
     validate_report_request,
 )
 from opd.lib.clinical_report_context import ClinicalReportContext
@@ -109,6 +111,66 @@ def test_medicine_strength_falls_back_to_clinical_payload() -> None:
         clinical=clinical,
     )
     assert request["medicines"][0]["strength"] == "500mg"
+
+
+def _rich_normalized_clinical():
+    """A normalized clinical aggregate covering the sections the report renders.
+
+    Mirrors a normalized-written prescription (empty legacy form_data blob): the
+    report must source these entirely from the typed clinical payload.
+    """
+    from opd.schemas.prescription.prescription import (
+        PrescriptionCarePlanPayload,
+        PrescriptionClinicalPayload,
+        PrescriptionDiagnosisPayload,
+        PrescriptionMedicalHistoryAllergyPayload,
+        PrescriptionMedicalHistoryPayload,
+        PrescriptionOrderedImagingPayload,
+    )
+
+    return PrescriptionClinicalPayload(
+        medical_history=PrescriptionMedicalHistoryPayload(
+            diet_type="vegetarian", smoking_status="never"
+        ),
+        diagnoses=[
+            PrescriptionDiagnosisPayload(line_no=1, notes="Viral fever", certainty="presumed")
+        ],
+        medical_history_allergies=[
+            PrescriptionMedicalHistoryAllergyPayload(
+                line_no=1, allergen_text="Penicillin", reaction_text="Rash"
+            )
+        ],
+        care_plan=PrescriptionCarePlanPayload(
+            advice="Rest", refer_to="Cardiology", next_visit_value=7, next_visit_unit="days"
+        ),
+        ordered_imaging=[PrescriptionOrderedImagingPayload(line_no=1, name="Chest X-ray")],
+    )
+
+
+def test_clinical_payload_to_form_data_carries_diet_and_full_sections() -> None:
+    """The normalized->form_data converter (now the report source) must be complete.
+
+    Fails on the pre-change converter, which omitted ``dietType`` entirely — so a
+    normalized-written prescription would silently lose diet on the report once the
+    legacy ``form_data`` blob is dropped.
+    """
+    form = clinical_payload_to_form_data(_rich_normalized_clinical())
+
+    assert form["medicalHistory"]["dietType"] == "vegetarian"
+    assert form["diagnosis"][0]["notes"] == "Viral fever"
+    assert form["allergyDetails"][0]["allergen"] == "Penicillin"
+    assert form["carePlan"]["advice"] == "Rest"
+    assert form["carePlan"]["referTo"] == "Cardiology"
+    assert form["imagingRequired"][0]["testName"] == "Chest X-ray"
+
+
+def test_report_medical_history_surfaces_diet_from_normalized_clinical() -> None:
+    """End to end: diet flows normalized clinical -> converter -> report mapper."""
+    form = clinical_payload_to_form_data(_rich_normalized_clinical())
+    mapped = _map_medical_history(form)
+
+    assert mapped is not None
+    assert mapped["dietType"] == "vegetarian"
 
 
 def test_immunization_date_of_dose_is_date_only() -> None:
