@@ -180,11 +180,12 @@ def finalize_prescription(
     payload: PrescriptionFinalizeRequest,
     background_tasks: BackgroundTasks,
     tenant_id: TenantId,
+    doctor_id: DoctorId,
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     session: Annotated[Session, Depends(get_session)],
 ) -> PrescriptionSingleResponse:
     try:
-        data = service.finalize(tenant_id, prescription_id, payload)
+        data = service.finalize(tenant_id, prescription_id, payload, doctor_id=doctor_id)
     except PrescriptionNotFoundError as exc:
         raise _not_found(exc) from exc
     except PrescriptionConflictError as exc:

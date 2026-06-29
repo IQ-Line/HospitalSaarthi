@@ -8,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from opd.core.principal import SYSTEM_DOCTOR_ID
 from opd.models.prescription import (
     PrescriptionAdvisedProcedureModel,
     PrescriptionCarePlanModel,
@@ -249,7 +250,12 @@ class PrescriptionRepository:
         return self.get_by_id(tenant_id, prescription_id)
 
     def finalize(
-        self, tenant_id: UUID, prescription_id: UUID, *, changed_by: UUID | None
+        self,
+        tenant_id: UUID,
+        prescription_id: UUID,
+        *,
+        changed_by: UUID | None,
+        doctor_id: UUID,
     ) -> PrescriptionModel:
         rx = self._get_root_by_id(tenant_id, prescription_id)
         if rx.status != PrescriptionStatus.DRAFT:
@@ -260,6 +266,11 @@ class PrescriptionRepository:
         rx.status = PrescriptionStatus.FINAL
         rx.finalized_at = now
         rx.updated_by = changed_by
+        # The finalizing doctor is the prescriber of record (see service.finalize).
+        # Only stamp when the finalizer is a known actor — never clobber a real
+        # prescriber with the SYSTEM_DOCTOR_ID nil fallback (missing x-user-id).
+        if doctor_id != SYSTEM_DOCTOR_ID:
+            rx.doctor_id = doctor_id
         rx.status_history.append(
             PrescriptionStatusHistoryModel(
                 tenant_id=tenant_id,

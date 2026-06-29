@@ -114,9 +114,14 @@ class PrescriptionService:
         tenant_id: UUID,
         prescription_id: UUID,
         payload: PrescriptionFinalizeRequest,
+        *,
+        doctor_id: UUID,
     ) -> PrescriptionDetailResponse:
+        # The doctor who ends the consultation is the prescriber of record — finalize
+        # stamps the prescription's doctor_id with the finalizing actor, overriding
+        # whoever created the draft (e.g. a nurse capturing pre-consult vitals).
         row = self._repository.finalize(
-            tenant_id, prescription_id, changed_by=payload.changed_by
+            tenant_id, prescription_id, changed_by=payload.changed_by, doctor_id=doctor_id
         )
         return prescription_to_detail(row)
 

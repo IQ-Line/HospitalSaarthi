@@ -131,6 +131,31 @@ def test_create_uses_doctor_from_header(prescription_client: TestClient) -> None
     assert created.json()["data"]["doctor_id"] == str(header_doctor)
 
 
+def test_finalize_stamps_finalizing_doctor_from_header(prescription_client: TestClient) -> None:
+    """The doctor who finalizes (x-user-id at /finalize) is the prescriber of record,
+    overriding whoever created the draft (e.g. a nurse capturing pre-consult vitals)."""
+    creating_doctor = uuid4()
+    finalizing_doctor = uuid4()
+    visit_id = str(uuid4())
+
+    created = prescription_client.post(
+        API_PREFIX,
+        json=make_create_payload(visit_id=visit_id),
+        headers=tenant_headers(doctor_id=creating_doctor),
+    )
+    assert created.status_code == 201
+    rx_id = created.json()["data"]["id"]
+    assert created.json()["data"]["doctor_id"] == str(creating_doctor)
+
+    finalized = prescription_client.post(
+        f"{API_PREFIX}/{rx_id}/finalize",
+        headers=tenant_headers(doctor_id=finalizing_doctor),
+        json={},
+    )
+    assert finalized.status_code == 200
+    assert finalized.json()["data"]["doctor_id"] == str(finalizing_doctor)
+
+
 def test_batch_overlays_by_visit_ids(prescription_client: TestClient, db_session) -> None:
     from opd.models.visit import Visit
 

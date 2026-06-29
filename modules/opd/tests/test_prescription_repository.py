@@ -154,7 +154,9 @@ def test_finalize_and_cancel_append_status_history(
     prescription_repo: PrescriptionRepository,
 ) -> None:
     created = _create(prescription_repo)
-    finalized = prescription_repo.finalize(TENANT_A, created.id, changed_by=None)
+    finalized = prescription_repo.finalize(
+        TENANT_A, created.id, changed_by=None, doctor_id=DOCTOR_ID
+    )
     assert finalized.status == PrescriptionStatus.FINAL
     assert any(h.to_status == PrescriptionStatus.FINAL for h in finalized.status_history)
 
@@ -169,11 +171,45 @@ def test_finalize_and_cancel_append_status_history(
     assert cancelled.status_history[-1].reason == "Patient left"
 
 
+def test_finalize_stamps_finalizing_doctor_as_prescriber(
+    prescription_repo: PrescriptionRepository,
+) -> None:
+    """The doctor who finalizes is the prescriber of record, overriding the creator.
+
+    Mirrors a nurse-created draft (doctor_id = the creating actor) finalized by the
+    attending doctor: finalize must overwrite doctor_id with the finalizing actor.
+    """
+    finalizing_doctor = UUID("99999999-9999-9999-9999-999999999999")
+    created = _create(prescription_repo, doctor_id=DOCTOR_ID)
+    assert created.doctor_id == DOCTOR_ID
+
+    finalized = prescription_repo.finalize(
+        TENANT_A, created.id, changed_by=None, doctor_id=finalizing_doctor
+    )
+
+    assert finalized.doctor_id == finalizing_doctor
+
+
+def test_finalize_with_unknown_actor_keeps_existing_prescriber(
+    prescription_repo: PrescriptionRepository,
+) -> None:
+    """A finalize with no resolvable actor (nil SYSTEM_DOCTOR_ID) must NOT clobber
+    the existing prescriber — it is never worse than leaving doctor_id untouched."""
+    from opd.core.principal import SYSTEM_DOCTOR_ID
+
+    created = _create(prescription_repo, doctor_id=DOCTOR_ID)
+    finalized = prescription_repo.finalize(
+        TENANT_A, created.id, changed_by=None, doctor_id=SYSTEM_DOCTOR_ID
+    )
+
+    assert finalized.doctor_id == DOCTOR_ID
+
+
 def test_finalize_rejects_non_draft(prescription_repo: PrescriptionRepository) -> None:
     created = _create(prescription_repo)
-    prescription_repo.finalize(TENANT_A, created.id, changed_by=None)
+    prescription_repo.finalize(TENANT_A, created.id, changed_by=None, doctor_id=DOCTOR_ID)
     with pytest.raises(PrescriptionConflictError, match="Only draft"):
-        prescription_repo.finalize(TENANT_A, created.id, changed_by=None)
+        prescription_repo.finalize(TENANT_A, created.id, changed_by=None, doctor_id=DOCTOR_ID)
 
 
 def test_soft_deleted_prescription_not_found_by_id(
@@ -201,7 +237,7 @@ def test_finalize_uses_root_lookup_before_detail_reload(
             wraps=prescription_repo.get_by_id,
         ) as detail_get,
     ):
-        prescription_repo.finalize(TENANT_A, created.id, changed_by=None)
+        prescription_repo.finalize(TENANT_A, created.id, changed_by=None, doctor_id=DOCTOR_ID)
 
     root_get.assert_called_once()
     detail_get.assert_called_once()
