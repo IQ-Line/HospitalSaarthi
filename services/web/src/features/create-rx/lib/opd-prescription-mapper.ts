@@ -35,6 +35,7 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     medical_history: {
       smoking_status: data.medicalHistory.smokingStatus || null,
       alcohol_status: data.medicalHistory.alcoholStatus || null,
+      diet_type: data.medicalHistory.dietType || null,
       other_notes: data.medicalHistory.historyOfPresentIllness || null,
     },
     medical_history_chronic_illnesses: data.medicalHistory.chronicIllness
@@ -79,6 +80,7 @@ export function createRxFormDataToClinical(formData: CreateRxFormData): OpdPresc
     ordered_imaging: lineItems(data.imagingRequired, (row, index) => ({
       line_no: index + 1,
       name: row.testName,
+      when_text: row.byWhen || null,
       instructions: row.instructions || null,
       status: row.status || 'pending',
     })),
@@ -159,7 +161,7 @@ export function clinicalToCreateRxFormData(
       smokingStatus: (c.medical_history?.smoking_status as CreateRxFormData['medicalHistory']['smokingStatus']) ?? '',
       alcoholStatus:
         (c.medical_history?.alcohol_status as CreateRxFormData['medicalHistory']['alcoholStatus']) ?? '',
-      dietType: '',
+      dietType: c.medical_history?.diet_type ?? '',
       historyOfPresentIllness: c.medical_history?.other_notes ?? '',
     },
     allergyDetails:
@@ -216,7 +218,7 @@ export function clinicalToCreateRxFormData(
       c.ordered_imaging?.map((row) => ({
         id: crypto.randomUUID(),
         testName: (row as { name: string }).name,
-        byWhen: '',
+        byWhen: (row as { when_text?: string | null }).when_text ?? '',
         instructions: (row as { instructions?: string }).instructions ?? '',
         status: (row as { status?: string }).status ?? '',
       })) ?? [],

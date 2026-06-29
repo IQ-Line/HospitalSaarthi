@@ -968,6 +968,9 @@ components:
         alcohol_status:
           type: string
           nullable: true
+        diet_type:
+          type: string
+          nullable: true
         other_notes:
           type: string
           nullable: true
@@ -1088,6 +1091,9 @@ components:
         due_by:
           type: string
           format: date-time
+          nullable: true
+        when_text:
+          type: string
           nullable: true
         instructions:
           type: string

@@ -410,6 +410,7 @@ class PrescriptionRepository:
                 tenant_id=tenant_id,
                 smoking_status=mh.smoking_status,
                 alcohol_status=mh.alcohol_status,
+                diet_type=mh.diet_type,
                 other_notes=mh.other_notes,
             )
 
@@ -496,6 +497,7 @@ class PrescriptionRepository:
                     external_id=item.external_id,
                     name=item.name,
                     due_by=item.due_by,
+                    when_text=item.when_text,
                     instructions=item.instructions,
                     status=item.status,
                 )

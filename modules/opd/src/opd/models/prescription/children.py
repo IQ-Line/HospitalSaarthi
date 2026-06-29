@@ -180,6 +180,7 @@ class PrescriptionMedicalHistoryModel(TimestampMixin, TenantPrimaryKeyMixin, Bas
     )
     smoking_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     alcohol_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    diet_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     other_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     prescription: Mapped[PrescriptionModel] = relationship(back_populates="medical_history")
@@ -335,6 +336,10 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     due_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Free-text "By When" the imaging is captured as in the Create-RX form (e.g. "in 2
+    # weeks", "before next visit"). Distinct from the typed `due_by`, which the OPD form
+    # does not populate; this preserves what the doctor actually typed on save/reload.
+    when_text: Mapped[str | None] = mapped_column(String(256), nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[OrderItemStatus] = mapped_column(
         order_item_status_column(),

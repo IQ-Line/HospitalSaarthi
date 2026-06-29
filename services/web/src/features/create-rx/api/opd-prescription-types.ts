@@ -18,6 +18,7 @@ export interface OpdPrescriptionClinicalPayload {
   medical_history?: {
     smoking_status?: string | null;
     alcohol_status?: string | null;
+    diet_type?: string | null;
     other_notes?: string | null;
   } | null;
   medical_history_allergies?: unknown[];

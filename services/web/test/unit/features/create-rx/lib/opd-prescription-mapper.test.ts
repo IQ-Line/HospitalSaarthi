@@ -267,6 +267,44 @@ describe('custom visitpad catalog text (no master id)', () => {
   });
 });
 
+describe('diet type and imaging byWhen round-trip', () => {
+  it('preserves medicalHistory.dietType and imagingRequired[].byWhen through the normalized round-trip', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: 'Vegetarian',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [],
+      testsRequired: [],
+      imagingRequired: [
+        { id: '1', testName: 'Chest X-Ray', byWhen: 'in 2 weeks', instructions: 'PA view', status: '' },
+      ],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medical_history?.diet_type).toBe('Vegetarian');
+    const imaging = clinical.ordered_imaging?.[0] as { name: string; when_text?: string | null };
+    expect(imaging.name).toBe('Chest X-Ray');
+    expect(imaging.when_text).toBe('in 2 weeks');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicalHistory.dietType).toBe('Vegetarian');
+    expect(restored.imagingRequired[0]?.byWhen).toBe('in 2 weeks');
+    expect(restored.imagingRequired[0]?.instructions).toBe('PA view');
+  });
+});
+
 describe('createRxFormDataToClinical', () => {
   it('includes immunization meta in vaccines_required', () => {
     const formData: CreateRxFormData = {

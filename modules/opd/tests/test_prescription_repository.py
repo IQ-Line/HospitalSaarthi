@@ -15,7 +15,7 @@ from opd.data_access.prescription_repository import (
 from opd.models.prescription.enums import PrescriptionStatus
 from opd.schemas.prescription.prescription import PrescriptionCreate, PrescriptionUpdate
 from opd.services.prescription_mapper import prescription_to_detail
-from tests.conftest import DOCTOR_ID, TENANT_A, TENANT_B, make_create_payload
+from tests.conftest import DOCTOR_ID, PATIENT_ID, TENANT_A, TENANT_B, make_create_payload
 
 
 def _create(
@@ -94,6 +94,60 @@ def test_update_draft_replaces_chief_complaints_same_line_no(
     detail = prescription_to_detail(updated)
     assert len(detail.clinical.chief_complaints) == 1
     assert detail.clinical.chief_complaints[0].complaint_text == "Headache"
+
+
+def test_diet_type_and_imaging_when_text_round_trip(
+    prescription_repo: PrescriptionRepository,
+) -> None:
+    """diet_type and imaging when_text are FE-edited fields that had no normalized
+    column (they lived only in the legacy form_data blob). Prove they now survive
+    create -> persist -> detail read so the FE cutover off the JSONB family is lossless.
+    """
+    payload = PrescriptionCreate.model_validate(
+        {
+            "visit_id": str(uuid4()),
+            "patient_id": str(PATIENT_ID),
+            "clinical": {
+                "medical_history": {"diet_type": "Vegetarian"},
+                "ordered_imaging": [
+                    {"line_no": 1, "name": "Chest X-Ray", "when_text": "in 2 weeks"},
+                ],
+            },
+        }
+    )
+    created = prescription_repo.create(TENANT_A, DOCTOR_ID, payload)
+    detail = prescription_to_detail(prescription_repo.get_by_id(TENANT_A, created.id))
+
+    assert detail.clinical.medical_history is not None
+    assert detail.clinical.medical_history.diet_type == "Vegetarian"
+    assert len(detail.clinical.ordered_imaging) == 1
+    assert detail.clinical.ordered_imaging[0].when_text == "in 2 weeks"
+
+
+def test_update_draft_preserves_diet_type_and_imaging_when_text(
+    prescription_repo: PrescriptionRepository,
+) -> None:
+    """The draft-update path clears and re-applies clinical children; confirm the two
+    new fields round-trip through that replace path too (not just initial create)."""
+    created = _create(prescription_repo)
+    updated = prescription_repo.update(
+        TENANT_A,
+        created.id,
+        PrescriptionUpdate.model_validate(
+            {
+                "clinical": {
+                    "medical_history": {"diet_type": "Vegan"},
+                    "ordered_imaging": [
+                        {"line_no": 1, "name": "MRI Brain", "when_text": "before next visit"},
+                    ],
+                }
+            }
+        ),
+    )
+    detail = prescription_to_detail(updated)
+    assert detail.clinical.medical_history is not None
+    assert detail.clinical.medical_history.diet_type == "Vegan"
+    assert detail.clinical.ordered_imaging[0].when_text == "before next visit"
 
 
 def test_finalize_and_cancel_append_status_history(

@@ -58,6 +58,7 @@ class PrescriptionSymptomPayload(BaseModel):
 class PrescriptionMedicalHistoryPayload(BaseModel):
     smoking_status: str | None = None
     alcohol_status: str | None = None
+    diet_type: str | None = None
     other_notes: str | None = None
 
 
@@ -119,6 +120,7 @@ class PrescriptionOrderedImagingPayload(BaseModel):
     external_id: str | None = None
     name: str
     due_by: datetime | None = None
+    when_text: str | None = None
     instructions: str | None = None
     status: OrderItemStatus = OrderItemStatus.PENDING
 
