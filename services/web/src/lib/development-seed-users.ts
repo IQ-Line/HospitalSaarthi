@@ -1,4 +1,4 @@
-import { DEVELOPMENT_SEED_USERS } from '../../../../packages/dev-bootstrap/src/development-seed-users.ts';
+import { DEVELOPMENT_SEED_USERS } from '../../../../packages/dev-bootstrap/src/development-seed-users';
 
 /**
  * Dev-only sign-in shortcuts (UI). Credentials must match `make seed` / `pnpm seed`.

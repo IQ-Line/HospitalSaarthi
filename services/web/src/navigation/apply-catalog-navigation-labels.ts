@@ -1,8 +1,6 @@
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
-import {
-  isCatalogL1Module,
-  type ModuleCatalogIndex,
-} from '@/platform/modules/use-enabled-tenant-modules';
+import { isCatalogL1Module } from '@/platform/modules/use-enabled-tenant-modules';
+import type { ModuleCatalogIndex } from '@/platform/modules/types';
 import type { NavigationNode } from './types';
 
 function buildL1CatalogNameBySlug(index: ModuleCatalogIndex): Map<string, string> {

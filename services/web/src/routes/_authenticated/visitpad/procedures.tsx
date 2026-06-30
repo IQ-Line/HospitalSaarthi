@@ -68,8 +68,10 @@ const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 const PROC_CATEGORY_UNSET = '__unset__';
 const PROC_BILLING_UNSET = '__unset__';
 
-const PROC_CATEGORY_VALUES = new Set(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
-const PROC_BILLING_VALUES = new Set(VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value));
+const PROC_CATEGORY_VALUES = new Set<string>(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
+const PROC_BILLING_VALUES = new Set<string>(
+  VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value),
+);
 
 function emptyProcedureCreateForm(displayOrder: number): VisitpadProcedureCreateFormInput {
   return {

@@ -62,7 +62,7 @@ const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
 
 const CI_CATEGORY_UNSET = '__unset__';
 
-const CHRONIC_CATEGORY_VALUES = new Set(
+const CHRONIC_CATEGORY_VALUES = new Set<string>(
   VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => c.value),
 );
 
