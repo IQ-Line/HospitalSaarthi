@@ -6,18 +6,24 @@ import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 interface InventoryMastersHeaderActionsProps {
   catalogModuleSlug: string;
   addLabel: string;
+  onAddClick?: () => void;
 }
 
 export function InventoryMastersHeaderActions({
   catalogModuleSlug,
   addLabel,
+  onAddClick,
 }: InventoryMastersHeaderActionsProps) {
   const { canCreate, canMutate } = useCatalogModuleCrud(catalogModuleSlug, {
     productModuleSlug: 'inventory-master',
   });
 
-  const placeholder = (action: string) => {
-    toast.info(`${action} will be available when APIs are connected.`);
+  const handleAdd = () => {
+    if (onAddClick) {
+      onAddClick();
+      return;
+    }
+    toast.info(`${addLabel} is not available for this tab yet.`);
   };
 
   return (
@@ -29,7 +35,7 @@ export function InventoryMastersHeaderActions({
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => placeholder('Export')}
+            onClick={() => toast.info('Export will ship in a later iteration.')}
           >
             <Upload className="size-4" aria-hidden />
             Export
@@ -39,7 +45,7 @@ export function InventoryMastersHeaderActions({
             variant="outline"
             size="sm"
             className="gap-1.5"
-            onClick={() => placeholder('Import')}
+            onClick={() => toast.info('Import will ship in a later iteration.')}
           >
             <Download className="size-4" aria-hidden />
             Import
@@ -47,7 +53,7 @@ export function InventoryMastersHeaderActions({
         </>
       ) : null}
       {canCreate ? (
-        <Button type="button" size="sm" className="gap-1.5" onClick={() => placeholder(addLabel)}>
+        <Button type="button" size="sm" className="gap-1.5" onClick={handleAdd}>
           <Plus className="size-4" aria-hidden />
           {addLabel}
         </Button>

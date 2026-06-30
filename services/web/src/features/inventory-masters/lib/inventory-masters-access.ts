@@ -5,7 +5,7 @@ import {
   INVENTORY_MASTER_TABS,
 } from '@/features/inventory-masters/inventory-masters-nav-model';
 import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
-import { resolveTenantAdmin } from '@/lib/platform-admin';
+import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
@@ -16,7 +16,11 @@ export function assertInventorySupplyMastersTenantAdmin(): void {
   const authRoles = useAuthStore.getState().roles;
   const principalRoles = usePermissionsStore.getState().roles;
   const accessToken = useAuthStore.getState().accessToken;
-  if (!resolveTenantAdmin({ principalRoles, authRoles, accessToken })) {
+  const principal = { principalRoles, authRoles, accessToken };
+  if (
+    !resolveTenantAdmin(principal) &&
+    !resolvePlatformSuperAdmin(principal)
+  ) {
     throw redirect({ to: '/dashboard' });
   }
 }

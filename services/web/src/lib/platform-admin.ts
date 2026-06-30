@@ -6,6 +6,21 @@ export const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
 /** Canonical role code for tenant administrators (matches provisioning seed `tenant-admin`). */
 export const TENANT_ADMIN_ROLE = 'tenant-admin';
 
+/**
+ * Role codes that grant tenant-administrator UX (sidebar enrichment, inventory masters, …).
+ * Includes configurator-provisioned `tenant-admin` and UM roles typed as Administrator (`admin`).
+ */
+export const TENANT_ADMINISTRATOR_ROLE_CODES = [
+  TENANT_ADMIN_ROLE,
+  'admin',
+  'tenant_admin',
+  'administrator',
+] as const;
+
+const TENANT_ADMINISTRATOR_ROLE_CODE_SET = new Set<string>(
+  TENANT_ADMINISTRATOR_ROLE_CODES.map((code) => code.toLowerCase()),
+);
+
 export function isPlatformSuperAdminRole(role: string): boolean {
   return role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE;
 }
@@ -35,7 +50,8 @@ export function resolvePlatformSuperAdmin(input: {
 }
 
 export function isTenantAdminRole(role: string): boolean {
-  return role.trim().toLowerCase() === TENANT_ADMIN_ROLE;
+  const normalized = role.trim().toLowerCase();
+  return normalized.length > 0 && TENANT_ADMINISTRATOR_ROLE_CODE_SET.has(normalized);
 }
 
 export function isTenantAdmin(roles: readonly string[] | undefined): boolean {

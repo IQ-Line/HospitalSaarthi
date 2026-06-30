@@ -1,23 +1,19 @@
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Badge } from '@pulse/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@pulse/ui/select';
 import {
   useInventoryCategories,
   useInventoryHsnGst,
-  useInventoryItems,
   useInventoryItemTypes,
   useInventoryManufacturers,
   useInventoryStorageConditions,
   useInventoryStoreTypes,
   useInventoryUoms,
 } from '@/features/inventory-masters/api/queries';
+import {
+  InventoryItemMasterTab,
+  InventoryItemMasterTabShell,
+} from '@/features/inventory-masters/components/inventory-item-master-tab';
+import { InventoryMasterCrudDialogs } from '@/features/inventory-masters/components/inventory-master-crud-dialogs';
 import { InventoryMastersHeaderActions } from '@/features/inventory-masters/components/inventory-masters-header-actions';
 import { InventoryMastersPageShell } from '@/features/inventory-masters/components/inventory-masters-page-shell';
 import {
@@ -30,41 +26,56 @@ import {
   InventoryMastersTableCard,
 } from '@/features/inventory-masters/components/inventory-masters-table-card';
 import { getInventoryMasterTabConfig } from '@/features/inventory-masters/inventory-masters-nav-model';
+import { inventoryMasterApiBasePath } from '@/features/inventory-masters/lib/inventory-master-api-paths';
 import type {
   InventoryCategory,
   InventoryHsnGst,
-  InventoryItemMaster,
   InventoryItemType,
   InventoryManufacturer,
   InventoryMasterListParams,
+  InventoryMasterStatus,
   InventoryMasterTabId,
   InventoryStorageCondition,
   InventoryStoreType,
   InventoryUom,
 } from '@/features/inventory-masters/types';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 interface InventoryMastersTabPageProps {
   tabId: InventoryMasterTabId;
 }
 
-const CLASSIFICATION_LABELS: Record<InventoryItemMaster['classification'], string> = {
-  inventory_item: 'Inventory Item',
-  medicine: 'Medicine',
-};
+type InventoryMasterCrudRow =
+  | InventoryCategory
+  | InventoryItemType
+  | InventoryUom
+  | InventoryStorageCondition
+  | InventoryHsnGst
+  | InventoryStoreType
+  | InventoryManufacturer;
+
+type DeleteTarget = { id: string; label: string };
 
 export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps) {
   const tab = getInventoryMasterTabConfig(tabId);
+  const crudEnabled = inventoryMasterApiBasePath(tabId) !== null;
+  const { canUpdate, canDelete } = useCatalogModuleCrud(tab.catalogModuleSlug, {
+    productModuleSlug: 'inventory-master',
+  });
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<InventoryMasterListParams['status']>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [classificationFilter, setClassificationFilter] = useState('all');
+  const [itemMasterAdd, setItemMasterAdd] = useState<(() => void) | undefined>();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editing, setEditing] = useState<InventoryMasterCrudRow | null>(null);
+  const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
 
   const listParams = useMemo<InventoryMasterListParams>(
     () => ({ search: search || undefined, status }),
     [search, status],
   );
 
-  const itemsQuery = useInventoryItems(listParams);
   const categoriesQuery = useInventoryCategories(listParams);
   const itemTypesQuery = useInventoryItemTypes(listParams);
   const uomsQuery = useInventoryUoms(listParams);
@@ -72,49 +83,6 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
   const hsnQuery = useInventoryHsnGst(listParams);
   const manufacturersQuery = useInventoryManufacturers(listParams);
   const storeTypesQuery = useInventoryStoreTypes(listParams);
-
-  const itemColumns = useMemo<ColumnDef<InventoryItemMaster, unknown>[]>(
-    () => [
-      inventoryMasterIndexColumn<InventoryItemMaster>(),
-      {
-        accessorKey: 'item_code',
-        header: 'Item Code',
-        meta: { label: 'Item Code' },
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      { accessorKey: 'item_name', header: 'Item Name', meta: { label: 'Item Name' } },
-      { accessorKey: 'display_name', header: 'Display Name', meta: { label: 'Display Name' } },
-      {
-        accessorKey: 'classification',
-        header: 'Classification',
-        meta: { label: 'Classification' },
-        cell: ({ getValue }) => {
-          const value = getValue<InventoryItemMaster['classification']>();
-          return (
-            <Badge variant={value === 'medicine' ? 'default' : 'secondary'}>
-              {CLASSIFICATION_LABELS[value]}
-            </Badge>
-          );
-        },
-      },
-      { accessorKey: 'item_type', header: 'Item Type', meta: { label: 'Item Type' } },
-      {
-        accessorKey: 'product_category',
-        header: 'Product Category',
-        meta: { label: 'Product Category' },
-      },
-      { accessorKey: 'department', header: 'Department', meta: { label: 'Department' } },
-      { accessorKey: 'manufacturer', header: 'Manufacturer', meta: { label: 'Manufacturer' } },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
-      },
-      inventoryMasterActionsColumn<InventoryItemMaster>(),
-    ],
-    [],
-  );
 
   const categoryColumns = useMemo<ColumnDef<InventoryCategory, unknown>[]>(
     () => [
@@ -130,11 +98,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryCategory>(),
+      inventoryMasterActionsColumn<InventoryCategory>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.category_name }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const itemTypeColumns = useMemo<ColumnDef<InventoryItemType, unknown>[]>(
@@ -145,11 +118,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryItemType>(),
+      inventoryMasterActionsColumn<InventoryItemType>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.item_type }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const uomColumns = useMemo<ColumnDef<InventoryUom, unknown>[]>(
@@ -161,11 +139,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryUom>(),
+      inventoryMasterActionsColumn<InventoryUom>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.name }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const storageColumns = useMemo<ColumnDef<InventoryStorageCondition, unknown>[]>(
@@ -186,11 +169,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryStorageCondition>(),
+      inventoryMasterActionsColumn<InventoryStorageCondition>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.storage_condition }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const hsnColumns = useMemo<ColumnDef<InventoryHsnGst, unknown>[]>(
@@ -224,11 +212,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryHsnGst>(),
+      inventoryMasterActionsColumn<InventoryHsnGst>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.hsn_code }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const manufacturerColumns = useMemo<ColumnDef<InventoryManufacturer, unknown>[]>(
@@ -249,11 +242,16 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryManufacturer>(),
+      inventoryMasterActionsColumn<InventoryManufacturer>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.manufacturer }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
   const storeTypeColumns = useMemo<ColumnDef<InventoryStoreType, unknown>[]>(
@@ -283,32 +281,23 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue()} />,
+        cell: ({ getValue }) => <InventoryMasterStatusBadge status={getValue<InventoryMasterStatus>()} />,
       },
-      inventoryMasterActionsColumn<InventoryStoreType>(),
+      inventoryMasterActionsColumn<InventoryStoreType>({
+        canEdit: canUpdate,
+        canDelete,
+        onEdit: (row) => setEditing(row),
+        onDelete: (row) => setDeleting({ id: row.id, label: row.store_type }),
+      }),
     ],
-    [],
+    [canDelete, canUpdate],
   );
 
-  const itemRows = useMemo(() => {
-    let rows = itemsQuery.data?.data ?? [];
-    if (categoryFilter !== 'all') {
-      rows = rows.filter((row) => row.product_category.includes(categoryFilter));
-    }
-    if (classificationFilter !== 'all') {
-      rows = rows.filter((row) => row.classification === classificationFilter);
-    }
-    return rows;
-  }, [categoryFilter, classificationFilter, itemsQuery.data?.data]);
-
-  const itemCategoryOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of itemsQuery.data?.data ?? []) {
-      const root = row.product_category.split('>')[0]?.trim();
-      if (root) set.add(root);
-    }
-    return [...set].sort();
-  }, [itemsQuery.data?.data]);
+  const handleAddClick = useMemo(() => {
+    if (!crudEnabled) return undefined;
+    if (tabId === 'item-master') return itemMasterAdd;
+    return () => setCreateOpen(true);
+  }, [crudEnabled, itemMasterAdd, tabId]);
 
   const tableProps = {
     search,
@@ -325,45 +314,24 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         <InventoryMastersHeaderActions
           catalogModuleSlug={tab.catalogModuleSlug}
           addLabel={tab.addLabel}
+          onAddClick={handleAddClick}
         />
       }
     >
       {tabId === 'item-master' ? (
-        <InventoryMastersTableCard
-          {...tableProps}
-          extraFilters={
-            <>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-[170px]">
-                  <SelectValue placeholder="All categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All categories</SelectItem>
-                  {itemCategoryOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={classificationFilter} onValueChange={setClassificationFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All classifications" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All classifications</SelectItem>
-                  <SelectItem value="inventory_item">Inventory Item</SelectItem>
-                  <SelectItem value="medicine">Medicine</SelectItem>
-                </SelectContent>
-              </Select>
-            </>
-          }
-          columns={itemColumns}
-          data={itemRows}
-          isLoading={itemsQuery.isLoading}
-          emptyTitle="No items found"
-          emptyDescription="Add an item or adjust your filters."
-        />
+        <InventoryItemMasterTabShell>
+          <InventoryItemMasterTab
+            onRegisterAdd={setItemMasterAdd}
+            search={search}
+            onSearchChange={setSearch}
+            status={status}
+            onStatusChange={setStatus}
+            categoryFilter={categoryFilter}
+            onCategoryFilterChange={setCategoryFilter}
+            classificationFilter={classificationFilter}
+            onClassificationFilterChange={setClassificationFilter}
+          />
+        </InventoryItemMasterTabShell>
       ) : null}
 
       {tabId === 'categories' ? (
@@ -442,6 +410,17 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
           emptyDescription="Add a store type to get started."
         />
       ) : null}
+
+      <InventoryMasterCrudDialogs
+        tabId={tabId}
+        createOpen={tabId === 'item-master' ? false : createOpen}
+        onCreateOpenChange={setCreateOpen}
+        editing={editing}
+        onEditingChange={setEditing}
+        deleting={deleting}
+        onDeletingChange={setDeleting}
+        categories={categoriesQuery.data?.data ?? []}
+      />
     </InventoryMastersPageShell>
   );
 }

@@ -211,6 +211,46 @@ describe('apiClient', () => {
     expect(headers.has('x-tenant-id')).toBe(false);
   });
 
+  it('sends iq_tenant_id for inventory catalog when principal is platform super-admin', async () => {
+    useAuthStore.setState({ roles: ['super-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient('/api/v1/master-data/inventory/uoms?limit=50&offset=0', { method: 'GET' });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(DEV_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(DEV_TENANT);
+  });
+
+  it('sends iq_tenant_id for visitpad catalog when super-admin passes tenantIdOverride', async () => {
+    useAuthStore.setState({ roles: ['super-admin'] });
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: [], total: 0 }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await apiClient(
+      '/api/v1/master-data/visitpad/manufacturers?limit=50&offset=0',
+      { method: 'GET' },
+      { tenantIdOverride: DEV_TENANT },
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get('iq_tenant_id')).toBe(DEV_TENANT);
+    expect(headers.get('x-tenant-id')).toBe(DEV_TENANT);
+  });
+
   it('sends iq_tenant_id for visitpad catalog when principal is tenant-admin', async () => {
     useAuthStore.setState({ roles: ['tenant-admin'] });
 

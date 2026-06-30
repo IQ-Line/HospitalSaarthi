@@ -28,6 +28,7 @@ export type InventoryItemMaster = {
 export type InventoryCategory = {
   id: string;
   category_name: string;
+  parent_category_id: string | null;
   parent_category: string | null;
   status: InventoryMasterStatus;
 };

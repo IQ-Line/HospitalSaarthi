@@ -1,15 +1,13 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import {
-  DUMMY_INVENTORY_CATEGORIES,
-  DUMMY_INVENTORY_HSN_GST,
-  DUMMY_INVENTORY_ITEMS,
-  DUMMY_INVENTORY_ITEM_TYPES,
-  DUMMY_INVENTORY_MANUFACTURERS,
-  DUMMY_INVENTORY_STORAGE_CONDITIONS,
-  DUMMY_INVENTORY_STORE_TYPES,
-  DUMMY_INVENTORY_UOMS,
-} from '../dummy-data';
-import { applyListParams } from '../lib/filter-list';
+  resolveInventoryCatalogScopeKey,
+} from '@/lib/catalog-tenant';
+import {
+  inventoryMastersApiContext,
+  useInventoryMastersTenantId,
+} from '@/features/inventory-masters/lib/inventory-catalog-api-context';
+import { apiClient } from '@/lib/api-client';
+import type { VisitpadListResponse, VisitpadManufacturer } from '@/features/visitpad/types';
 import type {
   InventoryCategory,
   InventoryHsnGst,
@@ -22,84 +20,177 @@ import type {
   InventoryUom,
   PaginatedList,
 } from '../types';
+import type {
+  InventoryCategoryApiRow,
+  InventoryHsnGstApiRow,
+  InventoryItemApiRow,
+  InventoryItemListResponse,
+  InventoryItemTypeApiRow,
+  InventoryMasterListResponse,
+  InventoryStorageConditionApiRow,
+  InventoryStoreTypeApiRow,
+  InventoryUomApiRow,
+} from './api-types';
+import {
+  buildInventoryItemsListUrl,
+  buildInventoryMasterListUrl,
+  buildVisitpadManufacturersListUrl,
+} from './list-url';
+import {
+  mapInventoryCategoryRows,
+  mapInventoryHsnGstRow,
+  mapInventoryItemRow,
+  mapInventoryItemTypeRow,
+  type InventoryItemLookupMaps,
+  mapInventoryStorageConditionRow,
+  mapInventoryStoreTypeRow,
+  mapInventoryUomRow,
+  mapVisitpadManufacturerRow,
+} from './mappers';
+import { inventoryMastersQueryKeys } from './query-keys';
 
 type ListQueryResult<T> = Pick<UseQueryResult<PaginatedList<T>>, 'data' | 'isLoading' | 'error'>;
 
-function stubListQuery<T extends { status: 'active' | 'inactive' }>(
-  rows: T[],
-  params: InventoryMasterListParams,
-  searchParts: (row: T) => readonly string[],
-): ListQueryResult<T> {
-  return {
-    data: applyListParams(rows, params, searchParts),
-    isLoading: false,
-    error: null,
-  };
+function useInventoryMastersCatalogScopeKey(): string {
+  const catalogTenantId = useInventoryMastersTenantId();
+  return catalogTenantId ?? resolveInventoryCatalogScopeKey(null);
 }
 
-/** Swap implementations to `useQuery(inventoryMastersQueryOptions.items(params))` when APIs ship. */
-export function useInventoryItems(params: InventoryMasterListParams = {}): ListQueryResult<InventoryItemMaster> {
-  return stubListQuery(DUMMY_INVENTORY_ITEMS, params, (row) => [
-    row.item_code,
-    row.item_name,
-    row.display_name,
-    row.classification,
-    row.item_type,
-    row.product_category,
-    row.department,
-    row.manufacturer,
-  ]);
+function scopeKeySegment(scopeKey: string): readonly [string] {
+  return [scopeKey];
+}
+
+async function fetchInventoryMasterList<TApi, TUi>(
+  url: string,
+  mapRows: (rows: TApi[]) => TUi[],
+): Promise<PaginatedList<TUi>> {
+  const response = await apiClient<InventoryMasterListResponse<TApi>>(
+    url,
+    { method: 'GET' },
+    inventoryMastersApiContext(),
+  );
+  const rows = mapRows(response.data);
+  return { data: rows, total: response.total };
+}
+
+function useInventoryMasterListQuery<TApi, TUi>(options: {
+  queryKey: readonly unknown[];
+  url: string;
+  mapRows: (rows: TApi[]) => TUi[];
+}): ListQueryResult<TUi> {
+  const scopeKey = useInventoryMastersCatalogScopeKey();
+  const query = useQuery({
+    queryKey: [...options.queryKey, ...scopeKeySegment(scopeKey)],
+    queryFn: () => fetchInventoryMasterList<TApi, TUi>(options.url, options.mapRows),
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
+/** Item catalog rows from inventory-svc (`inventory.items`). */
+export function useInventoryItems(
+  params: InventoryMasterListParams = {},
+  lookups?: InventoryItemLookupMaps,
+): ListQueryResult<InventoryItemMaster> {
+  const scopeKey = useInventoryMastersCatalogScopeKey();
+  const lookupKey = [
+    lookups?.itemTypeNameById.size ?? 0,
+    lookups?.categoryNameById.size ?? 0,
+  ] as const;
+  const query = useQuery({
+    queryKey: [...inventoryMastersQueryKeys.items(params), ...scopeKeySegment(scopeKey), ...lookupKey],
+    queryFn: async (): Promise<PaginatedList<InventoryItemMaster>> => {
+      const response = await apiClient<InventoryItemListResponse>(buildInventoryItemsListUrl(params));
+      const itemTypeNameById = lookups?.itemTypeNameById ?? new Map<string, string>();
+      const categoryNameById = lookups?.categoryNameById ?? new Map<string, string>();
+      const rows = response.data.map((row: InventoryItemApiRow) =>
+        mapInventoryItemRow(row, { itemTypeNameById, categoryNameById }),
+      );
+      return { data: rows, total: response.total };
+    },
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
 }
 
 export function useInventoryCategories(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryCategory> {
-  return stubListQuery(DUMMY_INVENTORY_CATEGORIES, params, (row) => [
-    row.category_name,
-    row.parent_category ?? '',
-  ]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.categories(params),
+    url: buildInventoryMasterListUrl('/categories', params),
+    mapRows: mapInventoryCategoryRows,
+  });
 }
 
 export function useInventoryItemTypes(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryItemType> {
-  return stubListQuery(DUMMY_INVENTORY_ITEM_TYPES, params, (row) => [row.item_type]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.itemTypes(params),
+    url: buildInventoryMasterListUrl('/item-types', params),
+    mapRows: (rows: InventoryItemTypeApiRow[]) =>
+      rows.filter((row) => !row.is_deleted).map(mapInventoryItemTypeRow),
+  });
 }
 
 export function useInventoryUoms(params: InventoryMasterListParams = {}): ListQueryResult<InventoryUom> {
-  return stubListQuery(DUMMY_INVENTORY_UOMS, params, (row) => [row.name, row.abbreviation]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.uoms(params),
+    url: buildInventoryMasterListUrl('/uoms', params),
+    mapRows: (rows: InventoryUomApiRow[]) =>
+      rows.filter((row) => !row.is_deleted).map(mapInventoryUomRow),
+  });
 }
 
 export function useInventoryStorageConditions(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryStorageCondition> {
-  return stubListQuery(DUMMY_INVENTORY_STORAGE_CONDITIONS, params, (row) => [
-    row.storage_condition,
-    row.description ?? '',
-  ]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.storageConditions(params),
+    url: buildInventoryMasterListUrl('/storage-conditions', params),
+    mapRows: (rows: InventoryStorageConditionApiRow[]) =>
+      rows.filter((row) => !row.is_deleted).map(mapInventoryStorageConditionRow),
+  });
 }
 
 export function useInventoryHsnGst(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryHsnGst> {
-  return stubListQuery(DUMMY_INVENTORY_HSN_GST, params, (row) => [row.hsn_code]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.hsnGst(params),
+    url: buildInventoryMasterListUrl('/hsn-gst', params),
+    mapRows: (rows: InventoryHsnGstApiRow[]) =>
+      rows.filter((row) => !row.is_deleted).map(mapInventoryHsnGstRow),
+  });
 }
 
 export function useInventoryManufacturers(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryManufacturer> {
-  return stubListQuery(DUMMY_INVENTORY_MANUFACTURERS, params, (row) => [
-    row.manufacturer,
-    row.code ?? '',
-  ]);
+  const scopeKey = useInventoryMastersCatalogScopeKey();
+  const query = useQuery({
+    queryKey: [...inventoryMastersQueryKeys.manufacturers(params), ...scopeKeySegment(scopeKey)],
+    queryFn: async (): Promise<PaginatedList<InventoryManufacturer>> => {
+      const response = await apiClient<VisitpadListResponse<VisitpadManufacturer>>(
+        buildVisitpadManufacturersListUrl(params),
+        { method: 'GET' },
+        inventoryMastersApiContext(),
+      );
+      const rows = response.data
+        .filter((row) => !row.is_deleted)
+        .map(mapVisitpadManufacturerRow);
+      return { data: rows, total: response.total };
+    },
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
 }
 
 export function useInventoryStoreTypes(
   params: InventoryMasterListParams = {},
 ): ListQueryResult<InventoryStoreType> {
-  return stubListQuery(DUMMY_INVENTORY_STORE_TYPES, params, (row) => [
-    row.code,
-    row.store_type,
-    row.description ?? '',
-  ]);
+  return useInventoryMasterListQuery({
+    queryKey: inventoryMastersQueryKeys.storeTypes(params),
+    url: buildInventoryMasterListUrl('/store-types', params),
+    mapRows: (rows: InventoryStoreTypeApiRow[]) =>
+      rows.filter((row) => !row.is_deleted).map(mapInventoryStoreTypeRow),
+  });
 }

@@ -8,13 +8,13 @@ export const inventorySupplyMastersModuleManifest: ModuleManifest = {
   routePrefix: '/inventory-supply-masters',
   sortOrder: 31,
   requiredModulesAny: ['inventory-master'],
-  requiredRolesAny: ['tenant-admin'],
+  requiredRolesAny: ['tenant-admin', 'admin'],
   navigation: [
     {
       id: 'inventory-supply-masters',
       label: 'Inventory & Supply Masters',
       icon: 'package',
-      route: '/inventory-supply-masters/item-master',
+      route: '/inventory-supply-masters',
       catalogModuleSlug: 'inventory-master',
       tenantAdminOnly: true,
     },

@@ -101,6 +101,10 @@ function catalogVisibilityScopeHidesNode(
   if (!ctx.catalogIndex) {
     return false;
   }
+  // Tenant-admin product surfaces (e.g. Inventory & Supply Masters) stay visible.
+  if (node.tenantAdminOnly) {
+    return false;
+  }
   const slug = node.catalogModuleSlug ?? resolveSlugFromRoute(node.route);
   if (!slug) {
     return false;
@@ -129,7 +133,7 @@ export function isNavigationNodeVisible(
   if (node.superAdminOnly && !ctx.isSuperAdmin) {
     return false;
   }
-  if (node.tenantAdminOnly && !ctx.isTenantAdmin) {
+  if (node.tenantAdminOnly && !ctx.isTenantAdmin && !ctx.isSuperAdmin) {
     return false;
   }
   if (!passesRoleGate(node, ctx, parent)) {

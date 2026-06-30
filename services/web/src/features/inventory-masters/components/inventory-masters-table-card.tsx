@@ -94,14 +94,24 @@ export function inventoryMasterIndexColumn<TData>(): ColumnDef<TData, unknown> {
   };
 }
 
-export function inventoryMasterActionsColumn<TData>(): ColumnDef<TData, unknown> {
+export function inventoryMasterActionsColumn<TData extends { id: string }>(options?: {
+  onEdit?: (row: TData) => void;
+  onDelete?: (row: TData) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+}): ColumnDef<TData, unknown> {
   return {
     id: 'actions',
     header: () => <div className="text-right">Actions</div>,
     meta: { label: 'Actions' },
-    cell: () => (
+    cell: ({ row }) => (
       <div className="flex justify-end">
-        <InventoryMasterRowActions />
+        <InventoryMasterRowActions
+          onEdit={options?.onEdit ? () => options.onEdit?.(row.original) : undefined}
+          onDelete={options?.onDelete ? () => options.onDelete?.(row.original) : undefined}
+          canEdit={options?.canEdit ?? true}
+          canDelete={options?.canDelete ?? true}
+        />
       </div>
     ),
   };

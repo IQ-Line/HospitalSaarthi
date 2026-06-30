@@ -8,8 +8,8 @@ export const inventoryModuleManifest: ModuleManifest = {
   routePrefix: '/inventory',
   sortOrder: 36,
   keepNavigationGroup: true,
-  /** Until inventory L1 is in catalog, fall back to inventory-master for tenant admins. */
-  requiredModulesAny: ['inventory', 'inventory-master'],
+  /** Until inventory L1 is in catalog, master-data L1 and inventory-master L2 both gate access. */
+  requiredModulesAny: ['inventory', 'inventory-master', 'master-data'],
   navigation: [
     {
       id: 'inventory-dashboard',

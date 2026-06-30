@@ -71,4 +71,27 @@ describe('catalogModuleCrudAccess', () => {
     expect(departments.canUpdate).toBe(true);
     expect(departments.canDelete).toBe(true);
   });
+
+  it('grants Item Master CRUD from any inventory L3 master create capability', () => {
+    const l3CreateOnly = new Set(['inventory-categories:inventory-categories:create']);
+    const itemMaster = catalogModuleCrudAccess(l3CreateOnly, 'inventory-master', {
+      productModuleSlug: 'inventory-master',
+    });
+    expect(itemMaster.canCreate).toBe(true);
+    expect(itemMaster.canMutate).toBe(true);
+    expect(itemMaster.canUpdate).toBe(false);
+    expect(itemMaster.canDelete).toBe(false);
+  });
+
+  it('does not grant Item Master create from L3 read-only capabilities', () => {
+    const l3ReadOnly = new Set([
+      'inventory-categories:inventory-categories:read',
+      'inventory-item-types:inventory-item-types:read',
+    ]);
+    const itemMaster = catalogModuleCrudAccess(l3ReadOnly, 'inventory-master', {
+      productModuleSlug: 'inventory-master',
+    });
+    expect(itemMaster.canCreate).toBe(false);
+    expect(itemMaster.canRead).toBe(true);
+  });
 });

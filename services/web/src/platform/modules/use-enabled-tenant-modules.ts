@@ -190,9 +190,14 @@ export function useTenantModuleNavContext(): {
       addCatalogSlugToSet(enriched, 'configurator');
       if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
         addCatalogSlugToSet(enriched, 'master-data');
+        addCatalogSlugToSet(enriched, 'inventory-master');
       }
       if (capabilityKeysGrantProductAccess(capabilityKeys, ['visitpad-master'], index)) {
         addCatalogSlugToSet(enriched, 'visitpad-master');
+        addCatalogSlugToSet(enriched, 'master-data');
+      }
+      if (capabilityKeysGrantProductAccess(capabilityKeys, ['inventory-master'], index)) {
+        addCatalogSlugToSet(enriched, 'inventory-master');
         addCatalogSlugToSet(enriched, 'master-data');
       }
       return buildEnabledModuleSlugsFromCatalog(enriched);
