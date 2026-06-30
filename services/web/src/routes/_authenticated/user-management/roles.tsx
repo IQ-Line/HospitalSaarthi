@@ -17,7 +17,7 @@ export const Route = createFileRoute('/_authenticated/user-management/roles')({
     const p = usePermissionsStore.getState();
     if (!p.hasAnyCapability(UM_ROLES_ADMIN_ANY)) {
       if (p.hasAnyCapability(UM_USERS_SECTION_ANY)) {
-        throw redirect({ to: '/user-management', search: { q: '' } });
+        throw redirect({ to: '/user-management', search: { q: '', createUser: false } });
       }
       throw redirect({ to: '/dashboard' });
     }

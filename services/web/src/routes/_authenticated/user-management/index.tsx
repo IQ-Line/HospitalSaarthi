@@ -158,7 +158,7 @@ function TenantScopedUserListPage() {
     setCreateOpen(open);
     void navigate({
       to: '/user-management',
-      search: { q, ...(open ? { createUser: true } : {}) },
+      search: { q, createUser: open },
       replace: true,
     });
   };
@@ -188,7 +188,7 @@ function TenantScopedUserListPage() {
           onSearchChange={(value) =>
             void navigate({
               to: '/user-management',
-              search: { q: value, ...(createOpen ? { createUser: true } : {}) },
+              search: { q: value, createUser: createOpen },
             })
           }
         />

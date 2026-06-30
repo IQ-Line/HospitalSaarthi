@@ -180,7 +180,7 @@ function TenantActionsCell({
         <Link
           to="/configurator/tenant/$organizationId"
           params={{ organizationId: tenant.org_id }}
-          search={{ tenantId: tenant.iq_tenant_id }}
+          search={{ tenantId: tenant.iq_tenant_id, tab: undefined }}
         >
           <Eye className="size-4" />
         </Link>
@@ -189,7 +189,7 @@ function TenantActionsCell({
         <Link
           to="/configurator/tenant/$organizationId"
           params={{ organizationId: tenant.org_id }}
-          search={{ tenantId: tenant.iq_tenant_id }}
+          search={{ tenantId: tenant.iq_tenant_id, tab: undefined }}
         >
           <Pencil className="size-4" />
         </Link>
