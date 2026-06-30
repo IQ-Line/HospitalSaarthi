@@ -85,7 +85,6 @@ function FormSelect<T extends FieldValues>({
           return (
             <>
               <Select
-                modal={false}
                 value={value}
                 disabled={disabled}
                 onValueChange={(v) => {

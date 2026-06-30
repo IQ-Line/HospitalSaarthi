@@ -40,7 +40,11 @@ export function ConfiguratorAddressPincodeFields<T extends AddressPincodeFieldVa
     field: K,
     value: IndianPincodeAddressValues[K],
   ) => {
-    setValue(field as FieldPath<T>, value as never, {
+    // `field` is a known IndianPincodeAddressValues key and therefore a valid
+    // path of T (T extends AddressPincodeFieldValues), but TS can't reduce
+    // FieldPath<generic T> to prove the literal-union overlaps it — widening to
+    // string matches the `watch(... as FieldPath<T>)` pattern used above.
+    setValue(String(field) as FieldPath<T>, value as never, {
       shouldDirty: true,
       shouldValidate: field === 'district' || field === 'state' || field === 'pinCode',
     });

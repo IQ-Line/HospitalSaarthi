@@ -1018,6 +1018,7 @@ function BillingFeeRow({
         {formatInr(
           billingLineDiscountAmount({
             unit_price: unitPrice,
+            tax_percent: taxPercent,
             discount_percent: discountPercent,
             discount: 0,
           }),

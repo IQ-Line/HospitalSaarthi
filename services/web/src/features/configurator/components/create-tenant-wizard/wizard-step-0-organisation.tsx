@@ -124,7 +124,9 @@ export function WizardStep0Organisation({
                   />
                 </FieldContent>
               </Field>
-            ) : null
+            ) : (
+              <></>
+            )
           }
         />
 

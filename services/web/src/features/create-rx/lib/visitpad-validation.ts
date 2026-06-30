@@ -61,14 +61,15 @@ function textValue(value: unknown): string {
   return String(value).trim();
 }
 
-function rowHasAnyValue(row: Record<string, unknown>, fields: string[]): boolean {
-  return fields.some((field) => textValue(row[field]).length > 0);
+function rowHasAnyValue<T extends object>(row: T, fields: string[]): boolean {
+  const record = row as Record<string, unknown>;
+  return fields.some((field) => textValue(record[field]).length > 0);
 }
 
 function validatePartialRows<T extends { id: string }>(
   rows: T[],
-  allFields: (keyof T & string)[],
-  requiredFields: (keyof T & string)[],
+  allFields: string[],
+  requiredFields: string[],
   section: VisitpadTableSection,
 ): VisitpadFieldError[] {
   const errors: VisitpadFieldError[] = [];
@@ -101,8 +102,7 @@ const CHIEF_COMPLAINT_REQUIRED_FIELDS = [
 
 function hasCompleteChiefComplaint(rows: ChiefComplaintRow[]): boolean {
   return rows.some((row) => {
-    const record = row as Record<string, unknown>;
-    if (!rowHasAnyValue(record, [...CHIEF_COMPLAINT_ALL_FIELDS])) {
+    if (!rowHasAnyValue(row, [...CHIEF_COMPLAINT_ALL_FIELDS])) {
       return false;
     }
     return CHIEF_COMPLAINT_REQUIRED_FIELDS.every((field) => textValue(row[field]).length > 0);
