@@ -4,7 +4,7 @@ import {
   principalHasAnyInventoryMasterL3RouteAccess,
 } from '@/lib/inventory-catalog-slugs';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
-import { MD_VISITPAD_CREATE, MD_VISITPAD_VIEW } from '@/lib/runtime-capability-keys';
+import { MD_SHELL_ACCESS, MD_VISITPAD_CREATE, MD_VISITPAD_VIEW } from '@/lib/runtime-capability-keys';
 import { isVisitpadL3CatalogModuleSlug } from '@/lib/visitpad-catalog-slugs';
 
 function principalHoldsCapabilityKey(
@@ -37,6 +37,35 @@ function visitpadMasterShellCrudAccess(capabilityKeys: ReadonlySet<string>): {
     principalHasCatalogModuleAction(capabilityKeys, 'visitpad-master', 'update') ||
     principalHasCatalogModuleAction(capabilityKeys, 'visitpad-master', 'delete');
   return { canRead, canMutate };
+}
+
+/** Tenant admins with Master Data shell access manage inventory reference catalogs. */
+function masterDataShellCrudAccess(capabilityKeys: ReadonlySet<string>): {
+  canRead: boolean;
+  canMutate: boolean;
+} {
+  const canAccess = principalHoldsCapabilityKey(capabilityKeys, MD_SHELL_ACCESS);
+  return { canRead: canAccess, canMutate: canAccess };
+}
+
+const INVENTORY_MASTER_CATALOG_SLUGS = new Set([
+  'inventory-master',
+  'inventory-categories',
+  'inventory-item-types',
+  'inventory-uoms',
+  'inventory-hsn-gst',
+  'inventory-storage-conditions',
+  'inventory-store-types',
+]);
+
+function isInventoryMasterCatalogSlug(catalogModuleSlug: string): boolean {
+  const slug = catalogModuleSlug.trim().toLowerCase();
+  return INVENTORY_MASTER_CATALOG_SLUGS.has(slug);
+}
+
+/** Full CRUD for tenant administrators on inventory reference catalog screens. */
+export function tenantAdminInventoryMasterCrudAccess(catalogModuleSlug: string): boolean {
+  return isInventoryMasterCatalogSlug(catalogModuleSlug);
 }
 
 export type CatalogModuleCrudAction = 'read' | 'create' | 'update' | 'delete' | 'access';

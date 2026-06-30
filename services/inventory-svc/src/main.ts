@@ -5,13 +5,21 @@ import { createDb } from "@hims/ts-sdk-db";
 import {
   applyInventorySchemaMigration,
   createRouter,
-  DrizzleInventoryItemRepository,
+  HttpMasterDataGateway,
 } from "@hims/inventory";
 
 const PORT = Number(process.env["INVENTORY_SVC_PORT"] ?? 3008);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
+const CERBOS_URL = process.env["CERBOS_URL"];
+const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const INVENTORY_DEV_TENANT_ID =
+  process.env["INVENTORY_DEV_TENANT_ID"] ?? "f47ac10b-58cc-4372-a567-0e02b2c3d480";
 
 async function main() {
+  if (!CERBOS_URL) {
+    throw new Error("CERBOS_URL environment variable is required");
+  }
+
   const app = Fastify({ logger: true });
 
   await registerOpenApiDocs(app, {
@@ -20,6 +28,13 @@ async function main() {
     version: "1.0.0",
     description: "Inventory module HTTP surface (stores, items, GRN, stock, indents).",
     apiPrefix: "/api/inventory/v1",
+    securitySchemes: {
+      bearerAuth: {
+        type: "http",
+        scheme: "bearer",
+        bearerFormat: "JWT",
+      },
+    },
   });
 
   app.get("/healthz", async () => ({ status: "ok" }));
@@ -34,8 +49,10 @@ async function main() {
   }
 
   const db = createDb(DATABASE_URL);
-  const itemRepo = new DrizzleInventoryItemRepository(db);
-  const inventoryRouter = createRouter({ itemRepo });
+  const masterDataGateway = new HttpMasterDataGateway(MASTER_DATA_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+  const inventoryRouter = createRouter({ db, masterDataGateway });
 
   await app.register(async (api) => {
     await api.register(tenantPlugin);

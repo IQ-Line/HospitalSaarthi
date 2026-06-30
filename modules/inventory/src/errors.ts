@@ -15,3 +15,28 @@ export class InventoryValidationError extends InventoryError {
     this.name = "InventoryValidationError";
   }
 }
+
+export class StoreNotFoundError extends InventoryError {
+  constructor() {
+    super("No store with this id.", 404, "NOT_FOUND");
+  }
+}
+
+export class StoreTypeNotFoundError extends InventoryError {
+  constructor() {
+    super("No active store type with this id.", 404, "NOT_FOUND");
+  }
+}
+
+export class StoreValidationError extends InventoryError {
+  constructor(message: string) {
+    super(message, 400, "VALIDATION_ERROR");
+  }
+}
+
+export class StoreConflictError extends InventoryError {
+  constructor(message: string) {
+    super(message, 409, "CONFLICT");
+  }
+}
+  

@@ -9,7 +9,7 @@ export type InventoryListParams = {
 export type InventoryStore = {
   id: string;
   name: string;
-  branch: string;
+  store_code: string;
 };
 
 export type InventoryDashboardStats = {

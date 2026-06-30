@@ -1,49 +1,42 @@
 import type { FastifyInstance } from "fastify";
 import fp from "fastify-plugin";
-import type { DrizzleInventoryItemRepository } from "./data-access/items.repo.js";
+import type { DbInstance } from "@hims/ts-sdk-db";
+import { DrizzleInventoryItemRepository } from "./data-access/items.repo.js";
+import { createStoreRepo } from "./data-access/store.repo.js";
+import { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
+import type { MasterDataGatewayPort } from "./ports.js";
 import { registerItemHandlers } from "./rest-handlers/items.handlers.js";
-import { InventoryError } from "./errors.js";
-import {
-  isPostgresForeignKeyViolation,
-  isPostgresUniqueViolation,
-} from "./lib/postgres-errors.js";
+import { registerInventoryErrorHandler, registerStoreHandlers } from "./rest-handlers/stores.handlers.js";
 
-export interface InventoryRouterOptions {
-  itemRepo: DrizzleInventoryItemRepository;
-}
+export type InventoryRouterOptions = {
+  db: DbInstance;
+  masterDataGateway: MasterDataGatewayPort;
+};
 
 async function inventoryRouter(
   app: FastifyInstance,
   options: InventoryRouterOptions,
 ): Promise<void> {
-  app.setErrorHandler((error, _request, reply) => {
-    if (error instanceof InventoryError) {
-      return reply.status(error.statusCode).send({
-        message: error.message,
-        ...(error.code ? { code: error.code } : {}),
-      });
-    }
-    if (isPostgresUniqueViolation(error)) {
-      return reply.status(409).send({
-        message: "A record with the same unique key already exists",
-        code: "CONFLICT",
-      });
-    }
-    if (isPostgresForeignKeyViolation(error)) {
-      return reply.status(422).send({
-        message: "One or more referenced master records were not found",
-        code: "INVALID_REFERENCE",
-      });
-    }
-    throw error;
-  });
+  registerInventoryErrorHandler(app);
 
-  registerItemHandlers(app, { itemRepo: options.itemRepo });
+  if (!options.db || !options.masterDataGateway) {
+    throw new Error("Inventory router requires db and masterDataGateway");
+  }
+
+  const itemRepo = new DrizzleInventoryItemRepository(options.db);
+
+  registerItemHandlers(app, { itemRepo });
+  registerStoreHandlers(app, {
+    storeRepo: createStoreRepo(options.db),
+    masterDataGateway: options.masterDataGateway,
+  });
 }
 
 export function createRouter(options: InventoryRouterOptions) {
-  return fp(async (app: FastifyInstance) => inventoryRouter(app, options), {
+  return fp(async (app) => inventoryRouter(app, options), {
     fastify: "5.x",
     name: "@hims/inventory",
   });
 }
+
+export { HttpMasterDataGateway };

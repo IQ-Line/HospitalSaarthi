@@ -166,6 +166,9 @@ importers:
 
   modules/inventory:
     dependencies:
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -865,15 +868,24 @@ importers:
       '@hims/inventory':
         specifier: workspace:*
         version: link:../../modules/inventory
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       fastify:
         specifier: ^5.3.3
         version: 5.8.5

@@ -98,6 +98,10 @@ function catalogVisibilityScopeHidesNode(
   node: NavigationNode,
   ctx: NavFilterContext,
 ): boolean {
+  // Tenant-admin-only product shells (inventory-master, …) intentionally use L2 catalog slugs.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return false;
+  }
   if (!ctx.catalogIndex) {
     return false;
   }
@@ -145,6 +149,10 @@ export function isNavigationNodeVisible(
   const gatedNode = nodeWithInheritedTenantGates(node, parent);
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
+  }
+  // Tenant-admin catalog screens (inventory masters, store config) are role-gated, not capability-gated.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return true;
   }
   if (!ctx.navAccess) {
     return false;

@@ -4,6 +4,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "zod": "^3.25.7"

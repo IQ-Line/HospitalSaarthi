@@ -1,6 +1,8 @@
 import { redirect } from '@tanstack/react-router';
 import {
   assertInventorySupplyMastersTenantAdmin,
+  catalogModuleSlugForInventoryMasterTab,
+  isInventorySupplyMastersTenantAdminPrincipal,
   principalGrantsInventoryMasterRouteAccess,
 } from '@/features/inventory-masters/lib/inventory-masters-access';
 import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
@@ -13,19 +15,24 @@ import { usePermissionsStore } from '@/stores/permissions.store';
 export function requireInventoryMasterTabAccess(tabId: InventoryMasterTabId) {
   return () => {
     assertInventorySupplyMastersTenantAdmin();
-    if (resolveNavigationCapabilityBypass()) {
+    if (isInventorySupplyMastersTenantAdminPrincipal()) {
       return;
     }
-    const capabilityKeys = usePermissionsStore.getState().capabilityKeys;
-    if (!principalGrantsInventoryMasterTabAccess(capabilityKeys, tabId)) {
-      throw redirect({ to: '/dashboard' });
-    }
+    const tab = getInventoryMasterTabConfig(tabId);
+    requireCatalogRouteAccess(tab.route, {
+      catalogProductSlugs: ['inventory-master'],
+      routePrefix: '/inventory-supply-masters',
+      catalogModuleSlug: catalogModuleSlugForInventoryMasterTab(tabId),
+    })();
   };
 }
 
 export function requireInventorySupplyMastersLayoutAccess() {
   return () => {
     assertInventorySupplyMastersTenantAdmin();
+    if (isInventorySupplyMastersTenantAdminPrincipal()) {
+      return;
+    }
     requireCatalogRouteAccess('/inventory-supply-masters', {
       catalogProductSlugs: ['inventory-master'],
       routePrefix: '/inventory-supply-masters',

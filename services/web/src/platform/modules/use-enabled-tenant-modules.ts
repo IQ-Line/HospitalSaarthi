@@ -188,6 +188,9 @@ export function useTenantModuleNavContext(): {
     if (isTenantAdminRole) {
       const enriched = new Set(tenantCatalogSlugs);
       addCatalogSlugToSet(enriched, 'configurator');
+      // Tenant-admin inventory masters / store config — not gated on delegated L3 capability keys.
+      addCatalogSlugToSet(enriched, 'inventory-master');
+      addCatalogSlugToSet(enriched, 'store-config');
       if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
         addCatalogSlugToSet(enriched, 'master-data');
         addCatalogSlugToSet(enriched, 'inventory-master');

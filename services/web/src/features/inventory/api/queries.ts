@@ -10,6 +10,10 @@ import { inventoryQueryKeys, INVENTORY_API_BASE } from './query-keys';
 
 type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
 
+type StoreListResponse = {
+  data: Array<{ id: string; store_name: string; store_code: string; is_active: boolean }>;
+};
+
 const EMPTY_DASHBOARD: InventoryDashboardData = {
   stats: {
     active_items: 0,
