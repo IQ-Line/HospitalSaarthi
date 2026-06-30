@@ -72,6 +72,15 @@ export const base = [
   {
     files: ['services/web/**/*.{ts,tsx}'],
     rules: {
+      // void-use (off, web only): `void promise` is the deliberate fire-and-forget marker —
+      // React event handlers can't be awaited (`onClick={() => void handleAsync()}`), and
+      // cache invalidations / bootstrap loaders are intentionally not awaited. This is the
+      // idiom typescript-eslint itself prescribes as the `no-floating-promises` escape hatch.
+      // We don't enable `no-floating-promises` yet (type-aware, separate adoption), so the
+      // `void` markers carry no enforced safety today — but stripping them would erase intent
+      // AND force their re-addition the day no-floating-promises lands. Disable the rule that
+      // fights the idiom instead of churning the call sites. Scoped to web (backend is void-free).
+      'sonarjs/void-use': 'off',
       'no-restricted-imports': [
         'error',
         {
