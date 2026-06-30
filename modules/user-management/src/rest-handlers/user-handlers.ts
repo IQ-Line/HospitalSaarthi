@@ -419,6 +419,7 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
           request.params.id,
           request.body ?? {},
         );
+        console.log("user========>", user);
         if (user === null) {
           return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
         }

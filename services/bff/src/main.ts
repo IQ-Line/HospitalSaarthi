@@ -56,6 +56,10 @@ function buildUpstreams(): UpstreamRoute[] {
       upstream: process.env['PHARMACY_URL'] ?? 'http://localhost:3004',
     },
     {
+      prefix: '/api/inventory/v1',
+      upstream: process.env['INVENTORY_URL'] ?? 'http://localhost:3008',
+    },
+    {
       prefix: '/api/abdm/v1',
       upstream: integrationHubUrl,
     },

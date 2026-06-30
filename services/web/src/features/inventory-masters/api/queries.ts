@@ -6,7 +6,6 @@ import {
   DUMMY_INVENTORY_ITEM_TYPES,
   DUMMY_INVENTORY_MANUFACTURERS,
   DUMMY_INVENTORY_STORAGE_CONDITIONS,
-  DUMMY_INVENTORY_STORE_TYPES,
   DUMMY_INVENTORY_UOMS,
 } from '../dummy-data';
 import { applyListParams } from '../lib/filter-list';
@@ -18,7 +17,6 @@ import type {
   InventoryManufacturer,
   InventoryMasterListParams,
   InventoryStorageCondition,
-  InventoryStoreType,
   InventoryUom,
   PaginatedList,
 } from '../types';
@@ -36,6 +34,8 @@ function stubListQuery<T extends { status: 'active' | 'inactive' }>(
     error: null,
   };
 }
+
+export { useInventoryStoreTypes } from './store-types';
 
 /** Swap implementations to `useQuery(inventoryMastersQueryOptions.items(params))` when APIs ship. */
 export function useInventoryItems(params: InventoryMasterListParams = {}): ListQueryResult<InventoryItemMaster> {
@@ -91,15 +91,5 @@ export function useInventoryManufacturers(
   return stubListQuery(DUMMY_INVENTORY_MANUFACTURERS, params, (row) => [
     row.manufacturer,
     row.code ?? '',
-  ]);
-}
-
-export function useInventoryStoreTypes(
-  params: InventoryMasterListParams = {},
-): ListQueryResult<InventoryStoreType> {
-  return stubListQuery(DUMMY_INVENTORY_STORE_TYPES, params, (row) => [
-    row.code,
-    row.store_type,
-    row.description ?? '',
   ]);
 }

@@ -76,6 +76,9 @@ export type InventoryStoreType = {
   description: string | null;
   receive_stock: boolean;
   dispense: boolean;
+  can_issue_to_ward: boolean;
+  track_batch_expiry: boolean;
+  indent_authority: boolean;
   status: InventoryMasterStatus;
 };
 

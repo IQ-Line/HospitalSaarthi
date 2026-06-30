@@ -5,9 +5,9 @@ import type {
 } from './types';
 
 export const DUMMY_INVENTORY_STORES: InventoryStore[] = [
-  { id: 'store-1', name: 'Central Medical Store', branch: 'Main Branch' },
-  { id: 'store-2', name: 'Pharmacy Store', branch: 'Main Branch' },
-  { id: 'store-3', name: 'Biochemistry Store', branch: 'Main Branch' },
+  { id: 'store-1', name: 'Central Medical Store', store_code: 'CMS-00001' },
+  { id: 'store-2', name: 'Pharmacy Store', store_code: 'PHA-00001' },
+  { id: 'store-3', name: 'Biochemistry Store', store_code: 'BIO-00001' },
 ];
 
 export const DUMMY_INVENTORY_DASHBOARD: InventoryDashboardData = {

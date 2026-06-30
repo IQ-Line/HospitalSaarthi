@@ -1,8 +1,8 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 import {
   DUMMY_INVENTORY_DASHBOARD,
   DUMMY_INVENTORY_STOCK,
-  DUMMY_INVENTORY_STORES,
 } from '../dummy-data';
 import type {
   InventoryDashboardData,
@@ -12,7 +12,9 @@ import type {
   InventoryStore,
 } from '../types';
 
-type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
+type StoreListResponse = {
+  data: Array<{ id: string; store_name: string; store_code: string; is_active: boolean }>;
+};
 
 function filterStockRows(rows: InventoryStockRow[], params: InventoryListParams): InventoryStockRow[] {
   let filtered = rows;
@@ -30,16 +32,35 @@ function filterStockRows(rows: InventoryStockRow[], params: InventoryListParams)
   return filtered;
 }
 
-/** Swap to `useQuery` when inventory-svc endpoints are available. */
-export function useInventoryStores(): QueryResult<InventoryStore[]> {
-  return { data: DUMMY_INVENTORY_STORES, isLoading: false, error: null };
+export function useInventoryStores() {
+  return useQuery({
+    queryKey: ['inventory', 'stores'],
+    queryFn: async (): Promise<InventoryStore[]> => {
+      const q = new URLSearchParams({ limit: '200', offset: '0', is_active: 'true' });
+      const res = await apiClient<StoreListResponse>(`/api/inventory/v1/stores?${q.toString()}`);
+      return res.data.map((row) => ({
+        id: row.id,
+        name: row.store_name,
+        store_code: row.store_code,
+      }));
+    },
+    staleTime: 60_000,
+  });
 }
 
-export function useInventoryDashboard(_storeId?: string): QueryResult<InventoryDashboardData> {
+export function useInventoryDashboard(_storeId?: string): {
+  data: InventoryDashboardData | undefined;
+  isLoading: boolean;
+  error: Error | null;
+} {
   return { data: DUMMY_INVENTORY_DASHBOARD, isLoading: false, error: null };
 }
 
-export function useInventoryStock(params: InventoryListParams = {}): QueryResult<InventoryStockListData> {
+export function useInventoryStock(params: InventoryListParams = {}): {
+  data: InventoryStockListData | undefined;
+  isLoading: boolean;
+  error: Error | null;
+} {
   const rows = filterStockRows(DUMMY_INVENTORY_STOCK.data, params);
   const summary = rows.reduce(
     (acc, row) => {

@@ -12,6 +12,7 @@ from app.core.catalog_tenant_id import (
 )
 from app.core.database import get_db_session
 from app.repositories.department_repository import DepartmentRepository
+from app.repositories.inventory_store_type_repository import InventoryStoreTypeRepository
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
@@ -76,6 +77,13 @@ def get_department_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> DepartmentRepository:
     return DepartmentRepository(session, scope)
+
+
+def get_inventory_store_type_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryStoreTypeRepository:
+    return InventoryStoreTypeRepository(session, scope)
 
 
 def get_module_repository(

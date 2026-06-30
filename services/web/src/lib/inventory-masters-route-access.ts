@@ -1,6 +1,7 @@
 import {
   assertInventorySupplyMastersTenantAdmin,
   catalogModuleSlugForInventoryMasterTab,
+  isInventorySupplyMastersTenantAdminPrincipal,
   principalGrantsInventoryMasterRouteAccess,
 } from '@/features/inventory-masters/lib/inventory-masters-access';
 import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
@@ -11,6 +12,9 @@ export function requireInventoryMasterTabAccess(tabId: InventoryMasterTabId) {
   const tab = getInventoryMasterTabConfig(tabId);
   return () => {
     assertInventorySupplyMastersTenantAdmin();
+    if (isInventorySupplyMastersTenantAdminPrincipal()) {
+      return;
+    }
     requireCatalogRouteAccess(tab.route, {
       catalogProductSlugs: ['inventory-master'],
       routePrefix: '/inventory-supply-masters',
@@ -22,6 +26,9 @@ export function requireInventoryMasterTabAccess(tabId: InventoryMasterTabId) {
 export function requireInventorySupplyMastersLayoutAccess() {
   return () => {
     assertInventorySupplyMastersTenantAdmin();
+    if (isInventorySupplyMastersTenantAdminPrincipal()) {
+      return;
+    }
     requireCatalogRouteAccess('/inventory-supply-masters', {
       catalogProductSlugs: ['inventory-master'],
       routePrefix: '/inventory-supply-masters',
