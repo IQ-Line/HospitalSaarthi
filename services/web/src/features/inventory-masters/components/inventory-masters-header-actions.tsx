@@ -1,0 +1,63 @@
+import { Download, Plus, Upload } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '@pulse/ui/button';
+import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
+
+interface InventoryMastersHeaderActionsProps {
+  catalogModuleSlug: string;
+  addLabel: string;
+  onAddClick?: () => void;
+}
+
+export function InventoryMastersHeaderActions({
+  catalogModuleSlug,
+  addLabel,
+  onAddClick,
+}: InventoryMastersHeaderActionsProps) {
+  const { canCreate, canMutate } = useCatalogModuleCrud(catalogModuleSlug, {
+    productModuleSlug: 'inventory-master',
+  });
+
+  const handleAdd = () => {
+    if (onAddClick) {
+      onAddClick();
+      return;
+    }
+    toast.info(`${addLabel} is not available for this tab yet.`);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {canMutate ? (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => toast.info('Export will ship in a later iteration.')}
+          >
+            <Upload className="size-4" aria-hidden />
+            Export
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => toast.info('Import will ship in a later iteration.')}
+          >
+            <Download className="size-4" aria-hidden />
+            Import
+          </Button>
+        </>
+      ) : null}
+      {canCreate ? (
+        <Button type="button" size="sm" className="gap-1.5" onClick={handleAdd}>
+          <Plus className="size-4" aria-hidden />
+          {addLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
