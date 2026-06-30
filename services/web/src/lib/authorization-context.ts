@@ -58,11 +58,16 @@ async function clearAuthorizationContext(queryClient: QueryClient): Promise<void
   await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
 }
 
-/** True when login/tenant/session scope is complete enough to hydrate the principal. */
+/**
+ * True when login/tenant/session scope is complete enough to hydrate the principal.
+ * Narrows `tenant.tenantId` to a non-null string: the body returns true only when
+ * `tenant.tenantId?.trim()` is truthy, so callers past this guard can treat the
+ * tenant id as present (e.g. bootstrapModulesForTenant) without a redundant check.
+ */
 function hasCompleteAuthorizationScope(
   auth: ReturnType<typeof useAuthStore.getState>,
   tenant: ReturnType<typeof useTenantStore.getState>,
-): boolean {
+): tenant is ReturnType<typeof useTenantStore.getState> & { tenantId: string } {
   return Boolean(
     auth.isAuthenticated && auth.userId && auth.accessToken?.trim() && tenant.tenantId?.trim(),
   );

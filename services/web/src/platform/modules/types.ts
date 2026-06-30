@@ -1,3 +1,4 @@
+import type { ModuleCategory } from '@/features/master-data/types';
 import type { NavigationNode } from '@/navigation/types';
 
 /**
@@ -45,7 +46,7 @@ export type ModuleCatalogEntry = {
   slug: string;
   name: string;
   icon: string | null;
-  category: string;
+  category: ModuleCategory;
   is_active: boolean;
   /** Tree depth from Master Data (`1` = L1 product module). */
   level: number;
