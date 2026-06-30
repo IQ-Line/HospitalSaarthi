@@ -1,6 +1,6 @@
 # services/web CI-gate remediation plan (#50)
 
-**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind **down to 22 committed-state errors** (from 282) — and **all 22 remaining are the user-checkpoint / HIGH-risk tier** (every autonomously-safe error is cleared). Lint half + gate-wiring not started. **#50 cannot complete without user decisions on the 22** (then lint, then wire the targets).
+**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind **down to 9 committed-state errors** (from 282). User decisions captured (org_id=send configuratorOrgId; RoleEditorDialog=Option A; technical fixes + lint = proceed autonomously). The big entangled UM cluster (create-user-form + edit-user-dialog + doctor-tariff shared section, 13 errors incl. the org_id latent-bug fix) is **DONE** (`b4f85645`). **Remaining 9:** role-management-sections capability-tree (7, data-model, no test net — most delicate), visitpad-global-import-payloads medicine-row→create-form `as` cast (1), tenant-detail-panels RoleEditorDialog Option A (1, add delete button+props). Then the lint half (171 errors) then wire the targets.
 
 ## Progress log (committed-state typecheck count; CI-visible, excludes the 2 untracked not-ours web files = 5 errs)
 
@@ -19,6 +19,12 @@
 | 3f788312 | router search keys at navigate/redirect sites (5 files) | 37 → 30 |
 | cf75b851 | misc component/lib (validation generics, fragment return, pincode string-widen, drop dead `modal`, fee-line tax_percent) | 30 → 24 |
 | 19c9cd08 | boundary residuals (ModuleCatalogEntry.category→ModuleCategory; auth scope type-guard predicate) | 24 → 22 |
+| b4f85645 | UM RHF cluster: create-user-form + edit-user-dialog + shared doctor-tariff section (3-generic, input-typed props, ArrayPath, org_id latent-bug fix) | 22 → 9 |
+
+**Remaining 9 (committed-state) — proceed autonomously per user (decisions captured), each careful / no test net:**
+- `role-management-sections.tsx` (7) — capability-tree data-model: `MutableCapabilityTreeBranch` (Map children) vs render `CapabilityTreeNode` (array + `kind` discriminant). Reconcile at the boundary; **preserve exact branch/leaf grouping** (no test net → verify by reading the rendered tree logic). MOST delicate; do with fresh focus.
+- `visitpad-global-import-payloads.ts` (1) — L192 `{ code, ...visitpadMedicineEditFormFromRow(row) } as VisitpadMedicineCreateFormSchema` no longer overlaps (edit-form-from-row yields optional fields vs the create schema's required). Fix in `medicine-create-defaults` shapes (use the input alias or align `visitpadMedicineCreatePayloadFromForm`'s param), NOT an `as unknown`.
+- `tenant-detail-panels.tsx` (1) — RoleEditorDialog **Option A** (user-approved): add optional `onDelete?`/`deletePending?` to `RoleEditorDialogProps` and render a destructive Delete action in the footer (edit mode only); backward-compatible with the role-management-panel caller. This RESTORES the role-delete feature (a real UI add).
 
 **Method note (2026-06-30):** the autonomous-safe clusters were diagnosed + adversarially verified by a `Workflow` fan-out (read-only `Explore` agents, diagnose→refute pipeline). The adversarial pass earned its keep: it **rejected** an OPD mapper edit that smuggled a clinical-`certainty` runtime change under a fabricated compile-error justification (applied only the 5 honest type narrowings). My own tsc gate then **reverted** the proposed pincode `setValue` retype (broke caller assignability). Lesson: subagent type-fixes must pass both adversarial review AND a real tsc/vitest gate before landing.
 
