@@ -30,6 +30,15 @@ function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
   return { iq_tenant_id: (request as any).tenantId as string };
 }
 
+function resolveBodyBillId(
+  request: Parameters<AuthzTargetResolver>[0],
+): string {
+  const body = request.body;
+  if (body == null || typeof body !== "object") return "new";
+  const id = (body as Record<string, unknown>).bill_id;
+  return typeof id === "string" && id.length > 0 ? id : "new";
+}
+
 export function createBillingAuthzTargetResolver(): AuthzTargetResolver {
   return async (request) => {
     const path = resolveRoutePattern(request);
@@ -88,7 +97,12 @@ export function createBillingAuthzTargetResolver(): AuthzTargetResolver {
     }
 
     if (method === "POST" && path === "/payments") {
-      return { kind: "billing_account", id: "new", action: "billing-account.create", attr: tenantAttr(request) };
+      return {
+        kind: "invoice",
+        id: resolveBodyBillId(request),
+        action: "invoice.update",
+        attr: tenantAttr(request),
+      };
     }
 
     return null;
