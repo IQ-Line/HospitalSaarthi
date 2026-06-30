@@ -49,7 +49,14 @@ import { registerUserManagementApi } from "./openapi/register-user-management-ap
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
+import { createBetterAuthInteractiveSignIn } from "./auth/register-better-auth.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
+
+const USER_MANAGEMENT_IDENTITY_SKIP_PATH_PREFIXES = [
+  "/api/auth",
+  "/api/user-management/auth/api-key",
+  "/api/user-management/auth/login",
+] as const;
 
 function requireUpstreamBaseUrl(envKey: string): string {
   const raw = process.env[envKey]?.trim();
@@ -271,6 +278,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     principalRoleProjectionRepository,
   });
+  const interactiveSignIn = createBetterAuthInteractiveSignIn(auth, authBaseUrl);
   const authSessionRevoker = new DrizzleAuthSessionRevoker(pgDb, userRepository);
 
   const tenantApiKeyValidator = new DrizzleTenantApiKeyValidator(pgDb);
@@ -278,7 +286,7 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: ["/api/auth", "/docs", "/api/user-management/auth/api-key"],
+    skipPathPrefixes: [...USER_MANAGEMENT_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
   });
 
   await assertCerbosReachable(cerbosUrl);
@@ -321,6 +329,8 @@ async function createApp(): Promise<FastifyInstance> {
     internalEntitlementCacheApiKey: umInternalApiKey,
     accessTokenIssuer,
     authSessionRevoker,
+    principalService,
+    interactiveSignIn,
   });
 
   return app;

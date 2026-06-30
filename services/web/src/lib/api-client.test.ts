@@ -45,6 +45,7 @@ describe('apiClient', () => {
     refreshAccessTokenMock.mockReset();
     useAuthStore.getState().setSession({
       accessToken: 'token-1',
+      refreshToken: 'refresh-1',
       sessionToken: 'session-1',
       userId: 'user-1',
       displayName: 'Test',
@@ -126,6 +127,7 @@ describe('apiClient', () => {
     });
     useAuthStore.getState().setSession({
       accessToken: 'not-a-jwt',
+      refreshToken: 'refresh-1',
       sessionToken: 'session-1',
       userId: 'user-1',
       displayName: 'Test',
@@ -309,6 +311,7 @@ describe('apiClient', () => {
     refreshAccessTokenMock.mockImplementation(async () => {
       useAuthStore.getState().setSession({
         accessToken: 'token-2',
+        refreshToken: 'refresh-1',
         sessionToken: 'session-1',
         userId: 'user-1',
         displayName: 'Test',
