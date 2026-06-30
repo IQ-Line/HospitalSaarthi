@@ -144,11 +144,16 @@ export type CapabilityTreeNode =
       capabilityIds: string[];
     };
 
+/** Capability leaf as it appears in the finalized tree (and in the mutable builder's child map). */
+type CapabilityTreeLeaf = Extract<CapabilityTreeNode, { kind: 'capability' }>;
+
 type MutableCapabilityTreeBranch = {
   id: string;
+  kind: 'branch';
   label: string;
   path: string[];
-  children: Map<string, MutableCapabilityTreeBranch | CapabilityTreeNode>;
+  /** Only intermediate branches or capability leaves are ever stored here — never finalized branches. */
+  children: Map<string, MutableCapabilityTreeBranch | CapabilityTreeLeaf>;
 };
 
 function getCapabilityModuleSegments(moduleId: string): string[] {
@@ -166,6 +171,7 @@ function getCapabilityModuleSegments(moduleId: string): string[] {
 function createBranch(path: string[]): MutableCapabilityTreeBranch {
   return {
     id: `branch:${path.join('/')}`,
+    kind: 'branch',
     label: path[path.length - 1] ?? 'module',
     path,
     children: new Map(),
