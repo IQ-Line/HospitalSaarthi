@@ -25,6 +25,7 @@ export {
 export { getAbdmDeps } from "./lib/get-abdm-deps.js";
 export {
   integrationContextResolver,
+  registerPlatformRoutesWithIntegrationContext,
   IntegrationTenantRequiredError,
 } from "./lib/integration-context-resolver.js";
 export {
@@ -101,6 +102,10 @@ export {
   registerM2PlatformRoutes,
 } from "./integrations/abdm/rest-handlers/m2/index.js";
 export {
+  registerScanShareCallbackRoutes,
+  registerScanShareRoutes,
+} from "./integrations/abdm/rest-handlers/scan-share.js";
+export {
   registerM3CallbackRoutes,
   registerM3PlatformRoutes,
 } from "./integrations/abdm/rest-handlers/m3/index.js";
@@ -125,7 +130,7 @@ export {
   TwilioSmsClient,
 } from "./integrations/abdm/data-access/sms-client.js";
 export { EmpiClientError } from "./integrations/abdm/lib/empi-client-error.js";
-export { AbdmGatewayError, parseNhaErrorBody } from "./integrations/abdm/lib/gateway-errors.js";
+export { AbdmGatewayError, asAbdmGatewayError, formatNhaUpstreamMessage, parseNhaErrorBody } from "./integrations/abdm/lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./integrations/abdm/lib/m1-errors.js";
 export {
   requireCallbackSecurityInProd,

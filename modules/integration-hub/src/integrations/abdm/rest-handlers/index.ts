@@ -8,6 +8,10 @@ export {
   registerM2PlatformRoutes,
 } from "./m2/index.js";
 export {
+  registerScanShareCallbackRoutes,
+  registerScanShareRoutes,
+} from "./scan-share.js";
+export {
   registerM3CallbackRoutes,
   registerM3PlatformRoutes,
 } from "./m3/index.js";

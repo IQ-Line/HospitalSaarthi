@@ -112,6 +112,11 @@ type RegistrationFormHeaderProps = {
   searchValue: string;
   onSearchChange: (value: string) => void;
   onPatientQueue: () => void;
+  tokenValue?: string;
+  onTokenChange?: (value: string) => void;
+  onTokenSubmit?: () => void;
+  scanShareDisabled?: boolean;
+  scanShareDisabledReason?: string;
   actions?: ReactNode;
 };
 
@@ -123,6 +128,11 @@ export function RegistrationFormHeader({
   searchValue,
   onSearchChange,
   onPatientQueue,
+  tokenValue = '',
+  onTokenChange,
+  onTokenSubmit,
+  scanShareDisabled = false,
+  scanShareDisabledReason,
   actions,
 }: RegistrationFormHeaderProps) {
   return (
@@ -136,18 +146,37 @@ export function RegistrationFormHeader({
             size="sm"
             className="h-9 rounded-full bg-muted px-4 text-foreground shadow-none"
             onClick={onPatientQueue}
+            disabled={scanShareDisabled}
+            title={scanShareDisabled ? scanShareDisabledReason : undefined}
           >
             Patient Queue
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 rounded-full px-4"
-            disabled
-          >
-            Token
-          </Button>
+          {!scanShareDisabled && onTokenChange && onTokenSubmit ? (
+            <Input
+              value={tokenValue}
+              onChange={(e) => onTokenChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  onTokenSubmit();
+                }
+              }}
+              placeholder="ABHA Token"
+              className="h-9 w-28 rounded-full"
+              disabled={scanShareDisabled}
+              autoComplete="off"
+            />
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 rounded-full px-4"
+              disabled
+            >
+              Token
+            </Button>
+          )}
           <Button
             type="button"
             variant="outline"

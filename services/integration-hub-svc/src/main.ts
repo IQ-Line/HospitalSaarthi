@@ -24,6 +24,7 @@ import {
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
   registerM3CallbackRoutes,
+  registerScanShareCallbackRoutes,
   registerM2EventConsumers,
   createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
@@ -189,6 +190,7 @@ async function main() {
       gatewayBaseUrl: GATEWAY_BASE_URL,
       abhaApiBaseUrl: ABHA_API_BASE_URL,
     },
+    db,
     sessions,
     inboundMessages,
     linkTokens,
@@ -233,6 +235,7 @@ async function main() {
   await app.register(async (v3) => {
     await registerM2CallbackRoutes(v3, sharedInfra);
     await registerM3CallbackRoutes(v3, sharedInfra);
+    await registerScanShareCallbackRoutes(v3, sharedInfra);
   }, { prefix: "/api/v3" });
 
   const abdmRouter = createRouter(sharedInfra);
