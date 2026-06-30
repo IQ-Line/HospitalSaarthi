@@ -19,11 +19,12 @@ import {
   visitpadChronicIllnessCreateFormSchema,
   visitpadDiagnosisCreateFormSchema,
   visitpadManufacturerCreateFormSchema,
+  visitpadMedicineCreateFormSchema,
   visitpadRxColumnCreateFormSchema,
   visitpadUnitConversionCreateSchema,
   visitpadUnitCreateSchema,
   visitpadVaccineCreateFormSchema,
-  type VisitpadMedicineCreateFormSchema,
+  type VisitpadMedicineCreateFormInput,
 } from '@/features/visitpad/validation';
 
 export function visitpadGlobalUnitToCreateBody(row: VisitpadUnit): Record<string, unknown> {
@@ -189,9 +190,13 @@ export function visitpadGlobalManufacturerToCreateBody(row: VisitpadManufacturer
 }
 
 export function visitpadMedicineCreatePayloadFromCatalogRow(row: VisitpadMedicine): Record<string, unknown> {
-  const form = {
+  // The row maps to form *input* (numeric fields are stringified text), so parse through the create
+  // schema to coerce them to the payload's number|null shape — mirrors the manufacturer/vaccine helpers.
+  const formInput: VisitpadMedicineCreateFormInput = {
     code: row.code,
     ...visitpadMedicineEditFormFromRow(row),
-  } as VisitpadMedicineCreateFormSchema;
-  return visitpadMedicineCreatePayloadFromForm(form);
+  };
+  const parsed = visitpadMedicineCreateFormSchema.safeParse(formInput);
+  if (!parsed.success) throw new Error(parsed.error.issues.map((i) => i.message).join('; '));
+  return visitpadMedicineCreatePayloadFromForm(parsed.data);
 }
