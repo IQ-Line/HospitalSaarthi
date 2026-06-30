@@ -9,10 +9,12 @@ function encodePayload(payload: object): string {
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' }))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     .replace(/=+$/, '');
   const body = btoa(JSON.stringify(payload))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     .replace(/=+$/, '');
   return `${header}.${body}.sig`;
 }

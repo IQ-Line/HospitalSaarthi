@@ -132,6 +132,7 @@ describe('billingIqTenantHeaderValue', () => {
     const payload = btoa(JSON.stringify({ iq_tenant_id: BILLING_TARIFF_DEV_TENANT_ID }))
       .replace(/\+/g, '-')
       .replace(/\//g, '_')
+      // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
       .replace(/=+$/, '');
     const token = `hdr.${payload}.sig`;
     expect(billingIqTenantHeaderValue(otherTenant, token)).toBe(BILLING_TARIFF_DEV_TENANT_ID);

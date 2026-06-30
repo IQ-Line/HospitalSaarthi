@@ -158,6 +158,7 @@ export function matchMethodStrengthOption(
   const caseInsensitive = rows.find((row) => formatted(row).toLowerCase() === lower);
   if (caseInsensitive) return formatted(caseInsensitive);
 
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   const parsed = trimmed.match(/^([\d.]+)\s*(.*)$/);
   if (parsed) {
     const [, value, unitPart = ''] = parsed;

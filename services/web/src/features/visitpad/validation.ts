@@ -5,7 +5,7 @@ function visitpadTrimLower(code: string): string {
 }
 
 /** Unified Visitpad catalog code: 3–9 alnum + underscore. */
-export const VISITPAD_CATALOG_CODE_REGEX = /^[A-Za-z0-9_]{3,9}$/;
+export const VISITPAD_CATALOG_CODE_REGEX = /^\w{3,9}$/;
 
 export const visitpadCatalogCodeSchema = z
   .string()
@@ -20,7 +20,7 @@ export const visitpadCatalogCodeSchema = z
 export const visitpadCatalogCodeLowerSchema = visitpadCatalogCodeSchema.transform(visitpadTrimLower);
 
 /** Rx column codes: 2–64 alnum + underscore (platform seed may use 2-char codes). */
-export const VISITPAD_RX_COLUMN_CODE_REGEX = /^[A-Za-z0-9_]{2,64}$/;
+export const VISITPAD_RX_COLUMN_CODE_REGEX = /^\w{2,64}$/;
 
 export const visitpadRxColumnCodeSchema = z
   .string()
@@ -33,7 +33,7 @@ export const visitpadRxColumnCodeSchema = z
   );
 
 /** Vital codes: 1–64 alnum + underscore (OPD integration slugs). */
-export const VISITPAD_VITAL_CODE_REGEX = /^[A-Za-z0-9_]{1,64}$/;
+export const VISITPAD_VITAL_CODE_REGEX = /^\w{1,64}$/;
 
 export const visitpadVitalCodeSchema = z
   .string()

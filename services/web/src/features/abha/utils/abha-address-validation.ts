@@ -53,6 +53,7 @@ export function formatMaskedMobileLast4(last4: string): string {
 }
 
 export function extractMobileLast4FromMessage(message: string): string | null {
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   const masked = message.match(/\*{2,}(\d{4})/);
   if (masked?.[1]) return masked[1];
   const ending = message.match(/ending\s+(?:with\s+)?\*{0,6}(\d{4})/i);

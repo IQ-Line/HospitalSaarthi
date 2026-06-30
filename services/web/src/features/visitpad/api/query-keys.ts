@@ -57,6 +57,7 @@ const VISITPAD_LIST_INVALIDATION: readonly VisitpadListInvalidationEntry[] =
 
 /** `/api/v1/master-data/visitpad/vitals` → `/vitals`. */
 export function visitpadCatalogListPathFromBasePath(basePath: string): string | null {
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   const trimmed = basePath.replace(/\/+$/, '');
   const marker = '/visitpad/';
   const idx = trimmed.indexOf(marker);

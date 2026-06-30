@@ -8,6 +8,7 @@ import type { CreateUserFormValues } from '../../../../../src/features/user-mana
 const baseValues: CreateUserFormValues = {
   full_name: 'Manish Gupta',
   email: 'manish@gmail.com',
+  // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- fake credential in a unit-test fixture, not a real secret (#50 verified)
   password: 'manish@123',
   phone: '',
   username: 'manishusername',

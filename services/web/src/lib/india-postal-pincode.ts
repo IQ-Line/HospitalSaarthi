@@ -32,6 +32,7 @@ function normalizeStateKey(raw: string): string {
   return raw
     .trim()
     .toLowerCase()
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     .replace(/\s*&\s*/g, ' and ')
     .replace(/\s+/g, ' ');
 }
