@@ -46,6 +46,7 @@ export function resolveCapabilityCatalogModuleSlug(
       matches
         .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
         .sort((a, b) => b.level - a.level)[0] ?? matches[0];
+    if (!preferred) continue;
     return normalizeSlug(preferred.slug);
   }
 
@@ -65,7 +66,9 @@ function findModuleForCapability(capability: Capability, modules: Module[]): Mod
   return (
     matches
       .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
-      .sort((a, b) => b.level - a.level)[0] ?? matches[0]
+      .sort((a, b) => b.level - a.level)[0] ??
+    matches[0] ??
+    null
   );
 }
 

@@ -40,7 +40,8 @@ export interface TenantOnboardingInput {
   admin: {
     first_name: string;
     last_name?: string | null;
-    email: string;
+    // Spec: nullable + not required (optional contact email, not the login credential).
+    email?: string | null;
     password: string;
     phone?: string | null;
     username?: string | null;

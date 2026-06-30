@@ -89,7 +89,7 @@ export function UserManagementPageShell({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{breadcrumbLabel ?? activeItem.label}</BreadcrumbPage>
+            <BreadcrumbPage>{breadcrumbLabel ?? activeItem?.label}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>

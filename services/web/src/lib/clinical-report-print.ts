@@ -384,8 +384,9 @@ function computeScaledBlocks(
   return blocks.map((b, i) => {
     const rawTop = Math.floor(b.top * scale);
     const rawBottom = Math.ceil((b.top + b.height) * scale);
+    const nextBlock = blocks[i + 1];
     const nextSourceY =
-      i < blocks.length - 1 ? Math.floor(blocks[i + 1].top * scale) : contentCanvas.height;
+      i < blocks.length - 1 && nextBlock ? Math.floor(nextBlock.top * scale) : contentCanvas.height;
     const sourceY = i === 0 ? 0 : rawTop;
     const sourceH = Math.min(
       rawBottom - sourceY + bufferBottomPx,

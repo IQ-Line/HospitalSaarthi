@@ -271,7 +271,7 @@ function orNotProvided(value: string, missingSentinel: '-' | 'N/A'): string {
 }
 
 /** Prefer the EMPI value, fall back to the registration snapshot, then to 'Not provided'. */
-function resolveAbhaField(empiValue: string, snapshotValue: string | undefined): string {
+function resolveAbhaField(empiValue: string, snapshotValue: string | null | undefined): string {
   if (empiValue !== 'N/A') return empiValue;
   const fromSnapshot = snapshotValue?.trim();
   const resolved = fromSnapshot ? fromSnapshot : NOT_PROVIDED;

@@ -45,7 +45,7 @@ const VISITPAD_LIST_KEY_BY_PATH: Record<string, () => readonly unknown[]> = {
 
 const VISITPAD_LIST_INVALIDATION: readonly VisitpadListInvalidationEntry[] =
   VISITPAD_CATALOG_SECTIONS.map((section) => {
-    const listKey = VISITPAD_LIST_KEY_BY_PATH[section.listPath]();
+    const listKey = VISITPAD_LIST_KEY_BY_PATH[section.listPath]?.() ?? [...visitpadKeys.all];
     return {
       listPath: section.listPath,
       listKey,
@@ -101,7 +101,7 @@ export function visitpadInvalidationKeysForCatalogBasePath(
 export function visitpadInvalidationKeysAfterPlatformImport(
   importPath: string,
 ): readonly (readonly unknown[])[] {
-  const pathPart = importPath.split('?')[0];
+  const pathPart = importPath.split('?')[0] ?? importPath;
   for (const entry of VISITPAD_LIST_INVALIDATION) {
     if (pathPart.endsWith(`${entry.listPath}/import-from-platform`)) {
       return visitpadInvalidationKeysForListPath(entry.listPath);

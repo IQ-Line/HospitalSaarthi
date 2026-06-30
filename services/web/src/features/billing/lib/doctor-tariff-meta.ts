@@ -53,7 +53,7 @@ export function userVisibleTariffDescription(
 ): string | null {
   if (isDoctorTariffMetadataDescription(description)) return null;
   const trimmed = description?.trim();
-  return trimmed === '' ? null : trimmed;
+  return trimmed ? trimmed : null;
 }
 
 const OPD_DAY_LABELS: Record<string, string> = {
