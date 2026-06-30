@@ -30,6 +30,7 @@ import {
   CreateUserIdentitySection,
   CreateUserWorkplaceSection,
   type CreateUserFormValues,
+  type CreateUserFormInput,
 } from './create-user-form-sections';
 import {
   CreateUserDoctorOpdSection,
@@ -41,9 +42,9 @@ const EMPTY_ROLE_CAPABILITIES: Capability[] = [];
 /** Search params for user profile after create when scoped to a hospital tenant. */
 export function buildUserProfileNavigateSearch(
   tenantScope?: string | null,
-): { tenant: string } | Record<string, never> {
+): { tenant: string | undefined } {
   const trimmed = tenantScope?.trim();
-  return trimmed && trimmed.length > 0 ? { tenant: trimmed } : {};
+  return { tenant: trimmed && trimmed.length > 0 ? trimmed : undefined };
 }
 
 export function buildCreateUserRequestBody(
@@ -75,7 +76,10 @@ export function buildCreateUserRequestBody(
     email: values.email.trim() === '' ? null : values.email.trim(),
     password: values.password,
     phone: values.phone === '' ? null : values.phone,
-    org_id: values.org_id === '' ? null : values.org_id,
+    // Organization scope (configurator organizations.id) when a super-admin picked an org/tenant;
+    // sourced from the configuratorOrgId arg (orgForCreate at the call site), not the form values
+    // (the form has no org_id field). Empty/absent -> null.
+    org_id: configuratorOrgId || null,
     department:
       primaryDepartmentName !== undefined
         ? primaryDepartmentName
@@ -130,12 +134,12 @@ function syncRoleCapabilitySelection(
   selectedRoleId: string,
   caps: Capability[] | undefined,
   availableRoles: UmRole[],
-  getValues: UseFormGetValues<CreateUserFormValues>,
-  setValue: UseFormSetValue<CreateUserFormValues>,
+  getValues: UseFormGetValues<CreateUserFormInput>,
+  setValue: UseFormSetValue<CreateUserFormInput>,
   prevRoleIdRef: { current: string | undefined },
 ): void {
   if (!selectedRoleId) {
-    if (getValues('role_capability_selection_ids').length > 0) {
+    if ((getValues('role_capability_selection_ids') ?? []).length > 0) {
       setValue('role_capability_selection_ids', [], {
         shouldDirty: true,
         shouldValidate: false,
@@ -380,7 +384,7 @@ export function CreateUserForm({
     enabled: formActive && umRoleRead && Boolean(effectiveTenantId),
   });
 
-  const form = useForm<CreateUserFormValues>({
+  const form = useForm<CreateUserFormInput, unknown, CreateUserFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       full_name: '',
@@ -420,7 +424,7 @@ export function CreateUserForm({
   );
 
   useEffect(() => {
-    if (isDoctor && form.getValues('doctor_tariffs').length === 0) {
+    if (isDoctor && (form.getValues('doctor_tariffs') ?? []).length === 0) {
       form.setValue('doctor_tariffs', [{ ...EMPTY_DOCTOR_TARIFF_ROW }], { shouldDirty: false });
     }
   }, [isDoctor, form]);

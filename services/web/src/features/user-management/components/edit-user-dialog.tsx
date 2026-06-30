@@ -26,6 +26,7 @@ import {
   listDoctorConsultationTariffs,
   syncDoctorConsultationTariffs,
   tariffServiceToDoctorRow,
+  type DoctorConsultationTariffInput,
 } from '@/features/billing/lib/doctor-consultation-tariff';
 import { useDepartments } from '@/features/master-data/api';
 import type { Department } from '@/features/master-data/types';
@@ -38,7 +39,6 @@ import { userManagementKeys } from '../api/keys';
 import {
   doctorTariffRowSchema,
   EMPTY_DOCTOR_TARIFF_ROW,
-  type DoctorTariffFormRow,
 } from '../lib/doctor-tariff-form';
 import { isDoctorRole, validateDoctorTariffs } from '../lib/is-doctor-role';
 import { userTenantScopeKey } from '../lib/user-tenant-scope';
@@ -56,6 +56,8 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+/** RHF working (pre-resolution) shape: doctor_tariffs `.default([])`/coerced rows make this distinct. */
+type FormInput = z.input<typeof schema>;
 
 function toPatch(values: FormValues, primaryDepartmentName: string | null): UpdateUserBody {
   return {
@@ -71,7 +73,7 @@ function buildDoctorTariffDefaults(
   tariffs: Awaited<ReturnType<typeof listDoctorConsultationTariffs>>,
   user: UmUser,
   departments: Department[],
-): DoctorTariffFormRow[] {
+): DoctorConsultationTariffInput[] {
   if (tariffs.length > 0) {
     return tariffs.map(tariffServiceToDoctorRow);
   }
@@ -93,7 +95,7 @@ function buildFormValues(
   isDoctor: boolean,
   tariffs: Awaited<ReturnType<typeof listDoctorConsultationTariffs>>,
   departments: Department[],
-): FormValues {
+): FormInput {
   return {
     full_name: user.full_name,
     email: user.email ?? '',
@@ -209,9 +211,9 @@ function DoctorTariffsErrorAlert({ error }: { error: Error | null }) {
 }
 
 type EditUserFormFieldsProps = {
-  register: UseFormRegister<FormValues>;
-  control: Control<FormValues>;
-  errors: FieldErrors<FormValues>;
+  register: UseFormRegister<FormInput>;
+  control: Control<FormInput, unknown, FormValues>;
+  errors: FieldErrors<FormInput>;
   isDoctor: boolean;
   doctorTariffsFailed: boolean;
   tariffsError: Error | null;
@@ -344,7 +346,7 @@ export function EditUserDialog({ open, onOpenChange, user, tenantScope }: EditUs
     return tariffsQuery.data ?? EMPTY_TARIFF_LIST;
   }, [isDoctor, doctorTariffsFailed, tariffsQuery.data]);
 
-  const { reset, handleSubmit, register, control, setError, formState } = useForm<FormValues>({
+  const { reset, handleSubmit, register, control, setError, formState } = useForm<FormInput, unknown, FormValues>({
     resolver: zodResolver(schema),
     defaultValues: buildFormValues(user, false, [], []),
   });

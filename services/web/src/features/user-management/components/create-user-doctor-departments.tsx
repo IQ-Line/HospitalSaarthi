@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Controller, useFieldArray, type Control, type FieldErrors, type FieldValues, type Path } from 'react-hook-form';
+import {
+  Controller,
+  useFieldArray,
+  type ArrayPath,
+  type Control,
+  type FieldErrors,
+  type FieldValues,
+  type Path,
+} from 'react-hook-form';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
@@ -15,7 +23,7 @@ import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
 import { cn } from '@pulse/utils';
 import { FormNumberInput } from '@/lib/form-number-input';
 import { useDepartments } from '@/features/master-data/api';
-import { EMPTY_DOCTOR_TARIFF_ROW, type DoctorTariffFormRow } from '../lib/doctor-tariff-form';
+import { EMPTY_DOCTOR_TARIFF_ROW } from '../lib/doctor-tariff-form';
 import { UserManagementSectionCard } from './user-management-section-card';
 
 export { EMPTY_DOCTOR_TARIFF_ROW };
@@ -32,10 +40,12 @@ const OPD_DAYS = [
   { value: 'sun', label: 'Su' },
 ] as const;
 
-type DoctorTariffFieldValues = FieldValues & { doctor_tariffs: DoctorTariffFormRow[] };
-
-type Props<T extends DoctorTariffFieldValues> = {
-  control: Control<T>;
+// Widened to the catalog-form control pattern: T = RHF working (input) values,
+// TT = zodResolver-transformed (output) values. All doctor_tariffs field access
+// below is path-cast, so a generic FieldValues bound is sufficient and lets the
+// 3-generic `useForm` control (Control<Input, unknown, Output>) flow in unchanged.
+type Props<T extends FieldValues, TT extends FieldValues = T> = {
+  control: Control<T, unknown, TT>;
   errors: FieldErrors<T>;
   iqTenantId?: string;
   /** Minimum department rows (default 1 for doctors). */
@@ -46,7 +56,7 @@ function FieldHint({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-foreground">{children}</p>;
 }
 
-function DepartmentBlock<T extends DoctorTariffFieldValues>({
+function DepartmentBlock<T extends FieldValues, TT extends FieldValues = T>({
   index,
   control,
   departments,
@@ -55,7 +65,7 @@ function DepartmentBlock<T extends DoctorTariffFieldValues>({
   onRemove,
 }: {
   index: number;
-  control: Control<T>;
+  control: Control<T, unknown, TT>;
   departments: { id: string; name: string }[];
   deptLoading: boolean;
   canRemove: boolean;
@@ -203,18 +213,18 @@ function DepartmentBlock<T extends DoctorTariffFieldValues>({
   );
 }
 
-export function CreateUserDoctorOpdSection<T extends DoctorTariffFieldValues>({
+export function CreateUserDoctorOpdSection<T extends FieldValues, TT extends FieldValues = T>({
   control,
   errors,
   iqTenantId,
   minRows = 1,
-}: Props<T>) {
+}: Props<T, TT>) {
   const { data: deptData, isLoading: deptLoading } = useDepartments(undefined, {
     iqTenantId,
     formCatalog: true,
   });
   const departments = (deptData?.data ?? []).filter((d) => d.is_active);
-  const { fields, append, remove } = useFieldArray({ control, name: 'doctor_tariffs' as Path<T> });
+  const { fields, append, remove } = useFieldArray({ control, name: 'doctor_tariffs' as ArrayPath<T> });
   const rootError =
     (errors.doctor_tariffs as { message?: string; root?: { message?: string } } | undefined)
       ?.message ??
