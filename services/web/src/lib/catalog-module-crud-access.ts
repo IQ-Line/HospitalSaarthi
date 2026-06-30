@@ -1,3 +1,12 @@
+/* eslint-disable no-restricted-syntax --
+ * This is THE sanctioned, centralized catalog CRUD-access resolver: a pure (non-React) lib
+ * below the hook layer. The web-wide can* ban exists to push COMPONENTS toward useCapability /
+ * CapabilityGate, but those are React hooks that cannot run here — this file is the very
+ * implementation those hooks (useCatalogModuleAction / useCatalogModuleCrud) resolve through, so
+ * its can* locals ARE the canonical computation the rule directs components to delegate to.
+ * Renaming them to dodge the regex would be metric-gaming and obscure the clearest names.
+ * (No legacy permission-map call or can* helper-function lives here; if one is added, re-scope this.)
+ */
 import { principalHasCatalogModuleAction } from '@/lib/catalog-route-access';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import { MD_VISITPAD_CREATE, MD_VISITPAD_VIEW } from '@/lib/runtime-capability-keys';

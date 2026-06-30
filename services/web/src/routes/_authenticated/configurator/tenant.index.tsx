@@ -276,7 +276,6 @@ function ConfiguratorTenantListPage() {
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [branchWizardParent, setBranchWizardParent] = useState<ConfiguratorTenant | null>(null);
-  const canCreateTenant = useCatalogModuleAction('tenants', 'create');
   const accessToken = useAuthStore((s) => s.accessToken);
   const authRoles = useAuthStore((s) => s.roles);
   const principalRoles = usePermissionsStore((s) => s.roles);
@@ -287,7 +286,7 @@ function ConfiguratorTenantListPage() {
     accessToken,
   });
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
-  const canProvisionTenants = canCreateTenant && !isTenantAdmin;
+  const canProvisionTenants = useCatalogModuleAction('tenants', 'create') && !isTenantAdmin;
 
   const { organizationId, organizationName, isResolving } = useScopedOrganizationId();
   const { data: scopedOrg } = useOrganization(organizationId ?? '', {

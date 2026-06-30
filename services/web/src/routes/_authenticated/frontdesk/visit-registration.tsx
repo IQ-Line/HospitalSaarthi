@@ -557,7 +557,7 @@ function VisitRegistrationRoute() {
     registrationItemCode: billingRegistrationFee?.item_code,
     consultationItemCode: billingConsultationFee?.item_code,
   };
-  const canCreateVisit = isVisitRegistrationFormComplete(formGate);
+  const isVisitFormComplete = isVisitRegistrationFormComplete(formGate);
   const createVisitBlockHint = visitRegistrationBlockHint(formGate);
 
   useEffect(() => {
@@ -878,7 +878,7 @@ function VisitRegistrationRoute() {
               visitTypeHint={visitTypeHint}
               hasProvider={hasProvider}
               isSubmitting={mutation.isPending}
-              canCreateVisit={canCreateVisit}
+              isVisitFormComplete={isVisitFormComplete}
               createVisitBlockHint={createVisitBlockHint}
               onClear={() => {
                 form.reset();

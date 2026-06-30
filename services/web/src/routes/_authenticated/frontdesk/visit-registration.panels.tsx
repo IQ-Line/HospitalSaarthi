@@ -297,7 +297,7 @@ export function VisitRegistrationFormPanel({
   visitTypeHint,
   hasProvider,
   isSubmitting,
-  canCreateVisit,
+  isVisitFormComplete,
   createVisitBlockHint,
   onClear,
 }: {
@@ -322,7 +322,7 @@ export function VisitRegistrationFormPanel({
   visitTypeHint: string | null;
   hasProvider: boolean;
   isSubmitting: boolean;
-  canCreateVisit: boolean;
+  isVisitFormComplete: boolean;
   createVisitBlockHint: string | undefined;
   onClear: () => void;
 }) {
@@ -385,7 +385,7 @@ export function VisitRegistrationFormPanel({
           <footer className="flex flex-wrap items-center justify-end gap-3 pt-2">
             <Button
               type="submit"
-              disabled={isSubmitting || !canCreateVisit}
+              disabled={isSubmitting || !isVisitFormComplete}
               title={createVisitBlockHint ?? undefined}
               className="h-10 gap-2 bg-primary px-6 text-primary-foreground hover:bg-primary/90"
             >
