@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { requireAnyCapability, requireCapability } from '../../../src/lib/require-capabilities';
+import { requireCapability } from '../../../src/lib/require-capabilities';
 import { UM_ROLES_ADMIN_ANY, UM_USER_READ } from '../../../src/lib/runtime-capability-keys';
 import { usePermissionsStore } from '@/stores/permissions.store';
 

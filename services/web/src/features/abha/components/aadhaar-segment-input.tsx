@@ -3,6 +3,9 @@ import { Input } from '@pulse/ui/input';
 import { digitsOnly } from '@/lib/digits-only';
 import { cn } from '@pulse/utils';
 
+/** The three Aadhaar number segments (4-4-4 digits). */
+type SegmentIndex = 1 | 2 | 3;
+
 function maskSegment(value: string): string {
   if (!value) return '';
   return '•'.repeat(value.length);
@@ -43,14 +46,14 @@ export function AadhaarSegmentInput({
   const ref2 = useRef<HTMLInputElement>(null);
   const ref3 = useRef<HTMLInputElement>(null);
 
-  const focusSeg = (index: 1 | 2 | 3) => {
+  const focusSeg = (index: SegmentIndex) => {
     const ref = index === 1 ? ref1 : index === 2 ? ref2 : ref3;
     ref.current?.focus();
     ref.current?.select();
   };
 
   const handleSegChange = (
-    index: 1 | 2 | 3,
+    index: SegmentIndex,
     raw: string,
     onChange: (v: string) => void,
     onUnmask?: () => void,
@@ -65,7 +68,7 @@ export function AadhaarSegmentInput({
   };
 
   const handleKeyDown = (
-    index: 1 | 2 | 3,
+    index: SegmentIndex,
     value: string,
     e: KeyboardEvent<HTMLInputElement>,
     onUnmask?: () => void,

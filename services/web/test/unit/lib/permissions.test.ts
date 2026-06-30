@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { AuthPrincipalResponse } from '@/lib/auth-principal';
 import { hydrateCapabilitiesFromPrincipal } from '@/lib/permissions';
 import { usePermissionsStore } from '@/stores/permissions.store';

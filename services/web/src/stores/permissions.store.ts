@@ -2,6 +2,7 @@ import { create, type StateCreator } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- intentional domain vocabulary: CapabilityKey names a capability identifier across ~22 files; inlining `string` would erase that meaning.
 export type CapabilityKey = string;
 
 export interface PermissionsState {

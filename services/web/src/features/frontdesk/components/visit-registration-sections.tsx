@@ -39,8 +39,6 @@ import {
 import { useDepartments } from '@/features/master-data/api';
 import { useVisitTypePicklistValues } from '@/features/master-data/api/picklists';
 import { useDoctorsForDepartment } from '@/features/billing/hooks/use-doctors-for-department';
-import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
-import type { VisitpadVital } from '@/features/visitpad/types';
 import {
   VISIT_REGISTRATION_LAB_TEST_CATALOG,
   VISIT_REGISTRATION_PAYMENT_MODES,

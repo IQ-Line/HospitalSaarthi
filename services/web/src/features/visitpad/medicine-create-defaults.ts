@@ -191,6 +191,7 @@ export function emptyMedicineCreateForm(): VisitpadMedicineCreateFormInput {
 }
 
 export function emptyMedicineEditForm(): VisitpadMedicineEditFormInput {
+  // eslint-disable-next-line sonarjs/no-unused-vars -- destructure-and-discard to drop `code` from the create-form shape.
   const { code: _c, ...rest } = emptyMedicineCreateForm();
   return rest;
 }

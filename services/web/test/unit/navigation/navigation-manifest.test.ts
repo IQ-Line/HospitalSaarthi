@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   CFG_SHELL_ACCESS,
-  FD_SHELL_ACCESS,
-  MD_SHELL_ACCESS,
   MD_VISITPAD_VIEW,
   UM_USER_READ,
 } from '@/lib/runtime-capability-keys';

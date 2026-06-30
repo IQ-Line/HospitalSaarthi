@@ -13,7 +13,6 @@ import { Checkbox } from '@pulse/ui/checkbox';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
