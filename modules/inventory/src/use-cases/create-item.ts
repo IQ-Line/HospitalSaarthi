@@ -1,4 +1,5 @@
 import type { DrizzleInventoryItemRepository, ItemTrackingMode } from "../data-access/items.repo.js";
+import { InventoryValidationError } from "../errors.js";
 
 export type CreateItemDeps = {
   itemRepo: DrizzleInventoryItemRepository;
@@ -60,7 +61,10 @@ export async function createItem(
 ) {
   const classification = input.item_classification ?? "inventory";
   if (classification === "medicine" && !input.tenant_formulary_id?.trim()) {
-    throw new Error("Medicine items require a tenant formulary medicine selection");
+    throw new InventoryValidationError(
+      "Medicine items require a tenant formulary medicine selection",
+      "FORMULARY_REQUIRED",
+    );
   }
 
   const purchaseUomId = input.purchase_uom_id;

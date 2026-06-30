@@ -13,6 +13,11 @@ import { useDepartments } from '@/features/master-data/api/departments';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useInventoryItemCreate } from '@/features/inventory-masters/api/item-mutations';
 import {
+  INVENTORY_MASTERS_DEFAULT_PAGE_SIZE,
+  INVENTORY_MASTERS_FORM_LOOKUP_PARAMS,
+  INVENTORY_MASTERS_PAGE_SIZES,
+} from '@/features/inventory-masters/api/list-url';
+import {
   useInventoryCategories,
   useInventoryHsnGst,
   useInventoryItems,
@@ -41,9 +46,6 @@ const CLASSIFICATION_LABELS: Record<InventoryItemMaster['classification'], strin
   medicine: 'Medicine',
 };
 
-/** Dropdown masters for the create form — not tied to table search/filters. */
-const ITEM_MASTER_FORM_LOOKUP_PARAMS: InventoryMasterListParams = { status: 'active' };
-
 type InventoryItemMasterTabProps = {
   onRegisterAdd?: (openAdd: (() => void) | undefined) => void;
   search: string;
@@ -69,21 +71,37 @@ export function InventoryItemMasterTab({
 }: InventoryItemMasterTabProps) {
   const sidePanel = usePageSidePanelSafe();
   const [panelMode, setPanelMode] = useState<'closed' | 'create'>('closed');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState(INVENTORY_MASTERS_DEFAULT_PAGE_SIZE);
   const create = useInventoryItemCreate();
 
+  useEffect(() => {
+    setPageIndex(0);
+  }, [search, status, categoryFilter, classificationFilter]);
+
   const listParams = useMemo<InventoryMasterListParams>(
-    () => ({ search: search || undefined, status }),
-    [search, status],
+    () => ({
+      search: search || undefined,
+      status,
+      pageIndex,
+      pageSize,
+      categoryId: categoryFilter !== 'all' ? categoryFilter : undefined,
+      classification:
+        classificationFilter === 'inventory_item' || classificationFilter === 'medicine'
+          ? classificationFilter
+          : 'all',
+    }),
+    [search, status, pageIndex, pageSize, categoryFilter, classificationFilter],
   );
 
   const catalogTenantId = useInventoryMastersTenantId();
 
-  const categoriesQuery = useInventoryCategories(ITEM_MASTER_FORM_LOOKUP_PARAMS);
-  const itemTypesQuery = useInventoryItemTypes(ITEM_MASTER_FORM_LOOKUP_PARAMS);
-  const uomsQuery = useInventoryUoms(ITEM_MASTER_FORM_LOOKUP_PARAMS);
-  const storageQuery = useInventoryStorageConditions(ITEM_MASTER_FORM_LOOKUP_PARAMS);
-  const hsnQuery = useInventoryHsnGst(ITEM_MASTER_FORM_LOOKUP_PARAMS);
-  const manufacturersQuery = useInventoryManufacturers(ITEM_MASTER_FORM_LOOKUP_PARAMS);
+  const categoriesQuery = useInventoryCategories(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
+  const itemTypesQuery = useInventoryItemTypes(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
+  const uomsQuery = useInventoryUoms(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
+  const storageQuery = useInventoryStorageConditions(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
+  const hsnQuery = useInventoryHsnGst(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
+  const manufacturersQuery = useInventoryManufacturers(INVENTORY_MASTERS_FORM_LOOKUP_PARAMS);
   const departmentsQuery = useDepartments(undefined, {
     formCatalog: true,
     iqTenantId: catalogTenantId,
@@ -102,27 +120,16 @@ export function InventoryItemMasterTab({
   }, [categoriesQuery.data?.data, itemTypesQuery.data?.data]);
 
   const itemsQuery = useInventoryItems(listParams, itemLookupMaps);
+  const itemRows = itemsQuery.data?.data ?? [];
+  const itemTotal = itemsQuery.data?.total ?? 0;
 
-  const itemRows = useMemo(() => {
-    let rows = itemsQuery.data?.data ?? [];
-    if (categoryFilter !== 'all') {
-      rows = rows.filter((row) => row.product_category === categoryFilter);
-    }
-    if (classificationFilter !== 'all') {
-      rows = rows.filter((row) => row.classification === classificationFilter);
-    }
-    return rows;
-  }, [categoryFilter, classificationFilter, itemsQuery.data?.data]);
-
-  const itemCategoryOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of itemsQuery.data?.data ?? []) {
-      if (row.product_category && row.product_category !== '—') {
-        set.add(row.product_category);
-      }
-    }
-    return [...set].sort();
-  }, [itemsQuery.data?.data]);
+  const categoryFilterOptions = useMemo(
+    () =>
+      (categoriesQuery.data?.data ?? [])
+        .filter((row) => row.status === 'active')
+        .sort((a, b) => a.category_name.localeCompare(b.category_name)),
+    [categoriesQuery.data?.data],
+  );
 
   const itemColumns = useMemo<ColumnDef<InventoryItemMaster, unknown>[]>(
     () => [
@@ -238,9 +245,9 @@ export function InventoryItemMasterTab({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
-              {itemCategoryOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
+              {categoryFilterOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.category_name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -262,6 +269,17 @@ export function InventoryItemMasterTab({
       isLoading={itemsQuery.isLoading}
       emptyTitle="No items found"
       emptyDescription="Add an item or adjust your filters."
+      manualPagination={{
+        pageIndex,
+        pageSize,
+        total: itemTotal,
+        pageSizeOptions: INVENTORY_MASTERS_PAGE_SIZES,
+        onPageChange: setPageIndex,
+        onPageSizeChange: (next) => {
+          setPageSize(next);
+          setPageIndex(0);
+        },
+      }}
     />
   );
 }

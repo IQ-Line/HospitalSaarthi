@@ -5,6 +5,10 @@ export type InventoryMasterListParams = {
   status?: 'all' | InventoryMasterStatus;
   pageIndex?: number;
   pageSize?: number;
+  /** Item list: filter by product category or sub-category id. */
+  categoryId?: string;
+  /** Item list: server-side classification filter. */
+  classification?: 'all' | 'inventory_item' | 'medicine';
 };
 
 export type PaginatedList<T> = {

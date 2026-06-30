@@ -442,8 +442,8 @@ export function ItemMasterFormPanel({
 
   const itemCodeDisplay = itemTypeId ? (codePreview?.item_code ?? 'Generating…') : 'Select item type';
   const itemCodeHint = selectedType
-    ? `Auto-generated from item type "${selectedType.item_type}" (${itemTypeCodePrefix(selectedType.item_type)}-######)`
-    : 'Select an item type to preview the code prefix.';
+    ? `Indicative preview only — the saved code is allocated when you save (format: ITM-#####, sequence per item type "${selectedType.item_type}").`
+    : 'Select an item type to preview the next code.';
   const departmentSummary = departmentLabelFromIds(Array.from(departmentSelectedIds), departments);
   const brandDisplay =
     selectedFormularyOption?.brandNames?.[0]?.trim() ||

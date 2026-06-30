@@ -25,6 +25,14 @@ interface InventoryMastersTableCardProps<TData> {
   isLoading?: boolean;
   emptyTitle?: string;
   emptyDescription?: string;
+  manualPagination?: {
+    pageIndex: number;
+    pageSize: number;
+    total: number;
+    pageSizeOptions?: readonly number[];
+    onPageChange: (pageIndex: number) => void;
+    onPageSizeChange: (pageSize: number) => void;
+  };
 }
 
 export function InventoryMastersTableCard<TData>({
@@ -39,6 +47,7 @@ export function InventoryMastersTableCard<TData>({
   isLoading,
   emptyTitle,
   emptyDescription,
+  manualPagination,
 }: InventoryMastersTableCardProps<TData>) {
   return (
     <div className="rounded-lg border">
@@ -75,6 +84,7 @@ export function InventoryMastersTableCard<TData>({
           showColumnMenu
           emptyTitle={emptyTitle}
           emptyDescription={emptyDescription}
+          manualPagination={manualPagination}
         />
       </div>
     </div>

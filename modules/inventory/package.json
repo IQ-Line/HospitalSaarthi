@@ -5,7 +5,8 @@
   "main": "./src/index.ts",
   "dependencies": {
     "@hims/ts-sdk-db": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.2",
+    "zod": "^3.25.7"
   },
   "peerDependencies": {
     "fastify": "^5.3.3",

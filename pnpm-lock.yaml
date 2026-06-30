@@ -172,6 +172,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
+      zod:
+        specifier: ^3.25.7
+        version: 3.25.76
     devDependencies:
       fastify:
         specifier: ^5.3.3

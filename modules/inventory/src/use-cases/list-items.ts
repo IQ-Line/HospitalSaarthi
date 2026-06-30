@@ -7,6 +7,8 @@ export type ListItemsDeps = {
 export type ListItemsQuery = {
   search?: string;
   is_active?: boolean;
+  category_id?: string;
+  item_classification?: "inventory" | "medicine";
   limit: number;
   offset: number;
 };
@@ -19,6 +21,8 @@ export async function listItems(
   const { rows, total } = await deps.itemRepo.list(tenantId, {
     search: query.search,
     isActive: query.is_active,
+    categoryId: query.category_id,
+    itemClassification: query.item_classification,
     limit: query.limit,
     offset: query.offset,
   });

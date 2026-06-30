@@ -1,5 +1,6 @@
-import { and, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, or, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
+import { toIlikeContainsPattern } from "../lib/ilike.js";
 import {
   inventoryItemCodeSequences,
   inventoryItems,
@@ -10,6 +11,8 @@ export type InventoryItemRow = typeof inventoryItems.$inferSelect;
 export type ListInventoryItemsInput = {
   search?: string;
   isActive?: boolean;
+  categoryId?: string;
+  itemClassification?: "inventory" | "medicine";
   limit: number;
   offset: number;
 };
@@ -61,14 +64,27 @@ export class DrizzleInventoryItemRepository {
 
     const search = input.search?.trim();
     if (search) {
-      const pattern = `%${search}%`;
+      const pattern = toIlikeContainsPattern(search);
       filters.push(
         or(
-          ilike(inventoryItems.name, pattern),
-          ilike(inventoryItems.display_name, pattern),
-          ilike(inventoryItems.item_code, pattern),
+          sql`${inventoryItems.name} ILIKE ${pattern} ESCAPE '\\'`,
+          sql`${inventoryItems.display_name} ILIKE ${pattern} ESCAPE '\\'`,
+          sql`${inventoryItems.item_code} ILIKE ${pattern} ESCAPE '\\'`,
         )!,
       );
+    }
+
+    if (input.categoryId) {
+      filters.push(
+        or(
+          eq(inventoryItems.category_id, input.categoryId),
+          eq(inventoryItems.sub_category_id, input.categoryId),
+        )!,
+      );
+    }
+
+    if (input.itemClassification) {
+      filters.push(eq(inventoryItems.item_classification, input.itemClassification));
     }
 
     const where = and(...filters);
@@ -90,6 +106,11 @@ export class DrizzleInventoryItemRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
+  /**
+   * Non-binding preview of the next code for an item type.
+   * Sequence is per item_type_id; persisted codes use the shared ITM-##### format
+   * (no type prefix in the code string).
+   */
   async previewItemCode(tenantId: string, itemTypeId: string): Promise<string> {
     const [row] = await this.db
       .select({ last_sequence: inventoryItemCodeSequences.last_sequence })

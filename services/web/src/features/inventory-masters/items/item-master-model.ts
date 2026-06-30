@@ -8,7 +8,7 @@ export function itemClassificationLabel(classification: ItemClassification): str
   return classification === 'medicine' ? 'Medicine' : 'Inventory Item';
 }
 
-/** UI preview only — mirrors backend item-type prefix for code generation. */
+/** Display-only abbreviation for item type labels in the form (not the persisted item code). */
 export function itemTypeCodePrefix(itemTypeName: string): string {
   const letters = itemTypeName.replace(/[^A-Za-z]/g, '').toUpperCase();
   if (letters.length >= 3) return letters.slice(0, 3);

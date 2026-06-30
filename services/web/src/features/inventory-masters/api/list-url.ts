@@ -3,6 +3,18 @@ import { INVENTORY_ITEMS_API_BASE, INVENTORY_MASTERS_API_BASE } from './query-ke
 
 export const INVENTORY_MASTERS_DEFAULT_PAGE_SIZE = 50;
 
+/** Max page size supported by inventory / visitpad catalog list APIs. */
+export const INVENTORY_MASTERS_MAX_PAGE_SIZE = 200;
+
+export const INVENTORY_MASTERS_PAGE_SIZES = [20, 50, 100, 200] as const;
+
+/** Active masters for create-form dropdowns (not table pagination). */
+export const INVENTORY_MASTERS_FORM_LOOKUP_PARAMS: InventoryMasterListParams = {
+  status: 'active',
+  pageIndex: 0,
+  pageSize: INVENTORY_MASTERS_MAX_PAGE_SIZE,
+};
+
 function normalizePage(params: InventoryMasterListParams = {}) {
   const pageSize = params.pageSize ?? INVENTORY_MASTERS_DEFAULT_PAGE_SIZE;
   const pageIndex = Math.max(0, params.pageIndex ?? 0);
@@ -21,6 +33,22 @@ export function inventoryMasterListQueryParams(
     query.is_active = 'true';
   } else if (params.status === 'inactive') {
     query.is_active = 'false';
+  }
+  return query;
+}
+
+export function inventoryItemsListQueryParams(
+  params: InventoryMasterListParams = {},
+): Record<string, string | undefined> {
+  const query = inventoryMasterListQueryParams(params);
+  const categoryId = params.categoryId?.trim();
+  if (categoryId && categoryId !== 'all') {
+    query.category_id = categoryId;
+  }
+  if (params.classification === 'medicine') {
+    query.item_classification = 'medicine';
+  } else if (params.classification === 'inventory_item') {
+    query.item_classification = 'inventory';
   }
   return query;
 }
@@ -47,7 +75,7 @@ export function buildInventoryItemsListUrl(params: InventoryMasterListParams = {
   const { pageIndex, pageSize } = normalizePage(params);
   q.set('limit', String(pageSize));
   q.set('offset', String(pageIndex * pageSize));
-  for (const [key, value] of Object.entries(inventoryMasterListQueryParams(params))) {
+  for (const [key, value] of Object.entries(inventoryItemsListQueryParams(params))) {
     if (value) {
       q.set(key, value);
     }
