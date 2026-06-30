@@ -1299,7 +1299,9 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
       { tenantIdOverride: iqTenantId },
     );
     qc.setQueryData(userManagementKeys.roleCapabilities(roleId), capabilities);
-    qc.invalidateQueries({ queryKey: userManagementKeys.roleCapabilities(roleId) }).catch(() => {});
+    qc.invalidateQueries({ queryKey: userManagementKeys.roleCapabilities(roleId) }).catch(() => {
+      /* background refetch failure is non-critical; the query's own error state covers it */
+    });
   }
 
   const handleDeleteRole = () => {
@@ -1522,7 +1524,7 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
               setEditing(row.original);
               editForm.reset(serviceToEditFormValues(row.original));
             }}
-            onDelete={() => {}}
+            onDelete={() => {/* delete disabled for services (canDelete=false) */}}
             canEdit={canUpdate}
             canDelete={false}
           />

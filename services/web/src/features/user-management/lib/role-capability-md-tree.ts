@@ -103,6 +103,21 @@ export function capabilitiesToMasterDataPermissionOptions(
   });
 }
 
+/** Adds `module` and each active (non-deleted) ancestor's id to `enabled`, walking up via `byId`. */
+function addActiveModuleAndAncestors(
+  module: Module,
+  byId: Map<string, Module>,
+  enabled: Set<string>,
+): void {
+  let current: Module | undefined = module;
+  while (current) {
+    if (current.is_active && !current.is_deleted) {
+      enabled.add(current.id);
+    }
+    current = current.parent_id ? byId.get(current.parent_id) : undefined;
+  }
+}
+
 /** Module ids on the catalog path for each role capability (includes L4+ leaves for rollup). */
 export function enabledModuleIdsForRoleCapabilities(
   modules: Module[],
@@ -111,22 +126,10 @@ export function enabledModuleIdsForRoleCapabilities(
   const byId = new Map(modules.map((module) => [module.id, module]));
   const enabled = new Set<string>();
 
-  const addModuleAndAncestors = (module: Module) => {
-    let current: Module | undefined = module;
-    while (current) {
-      if (!current.is_active || current.is_deleted) {
-        current = current.parent_id ? byId.get(current.parent_id) : undefined;
-        continue;
-      }
-      enabled.add(current.id);
-      current = current.parent_id ? byId.get(current.parent_id) : undefined;
-    }
-  };
-
   for (const capability of capabilities) {
     const module = findModuleForCapability(capability, modules);
     if (module) {
-      addModuleAndAncestors(module);
+      addActiveModuleAndAncestors(module, byId, enabled);
     }
   }
 
@@ -142,23 +145,11 @@ export function enabledModuleIdsForPermissionOptions(
   const bySlug = indexModulesBySlug(modules);
   const enabled = new Set<string>();
 
-  const addModuleAndAncestors = (module: Module) => {
-    let current: Module | undefined = module;
-    while (current) {
-      if (!current.is_active || current.is_deleted) {
-        current = current.parent_id ? byId.get(current.parent_id) : undefined;
-        continue;
-      }
-      enabled.add(current.id);
-      current = current.parent_id ? byId.get(current.parent_id) : undefined;
-    }
-  };
-
   for (const option of permissionOptions) {
     const slug = normalizeSlug(option.moduleSlug);
     const matches = bySlug.get(slug) ?? [];
     for (const module of matches) {
-      addModuleAndAncestors(module);
+      addActiveModuleAndAncestors(module, byId, enabled);
     }
   }
 

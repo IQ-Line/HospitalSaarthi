@@ -149,7 +149,7 @@ function buildTariffColumns({
             setEditing(row.original);
             editForm.reset(serviceToEditFormValues(row.original));
           }}
-          onDelete={() => {}}
+          onDelete={() => {/* delete disabled for tariff services (canDelete=false) */}}
           canEdit={canUpdate}
           canDelete={false}
         />
