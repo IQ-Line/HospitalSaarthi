@@ -43,7 +43,6 @@ export function IndianPincodeAddressFields({
   districtRequired = false,
 }: IndianPincodeAddressFieldsProps) {
   const {
-    normalizedPin,
     pinFieldRef,
     isFetching,
     showPostOfficeSuggestions,

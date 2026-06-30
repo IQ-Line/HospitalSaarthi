@@ -66,7 +66,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 
 function VisitpadChiefComplaintsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chief-complaints');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');

@@ -152,7 +152,7 @@ function VisitpadVitalsPage() {
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
   const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vitals');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);

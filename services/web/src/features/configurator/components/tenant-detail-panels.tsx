@@ -1462,12 +1462,6 @@ export function TenantBillingPanel({ iqTenantId }: { iqTenantId: string }) {
   const services = data?.data ?? [];
   const createMutation = useCreateTariffService(iqTenantId);
   const updateMutation = useUpdateTariffService(iqTenantId);
-  const departmentsQuery = useDepartments(undefined, {
-    enabled: isCreateOpen,
-    iqTenantId,
-    formCatalog: true,
-  });
-
   const createForm = useForm<TariffServiceCreateFormValues>({
     resolver: zodResolver(tariffServiceCreateSchema),
     defaultValues: EMPTY_TARIFF_CREATE_VALUES,

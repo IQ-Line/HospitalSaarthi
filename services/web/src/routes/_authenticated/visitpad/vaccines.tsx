@@ -57,7 +57,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/vaccines')({
 
 function VisitpadVaccinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vaccines');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

@@ -150,7 +150,7 @@ function DosageFormSelect<T extends FieldValues, TT extends FieldValues = T>({
 
 function VisitpadMedicinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-medicines');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [schedule, setSchedule] = useState<string>('all');

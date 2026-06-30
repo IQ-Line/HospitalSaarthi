@@ -67,7 +67,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 
 function VisitpadDiagnosesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-diagnoses');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');

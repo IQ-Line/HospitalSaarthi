@@ -67,7 +67,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/units')({
 
 function VisitpadUnitsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-units');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [dimension, setDimension] = useState<string>('all');

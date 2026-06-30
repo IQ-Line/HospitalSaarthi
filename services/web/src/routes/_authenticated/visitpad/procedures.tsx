@@ -119,7 +119,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 
 function VisitpadProceduresPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-procedures');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');

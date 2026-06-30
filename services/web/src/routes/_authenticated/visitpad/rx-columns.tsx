@@ -78,7 +78,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/rx-columns')({
 
 function VisitpadRxColumnsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-rx-columns');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);

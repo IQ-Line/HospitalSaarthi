@@ -99,7 +99,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chronic-illness')
 
 function VisitpadChronicIllnessPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chronic-illness');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');

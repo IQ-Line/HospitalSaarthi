@@ -177,7 +177,6 @@ function VisitRegistrationRoute() {
     branches.find((b) => b.id === activeBranch)?.name ?? 'Main branch';
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
-  const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
   const abhaIdentifierSyncKeyRef = useRef<string | null>(null);
   const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
@@ -381,7 +380,6 @@ function VisitRegistrationRoute() {
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
-    appointmentDepartmentName,
     dateOfBirth,
     ageYears,
     ageMonths,
@@ -404,7 +402,6 @@ function VisitRegistrationRoute() {
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
-      'appointment.department_name',
       'patient.date_of_birth',
       'patient.age_years',
       'patient.age_months',

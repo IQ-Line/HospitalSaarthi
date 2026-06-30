@@ -69,7 +69,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 
 function VisitpadAllergensPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-allergens');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');

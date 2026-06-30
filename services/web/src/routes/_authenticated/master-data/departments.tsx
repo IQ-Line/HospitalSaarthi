@@ -69,7 +69,7 @@ const DEPARTMENT_TYPE_LABELS: Record<DepartmentType, string> = {
 };
 
 function DepartmentsPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
+  const { canUpdate, canDelete } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
   const { tenantCatalog } = useMasterDataTenantCatalog();

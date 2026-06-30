@@ -58,7 +58,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/reactions')({
 
 function VisitpadReactionsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-reactions');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

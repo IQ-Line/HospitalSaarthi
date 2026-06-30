@@ -57,7 +57,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/manufacturers')({
 
 function VisitpadManufacturersPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-manufacturers');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

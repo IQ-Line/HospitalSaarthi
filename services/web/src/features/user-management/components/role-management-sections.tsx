@@ -737,6 +737,7 @@ function RoleEditorAssignedTree({
   capabilityTree,
   roleFormEditable,
   selectedCapabilityIdSet,
+  assignedCapabilityIdSet,
   expandedBranchIds,
   forceExpanded,
   onBranchToggle,
@@ -747,6 +748,8 @@ function RoleEditorAssignedTree({
   capabilityTree: CapabilityTreeNode[];
   roleFormEditable: boolean;
   selectedCapabilityIdSet: Set<string>;
+  /** Capability ids already saved on the role; drives the "On this role" provenance markers. */
+  assignedCapabilityIdSet: Set<string>;
   expandedBranchIds: Set<string>;
   forceExpanded: boolean;
   onBranchToggle: (nodeId: string) => void;
@@ -770,7 +773,7 @@ function RoleEditorAssignedTree({
           onToggleCapability={onToggleCapability}
           showCapabilityProvenance={showCapabilityProvenance}
           plainLanguage
-          assignedCapabilityIds={undefined}
+          assignedCapabilityIds={assignedCapabilityIdSet}
         />
       ))}
     </div>
@@ -1162,6 +1165,7 @@ export function RoleEditorDialog({
                         capabilityTree={capabilityTree}
                         roleFormEditable={roleFormEditable}
                         selectedCapabilityIdSet={selectedCapabilityIdSet}
+                        assignedCapabilityIdSet={assignedCapabilityIdSet}
                         expandedBranchIds={expandedBranchIds}
                         forceExpanded={forceExpanded}
                         onBranchToggle={handleToggleBranch}
