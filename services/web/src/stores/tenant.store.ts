@@ -1,6 +1,14 @@
 import { create, type StateCreator } from 'zustand';
-import { createJSONStorage, devtools, persist } from 'zustand/middleware';
+import { createJSONStorage, devtools, persist, type StateStorage } from 'zustand/middleware';
 import { usePermissionsStore } from '@/stores/permissions.store';
+
+/** Prod has no tenant persistence (dev-only convenience); a noop keeps the persist
+ *  middleware type uniform so `store.persist` is always available. Writes/reads no-op. */
+const noopStorage: StateStorage = {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+};
 
 interface TenantState {
   /** Tenant where the signed-in user row lives (JWT `iq_tenant_id`). */
@@ -42,7 +50,11 @@ interface TenantState {
   clearTenant: () => void;
 }
 
-const tenantSlice: StateCreator<TenantState> = (set, get) => ({
+const tenantSlice: StateCreator<
+  TenantState,
+  [['zustand/devtools', never], ['zustand/persist', unknown]],
+  []
+> = (set, get) => ({
   homeTenantId: null,
   tenantId: null,
   tenantName: null,
@@ -146,20 +158,19 @@ const tenantSlice: StateCreator<TenantState> = (set, get) => ({
   },
 });
 
-const tenantStoreCreator = import.meta.env.DEV
-  ? persist(tenantSlice, {
-      name: 'hims-dev-tenant',
-      storage: createJSONStorage(() => sessionStorage),
-      partialize: (s) => ({
-        homeTenantId: s.homeTenantId,
-        tenantId: s.tenantId,
-        tenantName: s.tenantName,
-        organizationId: s.organizationId,
-        organizationName: s.organizationName,
-        activeBranch: s.activeBranch,
-        branches: s.branches,
-      }),
-    })
-  : tenantSlice;
+const tenantStoreCreator = persist(tenantSlice, {
+  name: 'hims-dev-tenant',
+  // Dev: survive reload via sessionStorage. Prod: noop (no tenant persistence).
+  storage: createJSONStorage(() => (import.meta.env.DEV ? sessionStorage : noopStorage)),
+  partialize: (s) => ({
+    homeTenantId: s.homeTenantId,
+    tenantId: s.tenantId,
+    tenantName: s.tenantName,
+    organizationId: s.organizationId,
+    organizationName: s.organizationName,
+    activeBranch: s.activeBranch,
+    branches: s.branches,
+  }),
+});
 
 export const useTenantStore = create<TenantState>()(devtools(tenantStoreCreator, { name: 'tenant' }));

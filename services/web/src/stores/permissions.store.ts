@@ -19,7 +19,10 @@ export interface PermissionsState {
 
 const emptyKeys = (): ReadonlySet<CapabilityKey> => new Set();
 
-const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
+const permissionsSlice: StateCreator<PermissionsState, [['zustand/devtools', never]], []> = (
+  set,
+  get,
+) => ({
   capabilityKeys: emptyKeys(),
   roles: [],
   isLoaded: false,
