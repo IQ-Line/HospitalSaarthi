@@ -4,16 +4,38 @@ import tailwindcss from '@tailwindcss/vite';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import { resolve } from 'node:path';
 
+function parseFormWorkflowBuilderOrigin(env: Record<string, string>): string | null {
+  const raw = (env.VITE_FORM_WORKFLOW_BUILDER_URL || '').trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return null;
+  }
+}
+
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, resolve(__dirname, '../..'), '');
-  const bffOrigin = (env.VITE_API_BASE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
-  const webPort = Number(env.WEB_DEV_PORT ?? '5173');
+  const workspaceRoot = resolve(__dirname, '../..');
+  const env = loadEnv(mode, workspaceRoot, '');
+  const bffOrigin = (env.VITE_API_BASE_URL ?? 'http://localhost:3100').replace(/\/+$/, '');
+  const webPort = Number(env.WEB_DEV_PORT ?? '5180');
+  const workflowBackendProxyTarget =
+    parseFormWorkflowBuilderOrigin(env) ?? 'http://localhost:5000';
 
   return {
+  envDir: workspaceRoot,
   plugins: [tanstackRouter({ target: 'react' }), react(), tailwindcss()],
   resolve: {
     alias: [
       { find: '@', replacement: resolve(__dirname, './src') },
+      // react-router (iq-line-form-builder-renderer) imports { parse } from "cookie";
+      // cookie@1.x is CJS-only — Vite cannot re-export named bindings in the browser.
+      { find: /^cookie$/, replacement: 'cookie-es' },
+      // react-router imports { splitCookiesString } from "set-cookie-parser" (also CJS-only).
+      {
+        find: /^set-cookie-parser$/,
+        replacement: resolve(__dirname, './src/shims/set-cookie-parser.ts'),
+      },
       // Exact match only — do not prefix-match `.../shim/with-selector` (TanStack Store).
       {
         find: /^use-sync-external-store\/shim\/index\.js$/,
@@ -26,7 +48,8 @@ export default defineConfig(({ mode }) => {
     ],
   },
   optimizeDeps: {
-    include: ['use-sync-external-store/shim/with-selector.js'],
+    exclude: ['iq-line-form-builder-renderer'],
+    include: ['cookie-es', 'use-sync-external-store/shim/with-selector.js'],
     needsInterop: [
       'use-sync-external-store',
       'use-sync-external-store/shim/with-selector.js',
@@ -67,6 +90,11 @@ export default defineConfig(({ mode }) => {
       '/healthz': {
         target: bffOrigin,
         changeOrigin: true,
+      },
+      '^/workflow-backend': {
+        target: workflowBackendProxyTarget,
+        changeOrigin: true,
+        secure: false,
       },
     },
   },

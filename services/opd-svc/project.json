@@ -26,7 +26,7 @@
       "options": {
         "cwd": "services/opd-svc"
       },
-      "dependsOn": ["opd:db-migrate", "setup"]
+      "dependsOn": ["setup"]
     },
     "lint": {
       "command": "uv run ruff check .",

@@ -14,7 +14,6 @@
     },
     "serve": {
       "executor": "nx:run-commands",
-      "dependsOn": ["record-foundation:db-migrate"],
       "options": {
         "command": "npx tsx watch src/main.ts",
         "cwd": "services/record-foundation-svc",

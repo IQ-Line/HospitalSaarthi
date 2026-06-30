@@ -3,6 +3,7 @@
 @source "../../../../packages/pulse-layouts/src";
 @source "../../../../packages/pulse-patterns/src";
 @source "../../../../packages/pulse-blocks/src";
+@source "../../../../node_modules/iq-line-form-builder-renderer/dist";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));

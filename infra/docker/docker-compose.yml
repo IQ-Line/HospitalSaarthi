@@ -7,9 +7,9 @@ services:
       POSTGRES_USER: hims
       POSTGRES_PASSWORD: hims
       POSTGRES_DB: hims_dev
-    # Host 5433 avoids clashing with a native Postgres install on localhost:5432.
+    # Host 15432 avoids clashing with native Postgres clusters on 5432–5437 (common on Windows dev machines).
     ports:
-      - '5433:5432'
+      - '15432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../db/citus-init.sql:/docker-entrypoint-initdb.d/01-citus-init.sql

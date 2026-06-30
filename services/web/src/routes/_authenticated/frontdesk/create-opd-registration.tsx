@@ -5,6 +5,7 @@ export const Route = createFileRoute('/_authenticated/frontdesk/create-opd-regis
   component: CreateOpdRegistrationRoute,
 });
 
+/** Legacy React form — kept for rollback; not mounted while VITE_LC_NC=ON (page-builder-only). */
 function CreateOpdRegistrationRoute() {
   return <OpdRegistrationCreatePage />;
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { authClient } from '@/lib/auth-client';
+import { resetHimsRendererHostAuth } from '@/lib/renderer-host-bootstrap';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -19,6 +20,7 @@ export function useLogout() {
     }
     clearSession();
     clearTenant();
+    await resetHimsRendererHostAuth();
     navigate({ to: '/login' });
   }
 

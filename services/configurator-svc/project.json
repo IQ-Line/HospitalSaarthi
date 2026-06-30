@@ -14,7 +14,6 @@
     },
     "serve": {
       "executor": "nx:run-commands",
-      "dependsOn": ["configurator:db-migrate"],
       "options": {
         "command": "tsx src/main.ts",
         "cwd": "services/configurator-svc",

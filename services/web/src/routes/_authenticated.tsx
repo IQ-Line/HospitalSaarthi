@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import {
   createFileRoute,
-  Outlet,
   redirect,
 } from '@tanstack/react-router';
 import {
@@ -17,6 +16,7 @@ import { queryClient } from '@/lib/query-client';
 import { fetchAuthMe } from '@/lib/auth-me';
 import { AppHeader } from '@/components/layout/app-header';
 import { AppSidebar } from '@/components/layout/app-sidebar';
+import { LcNcAuthenticatedOutlet } from '@/components/layout/lc-nc-route-outlet';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -130,7 +130,7 @@ function AuthenticatedLayout() {
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <AppHeader displayName={displayName} tenantName={tenantName} />
         <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain">
-          <Outlet />
+          <LcNcAuthenticatedOutlet />
         </main>
       </div>
     </div>

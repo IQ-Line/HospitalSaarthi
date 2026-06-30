@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     )
 
     database_url: str = Field(
-        default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
+        default="postgresql+psycopg://hims:hims@localhost:15432/hims_dev",
         description="SQLAlchemy database URL for the OPD module.",
     )
     api_prefix: str = "/api/v1/opd"

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { queryClient } from '@/lib/query-client';
 import { AppProviders } from '@/app/providers';
+import { bootstrapHimsRendererHost } from '@/lib/renderer-host-bootstrap';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
 import { useTenantStore } from '@/stores/tenant.store';
@@ -43,6 +44,7 @@ async function rehydrateDevPersistedStores() {
 
 if (!rootElement.innerHTML) {
   void rehydrateDevPersistedStores().then(() => {
+    bootstrapHimsRendererHost();
     ReactDOM.createRoot(rootElement).render(
       <React.StrictMode>
         <AppProviders>

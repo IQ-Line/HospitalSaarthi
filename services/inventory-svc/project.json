@@ -17,8 +17,7 @@
       "options": {
         "cwd": "services/inventory-svc",
         "envFile": "{workspaceRoot}/.env"
-      },
-      "dependsOn": ["inventory:db-migrate"]
+      }
     }
   }
 }

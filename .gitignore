@@ -18,6 +18,9 @@ routeTree.gen.ts
 # Nx
 .nx/
 
+# Local dev launcher logs (scripts/start-dev-stack.mts)
+.logs/
+
 # Environment
 .env
 .env.local
