@@ -12,7 +12,6 @@ from app.core.catalog_tenant_id import (
 )
 from app.core.database import get_db_session
 from app.repositories.department_repository import DepartmentRepository
-from app.repositories.inventory_store_type_repository import InventoryStoreTypeRepository
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
@@ -245,10 +244,3 @@ def get_inventory_storage_condition_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> InventoryStorageConditionRepository:
     return InventoryStorageConditionRepository(session, scope)
-
-
-def get_inventory_store_type_repository(
-    session: Annotated[Session, Depends(get_session)],
-    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
-) -> InventoryStoreTypeRepository:
-    return InventoryStoreTypeRepository(session, scope)

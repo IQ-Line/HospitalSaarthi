@@ -9,7 +9,6 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.repositories.department_repository import DuplicateDepartmentKeyError
-from app.repositories.inventory_store_type_repository import DuplicateInventoryStoreTypeKeyError
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
@@ -31,7 +30,6 @@ from app.services.module_service import (
     ParentModuleNotFoundError,
 )
 from app.services.department_service import DepartmentNotFoundError
-from app.services.inventory_store_type_service import InventoryStoreTypeNotFoundError
 from app.services.permission_service import PermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (
@@ -68,19 +66,6 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_payload(
                 "CONFLICT",
                 "Another active department already uses this code.",
-            ),
-        )
-
-    @app.exception_handler(DuplicateInventoryStoreTypeKeyError)
-    async def _duplicate_inventory_store_type_key(
-        _request: Request,
-        _exc: DuplicateInventoryStoreTypeKeyError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=409,
-            content=error_payload(
-                "CONFLICT",
-                "Another active store type already uses this code or name.",
             ),
         )
 
@@ -204,16 +189,6 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No department with this id."),
-        )
-
-    @app.exception_handler(InventoryStoreTypeNotFoundError)
-    async def _inventory_store_type_missing(
-        _request: Request,
-        _exc: InventoryStoreTypeNotFoundError,
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=404,
-            content=error_payload("NOT_FOUND", "No store type with this id."),
         )
 
     @app.exception_handler(PermissionNotFoundError)

@@ -81,7 +81,8 @@ function LoginPage() {
       authUserIqTenantId: authUser.iq_tenant_id ?? null,
     });
 
-    await refreshAuthorizationContext(queryClient);
+    // Fresh entitlement after sign-in (avoids stale UM TTL cache when master-data just recovered).
+    await refreshAuthorizationContext(queryClient, { bypassEntitlementCache: true });
 
     const profile = await fetchAuthMe();
     if (profile.must_change_password === true) {

@@ -147,6 +147,16 @@ export function catalogModuleCrudAccess(
     }
   }
 
+  if (catalogModuleSlug.trim().toLowerCase() === 'store-config') {
+    const shell = masterDataShellCrudAccess(capabilityKeys);
+    canRead = canRead || shell.canRead;
+    if (shell.canMutate) {
+      mergedCreate = true;
+      mergedUpdate = true;
+      mergedDelete = true;
+    }
+  }
+
   return {
     canRead,
     canCreate: mergedCreate,

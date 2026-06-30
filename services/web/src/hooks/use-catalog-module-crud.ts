@@ -24,7 +24,11 @@ export function useCatalogModuleCrud(
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
 
   return useMemo(() => {
-    if (isTenantAdmin && tenantAdminInventoryMasterCrudAccess(catalogModuleSlug)) {
+    if (
+      isTenantAdmin &&
+      (tenantAdminInventoryMasterCrudAccess(catalogModuleSlug) ||
+        catalogModuleSlug.trim().toLowerCase() === 'store-config')
+    ) {
       return {
         canRead: true,
         canCreate: true,

@@ -1,0 +1,46 @@
+---
+# Inventory operational stores — tenant administrators configure store locations.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_store"
+  version: default
+  rules:
+    - actions:
+        - "inventory.store.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-admin" in request.principal.attr.role_codes ||
+              "master-data:shell:access" in request.principal.attr.capabilities ||
+              "master-data:shell:access" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "inventory.store.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+
+    - actions:
+        - "inventory.store.create"
+        - "inventory.store.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "tenant-admin" in request.principal.attr.role_codes ||
+              "master-data:shell:access" in request.principal.attr.capabilities ||
+              "master-data:shell:access" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "inventory.store.create"
+        - "inventory.store.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW

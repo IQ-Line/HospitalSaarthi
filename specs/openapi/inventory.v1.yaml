@@ -1,0 +1,336 @@
+openapi: 3.1.0
+info:
+  title: HIMS Inventory API
+  version: 1.0.0
+  description: >-
+    Operational inventory — stores, stock, GRN, indents. Base path `/api/inventory/v1`.
+    Tenant scope via `iq_tenant_id` / `x-tenant-id` headers (enforced by inventory-svc).
+servers:
+  - url: /api/inventory/v1
+paths:
+  /stores:
+    get:
+      operationId: listStores
+      summary: List stores
+      tags: [Stores]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Paginated store rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createStore
+      summary: Create store
+      description: Store code is assigned server-side from the store type code and per-type sequence.
+      tags: [Stores]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreCreate'
+      responses:
+        '201':
+          description: Store created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreSingleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /stores/{storeId}:
+    get:
+      operationId: getStore
+      summary: Get store by id
+      tags: [Stores]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/storeId'
+      responses:
+        '200':
+          description: Store found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreSingleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      operationId: updateStore
+      summary: Update store
+      tags: [Stores]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/storeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreUpdate'
+      responses:
+        '200':
+          description: Store updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreSingleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    storeId:
+      name: storeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authorization denied.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Invalid payload.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Constraint violation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [statusCode, error, message]
+      properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+    Store:
+      type: object
+      required:
+        - id
+        - store_code
+        - store_name
+        - store_type_id
+        - facility_id
+        - department_id
+        - physical_location
+        - can_receive_stock
+        - can_dispense
+        - can_issue_to_ward
+        - track_batch_expiry
+        - indent_authority
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        store_code:
+          type: string
+        store_name:
+          type: string
+        store_type_id:
+          type: string
+          format: uuid
+        facility_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+          nullable: true
+        physical_location:
+          type: string
+        can_receive_stock:
+          type: boolean
+        can_dispense:
+          type: boolean
+        can_issue_to_ward:
+          type: boolean
+        track_batch_expiry:
+          type: boolean
+        indent_authority:
+          type: boolean
+        indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    StoreCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - store_name
+        - store_type_id
+        - facility_id
+        - department_id
+      properties:
+        store_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        store_type_id:
+          type: string
+          format: uuid
+        facility_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+        physical_location:
+          type: string
+          maxLength: 500
+          default: ''
+        can_receive_stock:
+          type: boolean
+        can_dispense:
+          type: boolean
+        can_issue_to_ward:
+          type: boolean
+        track_batch_expiry:
+          type: boolean
+        indent_authority:
+          type: boolean
+        is_active:
+          type: boolean
+          default: true
+    StoreUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        store_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        store_type_id:
+          type: string
+          format: uuid
+        facility_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+        physical_location:
+          type: string
+          maxLength: 500
+        can_receive_stock:
+          type: boolean
+        can_dispense:
+          type: boolean
+        can_issue_to_ward:
+          type: boolean
+        track_batch_expiry:
+          type: boolean
+        indent_authority:
+          type: boolean
+        is_active:
+          type: boolean
+    StoreListResponse:
+      type: object
+      required: [data, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Store'
+        total:
+          type: integer
+    StoreSingleResponse:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/Store'
