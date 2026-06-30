@@ -38,6 +38,8 @@ describe('fetchDashboardFacilities', () => {
           pin_code: null,
           contact_phone: null,
           contact_email: null,
+          free_follow_up_days: 15,
+          free_follow_up_visits: 1,
           created_at: '2026-01-01T00:00:00.000Z',
           updated_at: '2026-01-01T00:00:00.000Z',
           created_by: null,

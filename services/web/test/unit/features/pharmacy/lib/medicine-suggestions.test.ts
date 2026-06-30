@@ -27,6 +27,7 @@ function medicine(partial: Partial<VisitpadMedicine>): VisitpadMedicine {
     allergen_classes: [],
     contraindications: [],
     search_tags: [],
+    black_box_warning: false,
     is_active: true,
     is_deleted: false,
     display_order: 0,

@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ApiClientContext } from '@/lib/api-client-context';
 import { assignableCapabilityCatalogOptions, runtimeCapabilityCatalogOptions } from '../../../../../src/features/user-management/api/queries';
 
 // The endpoint each catalog query hits is closed over in a hoisted `url` const, so
 // stringifying queryFn no longer reveals it. Observe the ACTUAL requested URL by
 // mocking apiClient and invoking queryFn — strictly stronger than a source-text probe.
-const apiClientMock = vi.hoisted(() => vi.fn(() => Promise.resolve([])));
+const apiClientMock = vi.hoisted(() =>
+  vi.fn<(path: string, options?: RequestInit, context?: ApiClientContext) => Promise<unknown>>(
+    () => Promise.resolve([]),
+  ),
+);
 vi.mock('@/lib/api-client', () => ({ apiClient: apiClientMock }));
 
 describe('user-management capability catalog queries', () => {
@@ -15,14 +20,18 @@ describe('user-management capability catalog queries', () => {
     expect(options.queryKey).toContain('assignable');
     await (options.queryFn as () => Promise<unknown>)();
     expect(apiClientMock).toHaveBeenCalledTimes(1);
-    expect(apiClientMock.mock.calls[0][0]).toContain('/capabilities/assignable');
+    const [firstCall] = apiClientMock.mock.calls;
+    if (!firstCall) throw new Error('apiClient was not invoked');
+    expect(firstCall[0]).toContain('/capabilities/assignable');
   });
 
   it('admin catalog uses full runtime capabilities endpoint', async () => {
     const options = runtimeCapabilityCatalogOptions();
     await (options.queryFn as () => Promise<unknown>)();
     expect(apiClientMock).toHaveBeenCalledTimes(1);
-    const url = apiClientMock.mock.calls[0][0];
+    const [firstCall] = apiClientMock.mock.calls;
+    if (!firstCall) throw new Error('apiClient was not invoked');
+    const url = firstCall[0];
     expect(url).toContain('/capabilities');
     expect(url).not.toContain('/capabilities/assignable');
   });

@@ -94,7 +94,7 @@ describe('module registry', () => {
     registerBuiltinModuleManifests();
     const manifest = composeNavigationManifest(getRegisteredModuleManifests());
 
-    const capabilityKeys = new Set([UM_USER_READ]);
+    const capabilityKeys = new Set<string>([UM_USER_READ]);
     const filtered = filterNavigationTree(
       manifest,
       ctx({

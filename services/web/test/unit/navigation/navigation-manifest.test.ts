@@ -13,7 +13,7 @@ import {
 } from '../../../src/navigation/filter-navigation-tree';
 import { buildNavCapabilityAccessInput } from '../../../src/navigation/nav-capability-access';
 import { NAVIGATION_MANIFEST } from '../../../src/navigation/navigation-manifest';
-import type { NavFilterContext } from '../../../src/navigation/types';
+import type { NavFilterContext, NavigationNode } from '../../../src/navigation/types';
 
 function ctx(partial: Partial<NavFilterContext> & { capabilityKeys?: ReadonlySet<string> }): NavFilterContext {
   const hasCapability = partial.hasCapability ?? (() => false);
@@ -61,7 +61,7 @@ function ctx(partial: Partial<NavFilterContext> & { capabilityKeys?: ReadonlySet
   };
 }
 
-function visitpadMasterGroup(nodes: readonly { id: string; children?: readonly { id: string }[] }[]) {
+function visitpadMasterGroup(nodes: readonly NavigationNode[]) {
   const masterData = nodes.find((n) => n.id === 'master-data');
   return masterData?.children?.find((c) => c.id === 'visitpad-master');
 }
@@ -213,7 +213,7 @@ describe('filterNavigationTree', () => {
     // A product shell key (`configurator:shell:access`) authorizes the top-level
     // module entry; individual L2 catalog leaves are still gated by their own keys.
     // Matches the authoritative sibling assertion in nav-capability-access.test.ts.
-    const capabilityKeys = new Set([CFG_SHELL_ACCESS]);
+    const capabilityKeys = new Set<string>([CFG_SHELL_ACCESS]);
     const filtered = filterNavigationTree(
       NAVIGATION_MANIFEST,
       ctx({

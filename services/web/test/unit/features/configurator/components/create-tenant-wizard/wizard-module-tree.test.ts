@@ -30,22 +30,28 @@ function module(id: string, parentId: string | null, level: number, slug: string
   };
 }
 
+function firstOrThrow<T>(items: readonly T[] | undefined, label: string): T {
+  const head = items?.[0];
+  if (head === undefined) {
+    throw new Error(`expected at least one ${label}`);
+  }
+  return head;
+}
+
 describe('wizard-module-tree', () => {
   it('filters roots to enabled step-2 selection', () => {
-    const modules = [
-      module('l1-a', null, 1, 'product-a'),
-      module('l1-b', null, 1, 'product-b'),
-      module('l2-a', 'l1-a', 2, 'feature-a'),
-    ];
+    const l1a = module('l1-a', null, 1, 'product-a');
+    const l1b = module('l1-b', null, 1, 'product-b');
+    const l2a = module('l2-a', 'l1-a', 2, 'feature-a');
     const childMap = new Map<string | null, Module[]>([
-      [null, [modules[0], modules[1]]],
-      ['l1-a', [modules[2]]],
+      [null, [l1a, l1b]],
+      ['l1-a', [l2a]],
       ['l1-b', []],
       ['l2-a', []],
     ]);
     const enabled = new Set(['l2-a']);
 
-    const roots = filterRootModulesForEnabledSelection([modules[0], modules[1]], childMap, enabled);
+    const roots = filterRootModulesForEnabledSelection([l1a, l1b], childMap, enabled);
     expect(roots.map((m) => m.id)).toEqual(['l1-a']);
   });
 
@@ -74,15 +80,18 @@ describe('wizard-module-tree', () => {
       {
         linkId: 'mp1',
         moduleSlug: 'users',
+        moduleName: 'Users',
         permissionSlug: 'users.read',
         permissionName: 'Read',
+        permissionAction: 'read',
+        isDefault: false,
         runtimeCapabilityId: 'cap-1',
         capabilityKey: 'users:users:read',
       },
     ];
     const byId = indexPermissionOptionsByModuleId(modules, options);
     expect(byId.get('m1')).toHaveLength(1);
-    expect(byId.get('m1')![0].runtimeCapabilityId).toBe('cap-1');
+    expect(firstOrThrow(byId.get('m1'), 'm1 permission option').runtimeCapabilityId).toBe('cap-1');
   });
 
   it('permissionOptionsForModuleSubtree rolls up descendants for L1 select-all', () => {
@@ -100,8 +109,11 @@ describe('wizard-module-tree', () => {
       {
         linkId: 'mp1',
         moduleSlug: 'modules-leaf',
+        moduleName: 'Modules Leaf',
         permissionSlug: 'read',
         permissionName: 'Read',
+        permissionAction: 'read',
+        isDefault: false,
         runtimeCapabilityId: 'cap-read',
         capabilityKey: 'modules:modules:read',
       },
@@ -114,7 +126,10 @@ describe('wizard-module-tree', () => {
       1,
     );
     expect(
-      permissionOptionsForModuleSubtree(l1, childMap, enabled, optionsByModuleId)[0].runtimeCapabilityId,
+      firstOrThrow(
+        permissionOptionsForModuleSubtree(l1, childMap, enabled, optionsByModuleId),
+        'subtree permission option',
+      ).runtimeCapabilityId,
     ).toBe('cap-read');
   });
 });
