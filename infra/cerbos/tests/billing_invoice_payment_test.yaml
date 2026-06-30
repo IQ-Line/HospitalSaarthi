@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: billing_invoice_payment_test
+description: >-
+  Recording a payment against a bill requires invoice:invoice:update only
+  (not billing-account capabilities).
+
+principals:
+  invoice_updater:
+    id: billing-user
+    roles:
+      - "receptionist"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "invoice:invoice:update"
+      delegated_capabilities: []
+
+  invoice_reader_only:
+    id: billing-user
+    roles:
+      - "receptionist"
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "invoice:invoice:read"
+      delegated_capabilities: []
+
+resources:
+  bill_ok:
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    kind: invoice
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+tests:
+  - name: invoice.update — allows payment recording with invoice update capability
+    input:
+      principals: [invoice_updater]
+      resources: [bill_ok]
+      actions: [invoice.update]
+    expected:
+      - principal: invoice_updater
+        resource: bill_ok
+        actions:
+          invoice.update: EFFECT_ALLOW
+
+  - name: invoice.update — denied without update capability
+    input:
+      principals: [invoice_reader_only]
+      resources: [bill_ok]
+      actions: [invoice.update]
+    expected:
+      - principal: invoice_reader_only
+        resource: bill_ok
+        actions:
+          invoice.update: EFFECT_DENY
