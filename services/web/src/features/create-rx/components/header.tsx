@@ -18,8 +18,9 @@ export function Header() {
   const patient = context?.patient;
   const visit = context?.visit;
 
+  const middleNamePart = patient?.middleName ? ` ${patient.middleName}` : '';
   const title = patient
-    ? `${patient.firstName}${patient.middleName ? ` ${patient.middleName}` : ''} ${patient.lastName} (${genderLetter(patient.gender)}, ${patient.age})`
+    ? `${patient.firstName}${middleNamePart} ${patient.lastName} (${genderLetter(patient.gender)}, ${patient.age})`
     : 'Visit RX';
 
   const meta = patient

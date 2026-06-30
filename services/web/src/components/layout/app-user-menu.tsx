@@ -26,6 +26,7 @@ export function AppUserMenu({ displayName }: AppUserMenuProps) {
   const authRoles = useAuthStore((s) => s.roles);
   const roleLabel = formatPrincipalRoleLabels(principalRoles, authRoles);
   const name = displayName?.trim() || 'User';
+  const roleSuffix = roleLabel ? `, ${roleLabel}` : '';
 
   return (
     <DropdownMenu>
@@ -35,7 +36,7 @@ export function AppUserMenu({ displayName }: AppUserMenuProps) {
           variant="ghost"
           size="icon"
           className="size-9 rounded-full p-0 hover:bg-white/60"
-          aria-label={`Account menu for ${name}${roleLabel ? `, ${roleLabel}` : ''}`}
+          aria-label={`Account menu for ${name}${roleSuffix}`}
         >
           <span
             className={`flex size-9 items-center justify-center rounded-full text-sm font-semibold text-white ${APP_AVATAR_BG_CLASS}`}

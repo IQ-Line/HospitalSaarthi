@@ -169,7 +169,8 @@ function VisitpadConversionsPage() {
     try {
       const res = await platformImport.mutateAsync(selection.map((r) => r.id));
       const { created, skipped, errors } = res.data;
-      toast.success(`${created.length} created, ${skipped.length} skipped${errors.length ? `, ${errors.length} failed` : ''}`);
+      const failedSuffix = errors.length ? `, ${errors.length} failed` : '';
+      toast.success(`${created.length} created, ${skipped.length} skipped${failedSuffix}`);
       if (errors.length) toast.error(errors.map((e) => e.message).join('; '));
       setImportOpen(false);
     } catch (e) {
