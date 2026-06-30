@@ -81,6 +81,14 @@ export const base = [
       // AND force their re-addition the day no-floating-promises lands. Disable the rule that
       // fights the idiom instead of churning the call sites. Scoped to web (backend is void-free).
       'sonarjs/void-use': 'off',
+      // no-nested-functions (threshold 5, web only): a TanStack Table column cell renderer
+      // inherently nests `component -> useMemo(columns) -> cell({row}) -> onEventHandler ->
+      // mutation onSuccess/onError` = 5 levels. That is idiomatic, readable React (the Switch
+      // itself is already extracted to <TableActiveToggle>); the residual is a short, column-
+      // local handler best kept co-located, not fragmented into useCallback + dep-array churn.
+      // Raise the ceiling to 5 to accommodate the pattern while still flagging genuinely
+      // excessive depth-6+ nesting. (Default 4 only fits non-React code, which the backend is.)
+      'sonarjs/no-nested-functions': ['error', { threshold: 5 }],
       'no-restricted-imports': [
         'error',
         {
