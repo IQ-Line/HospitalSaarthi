@@ -1,6 +1,27 @@
 # services/web CI-gate remediation plan (#50)
 
-**Date:** 2026-06-29 · **Branch:** `dev--improved-v1` · **Status:** foundation landed; remediation grind in progress.
+**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind well advanced — **committed-state down to 85 errors** (from 282); foundation + RHF + type-only tail + null-safety + zustand + enum/module-resolution clusters all landed. Lint half + gate-wiring not started.
+
+## Progress log (committed-state typecheck count; CI-visible, excludes the 2 untracked not-ours web files = 5 errs)
+
+| commit | cluster | count |
+|---|---|---|
+| (prior) 2c878e8e | foundation: ignoreDeprecations, deps, @pulse/layouts path, route-tree regen | 282 → 225 |
+| (prior) aabc28c7 | RHF recipe proven on medicines.tsx | 225 → 203 |
+| e6a63468 | RHF 3-generic propagation across 13 catalog forms (visitpad + master-data) | 203 → 158 |
+| 51562a24 | API-type drift (short_name/snomed_code/requiredModules) + auth queryFn | 158 → 136 |
+| 4fa5b519 | noUncheckedIndexedAccess guards + null-safety (10 files) | 136 → 102 |
+| 5ad4e147 | zustand devtools/persist slice mutators (tenant always-persist + noop storage) | 102 → 91 |
+| 838ec513 | enum-membership Set<string> + module-resolution specifiers | 91 → 85 |
+
+**Remaining 85 (committed-state), by tier:**
+- OPD prescription mapper ~15 (opd-prescription-mapper.ts 11 + its test 4) — verify element shapes vs `opd.v1.yaml` + backend mapper.
+- test-fixtures ~29 (navigation-manifest 14, wizard-module-tree 7, queries 4, + 4 singletons) — fix fixtures to match real production types; **never weaken assertions**.
+- route-search/navigate typing ~7 (user-management/index, all-tenants, roles, user-list-table, configurator/tenant.index).
+- edit-user-dialog RHF ~4 (same zodResolver input≠output drift as the catalog forms; apply the proven recipe).
+- misc low ~12 (visitpad-validation, visitpad-catalog-options, configurator wizard files, billing form-fields, providers select, etc.).
+- judgment residuals ~2 (module-product-access L23 string→ModuleCategory boundary coercion; authorization-context L161).
+- **HIGH-risk (user checkpoint, ~18):** create-user-form org_id (8), role-management-sections capability tree (7), visitpad-global-import-payloads coercion (3).
 
 ## Why
 
