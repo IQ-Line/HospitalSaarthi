@@ -29,7 +29,7 @@ import {
 } from '@/features/master-data/api';
 import { EntityRowActions } from '@/features/master-data/components/entity-row-actions';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import { useInventoryStoreTypes } from '@/features/inventory-masters/api/store-types';
+import { useInventoryStoreTypes } from '@/features/inventory-masters/api/queries';
 import { InventoryMasterStatusBadge } from '@/features/inventory-masters/components/inventory-master-status-badge';
 import {
   STORE_LIST_DEFAULT_PAGE_SIZE,
@@ -85,6 +85,7 @@ function StoreConfigurationPage() {
   }, [tableSearch, statusFilter]);
 
   const { data, isLoading, error } = useStores(listParams);
+  const indentTargetStoresQuery = useStores({ status: 'active', pageSize: 200 });
   const storeTypesQuery = useInventoryStoreTypes({ pageSize: 200, status: 'active' });
   const departmentsQuery = useDepartments(undefined, {
     formCatalog: true,
@@ -97,6 +98,7 @@ function StoreConfigurationPage() {
   const storeTypes = storeTypesQuery.data?.data ?? [];
   const departments = departmentsQuery.data?.data ?? [];
   const stores = data?.data ?? [];
+  const indentTargetStores = indentTargetStoresQuery.data?.data ?? [];
   const total = data?.total ?? 0;
 
   const storeTypeNameById = useMemo(() => {
@@ -134,6 +136,7 @@ function StoreConfigurationPage() {
       can_issue_to_ward: editingStore.can_issue_to_ward,
       track_batch_expiry: editingStore.track_batch_expiry,
       indent_authority: editingStore.indent_authority,
+      indent_target_store_id: editingStore.indent_target_store_id ?? '',
     });
   }, [editingStore, editForm]);
 
@@ -155,6 +158,9 @@ function StoreConfigurationPage() {
         can_issue_to_ward: values.can_issue_to_ward,
         track_batch_expiry: values.track_batch_expiry,
         indent_authority: values.indent_authority,
+        indent_target_store_id: values.indent_authority
+          ? (values.indent_target_store_id?.trim() || null)
+          : null,
       });
       toast.success('Store created');
       setIsCreateOpen(false);
@@ -185,6 +191,9 @@ function StoreConfigurationPage() {
           can_issue_to_ward: values.can_issue_to_ward,
           track_batch_expiry: values.track_batch_expiry,
           indent_authority: values.indent_authority,
+          indent_target_store_id: values.indent_authority
+            ? (values.indent_target_store_id?.trim() || null)
+            : null,
         },
       });
       toast.success('Store updated');
@@ -330,6 +339,7 @@ function StoreConfigurationPage() {
         isSubmitting={createMutation.isPending}
         facilityLabel={facilityLabel}
         storeTypes={storeTypes}
+        indentTargetStores={indentTargetStores}
         departments={departments}
         form={createForm}
         onSubmit={submitCreate}
@@ -350,6 +360,8 @@ function StoreConfigurationPage() {
         isSubmitting={updateMutation.isPending}
         facilityLabel={facilityLabel}
         storeTypes={storeTypes}
+        indentTargetStores={indentTargetStores}
+        editingStoreId={editingStore?.id}
         departments={departments}
         form={editForm}
         onSubmit={submitEdit}

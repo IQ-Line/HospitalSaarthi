@@ -33,6 +33,20 @@ export async function createStore(
     throw new StoreTypeNotFoundError();
   }
 
+  const indentAuthority = input.indent_authority ?? storeType.indent_authority;
+  let indentTargetStoreId =
+    input.indent_target_store_id !== undefined
+      ? input.indent_target_store_id
+      : (storeType.default_indent_target_store_id ?? null);
+
+  if (!indentAuthority) {
+    indentTargetStoreId = null;
+  } else if (!indentTargetStoreId?.trim()) {
+    throw new StoreValidationError(
+      "Indent target store is required when indent authority is enabled.",
+    );
+  }
+
   return deps.storeRepo.create(
     tenantId,
     storeType.code,
@@ -43,7 +57,8 @@ export async function createStore(
       can_dispense: input.can_dispense ?? storeType.can_dispense,
       can_issue_to_ward: input.can_issue_to_ward ?? storeType.can_issue_to_ward,
       track_batch_expiry: input.track_batch_expiry ?? storeType.track_batch_expiry,
-      indent_authority: input.indent_authority ?? storeType.indent_authority,
+      indent_authority: indentAuthority,
+      indent_target_store_id: indentTargetStoreId,
     },
     actorId,
   );

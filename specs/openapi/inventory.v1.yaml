@@ -283,6 +283,10 @@ components:
           type: boolean
         indent_authority:
           type: boolean
+        indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
         is_active:
           type: boolean
           default: true
@@ -316,6 +320,10 @@ components:
           type: boolean
         indent_authority:
           type: boolean
+        indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
         is_active:
           type: boolean
     StoreListResponse:

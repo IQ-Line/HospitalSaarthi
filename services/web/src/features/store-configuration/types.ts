@@ -13,6 +13,7 @@ export type InventoryStoreRecord = {
   can_issue_to_ward: boolean;
   track_batch_expiry: boolean;
   indent_authority: boolean;
+  indent_target_store_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -41,6 +42,7 @@ export type StoreCreateInput = {
   can_issue_to_ward?: boolean;
   track_batch_expiry?: boolean;
   indent_authority?: boolean;
+  indent_target_store_id?: string | null;
   is_active?: boolean;
 };
 

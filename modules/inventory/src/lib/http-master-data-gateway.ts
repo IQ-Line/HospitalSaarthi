@@ -24,6 +24,10 @@ function mapStoreType(payload: Record<string, unknown>): MasterDataStoreType | n
     can_issue_to_ward: Boolean(payload["can_issue_to_ward"]),
     track_batch_expiry: Boolean(payload["track_batch_expiry"]),
     indent_authority: Boolean(payload["indent_authority"]),
+    default_indent_target_store_id:
+      typeof payload["default_indent_target_store_id"] === "string"
+        ? payload["default_indent_target_store_id"]
+        : null,
   };
 }
 

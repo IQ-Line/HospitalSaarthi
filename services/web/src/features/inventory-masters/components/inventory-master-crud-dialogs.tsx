@@ -8,8 +8,11 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { useStores } from '@/features/store-configuration/api/stores';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import { Switch } from '@pulse/ui/switch';
+import { Textarea } from '@pulse/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -24,15 +27,16 @@ import {
 } from '@/features/inventory-masters/api/mutations';
 import { INVENTORY_MASTERS_API_BASE } from '@/features/inventory-masters/api/query-keys';
 import { inventoryMasterApiBasePath } from '@/features/inventory-masters/lib/inventory-master-api-paths';
-import type {
-  InventoryCategory,
-  InventoryHsnGst,
-  InventoryItemType,
-  InventoryManufacturer,
-  InventoryMasterTabId,
-  InventoryStorageCondition,
-  InventoryStoreType,
-  InventoryUom,
+import {
+  DEFAULT_STORE_TYPE_OPERATIONAL_CONFIG,
+  type InventoryCategory,
+  type InventoryHsnGst,
+  type InventoryItemType,
+  type InventoryManufacturer,
+  type InventoryMasterTabId,
+  type InventoryStorageCondition,
+  type InventoryStoreType,
+  type InventoryUom,
 } from '@/features/inventory-masters/types';
 
 const nameOnlySchema = z.object({
@@ -78,11 +82,28 @@ const hsnSchema = z
     path: ['igst_pct'],
   });
 
+const STORE_TYPE_DESCRIPTION_MAX_LENGTH = 500;
+const NONE_STORE_VALUE = '__none__';
+
 const storeTypeSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Enter a store type name.')
+    .max(200, 'Store type name must be at most 200 characters.'),
+  description: z
+    .string()
+    .max(
+      STORE_TYPE_DESCRIPTION_MAX_LENGTH,
+      `Description must be at most ${STORE_TYPE_DESCRIPTION_MAX_LENGTH} characters.`,
+    )
+    .optional(),
   can_receive_stock: z.boolean(),
   can_dispense: z.boolean(),
+  can_issue_to_ward: z.boolean(),
+  track_batch_expiry: z.boolean(),
+  indent_authority: z.boolean(),
+  default_indent_target_store_id: z.string().nullable(),
   is_active: z.boolean(),
 });
 
@@ -776,6 +797,32 @@ function HsnCrudDialog(props: {
   );
 }
 
+function StoreTypeOperationalFlag({
+  id,
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+      <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+        <Label htmlFor={id} className="text-sm font-medium text-foreground">
+          {label}
+        </Label>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
 function StoreTypeCrudDialog(props: {
   createOpen: boolean;
   onCreateOpenChange: (open: boolean) => void;
@@ -785,26 +832,26 @@ function StoreTypeCrudDialog(props: {
   patch: ReturnType<typeof useInventoryMasterPatch>;
   busy: boolean;
 }) {
+  const storesQuery = useStores({ status: 'active', pageSize: 200 });
+  const stores = storesQuery.data?.data ?? [];
+
+  const defaultValues: z.infer<typeof storeTypeSchema> = {
+    name: '',
+    description: '',
+    ...DEFAULT_STORE_TYPE_OPERATIONAL_CONFIG,
+    is_active: true,
+  };
+
   const form = useForm<z.infer<typeof storeTypeSchema>>({
     resolver: zodResolver(storeTypeSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      can_receive_stock: true,
-      can_dispense: false,
-      is_active: true,
-    },
+    defaultValues,
   });
+
+  const indentAuthority = form.watch('indent_authority');
 
   useEffect(() => {
     if (props.createOpen) {
-      form.reset({
-        name: '',
-        description: '',
-        can_receive_stock: true,
-        can_dispense: false,
-        is_active: true,
-      });
+      form.reset(defaultValues);
     }
   }, [props.createOpen, form]);
 
@@ -813,30 +860,40 @@ function StoreTypeCrudDialog(props: {
       form.reset({
         name: props.editing.store_type,
         description: props.editing.description ?? '',
-        can_receive_stock: props.editing.receive_stock,
-        can_dispense: props.editing.dispense,
+        can_receive_stock: props.editing.can_receive_stock,
+        can_dispense: props.editing.can_dispense,
+        can_issue_to_ward: props.editing.can_issue_to_ward,
+        track_batch_expiry: props.editing.track_batch_expiry,
+        indent_authority: props.editing.indent_authority,
+        default_indent_target_store_id: props.editing.default_indent_target_store_id,
         is_active: props.editing.status === 'active',
       });
     }
   }, [props.editing, form]);
 
-  const toCreateBody = (values: z.infer<typeof storeTypeSchema>) => ({
-    name: values.name,
-    description: values.description?.trim() ?? '',
+  const buildOperationalBody = (values: z.infer<typeof storeTypeSchema>) => ({
     can_receive_stock: values.can_receive_stock,
     can_dispense: values.can_dispense,
-    can_issue_to_ward: false,
-    track_batch_expiry: true,
-    indent_authority: false,
+    can_issue_to_ward: values.can_issue_to_ward,
+    track_batch_expiry: values.track_batch_expiry,
+    indent_authority: values.indent_authority,
+    default_indent_target_store_id: values.indent_authority
+      ? values.default_indent_target_store_id
+      : null,
+  });
+
+  const toCreateBody = (values: z.infer<typeof storeTypeSchema>) => ({
+    name: values.name.trim(),
+    description: values.description?.trim() ?? '',
     is_active: values.is_active,
+    ...buildOperationalBody(values),
   });
 
   const toPatchBody = (values: z.infer<typeof storeTypeSchema>) => ({
-    name: values.name,
+    name: values.name.trim(),
     description: values.description?.trim() ?? '',
-    can_receive_stock: values.can_receive_stock,
-    can_dispense: values.can_dispense,
     is_active: values.is_active,
+    ...buildOperationalBody(values),
   });
 
   return (
@@ -848,26 +905,118 @@ function StoreTypeCrudDialog(props: {
       onEdit={(id, values) => props.patch.mutateAsync({ id, body: toPatchBody(values) })}
       renderFields={() => (
         <>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="store-name">Store type name</Label>
+          {props.editing ? (
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <Label htmlFor="store-code">Store type code</Label>
+              <Input
+                id="store-code"
+                className="font-mono"
+                value={props.editing.code}
+                readOnly
+                disabled
+              />
+            </div>
+          ) : null}
+          <div className={`flex flex-col gap-2 ${props.editing ? '' : 'md:col-span-2'}`}>
+            <Label htmlFor="store-name">
+              Store type name <span className="text-destructive">*</span>
+            </Label>
             <Input id="store-name" {...form.register('name')} />
           </div>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 md:col-span-2">
             <Label htmlFor="store-desc">Description</Label>
-            <Input id="store-desc" {...form.register('description')} />
+            <Textarea
+              id="store-desc"
+              className="min-h-[72px] resize-y"
+              placeholder={`Optional (max ${STORE_TYPE_DESCRIPTION_MAX_LENGTH} characters)`}
+              maxLength={STORE_TYPE_DESCRIPTION_MAX_LENGTH}
+              {...form.register('description')}
+            />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register('can_receive_stock')} />
-            Can receive stock
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register('can_dispense')} />
-            Can dispense
-          </label>
-          <ActiveField
-            checked={form.watch('is_active')}
-            onCheckedChange={(value) => form.setValue('is_active', value)}
-          />
+          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+            <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+              <Label htmlFor="store-status" className="text-sm font-medium text-foreground">
+                Status
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Inactive types are hidden when creating new stores. Existing stores are unchanged.
+              </p>
+            </div>
+            <ActiveField
+              checked={form.watch('is_active')}
+              onCheckedChange={(value) => form.setValue('is_active', value)}
+            />
+          </div>
+          <div className="flex flex-col gap-3 md:col-span-2">
+            <p className="text-sm font-medium text-foreground">Default operational configuration</p>
+            <p className="text-xs text-muted-foreground">
+              New stores inherit these settings. Changes apply only to stores created after you save.
+            </p>
+            <StoreTypeOperationalFlag
+              id="store-receive"
+              label="Can Receive Stock"
+              hint="GRN and transfer destination"
+              checked={form.watch('can_receive_stock')}
+              onCheckedChange={(value) => form.setValue('can_receive_stock', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-dispense"
+              label="Can Dispense to Patient"
+              hint="Queue, dispensing, counter sale"
+              checked={form.watch('can_dispense')}
+              onCheckedChange={(value) => form.setValue('can_dispense', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-ward"
+              label="Can Issue to Ward"
+              hint="Ward issue workflows"
+              checked={form.watch('can_issue_to_ward')}
+              onCheckedChange={(value) => form.setValue('can_issue_to_ward', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-batch"
+              label="Track Batch & Expiry"
+              hint="Batch and expiry mandatory"
+              checked={form.watch('track_batch_expiry')}
+              onCheckedChange={(value) => form.setValue('track_batch_expiry', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-indent"
+              label="Indent Authority"
+              hint="Create indent action enabled"
+              checked={form.watch('indent_authority')}
+              onCheckedChange={(value) => form.setValue('indent_authority', value)}
+            />
+            {indentAuthority ? (
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <Label htmlFor="store-indent-target">Default indent target store</Label>
+                <Select
+                  value={form.watch('default_indent_target_store_id') ?? NONE_STORE_VALUE}
+                  onValueChange={(value) =>
+                    form.setValue(
+                      'default_indent_target_store_id',
+                      value === NONE_STORE_VALUE ? null : value,
+                    )
+                  }
+                  disabled={storesQuery.isPending}
+                >
+                  <SelectTrigger id="store-indent-target">
+                    <SelectValue
+                      placeholder={storesQuery.isPending ? 'Loading stores…' : 'Select store (optional)'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_STORE_VALUE}>None</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.store_code} — {store.store_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
         </>
       )}
     />

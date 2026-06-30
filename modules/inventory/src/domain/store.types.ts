@@ -33,6 +33,7 @@ export type MasterDataStoreType = StoreOperationalFlags & {
   code: string;
   name: string;
   is_active: boolean;
+  default_indent_target_store_id: string | null;
 };
 
 export type CreateStoreInput = {
@@ -42,6 +43,7 @@ export type CreateStoreInput = {
   department_id: string;
   physical_location?: string;
   is_active?: boolean;
+  indent_target_store_id?: string | null;
 } & Partial<StoreOperationalFlags>;
 
 export type UpdateStoreInput = Partial<
@@ -53,6 +55,7 @@ export type UpdateStoreInput = Partial<
     | "department_id"
     | "physical_location"
     | "is_active"
+    | "indent_target_store_id"
   >
 > &
   Partial<StoreOperationalFlags>;

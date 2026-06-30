@@ -138,6 +138,7 @@ export function createStoreRepo(db: DbInstance): StoreRepo {
               can_issue_to_ward: input.can_issue_to_ward ?? false,
               track_batch_expiry: input.track_batch_expiry ?? true,
               indent_authority: input.indent_authority ?? false,
+              indent_target_store_id: input.indent_target_store_id ?? null,
               is_active: input.is_active ?? true,
               created_by: actorId,
               updated_by: actorId,
@@ -175,6 +176,9 @@ export function createStoreRepo(db: DbInstance): StoreRepo {
       if (input.can_issue_to_ward !== undefined) patch.can_issue_to_ward = input.can_issue_to_ward;
       if (input.track_batch_expiry !== undefined) patch.track_batch_expiry = input.track_batch_expiry;
       if (input.indent_authority !== undefined) patch.indent_authority = input.indent_authority;
+      if (input.indent_target_store_id !== undefined) {
+        patch.indent_target_store_id = input.indent_target_store_id;
+      }
       if (input.is_active !== undefined) patch.is_active = input.is_active;
 
       try {
