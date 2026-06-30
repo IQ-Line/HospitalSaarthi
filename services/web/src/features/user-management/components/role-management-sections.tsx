@@ -547,6 +547,10 @@ type RoleEditorDialogProps = {
   showCapabilityProvenance?: boolean;
   /** When true, only product modules are shown in the permission tree (excludes platform modules). */
   productOnly?: boolean;
+  /** Edit-mode destructive delete affordance. When omitted, no Delete button is shown. */
+  onDelete?: () => void;
+  /** True while a role delete request is in flight (disables the Delete button). */
+  deletePending?: boolean;
 };
 
 function roleEditorTitle(isCreate: boolean, isView: boolean): string {
@@ -936,9 +940,11 @@ function RoleEditorFooter({
   saveDisabled,
   savePending,
   isCreate,
+  deletePending,
   onOpenChange,
   onReset,
   onSave,
+  onDelete,
 }: {
   isView: boolean;
   roleFormEditable: boolean;
@@ -946,12 +952,28 @@ function RoleEditorFooter({
   saveDisabled: boolean;
   savePending: boolean;
   isCreate: boolean;
+  deletePending: boolean;
   onOpenChange: (open: boolean) => void;
   onReset: () => void;
   onSave: () => void;
+  onDelete?: () => void;
 }) {
+  // Delete only applies to an existing role being edited — not while creating or viewing.
+  const showDelete = Boolean(onDelete) && !isCreate && !isView;
   return (
-    <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-end border-t px-4 py-3">
+    <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
+      <div>
+        {showDelete ? (
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deletePending}
+            onClick={onDelete}
+          >
+            {deletePending ? 'Deleting...' : 'Delete role'}
+          </Button>
+        ) : null}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
           {isView ? 'Close' : 'Cancel'}
@@ -1006,6 +1028,8 @@ export function RoleEditorDialog({
   onSave,
   showCapabilityProvenance = false,
   productOnly = false,
+  onDelete,
+  deletePending = false,
 }: RoleEditorDialogProps) {
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
@@ -1175,9 +1199,11 @@ export function RoleEditorDialog({
           saveDisabled={saveDisabled}
           savePending={savePending}
           isCreate={isCreate}
+          deletePending={deletePending}
           onOpenChange={onOpenChange}
           onReset={onReset}
           onSave={onSave}
+          onDelete={onDelete}
         />
       </DialogContent>
     </Dialog>
