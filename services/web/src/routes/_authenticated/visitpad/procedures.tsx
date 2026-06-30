@@ -437,7 +437,7 @@ function ProcedureCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadProcedureCreateFormInput>({
+  const form = useForm<VisitpadProcedureCreateFormInput, unknown, VisitpadProcedureCreateFormSchema>({
     resolver: zodResolver(visitpadProcedureCreateFormSchema),
     defaultValues: emptyProcedureCreateForm(nextOrder),
   });
@@ -647,7 +647,7 @@ function ProcedureEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadProcedureEditFormInput>({
+  const form = useForm<VisitpadProcedureEditFormInput, unknown, VisitpadProcedureEditFormSchema>({
     resolver: zodResolver(visitpadProcedureEditFormSchema),
     defaultValues: procedureEditDefaults({
       id: '',

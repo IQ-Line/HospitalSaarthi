@@ -36,7 +36,9 @@ import type { VisitpadManufacturer } from '@/features/visitpad/types';
 import {
   visitpadManufacturerCreateFormSchema,
   visitpadManufacturerEditFormSchema,
+  type VisitpadManufacturerCreateFormInput,
   type VisitpadManufacturerCreateFormSchema,
+  type VisitpadManufacturerEditFormInput,
   type VisitpadManufacturerEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -321,7 +323,7 @@ function ManufacturerCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadManufacturerCreateFormSchema>({
+  const form = useForm<VisitpadManufacturerCreateFormInput, unknown, VisitpadManufacturerCreateFormSchema>({
     resolver: zodResolver(visitpadManufacturerCreateFormSchema),
     defaultValues: {
       code: '',
@@ -430,7 +432,7 @@ function ManufacturerEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadManufacturerEditFormSchema>({
+  const form = useForm<VisitpadManufacturerEditFormInput, unknown, VisitpadManufacturerEditFormSchema>({
     resolver: zodResolver(visitpadManufacturerEditFormSchema),
     defaultValues: {
       display_name: '',

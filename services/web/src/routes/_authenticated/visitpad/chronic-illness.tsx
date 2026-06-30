@@ -396,7 +396,7 @@ function ChronicIllnessCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChronicIllnessCreateFormInput>({
+  const form = useForm<VisitpadChronicIllnessCreateFormInput, unknown, VisitpadChronicIllnessCreateFormSchema>({
     resolver: zodResolver(visitpadChronicIllnessCreateFormSchema),
     defaultValues: emptyChronicIllnessCreateForm(nextOrder),
   });
@@ -535,7 +535,7 @@ function ChronicIllnessEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChronicIllnessEditFormInput>({
+  const form = useForm<VisitpadChronicIllnessEditFormInput, unknown, VisitpadChronicIllnessEditFormSchema>({
     resolver: zodResolver(visitpadChronicIllnessEditFormSchema),
     defaultValues: {
       display_name: '',

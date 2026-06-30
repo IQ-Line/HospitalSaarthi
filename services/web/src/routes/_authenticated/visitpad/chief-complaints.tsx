@@ -45,7 +45,9 @@ import type { VisitpadChiefComplaint } from '@/features/visitpad/types';
 import {
   visitpadChiefComplaintCreateFormSchema,
   visitpadChiefComplaintEditFormSchema,
+  type VisitpadChiefComplaintCreateFormInput,
   type VisitpadChiefComplaintCreateFormSchema,
+  type VisitpadChiefComplaintEditFormInput,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -458,7 +460,7 @@ function ChiefComplaintCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChiefComplaintCreateFormSchema>({
+  const form = useForm<VisitpadChiefComplaintCreateFormInput, unknown, VisitpadChiefComplaintCreateFormSchema>({
     resolver: zodResolver(visitpadChiefComplaintCreateFormSchema),
     defaultValues: {
       code: '',
@@ -677,7 +679,7 @@ function ChiefComplaintEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChiefComplaintEditFormSchema>({
+  const form = useForm<VisitpadChiefComplaintEditFormInput, unknown, VisitpadChiefComplaintEditFormSchema>({
     resolver: zodResolver(visitpadChiefComplaintEditFormSchema),
     defaultValues: {
       code: '',

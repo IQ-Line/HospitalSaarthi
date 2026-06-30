@@ -43,7 +43,9 @@ import type { VisitpadRxColumn } from '@/features/visitpad/types';
 import {
   visitpadRxColumnCreateFormSchema,
   visitpadRxColumnEditFormSchema,
+  type VisitpadRxColumnCreateFormInput,
   type VisitpadRxColumnCreateFormSchema,
+  type VisitpadRxColumnEditFormInput,
   type VisitpadRxColumnEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -390,7 +392,7 @@ function RxColumnCreateDialog({
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const isMethodStrength = section === 'method_strength';
-  const form = useForm<VisitpadRxColumnCreateFormSchema>({
+  const form = useForm<VisitpadRxColumnCreateFormInput, unknown, VisitpadRxColumnCreateFormSchema>({
     resolver: zodResolver(visitpadRxColumnCreateFormSchema),
     defaultValues: {
       display_name: '',
@@ -534,7 +536,7 @@ function RxColumnEditDialog({
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const isMethodStrength = row?.section === 'method_strength';
-  const form = useForm<VisitpadRxColumnEditFormSchema>({
+  const form = useForm<VisitpadRxColumnEditFormInput, unknown, VisitpadRxColumnEditFormSchema>({
     resolver: zodResolver(visitpadRxColumnEditFormSchema),
     defaultValues: {
       display_name: '',

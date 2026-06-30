@@ -37,7 +37,9 @@ import type { VisitpadAllergyReaction } from '@/features/visitpad/types';
 import {
   visitpadAllergyReactionCreateFormSchema,
   visitpadAllergyReactionEditFormSchema,
+  type VisitpadAllergyReactionCreateFormInput,
   type VisitpadAllergyReactionCreateFormSchema,
+  type VisitpadAllergyReactionEditFormInput,
   type VisitpadAllergyReactionEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -333,7 +335,7 @@ function ReactionCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergyReactionCreateFormSchema>({
+  const form = useForm<VisitpadAllergyReactionCreateFormInput, unknown, VisitpadAllergyReactionCreateFormSchema>({
     resolver: zodResolver(visitpadAllergyReactionCreateFormSchema),
     defaultValues: {
       code: '',
@@ -449,7 +451,7 @@ function ReactionEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergyReactionEditFormSchema>({
+  const form = useForm<VisitpadAllergyReactionEditFormInput, unknown, VisitpadAllergyReactionEditFormSchema>({
     resolver: zodResolver(visitpadAllergyReactionEditFormSchema),
     defaultValues: {
       display_name: '',

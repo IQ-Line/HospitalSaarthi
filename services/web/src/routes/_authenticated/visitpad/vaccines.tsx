@@ -36,7 +36,9 @@ import type { VisitpadVaccine } from '@/features/visitpad/types';
 import {
   visitpadVaccineCreateFormSchema,
   visitpadVaccineEditFormSchema,
+  type VisitpadVaccineCreateFormInput,
   type VisitpadVaccineCreateFormSchema,
+  type VisitpadVaccineEditFormInput,
   type VisitpadVaccineEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -321,7 +323,7 @@ function VaccineCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadVaccineCreateFormSchema>({
+  const form = useForm<VisitpadVaccineCreateFormInput, unknown, VisitpadVaccineCreateFormSchema>({
     resolver: zodResolver(visitpadVaccineCreateFormSchema),
     defaultValues: {
       code: '',
@@ -423,7 +425,7 @@ function VaccineEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadVaccineEditFormSchema>({
+  const form = useForm<VisitpadVaccineEditFormInput, unknown, VisitpadVaccineEditFormSchema>({
     resolver: zodResolver(visitpadVaccineEditFormSchema),
     defaultValues: {
       display_name: '',

@@ -46,7 +46,9 @@ import type { VisitpadUnit } from '@/features/visitpad/types';
 import {
   visitpadUnitCreateSchema,
   visitpadUnitEditFormSchema,
+  type VisitpadUnitCreateInput,
   type VisitpadUnitCreateSchema,
+  type VisitpadUnitEditFormInput,
   type VisitpadUnitEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -366,7 +368,7 @@ function UnitCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadUnitCreateSchema>({
+  const form = useForm<VisitpadUnitCreateInput, unknown, VisitpadUnitCreateSchema>({
     resolver: zodResolver(visitpadUnitCreateSchema),
     defaultValues: {
       code: '',
@@ -477,7 +479,7 @@ function UnitEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadUnitEditFormSchema>({
+  const form = useForm<VisitpadUnitEditFormInput, unknown, VisitpadUnitEditFormSchema>({
     resolver: zodResolver(visitpadUnitEditFormSchema),
     defaultValues: {
       display_name: '',

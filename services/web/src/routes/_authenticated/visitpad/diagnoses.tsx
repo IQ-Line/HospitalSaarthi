@@ -46,7 +46,9 @@ import type { VisitpadDiagnosis } from '@/features/visitpad/types';
 import {
   visitpadDiagnosisCreateFormSchema,
   visitpadDiagnosisEditFormSchema,
+  type VisitpadDiagnosisCreateFormInput,
   type VisitpadDiagnosisCreateFormSchema,
+  type VisitpadDiagnosisEditFormInput,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -386,7 +388,7 @@ function DiagnosisCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadDiagnosisCreateFormSchema>({
+  const form = useForm<VisitpadDiagnosisCreateFormInput, unknown, VisitpadDiagnosisCreateFormSchema>({
     resolver: zodResolver(visitpadDiagnosisCreateFormSchema),
     defaultValues: {
       code: '',
@@ -520,7 +522,7 @@ function DiagnosisEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadDiagnosisEditFormSchema>({
+  const form = useForm<VisitpadDiagnosisEditFormInput, unknown, VisitpadDiagnosisEditFormSchema>({
     resolver: zodResolver(visitpadDiagnosisEditFormSchema),
     defaultValues: {
       display_name: '',

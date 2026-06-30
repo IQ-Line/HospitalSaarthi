@@ -46,7 +46,9 @@ import type { VisitpadAllergen } from '@/features/visitpad/types';
 import {
   visitpadAllergenCreateFormSchema,
   visitpadAllergenEditFormSchema,
+  type VisitpadAllergenCreateFormInput,
   type VisitpadAllergenCreateFormSchema,
+  type VisitpadAllergenEditFormInput,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
 import { useCapability } from '@/hooks/use-capability';
@@ -383,7 +385,7 @@ function AllergenCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergenCreateFormSchema>({
+  const form = useForm<VisitpadAllergenCreateFormInput, unknown, VisitpadAllergenCreateFormSchema>({
     resolver: zodResolver(visitpadAllergenCreateFormSchema),
     defaultValues: {
       code: '',
@@ -555,7 +557,7 @@ function AllergenEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergenEditFormSchema>({
+  const form = useForm<VisitpadAllergenEditFormInput, unknown, VisitpadAllergenEditFormSchema>({
     resolver: zodResolver(visitpadAllergenEditFormSchema),
     defaultValues: {
       display_name: '',

@@ -610,3 +610,36 @@ export type VisitpadManufacturerCreateFormSchema = z.infer<
 >;
 export type VisitpadManufacturerEditFormSchema = z.infer<typeof visitpadManufacturerEditFormSchema>;
 export type VisitpadVitalEditFormSchema = z.infer<typeof visitpadVitalEditFormSchema>;
+
+/**
+ * Form-input aliases (pre-transform shape RHF holds in its fields).
+ * Schemas use `.default()` / `.coerce` / `.transform()`, so `z.input` ≠ `z.infer`.
+ * RHF v5 (`@hookform/resolvers@5`) types the resolver as `Resolver<Input, ctx, Output>`,
+ * so each page must declare `useForm<Input, unknown, Output>` to line the two up.
+ */
+export type VisitpadUnitCreateInput = z.input<typeof visitpadUnitCreateSchema>;
+export type VisitpadUnitEditFormInput = z.input<typeof visitpadUnitEditFormSchema>;
+export type VisitpadDiagnosisCreateFormInput = z.input<typeof visitpadDiagnosisCreateFormSchema>;
+export type VisitpadDiagnosisEditFormInput = z.input<typeof visitpadDiagnosisEditFormSchema>;
+export type VisitpadAllergenCreateFormInput = z.input<typeof visitpadAllergenCreateFormSchema>;
+export type VisitpadAllergenEditFormInput = z.input<typeof visitpadAllergenEditFormSchema>;
+export type VisitpadAllergyReactionCreateFormInput = z.input<
+  typeof visitpadAllergyReactionCreateFormSchema
+>;
+export type VisitpadAllergyReactionEditFormInput = z.input<
+  typeof visitpadAllergyReactionEditFormSchema
+>;
+export type VisitpadChiefComplaintCreateFormInput = z.input<
+  typeof visitpadChiefComplaintCreateFormSchema
+>;
+export type VisitpadChiefComplaintEditFormInput = z.input<
+  typeof visitpadChiefComplaintEditFormSchema
+>;
+export type VisitpadVaccineCreateFormInput = z.input<typeof visitpadVaccineCreateFormSchema>;
+export type VisitpadVaccineEditFormInput = z.input<typeof visitpadVaccineEditFormSchema>;
+export type VisitpadManufacturerCreateFormInput = z.input<
+  typeof visitpadManufacturerCreateFormSchema
+>;
+export type VisitpadManufacturerEditFormInput = z.input<typeof visitpadManufacturerEditFormSchema>;
+export type VisitpadRxColumnCreateFormInput = z.input<typeof visitpadRxColumnCreateFormSchema>;
+export type VisitpadRxColumnEditFormInput = z.input<typeof visitpadRxColumnEditFormSchema>;
