@@ -1,6 +1,21 @@
 # services/web CI-gate remediation plan (#50)
 
-**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind **down to 9 committed-state errors** (from 282). User decisions captured (org_id=send configuratorOrgId; RoleEditorDialog=Option A; technical fixes + lint = proceed autonomously). The big entangled UM cluster (create-user-form + edit-user-dialog + doctor-tariff shared section, 13 errors incl. the org_id latent-bug fix) is **DONE** (`b4f85645`). **Remaining 9:** role-management-sections capability-tree (7, data-model, no test net — most delicate), visitpad-global-import-payloads medicine-row→create-form `as` cast (1), tenant-detail-panels RoleEditorDialog Option A (1, add delete button+props). Then the lint half (171 errors) then wire the targets.
+**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** **typecheck committed-state = 0 ✅** (from 282). Lint half **in progress: 171 → 67 gating errors** (src+test scope). User decisions captured (org_id=send configuratorOrgId; RoleEditorDialog=Option A; technical fixes + lint = proceed autonomously). All typecheck clusters DONE incl. capability-tree discriminant (`4425a1b5`), RoleEditorDialog Option A delete restore (`56324e16`), visitpad medicine-import parse fix (`bb72cf40`).
+
+**Remaining 67 lint (the judgment-heavy half), all committed work green (tsc=0, 459 vitest):**
+- **`sonarjs/void-use` (31)** — flags the `void` operator, but `void promise` is the canonical fire-and-forget marker and `@typescript-eslint/no-floating-promises` is **NOT enabled** here, so these are deliberate intent-markers. **CONFIG-LEVEL DECISION (architectural, monorepo-wide):** recommended = disable `sonarjs/void-use` (it conflicts with the void idiom; widely disabled for this reason) — but the root `eslint.config.js` just spreads `@hims/eslint-config` `base`, so the cleanest *scoped* path is a new `services/web/eslint.config.js` that re-imports base + turns the rule off (the nx target picks up the nearest config). Alternatives: 31 inline disables (noisy) or strip all `void` (leaves promises floating silently — worse). **Worth a quick user nod** since it touches lint posture.
+- **`no-restricted-syntax` (7, `can*` ban)** — "Avoid can* permission booleans; use useCapability/CapabilityGate." 5 in `catalog-module-crud-access.ts` (the `useCatalogModuleCrud` helper returns `canCreate/canUpdate/canDelete/...`) + tenant.index.tsx:279 + visit-registration.tsx:563. Resolving properly may mean refactoring the helper or a justified disable on the sanctioned helper. Architectural — decide deliberately.
+- **`sonarjs/no-nested-functions` (15), `no-nested-template-literals` (6), `no-empty-function` (5), `no-identical-functions` (3)** — genuine small refactors (extract / dedupe / intentional-noop disable). Per-site judgment.
+
+**Lint progress (committed-state, src+test gating scope):**
+| commit | category | count |
+|---|---|---|
+| ea184833 | module-boundary (@hims/dev-bootstrap wired in tsconfig+vite+vitest) + dead-ternary + autofix | 171 → 165 |
+| 8f08063c | no-dead-store cluster (18 dead removals + assignedCapabilityIdSet latent-bug wired) | 165 → 123 |
+| 7f375493 | unused-import (21) + type-aliases (RequireCapabilityRedirectTo inline, CapabilityKey/`_c` justified disable) | 123 → 98 |
+| a99435fb | concise-regex (9 rewrites) + slow-regex (17 verified-safe disables) + hardcoded-passwords (4 test-fixture disables) | 98 → 67 |
+
+**Then:** wire `typecheck` + `lint` nx targets (mirror BFF: lint `src/**`+`test/**`; typecheck `dependsOn` route-tree codegen) once lint=0. Lint target scope = src+test (root config files like vite.config.ts are out of scope, matching BFF).
 
 ## Progress log (committed-state typecheck count; CI-visible, excludes the 2 untracked not-ours web files = 5 errs)
 
