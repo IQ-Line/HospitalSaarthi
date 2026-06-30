@@ -15,7 +15,7 @@ export function activeVisitpadCatalogRows<T extends ActiveCatalogRow>(items: T[]
 }
 
 export function visitpadDisplayNameOptions(
-  items: Array<{ display_name: string }> | undefined,
+  items: Array<ActiveCatalogRow & { display_name: string }> | undefined,
 ): VisitpadSelectOption[] {
   return activeVisitpadCatalogRows(items).map((item) => ({
     label: item.display_name,
@@ -160,7 +160,7 @@ export function matchMethodStrengthOption(
 
   const parsed = trimmed.match(/^([\d.]+)\s*(.*)$/);
   if (parsed) {
-    const [, value, unitPart] = parsed;
+    const [, value, unitPart = ''] = parsed;
     const unit = unitPart.trim().toLowerCase();
     const match = rows.find((row) => {
       if (row.display_name.trim() !== value) return false;
