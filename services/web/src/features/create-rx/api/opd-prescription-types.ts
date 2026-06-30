@@ -13,7 +13,12 @@ export interface OpdPrescriptionClinicalPayload {
     severity?: string | null;
     notes?: string | null;
   }>;
-  diagnoses?: unknown[];
+  diagnoses?: Array<{
+    line_no: number;
+    notes?: string | null;
+    certainty?: string | null;
+    diagnosis_id?: string | null;
+  }>;
   symptoms?: unknown[];
   medical_history?: {
     smoking_status?: string | null;
@@ -21,14 +26,39 @@ export interface OpdPrescriptionClinicalPayload {
     diet_type?: string | null;
     other_notes?: string | null;
   } | null;
-  medical_history_allergies?: unknown[];
-  medical_history_chronic_illnesses?: unknown[];
+  medical_history_allergies?: Array<{
+    line_no: number;
+    allergen_text: string;
+    reaction_text?: string | null;
+    severity?: string | null;
+    notes?: string | null;
+  }>;
+  medical_history_chronic_illnesses?: Array<{
+    line_no: number;
+    illness_text: string;
+    since_text?: string | null;
+    notes?: string | null;
+  }>;
   medicines?: unknown[];
   ordered_tests?: unknown[];
   ordered_imaging?: unknown[];
-  vaccines_required?: unknown[];
+  vaccines_required?: Array<{
+    line_no: number;
+    vaccine_id?: string | null;
+    vaccine_code?: string | null;
+    name: string;
+    due_by?: string | null;
+    instructions?: string | null;
+    status?: string;
+  }>;
   advised_procedures?: unknown[];
-  physical_activities?: unknown[];
+  physical_activities?: Array<{
+    line_no: number;
+    steps_count?: number | null;
+    sleep_duration_min?: number | null;
+    calories_burned?: number | null;
+    exercise_types?: string[];
+  }>;
   care_plan?: {
     advice?: string | null;
     next_visit_value?: number | null;
