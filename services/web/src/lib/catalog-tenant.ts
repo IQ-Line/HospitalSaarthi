@@ -4,7 +4,7 @@ import {
   DEVELOPMENT_BOOTSTRAP_TENANT_ID,
   DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
   DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
-} from '../../../../packages/dev-bootstrap/src/dev-tenant-ids';
+} from '@hims/dev-bootstrap';
 
 const VISITPAD_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/visitpad';
 const DEPARTMENTS_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/departments';

@@ -9,7 +9,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@pulse/ui/*": ["../../packages/pulse-ui/src/*"],
-      "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"]
+      "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"],
+      "@hims/dev-bootstrap": ["../../packages/dev-bootstrap/src/index.ts"]
     }
   },
   "include": ["src", "test"]

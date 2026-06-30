@@ -40,7 +40,7 @@ export function resolveBranchTenantSlug(input: {
 
   const orgPart = slugifyTenantLabel(input.orgSlug);
   const namePart = slugifyTenantLabel(input.branchName);
-  let slug =
+  const slug =
     namePart.length >= 3
       ? orgPart
         ? `${orgPart}-${namePart}`

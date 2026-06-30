@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      '@hims/dev-bootstrap': resolve(__dirname, '../../packages/dev-bootstrap/src/index.ts'),
     },
   },
   test: {

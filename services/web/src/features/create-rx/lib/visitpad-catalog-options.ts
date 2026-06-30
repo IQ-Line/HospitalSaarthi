@@ -113,7 +113,7 @@ export function resolveMedicineStrengthDisplay(
   const unit = medicine.strength_unit?.trim();
   const value = coerceStrengthValue(medicine.strength_value);
   if (value != null && unit) {
-    const formattedValue = Number.isInteger(value) ? String(value) : String(value);
+    const formattedValue = String(value);
     return `${formattedValue} ${unit}`;
   }
   if (value != null) return String(value);
