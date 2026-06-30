@@ -5,6 +5,24 @@ import { InMemoryLinkOtpStore } from "../lib/link-otp-store.js";
 export function buildMockAbdmDeps(
   overrides: Partial<AbdmAdapterDeps> = {},
 ): AbdmAdapterDeps {
+  const defaultEmpi = {
+    findPatientByAbhaAddress: async () => null,
+    findPatientByAbhaNumber: async () => null,
+    findPatientByDemographics: async () => null,
+    findAbhaAddressByPatientId: async () => null,
+    findM2PatientProfile: async () => null,
+  } as AbdmAdapterDeps["empi"];
+  const defaultRegistration = {
+    findM2PatientProfile: async () => null,
+    findPatientIdByAbhaAddress: async () => null,
+    findAllPatientIdsByAbhaAddress: async () => [],
+  } as AbdmAdapterDeps["registration"];
+  const {
+    empi: empiOverride,
+    registration: registrationOverride,
+    ...restOverrides
+  } = overrides;
+
   return {
     sessions: overrides.sessions ?? ({} as AbdmAdapterDeps["sessions"]),
     gateway: overrides.gateway ?? ({} as AbdmAdapterDeps["gateway"]),
@@ -31,6 +49,7 @@ export function buildMockAbdmDeps(
         findBySessionId: async () => null,
         patch: async () => undefined,
         listActive: async () => [],
+        searchForTenant: async () => ({ rows: [], totalCount: 0 }),
         janitor: async () => 0,
       } as AbdmAdapterDeps["m3ConsentRequests"]),
     m3ConsentArtefactsHiu:
@@ -48,31 +67,25 @@ export function buildMockAbdmDeps(
         findByTransferId: async () => null,
         findByOutboundRequestId: async () => null,
         findLatestActiveByConsentId: async () => null,
+        findLatestByConsentId: async () => null,
         patch: async () => undefined,
         patchWithSession: async () => undefined,
         janitor: async () => 0,
       } as AbdmAdapterDeps["m3DataTransfers"]),
-    empi:
-      overrides.empi ??
-      ({
-        findPatientByAbhaAddress: async () => null,
-        findPatientByDemographics: async () => null,
-        findAbhaAddressByPatientId: async () => null,
-        findM2PatientProfile: async () => null,
-      } as AbdmAdapterDeps["empi"]),
-    registration:
-      overrides.registration ??
-      ({
-        findM2PatientProfile: async () => null,
-      } as AbdmAdapterDeps["registration"]),
+    empi: { ...defaultEmpi, ...empiOverride },
+    registration: { ...defaultRegistration, ...registrationOverride },
     recordFoundation:
       overrides.recordFoundation ??
       ({
-        registerUnlinkedCareContexts: async () => undefined,
-        listUnlinkedCareContexts: async () => [],
-        markCareContextLinked: async () => undefined,
-        fetchBundlesForConsent: async () => [],
+        listCareContexts: async () => [],
+        listBundles: async () => [],
       } as AbdmAdapterDeps["recordFoundation"]),
+    careContextLinkState:
+      overrides.careContextLinkState ??
+      ({
+        listLinkedReferences: async () => new Set(),
+        markLinked: async () => undefined,
+      } as AbdmAdapterDeps["careContextLinkState"]),
     dataPush: overrides.dataPush,
     payloadEncryptor:
       overrides.payloadEncryptor ??
@@ -85,6 +98,6 @@ export function buildMockAbdmDeps(
     xHipId: overrides.xHipId ?? "test-hip",
     xHiuId: overrides.xHiuId ?? "test-hiu",
     xCmId: overrides.xCmId ?? "sbx",
-    ...overrides,
+    ...restOverrides,
   };
 }

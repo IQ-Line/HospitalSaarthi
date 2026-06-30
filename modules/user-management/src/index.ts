@@ -18,6 +18,7 @@ export type {
   TenantApiKeyValidatorPort,
 } from "./ports/tenant-api-key-validator.js";
 export type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
+export type { AuthPasswordAdminPort } from "./ports/auth-password-admin.js";
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
@@ -31,6 +32,8 @@ export type {
   MasterDataModuleCatalogPort,
   ModuleCatalogPort,
   ModuleEntitlementRequestContext,
+  DepartmentCatalogPort,
+  DepartmentCatalogRequestContext,
   TenantEntitlementPort,
   TenantEntitlementResolverPort,
   TenantEntitlementResolution,

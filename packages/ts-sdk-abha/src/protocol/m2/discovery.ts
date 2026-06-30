@@ -18,10 +18,10 @@ export interface DiscoveryPatientRequest {
   yearOfBirth?: number;
 }
 
-/** §5.3.2 — inbound discover. */
+/** §5.3.2 — inbound discover (CM sends `patient` as object; array tolerated). */
 export interface DiscoveryRequest {
   transactionId: string;
-  patient: DiscoveryPatientRequest[];
+  patient: DiscoveryPatientRequest | DiscoveryPatientRequest[];
 }
 
 /** §5.3.3 — outbound on-discover. */

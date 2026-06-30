@@ -43,6 +43,7 @@ function mockSharedInfra(profiles: IntegrationProfileRepo): IntegrationHubShared
     empi: {} as IntegrationHubSharedInfra["empi"],
     registration: {} as IntegrationHubSharedInfra["registration"],
     recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
+    careContextLinkState: {} as IntegrationHubSharedInfra["careContextLinkState"],
     fidelius: {} as IntegrationHubSharedInfra["fidelius"],
     payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
     linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],
@@ -58,6 +59,7 @@ describe("buildAbdmDepsForTenant", () => {
         return undefined;
       }),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const shared = mockSharedInfra(repo);
@@ -73,6 +75,7 @@ describe("buildAbdmDepsForTenant", () => {
     const repo: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(async () => undefined),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     await expect(buildAbdmDepsForTenant(tenantA, mockSharedInfra(repo))).rejects.toMatchObject({

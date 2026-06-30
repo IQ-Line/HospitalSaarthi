@@ -35,6 +35,7 @@ There are exactly **9** images the pipeline ever has to produce:
 | `configurator-svc` | `hims.azurecr.io/configurator-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `empi-svc` | `hims.azurecr.io/empi-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `registration-svc` | `hims.azurecr.io/registration-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
+| `inventory-svc` | `hims.azurecr.io/inventory-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `user-management-svc` | `hims.azurecr.io/user-management-svc:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify |
 | `bff` | `hims.azurecr.io/bff:<sha>` | `infra/docker/node-svc.Dockerfile` | `.` | TS Fastify; browser-facing proxy |
 | `web` | `hims.azurecr.io/web:<sha>` | `infra/docker/web.Dockerfile` | `.` | React SPA built by Vite, served by Nginx |

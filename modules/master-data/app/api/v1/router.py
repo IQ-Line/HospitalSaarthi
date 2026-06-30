@@ -19,6 +19,7 @@ from app.api.v1.visitpad.vaccines import router as visitpad_vaccines_router
 from app.api.v1.visitpad.rx_columns import router as visitpad_rx_columns_router
 from app.api.v1.visitpad.units import conversions_router, units_router
 from app.api.v1.visitpad.vitals import router as visitpad_vitals_router
+from app.api.v1.inventory import inventory_router
 
 api_router = APIRouter()
 api_router.include_router(health_router)
@@ -43,3 +44,4 @@ api_router.include_router(visitpad_chronic_illnesses_router)
 api_router.include_router(visitpad_vaccines_router)
 api_router.include_router(visitpad_manufacturers_router)
 api_router.include_router(visitpad_procedures_router)
+api_router.include_router(inventory_router)

@@ -24,9 +24,11 @@ import {
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
   registerM3CallbackRoutes,
+  registerScanShareCallbackRoutes,
   registerM2EventConsumers,
   createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
+  DrizzleCareContextLinkStateRepo,
   DrizzleM3ConsentRequestsRepo,
   DrizzleM3ConsentArtefactsHiuRepo,
   DrizzleM3DataTransfersRepo,
@@ -35,6 +37,7 @@ import {
   nodeEnv,
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
+  INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES,
   type IntegrationHubSharedInfra,
 } from "@hims/integration-hub";
 import {
@@ -179,6 +182,7 @@ async function main() {
   const m3ConsentArtefactsHiu = new DrizzleM3ConsentArtefactsHiuRepo(db);
   const m3DataTransfers = new DrizzleM3DataTransfersRepo(db);
   const linkOtpStore = new DrizzleLinkOtpsRepo(db);
+  const careContextLinkState = new DrizzleCareContextLinkStateRepo(db);
 
   const sharedInfra: IntegrationHubSharedInfra = {
     profiles,
@@ -186,6 +190,7 @@ async function main() {
       gatewayBaseUrl: GATEWAY_BASE_URL,
       abhaApiBaseUrl: ABHA_API_BASE_URL,
     },
+    db,
     sessions,
     inboundMessages,
     linkTokens,
@@ -196,6 +201,7 @@ async function main() {
     empi,
     registration,
     recordFoundation,
+    careContextLinkState,
     fidelius,
     payloadEncryptor,
     linkOtpStore,
@@ -229,17 +235,23 @@ async function main() {
   await app.register(async (v3) => {
     await registerM2CallbackRoutes(v3, sharedInfra);
     await registerM3CallbackRoutes(v3, sharedInfra);
+    await registerScanShareCallbackRoutes(v3, sharedInfra);
   }, { prefix: "/api/v3" });
 
   const abdmRouter = createRouter(sharedInfra);
 
   const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
 
+  if (identityAuth) {
+    const { identityPlugin } = await import("@hims/ts-sdk-identity");
+    // Register at app root so skipPathPrefixes match full request URLs.
+    await app.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    });
+  }
+
   await app.register(async (api) => {
-    if (identityAuth) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, identityAuth);
-    }
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {

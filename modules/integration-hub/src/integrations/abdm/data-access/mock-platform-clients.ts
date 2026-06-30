@@ -45,6 +45,10 @@ export class MockEmpiClient implements EmpiClient {
     return null;
   }
 
+  async findPatientByAbhaNumber(): Promise<null> {
+    return null;
+  }
+
   async findAbhaAddressByPatientId(input: {
     patientId: string;
   }): Promise<string | null> {
@@ -206,11 +210,11 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
 
   private readonly contextsByPatient = new Map<string, CareContextRef[]>();
 
-  async registerUnlinkedCareContexts(input: {
+  seedCareContexts(input: {
     iqTenantId: string;
     patientId: string;
     contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
-  }): Promise<void> {
+  }): void {
     const key = `${input.iqTenantId}:${input.patientId}`;
     const existing = this.contextsByPatient.get(key) ?? [];
     const byRef = new Map(existing.map((c) => [c.referenceNumber, c]));
@@ -225,44 +229,22 @@ export class MockRecordFoundationClient implements RecordFoundationClient {
     this.contextsByPatient.set(key, [...byRef.values()]);
   }
 
-  async listUnlinkedCareContexts(input: {
+  async listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]> {
     return [...(this.contextsByPatient.get(`${input.iqTenantId}:${input.patientId}`) ?? [])];
   }
 
-  async markCareContextLinked(input: {
+  async listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void> {
-    for (const [key, rows] of this.contextsByPatient) {
-      if (!key.startsWith(`${input.iqTenantId}:`)) continue;
-      const next = rows.filter(
-        (r) => r.id !== input.careContextId && r.referenceNumber !== input.careContextId,
-      );
-      if (next.length === 0) this.contextsByPatient.delete(key);
-      else this.contextsByPatient.set(key, next);
-    }
-  }
-
-  async fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]> {
-    const stored =
-      this.contextsByPatient.get(`${input.iqTenantId}:${input.patientId}`) ?? [];
-    const refs =
-      input.careContextReferences?.length
-        ? input.careContextReferences
-        : stored.map((ctx) => ctx.referenceNumber);
-    return refs.map((careContextReference) =>
+    return [
       buildMockHealthDocumentBundle({
         abhaAddress: this.defaultAbhaAddress,
-        careContextReference,
+        careContextReference: input.careContextId,
       }),
-    );
+    ];
   }
 }

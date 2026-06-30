@@ -323,6 +323,9 @@ export class HttpGatewayClient implements GatewayClient {
       const token = await this.getBearerToken();
       headers.Authorization = `Bearer ${token}`;
     }
+    if (target === "gateway") {
+      headers["X-CM-ID"] = headers["X-CM-ID"] ?? this.xCmId;
+    }
     const res = await fetchWithTimeout(url, { method: "GET", headers });
     const parser = input.responseParser ?? "json";
     if (parser === "abha-card") {

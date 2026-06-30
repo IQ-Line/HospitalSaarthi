@@ -34,6 +34,8 @@ type ListQuery = {
   department_id?: string;
   /** Doctor / provider uuid — consultation tariffs for a user. */
   provider_id?: string;
+  /** Alias for `provider_id` — filter consultation tariffs by doctor user id. */
+  doctor_id?: string;
   is_active?: string;
   limit?: string;
   cursor?: string;
@@ -257,6 +259,10 @@ function listDepartmentFilter(q: ListQuery): string | undefined {
   return q.department_id?.trim() || q.department?.trim() || undefined;
 }
 
+function listProviderFilter(q: ListQuery): string | undefined {
+  return q.provider_id?.trim() || q.doctor_id?.trim() || undefined;
+}
+
 function createMockRow(tenantId: string, body: CreateServiceBody & { service_code: string; service_name: string; base_price: string | number }): TariffMasterRow {
   const now = new Date().toISOString();
   const effectiveFrom = body.effective_from ?? now;
@@ -301,7 +307,7 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
   if (category) rows = rows.filter((r) => r.category === category);
   const departmentId = listDepartmentFilter(q);
   if (departmentId) rows = rows.filter((r) => r.department_id === departmentId);
-  const providerId = q.provider_id?.trim();
+  const providerId = listProviderFilter(q);
   if (providerId) rows = rows.filter((r) => r.provider_id === providerId);
   if (active !== undefined) rows = rows.filter((r) => r.is_active === active);
   if (cursor) {
@@ -358,7 +364,7 @@ async function billingRouter(
       if (q.category?.trim()) conditions.push(eq(billingMaster.category, q.category.trim()));
       const departmentId = listDepartmentFilter(q);
       if (departmentId) conditions.push(eq(billingMaster.department_id, departmentId));
-      const providerId = q.provider_id?.trim();
+      const providerId = listProviderFilter(q);
       if (providerId) conditions.push(eq(billingMaster.provider_id, providerId));
       const active = parseBool(q.is_active);
       if (active !== undefined) conditions.push(eq(billingMaster.is_active, active));

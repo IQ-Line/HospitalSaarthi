@@ -1,9 +1,16 @@
-export { registerM0Routes } from "./m0/index.js";
+export {
+  registerM0Routes,
+  registerM0DiscoveryRoutes,
+} from "./m0/index.js";
 export { registerM1Routes } from "./m1/index.js";
 export {
   registerM2CallbackRoutes,
   registerM2PlatformRoutes,
 } from "./m2/index.js";
+export {
+  registerScanShareCallbackRoutes,
+  registerScanShareRoutes,
+} from "./scan-share.js";
 export {
   registerM3CallbackRoutes,
   registerM3PlatformRoutes,

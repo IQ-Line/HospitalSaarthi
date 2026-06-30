@@ -53,6 +53,7 @@ describe("registerM2EventConsumers", () => {
     const profiles: IntegrationProfileRepo = {
       findActiveByTenantId: vi.fn(async () => profile),
       findActiveByHipId: vi.fn(),
+      findAllActiveAbdm: vi.fn(),
     };
 
     const shared = {
@@ -79,6 +80,7 @@ describe("registerM2EventConsumers", () => {
         post: vi.fn(async () => ({})),
       } as IntegrationHubSharedInfra["gateway"],
       recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
+      careContextLinkState: {} as IntegrationHubSharedInfra["careContextLinkState"],
       fidelius: {} as IntegrationHubSharedInfra["fidelius"],
       payloadEncryptor: {} as IntegrationHubSharedInfra["payloadEncryptor"],
       linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],

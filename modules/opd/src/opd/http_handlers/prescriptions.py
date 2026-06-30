@@ -21,7 +21,8 @@ from opd.data_access.prescription_bundle import PrescriptionBundle
 from opd.data_access.prescription_form_data import effective_form_data
 from opd.data_access.prescription_repo import PrescriptionRepository
 from opd.data_access.registration_visit_repo import RegistrationVisitRepository
-from opd.integrations.abdm_m2 import trigger_m2_after_end_consultation
+from opd.integrations.abdm_m2 import log_abdm_m2_console, trigger_m2_after_end_consultation
+from opd.integrations.clinical_form_helpers import abdm_immunization_debug
 from opd.lib.pharmacy_queue_notify import schedule_pharmacy_queue_notify_if_final
 from opd.models.prescription_row import Prescription
 from opd.models.registration_visit import RegistrationVisit
@@ -281,11 +282,17 @@ def end_visit_consultation(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     db.commit()
     _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
+    log_abdm_m2_console(
+        "HTTP POST /visits/%s/prescription/end — queueing FHIR bundle pipeline immunization=%s",
+        visit_id,
+        abdm_immunization_debug(body.form_data),
+    )
     background_tasks.add_task(
         trigger_m2_after_end_consultation,
         tenant_id=tenant_id,
         patient_id=visit.patient_id,
         visit_id=visit.id,
+        form_data=body.form_data,
     )
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))
 
@@ -327,10 +334,16 @@ def end_patient_consultation(
     visit, rx = repo.end_consultation(patient_id, body.form_data)
     db.commit()
     _notify_pharmacy_queue_if_final(background_tasks, tenant_id, visit, rx)
+    log_abdm_m2_console(
+        "HTTP POST /patients/%s/prescription/end — queueing FHIR bundle pipeline immunization=%s",
+        patient_id,
+        abdm_immunization_debug(body.form_data),
+    )
     background_tasks.add_task(
         trigger_m2_after_end_consultation,
         tenant_id=tenant_id,
         patient_id=visit.patient_id,
         visit_id=visit.id,
+        form_data=body.form_data,
     )
     return _to_response(db, bundle_api.bundle_from_prescription(db, tenant_id, rx))

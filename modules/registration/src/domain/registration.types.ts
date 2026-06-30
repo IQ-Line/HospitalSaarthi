@@ -43,6 +43,7 @@ import type { ConsultationType } from "../lib/follow-up.js";
 
 export interface NewPatientIntakeInput {
   patient: Record<string, unknown>;
+  permanent_address?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;
@@ -52,8 +53,34 @@ export interface NewPatientIntakeInput {
   intake_completion?: IntakeCompletion;
 }
 
+export interface OpdRegistrationBillingInput {
+  registration_fee?: {
+    item_code?: string | null;
+    line_discount_percentage?: number;
+  } | null;
+  consultation_fee?: {
+    item_code?: string | null;
+    line_discount_percentage?: number;
+  } | null;
+  department_name?: string | null;
+  invoice_discount?: number;
+  amount_paid?: number;
+  payment_method?: "CASH" | "CARD" | "UPI" | "CHEQUE" | "BANK_TRANSFER" | null;
+  payment_notes?: string | null;
+}
+
+export interface OpdRegistrationCompleteInput extends NewPatientIntakeInput {
+  billing?: OpdRegistrationBillingInput;
+}
+
 export interface ExistingPatientVisitInput {
   patient_id: string;
+  /** Desk-captured ABHA fields (EMPI may not have address on patient row yet). */
+  abha_number?: string | null;
+  abha_address?: string | null;
+  /** Desk-captured ABHA / DOB overlay when re-visiting an existing EMPI patient. */
+  patient?: Record<string, unknown>;
+  permanent_address?: Record<string, unknown>;
   facility_id?: string | null;
   visit_type?: string | null;
   consultation_type?: ConsultationType | null;

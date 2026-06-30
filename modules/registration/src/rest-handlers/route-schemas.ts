@@ -69,6 +69,19 @@ export const listVisitsQuerySchema = {
   },
 };
 
+const visitRegistrationAddressSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    line1: { type: "string" },
+    line2: { type: "string" },
+    city: { type: "string" },
+    state: { type: "string" },
+    district: { type: "string" },
+    pincode: { type: "string" },
+  },
+} as const;
+
 const demographicsSchema = {
   type: "object" as const,
   required: ["first_name", "gender", "phone_number"],
@@ -145,12 +158,27 @@ export const visitTypeDecisionBodySchema = {
   },
 } as const;
 
+const existingPatientDemographicsOverlay = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    date_of_birth: { type: "string" },
+    year_of_birth: { type: "integer" },
+  },
+} as const;
+
 export const existingPatientVisitBodySchema = {
   type: "object" as const,
   required: ["patient_id"],
   additionalProperties: false,
   properties: {
     patient_id: uuidParam,
+    abha_number: { type: "string" },
+    abha_address: { type: "string" },
+    patient: existingPatientDemographicsOverlay,
+    permanent_address: visitRegistrationAddressSchema,
     ...visitEncounterFields,
   },
 } as const;
@@ -161,6 +189,45 @@ export const newPatientIntakeBodySchema = {
   additionalProperties: false,
   properties: {
     patient: demographicsSchema,
+    permanent_address: visitRegistrationAddressSchema,
+    ...visitEncounterFields,
+  },
+} as const;
+
+const billingFeeLineSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    item_code: { type: "string" },
+    line_discount_percentage: { type: "number", minimum: 0, maximum: 100 },
+  },
+} as const;
+
+const opdRegistrationBillingSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    registration_fee: billingFeeLineSchema,
+    consultation_fee: billingFeeLineSchema,
+    department_name: { type: "string" },
+    invoice_discount: { type: "number", minimum: 0 },
+    amount_paid: { type: "number", minimum: 0 },
+    payment_method: {
+      type: "string",
+      enum: ["CASH", "CARD", "UPI", "CHEQUE", "BANK_TRANSFER"],
+    },
+    payment_notes: { type: "string" },
+  },
+} as const;
+
+export const opdRegistrationCompleteBodySchema = {
+  type: "object" as const,
+  required: ["patient"],
+  additionalProperties: false,
+  properties: {
+    patient: demographicsSchema,
+    permanent_address: visitRegistrationAddressSchema,
+    billing: opdRegistrationBillingSchema,
     ...visitEncounterFields,
   },
 } as const;

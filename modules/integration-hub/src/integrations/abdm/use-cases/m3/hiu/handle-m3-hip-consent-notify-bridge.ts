@@ -4,6 +4,7 @@ import type { OnConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
+import { filterConsentCareContexts } from "../../../lib/filter-consent-care-contexts.js";
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
@@ -13,6 +14,9 @@ import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 /**
  * When HIU and HIP share one bridge URL, CM may send M3 patient approval to
  * `/consent/request/hip/notify` with `consentDetail.hip` but no `hiu`.
+ *
+ * PHR user-initiated consent has no prior `abdm_m3_consent_requests` row — bridge
+ * returns false and {@link handleConsentNotifyCallback} handles it (LIMS parity).
  */
 export async function handleM3HipConsentNotifyBridge(
   input: AbdmTenantInput<ConsentNotifyRequest & { inboundRequestId: string }>,
@@ -30,15 +34,13 @@ export async function handleM3HipConsentNotifyBridge(
   const consentId = notification.consentId?.trim();
   if (!patientAbha || !hipId || !consentId || !detail) return false;
 
-  // Classic M2 HIP notify includes both roles.
+  // Classic M2 HIP notify includes both roles — defer to M2 consent handler.
   if (detail.hiu?.id) return false;
 
   const active = await deps.m3ConsentRequests.listActive(input.iqTenantId);
   const forPatient = active
     .filter((r) => r.patientAbhaAddress === patientAbha)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-  // TODO(multi-consent): prefer consentRequestId from notify when CM provides it;
-  // today we pick newest active row for patient+HIP — ambiguous with parallel requests.
   const row =
     forPatient.find((r) => r.hipId === hipId || r.hipId == null) ?? forPatient[0];
   if (!row) return false;
@@ -48,7 +50,6 @@ export async function handleM3HipConsentNotifyBridge(
     signature: notification.signature,
     consentId,
   });
-
   if (!signatureValid) {
     await deps.sessions.patch({
       iqTenantId: input.iqTenantId,
@@ -70,19 +71,39 @@ export async function handleM3HipConsentNotifyBridge(
     return true;
   }
 
+  const linkSession = await deps.sessions.findLatestLinkedUserLinkByAbhaAddress({
+    iqTenantId: input.iqTenantId,
+    abhaAddress: patientAbha,
+  });
+  const linkCtx = linkSession?.context as { patientId?: string } | undefined;
+
   let patientId: string;
   try {
     patientId = await resolveConsentPatientId({
       iqTenantId: input.iqTenantId,
       abhaAddress: patientAbha,
       empi: deps.empi,
+      registration: deps.registration,
+      careContexts: detail.careContexts,
+      userLinkPatientId: linkCtx?.patientId,
     });
   } catch {
     patientId = "00000000-0000-0000-0000-000000000099";
   }
 
   const hiTypes = Array.isArray(detail.hiTypes) ? detail.hiTypes : row.hiTypes;
-  const careContexts = Array.isArray(detail.careContexts) ? detail.careContexts : [];
+  const filteredCareContexts = filterConsentCareContexts({
+    hiTypes,
+    careContexts: detail.careContexts,
+  });
+  const persistedConsentDetail = {
+    ...detail,
+    careContexts: filteredCareContexts,
+  };
+  const persistedNotification = {
+    ...notification,
+    consentDetail: persistedConsentDetail,
+  };
 
   await deps.m3ConsentArtefactsHiu.upsert({
     iqTenantId: input.iqTenantId,
@@ -94,10 +115,14 @@ export async function handleM3HipConsentNotifyBridge(
     dataEraseAt: new Date(detail.permission.dataEraseAt),
     grantedAt: new Date(detail.createdAt),
     hiTypes,
-    careContexts,
-    artefactJson: { consentDetail: detail, signature: notification.signature },
+    careContexts: filteredCareContexts,
+    artefactJson: {
+      consentDetail: persistedConsentDetail,
+      signature: notification.signature,
+    },
     signature: notification.signature,
     signatureValid,
+    receivedAt: new Date(),
   });
 
   await deps.consentArtefacts.upsert({
@@ -109,7 +134,7 @@ export async function handleM3HipConsentNotifyBridge(
     status: "GRANTED",
     dataEraseAt: new Date(detail.permission.dataEraseAt),
     grantedAt: new Date(detail.createdAt),
-    artefactJson: notification as unknown as Record<string, unknown>,
+    artefactJson: persistedNotification as unknown as Record<string, unknown>,
     signature: notification.signature,
     signatureValid,
   });
@@ -127,7 +152,6 @@ export async function handleM3HipConsentNotifyBridge(
       fetchedArtefactIds: artefactIds,
     } satisfies Partial<M3HiuContext>,
   });
-
   await deps.m3ConsentRequests.patch({
     iqTenantId: input.iqTenantId,
     consentRequestId: row.consentRequestId,
@@ -136,7 +160,6 @@ export async function handleM3HipConsentNotifyBridge(
   });
 
   await sendHipOnNotifyAck(input, deps);
-
   if (deps.eventBus) {
     await deps.eventBus.publish(
       createConsentGrantedEnvelope(input.iqTenantId, {
@@ -184,13 +207,11 @@ async function handleM3HipConsentRevoked(
       error: { code: "REVOKED", message: "Consent revoked by patient" },
     },
   });
-
   await deps.m3ConsentRequests.patch({
     iqTenantId: input.iqTenantId,
     consentRequestId: row.consentRequestId,
     state: M3Hiu.CONSENT_DENIED,
   });
-
   await sendHipOnNotifyAck(input, deps);
   return true;
 }

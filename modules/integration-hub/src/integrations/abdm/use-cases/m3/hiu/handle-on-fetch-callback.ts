@@ -6,7 +6,9 @@ import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
+import { ensureDataRequestForConsent } from "./start-data-request.js";
 import type { M3HiuContext } from "./context.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 export async function handleOnFetchCallback(
   input: AbdmTenantInput<OnConsentFetchCallback & { inboundRequestId: string }>,
@@ -58,6 +60,7 @@ export async function handleOnFetchCallback(
       iqTenantId: input.iqTenantId,
       abhaAddress,
       empi: deps.empi,
+      registration: deps.registration,
     });
   } catch {
     patientId = "00000000-0000-0000-0000-000000000099";
@@ -134,6 +137,20 @@ export async function handleOnFetchCallback(
           dataEraseAt: detail.permission.dataEraseAt,
         }),
       );
+    }
+  }
+
+  if (input.consent.status === "GRANTED") {
+    try {
+      await ensureDataRequestForConsent(
+        { iqTenantId: input.iqTenantId, consentId },
+        deps,
+      );
+    } catch (e) {
+      abdmWarn("abdm.m3.hiu_auto_data_request_failed", {
+        consentId,
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
   }
 }

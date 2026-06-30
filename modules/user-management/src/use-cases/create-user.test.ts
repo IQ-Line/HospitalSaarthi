@@ -63,7 +63,7 @@ describe("createUser", () => {
           actorId: "a1",
           correlationId: "c1",
         },
-        { full_name: 123, email: "bad@example.com", password: "password123" } as unknown as CreateUserInput,
+        { full_name: 123, email: "bad@example.com", username: "baduser", password: "password123" } as unknown as CreateUserInput,
       ),
     ).rejects.toMatchObject({ issue: "full_name_invalid_type" });
   });
@@ -80,7 +80,7 @@ describe("createUser", () => {
           actorId: "a1",
           correlationId: "c1",
         },
-        { full_name: "   ", email: "blank@example.com", password: "password123" },
+        { full_name: "   ", email: "blank@example.com", username: "blankuser", password: "password123" },
       ),
     ).rejects.toMatchObject({ issue: "full_name_empty" });
   });
@@ -91,7 +91,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-          capability_key: "users:users:create",
+          capability_key: "user-management:users:create",
           module: "user-management",
           feature: "users",
           action: "create",
@@ -103,7 +103,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-          capability_key: "users:users:read",
+          capability_key: "user-management:users:read",
           module: "user-management",
           feature: "users",
           action: "read",
@@ -115,7 +115,7 @@ describe("createUser", () => {
       {
         capability: {
           id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
-          capability_key: "user-roles:role:assign",
+          capability_key: "user-management:roles:assign",
           module: "user-management",
           feature: "roles",
           action: "assign",
@@ -197,6 +197,7 @@ describe("createUser", () => {
       {
         full_name: "New User",
         email: "new.user@example.com",
+        username: "newuser",
         password: "password123",
         capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d610"],
         role_template_ids: [
@@ -212,6 +213,7 @@ describe("createUser", () => {
         tenantId: "tenant-a",
         email: "new.user@example.com",
         password: "password123",
+        username: "newuser",
       }),
     );
     expect(created.auth_user_id).toBe(created.id);
@@ -248,7 +250,7 @@ describe("createUser", () => {
   it("applies only selected role capabilities when role_template_capability_ids is set", async () => {
     const capCreate: Capability = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-      capability_key: "users:users:create",
+      capability_key: "user-management:users:create",
       module: "user-management",
       feature: "users",
       action: "create",
@@ -258,7 +260,7 @@ describe("createUser", () => {
     };
     const capRead: Capability = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-      capability_key: "users:users:read",
+      capability_key: "user-management:users:read",
       module: "user-management",
       feature: "users",
       action: "read",
@@ -323,6 +325,7 @@ describe("createUser", () => {
       {
         full_name: "Subset User",
         email: "subset.user@example.com",
+        username: "subsetuser",
         password: "password123",
         role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d621"],
         role_template_capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d611"],
@@ -344,7 +347,7 @@ describe("createUser", () => {
       {
         capability: {
           id: capId,
-          capability_key: "users:users:create",
+          capability_key: "user-management:users:create",
           module: "user-management",
           feature: "users",
           action: "create",
@@ -378,6 +381,7 @@ describe("createUser", () => {
         {
           full_name: "X",
           email: "x@example.com",
+          username: "xuser",
           password: "password123",
           capability_ids: [capId],
         },
@@ -411,6 +415,7 @@ describe("createUser", () => {
       createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
         full_name: "Rollback User",
         email: "rollback@example.com",
+        username: "rollbackuser",
         password: "password123",
       }),
     ).rejects.toBeInstanceOf(UnexpectedPersistenceError);
@@ -466,6 +471,7 @@ describe("createUser", () => {
       createUser(deps, { tenantId: "tenant-a", actorId: "a1", correlationId: "c1" }, {
         full_name: "Role Fail",
         email: "role.fail@example.com",
+        username: "rolefailuser",
         password: "password123",
         role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d631"],
       }),

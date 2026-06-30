@@ -35,7 +35,7 @@ const CAP_UM_ROW: Capability = {
 
   id: CAP_UM,
 
-  capability_key: "users:users:read",
+  capability_key: "user-management:users:read",
 
   module: "user-management",
 

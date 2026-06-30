@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { Columns3 } from 'lucide-react';
 import {
   flexRender,
@@ -73,6 +73,11 @@ interface DataTableProps<TData> {
     onPageChange: (pageIndex: number) => void;
     onPageSizeChange: (pageSize: number) => void;
   };
+  /** When set, renders a full-width row immediately below the matching data row. */
+  renderSubRow?: (row: TData) => React.ReactNode;
+  /** Row id used with renderSubRow (e.g. sessionId). */
+  expandedRowId?: string | null;
+  getRowId?: (row: TData) => string;
 }
 
 function readColumnMeta(meta: unknown): DataTableColumnMeta {
@@ -90,6 +95,9 @@ export function DataTable<TData>({
   manualPagination,
   tableClassName,
   className,
+  renderSubRow,
+  expandedRowId,
+  getRowId,
 }: DataTableProps<TData>) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const paginationState: PaginationState | undefined = manualPagination
@@ -210,29 +218,42 @@ export function DataTable<TData>({
           ))}
         </TableHeader>
         <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              className={onRowClick ? 'cursor-pointer' : undefined}
-              onClick={
-                onRowClick
-                  ? (event) => {
-                      if (isInteractiveTableRowTarget(event.target)) return;
-                      onRowClick(row.original);
-                    }
-                  : undefined
-              }
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell
-                  key={cell.id}
-                  className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
+          {table.getRowModel().rows.map((row) => {
+            const rowKey = getRowId?.(row.original) ?? row.id;
+            const isExpanded = Boolean(renderSubRow && expandedRowId === rowKey);
+            return (
+              <Fragment key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={onRowClick ? 'cursor-pointer' : undefined}
+                  onClick={
+                    onRowClick
+                      ? (event) => {
+                          if (isInteractiveTableRowTarget(event.target)) return;
+                          onRowClick(row.original);
+                        }
+                      : undefined
+                  }
                 >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))}
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+                {isExpanded ? (
+                  <TableRow key={`${row.id}-expanded`} className="hover:bg-transparent">
+                    <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+                      {renderSubRow(row.original)}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
+            );
+          })}
         </TableBody>
       </Table>
       {manualPagination ? (

@@ -17,6 +17,7 @@ export {
 } from "./lib/configurator-http-integration-profile-repo.js";
 export {
   buildAbdmDepsForTenant,
+  buildDeploymentGatewayClient,
   mapConfiguratorProfileRow,
   type IntegrationHubSharedInfra,
   type IntegrationHubDeploymentConfig,
@@ -24,6 +25,7 @@ export {
 export { getAbdmDeps } from "./lib/get-abdm-deps.js";
 export {
   integrationContextResolver,
+  registerPlatformRoutesWithIntegrationContext,
   IntegrationTenantRequiredError,
 } from "./lib/integration-context-resolver.js";
 export {
@@ -56,7 +58,6 @@ export type {
 export type {
   AbdmSessionsPort,
   GatewayClient,
-  FideliusEncryptor,
   SecretsClient,
   AbdmAdapterDeps,
   AbdmGatewayRouteTarget,
@@ -94,11 +95,16 @@ export {
   createFideliusEncryptorFromEnv,
 } from "./integrations/abdm/data-access/fidelius.js";
 export { DrizzleLinkOtpsRepo } from "./integrations/abdm/data-access/abdm-link-otps.repo.js";
+export { DrizzleCareContextLinkStateRepo } from "./integrations/abdm/data-access/abdm-care-context-link-state.repo.js";
 export { createPayloadEncryptorFromEnv } from "./integrations/abdm/lib/payload-encryptor.js";
 export {
   registerM2CallbackRoutes,
   registerM2PlatformRoutes,
 } from "./integrations/abdm/rest-handlers/m2/index.js";
+export {
+  registerScanShareCallbackRoutes,
+  registerScanShareRoutes,
+} from "./integrations/abdm/rest-handlers/scan-share.js";
 export {
   registerM3CallbackRoutes,
   registerM3PlatformRoutes,
@@ -124,7 +130,7 @@ export {
   TwilioSmsClient,
 } from "./integrations/abdm/data-access/sms-client.js";
 export { EmpiClientError } from "./integrations/abdm/lib/empi-client-error.js";
-export { AbdmGatewayError, parseNhaErrorBody } from "./integrations/abdm/lib/gateway-errors.js";
+export { AbdmGatewayError, asAbdmGatewayError, formatNhaUpstreamMessage, parseNhaErrorBody } from "./integrations/abdm/lib/gateway-errors.js";
 export { AbdmUseCaseError } from "./integrations/abdm/lib/m1-errors.js";
 export {
   requireCallbackSecurityInProd,
@@ -142,3 +148,4 @@ export {
   type ResolvedCallbackTenant,
 } from "./integrations/abdm/lib/resolve-callback-tenant.js";
 export type { BuildAbdmDepsOptions } from "./lib/build-abdm-deps.js";
+export { INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, INTEGRATION_HUB_BRIDGE_DISCOVERY_PATHS, isBridgeDiscoveryPath } from "./lib/integration-hub-identity-skip-paths.js";

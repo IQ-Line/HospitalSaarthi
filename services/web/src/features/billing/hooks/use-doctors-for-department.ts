@@ -32,7 +32,10 @@ export function useDoctorsForDepartment(
     { enabled, iqTenantId: options?.iqTenantId },
   );
 
-  const providers = useProviderList(options?.iqTenantId, { enabled });
+  const providers = useProviderList(options?.iqTenantId, {
+    enabled,
+    department_id: departmentId ?? undefined,
+  });
 
   const doctorOptions = useMemo((): DoctorOption[] => {
     if (!departmentId) return [];

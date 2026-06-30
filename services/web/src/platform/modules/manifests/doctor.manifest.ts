@@ -25,5 +25,12 @@ export const doctorModuleManifest: ModuleManifest = {
       route: '/historical-records',
       catalogModuleSlug: 'opd',
     },
+    {
+      id: 'doctor-abha-consent-list',
+      label: 'ABHA Consent List',
+      icon: 'shield-check',
+      route: '/abha-consent-list',
+      catalogModuleSlug: 'opd',
+    },
   ],
 };

@@ -64,6 +64,12 @@ export interface AbdmSessionsPort {
     flowKind: AbdmSession["flowKind"];
     requestId: string;
   }): Promise<AbdmSession | null>;
+
+  /** Latest completed user-initiated link for ABHA (PHR consent notify correlation). */
+  findLatestLinkedUserLinkByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<AbdmSession | null>;
 }
 
 export interface InboundMessagesPort {
@@ -130,8 +136,24 @@ export interface CareContextRef {
   hiType?: string;
 }
 
+/** Tracks care contexts already linked to an ABHA in the CM (ABDM protocol state). */
+export interface CareContextLinkStatePort {
+  listLinkedReferences(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<ReadonlySet<string>>;
+
+  markLinked(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+    careContextReferences: string[];
+  }): Promise<void>;
+}
+
 export interface SmsClient {
   sendOtp(input: { phoneNo: string; message: string }): Promise<void>;
+  /** MSG91 — verify OTP entered in PHR against provider (LIMS `smsOtp.verifyOtp`). */
+  verifyOtp?(input: { phoneNo: string; otp: string }): Promise<boolean>;
 }
 
 export interface LinkOtpStorePort {
@@ -155,8 +177,16 @@ export interface EmpiClient {
   }): Promise<{ patientId: string; demographics: Record<string, unknown> } | null>;
   findPatientByDemographics(input: {
     iqTenantId: string;
-    identifiers: Array<{ type: string; value: string }>;
+    identifiers?: Array<{ type: string; value: string }>;
+    first_name?: string;
+    gender?: string;
+    phone_number?: string;
+    year_of_birth?: number;
   }): Promise<{ patientId: string; score: number } | null>;
+  findPatientByAbhaNumber(input: {
+    iqTenantId: string;
+    abhaNumber: string;
+  }): Promise<{ patientId: string } | null>;
   /** Resolve ABHA address for add-contexts / SMS after internal patient id. */
   findAbhaAddressByPatientId(input: {
     iqTenantId: string;
@@ -184,6 +214,14 @@ export interface RegistrationClient {
     iqTenantId: string;
     patientId: string;
   }): Promise<M2PatientProfile | null>;
+  findPatientIdByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null>;
+  findAllPatientIdsByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string[]>;
 }
 
 export interface HealthRecordBundleEntry {
@@ -193,28 +231,14 @@ export interface HealthRecordBundleEntry {
 }
 
 export interface RecordFoundationClient {
-  /** Project care contexts for PHR discover when RF is not deployed (OPD orchestration path). */
-  registerUnlinkedCareContexts(input: {
-    iqTenantId: string;
-    patientId: string;
-    contexts: Array<{ referenceNumber: string; display: string; hiType: string }>;
-  }): Promise<void>;
-  listUnlinkedCareContexts(input: {
+  listCareContexts(input: {
     iqTenantId: string;
     patientId: string;
   }): Promise<CareContextRef[]>;
-  markCareContextLinked(input: {
+
+  listBundles(input: {
     iqTenantId: string;
     careContextId: string;
-  }): Promise<void>;
-  /** Bundles to encrypt and push under consent (M3 §6.3.5). */
-  fetchBundlesForConsent(input: {
-    iqTenantId: string;
-    patientId: string;
-    consentId: string;
-    dateRange?: { from: string; to: string };
-    /** When set, bundle `careContextReference` must match consent (PHR ABDM-7727). */
-    careContextReferences?: string[];
   }): Promise<HealthRecordBundleEntry[]>;
 }
 
@@ -386,6 +410,17 @@ export interface M3ConsentRequestsPort {
     contextMerge?: Record<string, unknown>;
   }): Promise<void>;
   listActive(iqTenantId: string): Promise<M3ConsentRequestRow[]>;
+  searchForTenant(input: {
+    iqTenantId: string;
+    name?: string;
+    from?: Date;
+    to?: Date;
+    drName?: string;
+    hiTypes?: string[];
+    status?: string;
+    page: number;
+    limit: number;
+  }): Promise<{ rows: M3ConsentRequestRow[]; totalCount: number }>;
   /** Expire stale `AWAITING_PATIENT_APPROVAL` rows past consent TTL. */
   janitor(): Promise<number>;
 }
@@ -455,6 +490,11 @@ export interface M3DataTransfersPort {
     iqTenantId: string,
     consentId: string,
   ): Promise<M3DataTransferRow | null>;
+  /** Latest transfer row for a consent artefact (any terminal or in-flight state). */
+  findLatestByConsentId(
+    iqTenantId: string,
+    consentId: string,
+  ): Promise<M3DataTransferRow | null>;
   patch(input: {
     iqTenantId: string;
     transferId: string;
@@ -503,6 +543,7 @@ export interface AbdmAdapterDeps {
   empi: EmpiClient;
   registration: RegistrationClient;
   recordFoundation: RecordFoundationClient;
+  careContextLinkState: CareContextLinkStatePort;
   dataPush?: HipDataPushClient;
   payloadEncryptor: PayloadEncryptor;
   eventBus?: EventBus;

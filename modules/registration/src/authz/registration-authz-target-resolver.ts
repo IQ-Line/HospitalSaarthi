@@ -96,6 +96,10 @@ export function createRegistrationAuthzTargetResolver(): AuthzTargetResolver {
       return readTarget(req, "new", "registration.create");
     }
 
+    if (method === "POST" && path === "/workflows/opd-registrations/complete") {
+      return readTarget(req, "opd-complete", "registration.create");
+    }
+
     if (method === "POST" && path === "/workflows/existing-patient/registrations") {
       return readTarget(req, "new-visit", "registration.create");
     }
