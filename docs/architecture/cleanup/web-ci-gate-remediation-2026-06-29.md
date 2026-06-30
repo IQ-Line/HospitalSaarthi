@@ -1,6 +1,6 @@
 # services/web CI-gate remediation plan (#50)
 
-**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind well advanced — **committed-state down to 85 errors** (from 282); foundation + RHF + type-only tail + null-safety + zustand + enum/module-resolution clusters all landed. Lint half + gate-wiring not started.
+**Date:** 2026-06-29 (updated 2026-06-30) · **Branch:** `dev--improved-v1` · **Status:** typecheck grind **down to 22 committed-state errors** (from 282) — and **all 22 remaining are the user-checkpoint / HIGH-risk tier** (every autonomously-safe error is cleared). Lint half + gate-wiring not started. **#50 cannot complete without user decisions on the 22** (then lint, then wire the targets).
 
 ## Progress log (committed-state typecheck count; CI-visible, excludes the 2 untracked not-ours web files = 5 errs)
 
@@ -13,15 +13,23 @@
 | 4fa5b519 | noUncheckedIndexedAccess guards + null-safety (10 files) | 136 → 102 |
 | 5ad4e147 | zustand devtools/persist slice mutators (tenant always-persist + noop storage) | 102 → 91 |
 | 838ec513 | enum-membership Set<string> + module-resolution specifiers | 91 → 85 |
+| 2e50f249 | test fixtures conformed to real production types (7 files) | 85 → 56 |
+| bb7a5865 | OPD clinical payload concrete element types (opd-prescription-types.ts; mapper untouched) | 56 → 41 |
+| 3dbb5346 | visitpad catalog option helpers (param widen + dead default) | 41 → 37 |
+| 3f788312 | router search keys at navigate/redirect sites (5 files) | 37 → 30 |
+| cf75b851 | misc component/lib (validation generics, fragment return, pincode string-widen, drop dead `modal`, fee-line tax_percent) | 30 → 24 |
+| 19c9cd08 | boundary residuals (ModuleCatalogEntry.category→ModuleCategory; auth scope type-guard predicate) | 24 → 22 |
 
-**Remaining 85 (committed-state), by tier:**
-- OPD prescription mapper ~15 (opd-prescription-mapper.ts 11 + its test 4) — verify element shapes vs `opd.v1.yaml` + backend mapper.
-- test-fixtures ~29 (navigation-manifest 14, wizard-module-tree 7, queries 4, + 4 singletons) — fix fixtures to match real production types; **never weaken assertions**.
-- route-search/navigate typing ~7 (user-management/index, all-tenants, roles, user-list-table, configurator/tenant.index).
-- edit-user-dialog RHF ~4 (same zodResolver input≠output drift as the catalog forms; apply the proven recipe).
-- misc low ~12 (visitpad-validation, visitpad-catalog-options, configurator wizard files, billing form-fields, providers select, etc.).
-- judgment residuals ~2 (module-product-access L23 string→ModuleCategory boundary coercion; authorization-context L161).
-- **HIGH-risk (user checkpoint, ~18):** create-user-form org_id (8), role-management-sections capability tree (7), visitpad-global-import-payloads coercion (3).
+**Method note (2026-06-30):** the autonomous-safe clusters were diagnosed + adversarially verified by a `Workflow` fan-out (read-only `Explore` agents, diagnose→refute pipeline). The adversarial pass earned its keep: it **rejected** an OPD mapper edit that smuggled a clinical-`certainty` runtime change under a fabricated compile-error justification (applied only the 5 honest type narrowings). My own tsc gate then **reverted** the proposed pincode `setValue` retype (broke caller assignability). Lesson: subagent type-fixes must pass both adversarial review AND a real tsc/vitest gate before landing.
+
+**Remaining 22 (committed-state) — ALL user-checkpoint / HIGH-risk:**
+- `create-user-form.tsx` (8) — RHF input≠output **plus** the `org_id` payload change (currently always `undefined`; fix would carry `configuratorOrgId` for super-admins → may be a latent functional bug the type surfaces — **decide intentionally**). Split the RHF part from the payload-semantics part.
+- `role-management-sections.tsx` (7) — `MutableCapabilityTreeBranch` (Map children) vs render-time `CapabilityTreeNode` (array children + discriminant). Reconcile at the boundary; **must preserve exact branch/leaf grouping** (verify rendered tree unchanged).
+- doctor-tariff cluster (5): `edit-user-dialog.tsx` (4) + `create-user-doctor-departments.tsx` (1). The schema's `doctor_tariffs: z.array(...).default([])` makes the INPUT type's `doctor_tariffs` optional, which fails the shared `DoctorTariffFieldValues` constraint (required). Entangled with create-user-form. Decide the schema shape.
+- `visitpad-global-import-payloads.ts` (1) — adds `safeParse` numeric coercion + throw-on-invalid (real runtime change).
+- `tenant-detail-panels.tsx` (1) — **product decision**: RoleEditorDialog never declared `onDelete?/deletePending?` though the tenant connector fully wires role-delete. Option A (recommended): add the optional props + render a destructive Delete (edit mode) → restores the feature, adds a button (runtime change). Option B: strip the delete wiring from the connector → regresses the feature + cascades unused-locals. **Pick A or B.**
+
+After these 22 → 0: do the **lint half (160 errors)** then **wire the `typecheck`+`lint` nx targets**.
 
 ## Why
 
