@@ -26,6 +26,7 @@ import { TenantMismatchError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
 import {
   assertTenantHeaderAllowedForPrincipal,
+  isPlatformSuperAdminRequest,
   resolveEffectiveTenantId,
 } from "./http/resolve-effective-tenant-id.js";
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
@@ -205,6 +206,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   registerRoleHandlers(fastify, {
     getTenantId,
     getActorId,
+    getCanManageSystemFlag: isPlatformSuperAdminRequest,
     listCapabilitiesDeps: { capabilityRepository },
     listAssignableRuntimeCapabilitiesDeps: {
       capabilityRepository,

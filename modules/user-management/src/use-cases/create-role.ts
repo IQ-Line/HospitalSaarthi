@@ -14,6 +14,14 @@ export type CreateRoleContext = {
   tenantId: string;
   actorId: string;
   correlationId: string;
+  /**
+   * Whether the caller may set the platform-controlled `is_system` flag. Only the
+   * platform super-admin (operator) may — tenant onboarding creates the tenant-admin
+   * system role as super-admin. Any other caller's `is_system` is ignored (forced false),
+   * so a tenant cannot self-mint a system role. Resolved from the verified principal at
+   * the HTTP edge; never trusted from the request body.
+   */
+  canManageSystemFlag: boolean;
 };
 
 export async function createRole(
@@ -41,5 +49,9 @@ export async function createRole(
     code,
     role_type,
     display_name: input.display_name.trim(),
+    // `is_system` is platform-controlled: honor it only for a platform super-admin; every
+    // other caller's value is discarded and the role is created non-system. (Placed after
+    // the spread so it overrides any body-supplied `is_system`.)
+    is_system: _ctx.canManageSystemFlag ? (input.is_system ?? false) : false,
   });
 }

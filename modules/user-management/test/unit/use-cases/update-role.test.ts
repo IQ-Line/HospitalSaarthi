@@ -27,7 +27,7 @@ describe("updateRole", () => {
   it("blocks renaming a role TO the reserved platform super-admin code", async () => {
     const { roleRepository, roleId } = seedRole();
     await expect(
-      updateRole({ roleRepository }, TENANT, roleId, { code: "super-admin" }),
+      updateRole({ roleRepository }, TENANT, roleId, { code: "super-admin" }, false),
     ).rejects.toMatchObject({ issue: "role_code_reserved", code: "ROLE_CODE_RESERVED" });
 
     // the existing role was NOT mutated by the rejected rename
@@ -39,21 +39,27 @@ describe("updateRole", () => {
     const { roleRepository, roleId } = seedRole();
     for (const code of [" Super-Admin ", "SUPER-ADMIN"]) {
       await expect(
-        updateRole({ roleRepository }, TENANT, roleId, { code }),
+        updateRole({ roleRepository }, TENANT, roleId, { code }, false),
       ).rejects.toMatchObject({ issue: "role_code_reserved" });
     }
   });
 
   it("allows renaming to a non-reserved code", async () => {
     const { roleRepository, roleId } = seedRole();
-    const updated = await updateRole({ roleRepository }, TENANT, roleId, { code: "tenant-admin" });
+    const updated = await updateRole(
+      { roleRepository },
+      TENANT,
+      roleId,
+      { code: "tenant-admin" },
+      false,
+    );
     expect(updated?.code).toBe("tenant-admin");
   });
 
   it("blocks changing a role's role_type TO the reserved platform code (the second bypass axis)", async () => {
     const { roleRepository, roleId } = seedRole();
     await expect(
-      updateRole({ roleRepository }, TENANT, roleId, { role_type: "super-admin" }),
+      updateRole({ roleRepository }, TENANT, roleId, { role_type: "super-admin" }, false),
     ).rejects.toMatchObject({ issue: "role_type_reserved", code: "ROLE_TYPE_RESERVED" });
     const after = await roleRepository.getRoleById(TENANT, roleId);
     expect(after?.role_type).toBe("staff");
@@ -61,10 +67,42 @@ describe("updateRole", () => {
 
   it("allows updating other fields without touching the (already non-reserved) code", async () => {
     const { roleRepository, roleId } = seedRole();
-    const updated = await updateRole({ roleRepository }, TENANT, roleId, {
-      display_name: "Read-only Viewer",
-    });
+    const updated = await updateRole(
+      { roleRepository },
+      TENANT,
+      roleId,
+      { display_name: "Read-only Viewer" },
+      false,
+    );
     expect(updated?.display_name).toBe("Read-only Viewer");
     expect(updated?.code).toBe("viewer");
+  });
+
+  // #48 M3 — is_system is platform-controlled: a non-super-admin update cannot flip an
+  // existing role into a system role; a super-admin (platform onboarding) can.
+  it("drops a body-supplied is_system when the caller may NOT manage the system flag", async () => {
+    const { roleRepository, roleId } = seedRole();
+    const updated = await updateRole(
+      { roleRepository },
+      TENANT,
+      roleId,
+      { is_system: true },
+      false,
+    );
+    expect(updated?.is_system).toBe(false);
+    const after = await roleRepository.getRoleById(TENANT, roleId);
+    expect(after?.is_system).toBe(false);
+  });
+
+  it("applies is_system when the caller may manage the system flag", async () => {
+    const { roleRepository, roleId } = seedRole();
+    const updated = await updateRole(
+      { roleRepository },
+      TENANT,
+      roleId,
+      { is_system: true },
+      true,
+    );
+    expect(updated?.is_system).toBe(true);
   });
 });

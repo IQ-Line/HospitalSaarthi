@@ -371,7 +371,11 @@ paths:
                   nullable: true
                 is_system:
                   type: boolean
-                  description: System-managed role flag.
+                  description: >-
+                    Platform-controlled system-role flag. Honored only when the request is
+                    made by the platform super-admin (e.g. tenant onboarding creating the
+                    tenant-admin role); for any other caller it is ignored and the role is
+                    created non-system.
                 status:
                   type: string
                   enum: [active, inactive]
@@ -470,6 +474,10 @@ paths:
                   nullable: true
                 is_system:
                   type: boolean
+                  description: >-
+                    Platform-controlled system-role flag. A change is honored only when the
+                    request is made by the platform super-admin; for any other caller it is
+                    dropped and the role's system flag is left unchanged.
                 status:
                   type: string
                   enum: [active, inactive]

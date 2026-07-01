@@ -96,6 +96,17 @@ function cerbosPrincipalFromRequest(request: FastifyRequest): CerbosPrincipalRol
   return raw;
 }
 
+/**
+ * Whether the request's verified principal is the platform super-admin (operator).
+ * Reads the same JWT-role + cerbosPrincipal sources as the tenant-scope checks below,
+ * so "who may scope cross-tenant" and "who may set platform-controlled flags (e.g. a
+ * role's `is_system`)" stay in lockstep off one definition of super-admin.
+ */
+export function isPlatformSuperAdminRequest(request: FastifyRequest): boolean {
+  const requestUser = (request as FastifyRequest & { user?: unknown }).user;
+  return isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request));
+}
+
 function isApiKeyAuthenticatedRequest(request: FastifyRequest): boolean {
   const req = request as FastifyRequest & { authViaApiKey?: boolean; tenantId?: string };
   return req.authViaApiKey === true && typeof req.tenantId === "string" && req.tenantId.length > 0;
@@ -108,11 +119,10 @@ export function resolveEffectiveTenantId(request: FastifyRequest): string {
 
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
-  const requestUser = (request as FastifyRequest & { user?: unknown }).user;
   if (
     headerTenant !== undefined &&
     headerTenant !== jwtTenant &&
-    isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request))
+    isPlatformSuperAdminRequest(request)
   ) {
     return headerTenant;
   }
@@ -128,11 +138,10 @@ export function assertTenantHeaderAllowedForPrincipal(
 
   const jwtTenant = resolveJwtTenantIdFromRequest(request);
   const headerTenant = pickHeaderTenantId(request);
-  const requestUser = (request as FastifyRequest & { user?: unknown }).user;
   if (headerTenant === undefined || headerTenant === jwtTenant) {
     return { ok: true };
   }
-  if (isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request))) {
+  if (isPlatformSuperAdminRequest(request)) {
     return { ok: true };
   }
   return { ok: false, jwtTenant, headerTenant };

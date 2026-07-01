@@ -8,7 +8,13 @@ function makeDeps(roleRepository = new InMemoryRoleRepository()) {
   return { roleRepository, eventBus: new InProcessEventBus() };
 }
 
-const ctx = { tenantId: "tenant-a", actorId: "actor-1", correlationId: "c1" };
+const ctx = {
+  tenantId: "tenant-a",
+  actorId: "actor-1",
+  correlationId: "c1",
+  canManageSystemFlag: false,
+};
+const superAdminCtx = { ...ctx, canManageSystemFlag: true };
 
 describe("createRole", () => {
   it("allows multiple roles with the same role_type and different codes", async () => {
@@ -81,5 +87,47 @@ describe("createRole", () => {
       display_name: "ER Doctor",
     });
     expect(role.role_type).toBe("doctor");
+  });
+
+  // #48 M3 — is_system is a platform-controlled flag: a tenant caller cannot self-mint a
+  // system role by sending `is_system: true` in the request body.
+  it("forces is_system=false when the caller may NOT manage the system flag, even if the body sets it true", async () => {
+    const deps = makeDeps();
+    const role = await createRole(deps, ctx, {
+      code: "escalated",
+      role_type: "admin",
+      display_name: "Escalation Attempt",
+      is_system: true,
+    });
+    expect(role.is_system).toBe(false);
+    const persisted = await deps.roleRepository.listRoles("tenant-a");
+    expect(persisted[0]?.is_system).toBe(false);
+  });
+
+  it("honors is_system=true only for a caller that may manage the system flag (platform onboarding)", async () => {
+    const deps = makeDeps();
+    const role = await createRole(deps, superAdminCtx, {
+      code: "tenant-admin",
+      role_type: "tenant-admin",
+      display_name: "Tenant Administrator",
+      is_system: true,
+    });
+    expect(role.is_system).toBe(true);
+  });
+
+  it("defaults is_system=false when omitted, regardless of the flag", async () => {
+    const deps = makeDeps();
+    const tenantRole = await createRole(deps, ctx, {
+      code: "nurse",
+      role_type: "nurse",
+      display_name: "Nurse",
+    });
+    const adminRole = await createRole(deps, superAdminCtx, {
+      code: "clerk",
+      role_type: "clerk",
+      display_name: "Clerk",
+    });
+    expect(tenantRole.is_system).toBe(false);
+    expect(adminRole.is_system).toBe(false);
   });
 });

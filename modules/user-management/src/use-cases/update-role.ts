@@ -37,6 +37,13 @@ export async function updateRole(
   tenantId: string,
   roleId: string,
   input: UpdateRoleInput,
+  /**
+   * Whether the caller may change the platform-controlled `is_system` flag. Only the
+   * platform super-admin (operator) may; any other caller's `is_system` is dropped so a
+   * tenant cannot flip an existing role into a system role. Resolved from the verified
+   * principal at the HTTP edge; never trusted from the request body. Mirrors {@link createRole}.
+   */
+  canManageSystemFlag: boolean,
 ): Promise<Role | null> {
   if (input.code !== undefined) {
     input = { ...input, code: validateUpdatedCode(input.code) };
@@ -46,6 +53,10 @@ export async function updateRole(
   }
   if (input.display_name !== undefined) {
     input = { ...input, display_name: validateUpdatedDisplayName(input.display_name) };
+  }
+  if (!canManageSystemFlag) {
+    // Discard any body-supplied `is_system`; the repo skips `undefined` patch fields.
+    input = { ...input, is_system: undefined };
   }
   return deps.roleRepository.updateRole(tenantId, roleId, input);
 }

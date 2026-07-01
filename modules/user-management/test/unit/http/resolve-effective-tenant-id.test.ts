@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FastifyRequest } from "fastify";
 import {
   assertTenantHeaderAllowedForPrincipal,
+  isPlatformSuperAdminRequest,
   resolveEffectiveTenantId,
 } from "../../../src/http/resolve-effective-tenant-id.js";
 
@@ -77,5 +78,34 @@ describe("resolveEffectiveTenantId", () => {
     request.headers["iq_tenant_id"] = "tenant-other";
     expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
+  });
+});
+
+describe("isPlatformSuperAdminRequest", () => {
+  it("is true for a super-admin JWT role", () => {
+    expect(
+      isPlatformSuperAdminRequest(mockRequest({ tenantId: "t", roles: ["super-admin"] })),
+    ).toBe(true);
+  });
+
+  it("is false for an ordinary tenant principal", () => {
+    expect(
+      isPlatformSuperAdminRequest(mockRequest({ tenantId: "t", roles: ["clerk", "nurse"] })),
+    ).toBe(false);
+  });
+
+  it("is true when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
+    const request = mockRequest({ tenantId: "t", roles: [] });
+    (
+      request as { cerbosPrincipal?: { roles: string[]; attributes: { role_codes: string[] } } }
+    ).cerbosPrincipal = {
+      roles: ["__hims_authenticated__"],
+      attributes: { role_codes: ["super-admin"] },
+    };
+    expect(isPlatformSuperAdminRequest(request)).toBe(true);
+  });
+
+  it("is false when there is no principal at all", () => {
+    expect(isPlatformSuperAdminRequest({ headers: {} } as unknown as FastifyRequest)).toBe(false);
   });
 });
