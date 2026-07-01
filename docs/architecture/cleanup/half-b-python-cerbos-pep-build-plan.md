@@ -5,8 +5,9 @@
 > authorization, mirroring the TS `@hims/ts-sdk-authz` PEP. **Scope confirmed by the user 2026-07-01
 > (Option B — the full Cerbos PEP, not just close-the-bypass).**
 >
-> **Status:** planned, not started. Ground truth gathered 2026-07-01 (two read-only mapping agents +
-> Context7 for the canonical Python clients). Half A (#48-M3 `is_system`) is already done (`4eeb53cd`).
+> **Status:** Phase 0 DONE (2026-07-01) — all confirmations locked, see §8. Ground truth gathered from
+> the codebase + the installed cerbos 0.15.1 + the recovered prior scaffold. Half A (#48-M3 `is_system`)
+> is already done (`4eeb53cd`). Phase 1 (build the package) is next.
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
@@ -244,3 +245,72 @@ policy literals and the catalog stay in lockstep.
   401); confirm no internal/system caller relies on it (grep) before removing.
 - **`/auth/principal` S2S reuse** — if it can't be reused with a forwarded bearer, a narrow UM internal
   endpoint is needed (small UM addition; mirror #45's identity-skip + `x-um-internal-key`).
+
+---
+
+## 8. Phase 0 — DONE (findings, 2026-07-01)
+
+All four Phase-0 confirmations resolved against ground truth (codebase + installed cerbos 0.15.1 + the
+recovered prior scaffold). **No blockers; Phase 1 can proceed exactly as planned.**
+
+### 8.1 ⭐ Prior art EXISTS — recovered, adversarially evaluated (this reshapes Phase 1)
+`packages/py-sdk-authz` was **never abandoned-empty** — it was fully built + committed on the abandoned
+authz branches `feat/authz-level-3b` / `fix/authz-corrections` (tip `a4cf4724`), the "#135–#149 reusable
+as reference" branches. Recovered sources (`client.py 49 · dependency.py 65 · middleware.py 126 ·
+types.py 40 · test_client.py 165` + `pyproject/project.json/uv.lock`) to scratchpad and evaluated.
+
+**Verdict: reference-grade for the wire shape, but FAILS OPEN — must NOT be adopted as-is.** The reasons
+it was left "reference only":
+- 🔴 **No real JWT verification.** `middleware._decode_jwt_fallback` does `jwt.decode(token,
+  options={"verify_signature": False})` (or HS256 with a shared secret) — a direct-to-service attacker
+  forges any `sub`/`iq_tenant_id`/`roles` and it is accepted. Platform is RS256/JWKS. **This is the exact
+  #51 bypass, left wide open.**
+- 🔴 **Enrichment failure → falls back to the unsigned decode** (fail-OPEN). Our §2.3 mandates fail-CLOSED.
+- 🔴 **`require_authz` defaults `authz_enabled` to `False`** — a missing/misconfigured state silently
+  disables authz.
+- 🟠 Sync `CerbosClient` inside async handlers (blocks the loop); a fresh client per check; `_default_
+  cerbos_url` points at `:3593` (gRPC) with the HTTP client; `_auto_infer_id` path-param heuristic (no
+  explicit route→target map, no dual-scope handling); `types.py` covers only master-data kinds, and its
+  `EnrichedPrincipal` **drops `clearances` / `um_clearance_effective_tier` / `tenant_entitlement_revision`.**
+
+**What to LIFT (correct, in-house precedent):** the Cerbos wire shape in `client.py` (`Principal/Resource/
+ResourceAction/ResourceList`, the FIXED `resp.get_resource(id).is_allowed(action)` idiom), and the
+`GET /auth/principal` → principal mapping in `middleware._resolve_principal` (the prior author
+independently arrived at our §2.3 HTTP-first enrichment — strong validation). **What to REBUILD:** the
+whole security envelope — real RS256/JWKS `verify.py`, fail-CLOSED enrichment, async client, explicit
+route→target map, full attr set. Net: it's "lift ~55 lines of correct wire/mapping, rebuild the
+security-critical parts fail-closed."
+
+### 8.2 `GET /auth/principal` — reusable S2S, exact contract locked
+`modules/user-management/src/rest-handlers/auth-handlers.ts:51` — `authMode:"protected"` (forwarded bearer
+is verified by um-svc's identity plugin), returns `request.cerbosPrincipal` (no recomputation);
+`authz-target-resolver.ts:193` marks it `authSelf()` (any authenticated caller reads their OWN principal).
+**⇒ Forward the verified bearer S2S → get that caller's enriched Cerbos payload. No new internal endpoint
+needed.** Response body (`domain/types.ts:202` `Principal`): `{ id, roles[], attributes:{ iq_tenant_id,
+department|null, org_id|null, role_codes[], capabilities[], delegated_capabilities[],
+clearances:Record<string,string>, um_clearance_effective_tier:number, tenant_entitlement_revision? } }`.
+On a caller with no enrichment → 500 `CERBOS_PRINCIPAL_UNAVAILABLE` (treat as fail-closed deny).
+
+### 8.3 Async cerbos client — exact API (installed 0.15.1 = ground truth)
+`cerbos/sdk/client.py` exports `AsyncCerbosClient` (from `cerbos.sdk._async._http`, **httpx.AsyncClient**-
+backed, HTTP :3592). Usage: `async with AsyncCerbosClient(host="http://…:3592", timeout_secs=2.0,
+raise_on_error=True) as c: await c.is_allowed(action, principal, resource)` — a single-resource async
+`is_allowed(action, principal, resource) -> bool` exists (simplest PEP path); `check_resources(principal,
+resources: ResourceList) -> CheckResourcesResponse` for batch. Wire types `Principal/Resource/
+ResourceAction/ResourceList` from `cerbos.sdk.model` (unchanged). Reuse ONE client across requests
+(create at startup, `is_allowed` per request, close on shutdown) — don't churn a client per check.
+cerbos pins `0.15.1` (the branch uv.lock); opd + master-data currently depend on `fastapi/pyjwt/httpx`
+but NOT cerbos (adding it via py-sdk-authz is additive).
+
+### 8.4 CERBOS_HTTP_URL, env, gitignore
+- **CERBOS_HTTP_URL** (new Python env), default `http://localhost:3592` — a distinct HTTP var, NOT a
+  normalizer over the TS `grpc://…:3593` form (simpler, unambiguous). k8s: `http://cerbos.himsv2.svc.
+  cluster.local:3592`.
+- **Env recovered from egg-info:** deps `cerbos>=0.3.0, fastapi>=0.115, httpx>=0.27, pydantic>=2,
+  pyjwt>=2.8, starlette>=0.37`; dist `hims_sdk_authz`, import pkg `hims_authz`.
+- **gitignore:** root ignores `__pycache__/ *.pyc .venv/ .ruff_cache/` but **NOT** `*.egg-info/` or
+  `.pytest_cache/` — add a package-local `packages/py-sdk-authz/.gitignore` for those, and always stage
+  EXPLICIT source paths (never `git add packages/py-sdk-authz/`).
+- **Detritus cleaned** (Phase 0): removed the stale `egg-info/ .pytest_cache/ src+tests __pycache__/`;
+  **kept `.venv/` (cerbos 0.15.1 already installed) + `.ruff_cache/`** for fast WSL2 iteration. The dir now
+  collapses to fully-gitignored, so new sources stage cleanly.
