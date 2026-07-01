@@ -105,3 +105,67 @@ Cerbos policies wired into that service):
   those branches are superseded. (Per the isolation constraint: reference only, never mutate.)
 - **No `derivedRoles`/`exportVariables`.** Explicit ABAC is simple enough; adding them is unjustified
   abstraction today.
+
+---
+
+## Resolution — task #51 (2026-07-01)
+
+Task #51 ("per-module in-process authz — close the direct-to-service bypass") splits into two
+genuinely different halves. Ground truth re-verified 2026-07-01 (opd/master-data/configurator/BFF).
+
+### Half A — #48-M3 privileged-flag passthrough — **DONE (`4eeb53cd`)**
+
+The vector lived in **user-management** (not master-data — master-data's catalog is exemplary:
+`extra="forbid()"` Pydantic schemas, no `is_system`/`status`/`role_type` columns). UM's
+`create-role`/`update-role` spread the request body into persistence, so a tenant caller could set
+the platform-controlled `is_system` flag on its own role — inert today (`is_system` is display-only)
+but a latent escalation. Closed by gating `is_system` on the verified principal being the platform
+super-admin (`isPlatformSuperAdminRequest`, the same definition that gates cross-tenant scoping). UM
+verifies the JWT (`authMode:"protected"`), so this is real enforcement, not header-trust. Onboarding
+(super-admin, JWT forwarded through the provisioning adapter) is unaffected; every other caller gets
+`is_system` forced false. Sincere end-to-end test drives the real router. See the commit for details.
+
+### Half B — Python direct-to-service enforcement (opd, master-data) — **Phase-4; pre-prod gate**
+
+**Decision: do NOT build per-module Python PDPs now.** This is Phase-4 "Authorization rebuild" work
+(roadmap §6), and it is the correct call for cleanup, not avoidance:
+
+- **No verified principal exists downstream.** opd (`core/tenant.py`, `core/principal.py`) and
+  master-data (`api/deps.py get_catalog_scope`) read only `iq_tenant_id`/`x-tenant-id` and
+  `x-user-id` **as trusted headers** — no JWT verification, no Cerbos. The BFF edge injects **only**
+  user-id + validated tenant downstream (no role/capability/super-admin header). So a Python module
+  literally cannot authorize a request in-process without first re-implementing JWT verify +
+  capability resolution.
+- **The eventual vehicle already has a (stale) footprint.** `packages/py-sdk-authz/` is an
+  untracked, reverted scaffold (only `egg-info`/`.pyc`/`.venv` detritus survive; its `SOURCES.txt`
+  shows the intended `client.py`/`dependency.py`/`middleware.py`/`types.py` FastAPI-Cerbos shape).
+  It is **not-ours** — reference only. Building a competing PEP here would collide with that
+  initiative and duplicate the TS-side `@hims/ts-sdk-authz` at the wrong time.
+- **Ecosystem-canonical posture (what we rely on until Phase-4):** the BFF edge is the
+  authentication + tenant-scope chokepoint (D13/#47 — JWT verify, `x-user-id` forced from the
+  verified sub, tenant header asserted+canonicalized, ban cutoff). Downstream Python services trust
+  edge-injected identity — the standard *gateway authentication offloading* pattern — **provided they
+  are not reachable except through the edge.** Fine-grained per-service PDPs are the defense-in-depth
+  layer the TS modules already have and the Python modules will gain in Phase-4.
+
+**PRE-PROD GATE (owned, load-bearing — no tenant goes live until BOTH):**
+1. **Network isolation.** opd-svc + master-data-svc must be reachable **only** via the BFF edge
+   (K8s NetworkPolicy / mesh mTLS deny-by-default). Today nothing enforces this at the app layer, so
+   the network boundary IS the security boundary — it must be provably closed before go-live.
+2. **In-process identity/PDP OR documented internal-only.** Either wire the Python PEP (the
+   `py-sdk-authz` initiative + Cerbos policies), or formally ratify these services as internal-only
+   with (1) as the enforcement. Recoverable failure mode: pre-prod, no data, edge already asserts
+   tenant scope for every downstream at once (#47).
+
+### Gated follow-ups (recorded, NOT done this turn — each safe/small, out of the M3 scope)
+- **master-data dead `app/core/security.py`** — `get_current_principal_placeholder()` returns a
+  hardcoded `roles=("platform-admin",)` principal; **zero usages** (verified). A genuine footgun if
+  ever wired. Safe to delete (ruff + pytest + `create_app()` boot gate). Removing it does not close
+  the bypass — it removes dead privilege-granting code.
+- **master-data unauthenticated writes / `actor_id` always NULL** — `require_superadmin` is defined
+  (`api/auth.py`) but wired on **no** route; every write passes `actor_id=None`. Proper fix needs a
+  verified principal (Half B / Phase-4). Attribution belongs with the deferred audit middleware
+  (ADR-0024), not a header-trust guard.
+- **configurator-svc** — role-string gates (`assertPlatformSuperAdmin`, `assertTenantOnboardingAllowed`
+  org-scope) + two internal-key gates, **no Cerbos PEP**. Its identity fallback base64url-decodes the
+  JWT **without signature verification** when `ENABLE_AUTH` is off (dev only). Full PEP = Phase-4.
