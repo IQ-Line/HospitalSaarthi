@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { CheckCircle2, Clock, FileText, ShoppingCart } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, FileText, ShoppingCart } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import {
@@ -87,7 +87,7 @@ export function InventoryGrnLogsPage() {
   const [type, setType] = useState<'all' | InventoryGrnType>('all');
   const [summaryFilter, setSummaryFilter] = useState<SummaryFilter>('all');
 
-  const { data, isLoading } = useInventoryGrnLogs({
+  const { data, isLoading, isError, error, refetch } = useInventoryGrnLogs({
     search: search || undefined,
     type,
     summary_filter: summaryFilter === 'all' ? undefined : summaryFilter,
@@ -145,11 +145,15 @@ export function InventoryGrnLogsPage() {
         cell: ({ row }) =>
           row.original.status === 'Draft' ? (
             <Button type="button" variant="link" size="sm" className="h-auto p-0" asChild>
-              <Link to="/inventory/grn-logs/new">Edit</Link>
+              <Link to="/inventory/grn-logs/new" search={{ grnId: row.original.id }}>
+                Edit
+              </Link>
             </Button>
           ) : (
             <Button type="button" variant="link" size="sm" className="h-auto p-0" asChild>
-              <Link to="/inventory/grn-logs/new">View</Link>
+              <Link to="/inventory/grn-logs/new" search={{ grnId: row.original.id }}>
+                View
+              </Link>
             </Button>
           ),
       },
@@ -167,6 +171,21 @@ export function InventoryGrnLogsPage() {
         </Button>
       }
     >
+      {isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="size-4 shrink-0" aria-hidden />
+            <span>
+              Could not load GRN logs
+              {error instanceof Error && error.message ? `: ${error.message}` : '.'}
+            </span>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           title="All GRNs"

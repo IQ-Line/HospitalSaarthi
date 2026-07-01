@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { ZodError } from "zod";
 import { InventoryError } from "../errors.js";
 import type { InventoryDeps } from "../ports.js";
 import { createStore } from "../use-cases/create-store.js";
@@ -125,6 +126,15 @@ export function registerInventoryErrorHandler(app: FastifyInstance): void {
         statusCode: error.statusCode,
         error: error.code ?? "Error",
         message: error.message,
+      });
+    }
+    if (error instanceof ZodError) {
+      const first = error.issues[0];
+      return reply.status(422).send({
+        statusCode: 422,
+        error: "Validation Error",
+        message: first?.message ?? "Invalid request",
+        code: "VALIDATION_ERROR",
       });
     }
     throw error;

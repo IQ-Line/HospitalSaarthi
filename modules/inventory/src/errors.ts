@@ -39,4 +39,16 @@ export class StoreConflictError extends InventoryError {
     super(message, 409, "CONFLICT");
   }
 }
+
+export class GrnNotFoundError extends InventoryError {
+  constructor() {
+    super("GRN not found", 404, "NOT_FOUND");
+  }
+}
+
+export class GrnValidationError extends InventoryError {
+  constructor(message: string) {
+    super(message, 422, "VALIDATION_ERROR");
+  }
+}
   

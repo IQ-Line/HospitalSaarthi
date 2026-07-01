@@ -9,7 +9,6 @@ export const inventoryQueryKeys = {
   all: ['inventory'] as const,
   stores: () => [...inventoryQueryKeys.all, 'stores'] as const,
   items: () => [...inventoryQueryKeys.all, 'items'] as const,
-  manufacturers: () => [...inventoryQueryKeys.all, 'manufacturers'] as const,
   dashboard: (storeId?: string) => [...inventoryQueryKeys.all, 'dashboard', storeId] as const,
   stock: (params: InventoryListParams) => [...inventoryQueryKeys.all, 'stock', params] as const,
   stockLots: (stockId: string) => [...inventoryQueryKeys.all, 'stock-lots', stockId] as const,

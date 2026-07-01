@@ -5,7 +5,6 @@ import {
   mockFetchInventoryGrnLogs,
   mockFetchInventoryIndents,
   mockFetchInventoryItems,
-  mockFetchInventoryManufacturers,
   mockFetchInventoryReconciliation,
   mockFetchInventoryStock,
   mockFetchInventoryStockLots,
@@ -20,7 +19,6 @@ import type {
   InventoryIndentListParams,
   InventoryItemOption,
   InventoryListParams,
-  InventoryManufacturerOption,
   InventoryReconciliationRow,
   InventoryStockListData,
   InventoryStockLot,
@@ -28,12 +26,17 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
-import type { InventorySvcItemRow, InventorySvcStoreRow } from './api-types';
-import { inventorySvcGetList } from './inventory-api-client';
-import { mapInventorySvcItemRow, mapInventorySvcStoreRow } from './mappers';
+import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStoreRow } from './api-types';
+import { inventorySvcGet, inventorySvcGetList } from './inventory-api-client';
+import { mapInventorySvcGrnListResponse, mapInventorySvcItemRow, mapInventorySvcStoreRow, mapUiGrnTypeToApi } from './mappers';
 import { inventoryQueryKeys } from './query-keys';
 
 type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
+
+type QueryResultWithRefetch<T> = QueryResult<T> &
+  Pick<UseQueryResult<T>, 'isError' | 'refetch'>;
+
+const inventoryApiMode = OPERATIONAL_INVENTORY_API_ENABLED ? 'live' : 'mock';
 
 async function fetchInventoryStores(): Promise<InventoryStore[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStores();
@@ -51,12 +54,6 @@ async function fetchInventoryItems(): Promise<InventoryItemOption[]> {
     limit: 200,
   });
   return response.data.map(mapInventorySvcItemRow);
-}
-
-async function fetchInventoryManufacturers(): Promise<InventoryManufacturerOption[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryManufacturers();
-  // Manufacturers live in master-data until inventory-svc exposes an operational lookup.
-  return mockFetchInventoryManufacturers();
 }
 
 async function fetchInventoryDashboard(storeId?: string): Promise<InventoryDashboardData> {
@@ -85,7 +82,26 @@ async function fetchInventoryIndents(
 
 async function fetchInventoryGrnLogs(params: InventoryGrnListParams): Promise<InventoryGrnListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryGrnLogs(params);
-  return mockFetchInventoryGrnLogs(params);
+  const response = await inventorySvcGet<InventorySvcGrnListResponse>('/grns', {
+    search: params.search,
+    grn_type: params.type && params.type !== 'all' ? mapUiGrnTypeToApi(params.type) : undefined,
+    summary_filter:
+      params.summary_filter && params.summary_filter !== 'all' ? params.summary_filter : undefined,
+    status:
+      params.status === 'Draft' || params.status === 'draft'
+        ? 'draft'
+        : params.status === 'Submitted' || params.status === 'submitted'
+          ? 'submitted'
+          : undefined,
+  });
+  return mapInventorySvcGrnListResponse(response);
+}
+
+async function fetchInventoryGrnById(grnId: string): Promise<InventorySvcGrnDetail> {
+  const response = await inventorySvcGet<InventorySvcSingleResponse<InventorySvcGrnDetail>>(
+    `/grns/${encodeURIComponent(grnId)}`,
+  );
+  return response.data;
 }
 
 async function fetchInventoryReconciliation(): Promise<InventoryReconciliationRow[]> {
@@ -103,7 +119,7 @@ async function fetchInventoryTransfers(
 
 export function useInventoryStores(): QueryResult<InventoryStore[]> {
   const query = useQuery({
-    queryKey: inventoryQueryKeys.stores(),
+    queryKey: [...inventoryQueryKeys.stores(), inventoryApiMode],
     queryFn: fetchInventoryStores,
     staleTime: 30_000,
   });
@@ -112,17 +128,8 @@ export function useInventoryStores(): QueryResult<InventoryStore[]> {
 
 export function useInventoryItems(): QueryResult<InventoryItemOption[]> {
   const query = useQuery({
-    queryKey: inventoryQueryKeys.items(),
+    queryKey: [...inventoryQueryKeys.items(), inventoryApiMode],
     queryFn: fetchInventoryItems,
-    staleTime: 60_000,
-  });
-  return { data: query.data, isLoading: query.isPending, error: query.error };
-}
-
-export function useInventoryManufacturers(): QueryResult<InventoryManufacturerOption[]> {
-  const query = useQuery({
-    queryKey: inventoryQueryKeys.manufacturers(),
-    queryFn: fetchInventoryManufacturers,
     staleTime: 60_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
@@ -169,13 +176,23 @@ export function useInventoryIndents(
 
 export function useInventoryGrnLogs(
   params: InventoryGrnListParams = {},
-): QueryResult<InventoryGrnListData> {
+): QueryResultWithRefetch<InventoryGrnListData> {
   const query = useQuery({
     queryKey: inventoryQueryKeys.grnLogs(params),
     queryFn: () => fetchInventoryGrnLogs(params),
     staleTime: 15_000,
   });
-  return { data: query.data, isLoading: query.isPending, error: query.error };
+  return { data: query.data, isLoading: query.isPending, error: query.error, isError: query.isError, refetch: query.refetch };
+}
+
+export function useInventoryGrnDetail(grnId: string | undefined): QueryResultWithRefetch<InventorySvcGrnDetail | undefined> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.all, 'grn', grnId] as const,
+    queryFn: () => fetchInventoryGrnById(grnId!),
+    enabled: Boolean(grnId) && OPERATIONAL_INVENTORY_API_ENABLED,
+    staleTime: 15_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error, isError: query.isError, refetch: query.refetch };
 }
 
 export function useInventoryReconciliation(): QueryResult<InventoryReconciliationRow[]> {

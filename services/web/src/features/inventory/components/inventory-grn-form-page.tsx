@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Save, Send, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -12,40 +12,106 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
+import { Route } from '@/routes/_authenticated/inventory/grn-logs/new';
+import type { InventorySvcGrnDetail } from '../api/api-types';
+import {
+  useInventoryGrnCreate,
+  useInventoryGrnSubmit,
+  useInventoryGrnUpdate,
+} from '../api/mutations';
+import { useInventoryGrnDetail, useInventoryItems, useInventoryStores } from '../api/queries';
+import { useManufacturerMasterLookup } from '@/features/inventory-masters/api/manufacturer-lookup';
+import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
+import {
+  isManufacturerSelected,
+  isPlaceholderManufacturerId,
+  resolveManufacturerIdForPayload,
+} from '../lib/resolve-manufacturer-id';
 import { EMPTY_GRN_LINE } from '../mock/fixtures';
-import { useInventoryItems, useInventoryManufacturers, useInventoryStores } from '../api/queries';
 import type { InventoryGrnLineDraft, InventoryGrnType } from '../types';
 import { InventoryPanel } from './inventory-kpi-card';
 import { InventoryPageShell } from './inventory-page-shell';
 
 const GRN_TYPES: InventoryGrnType[] = ['Purchase', 'Transfer'];
 
-function generateGrnNumber() {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
-  return `GRN-${date}-${suffix}`;
+function mapApiLinesToDraft(lines: InventorySvcGrnDetail['lines']): InventoryGrnLineDraft[] {
+  if (!lines?.length) return [EMPTY_GRN_LINE()];
+  return lines.map((line) => ({
+    id: line.id,
+    item_id: line.item_id,
+    item_code: line.item?.item_code ?? '',
+    item_name: line.item?.name ?? '',
+    uom: line.base_uom || line.item?.unit_of_measure || '',
+    required_qty: null,
+    remaining_qty: null,
+    grn_qty: line.grn_qty,
+    amount: line.purchase_rate,
+    batch_no: line.lot_number,
+    expiry_date: line.expiry_date ?? '',
+    storage: line.storage_location ?? '',
+    remarks: line.line_remarks ?? '',
+  }));
 }
 
 export function InventoryGrnFormPage() {
   const navigate = useNavigate();
+  const { grnId: grnIdFromUrl } = Route.useSearch();
+  const { data: existingGrn, isLoading: isLoadingGrn } = useInventoryGrnDetail(grnIdFromUrl);
   const { data: stores = [] } = useInventoryStores();
-  const { data: manufacturers = [] } = useInventoryManufacturers();
+  const {
+    options: manufacturers,
+    isLoading: isLoadingManufacturers,
+    isError: manufacturersError,
+  } = useManufacturerMasterLookup();
   const { data: items = [] } = useInventoryItems();
+  const createGrn = useInventoryGrnCreate();
+  const updateGrn = useInventoryGrnUpdate();
+  const submitGrn = useInventoryGrnSubmit();
 
-  const grnNumber = useMemo(() => generateGrnNumber(), []);
+  const [grnId, setGrnId] = useState<string | null>(null);
+  const [grnNumber, setGrnNumber] = useState('New GRN');
   const [grnType, setGrnType] = useState<InventoryGrnType>('Purchase');
   const [grnDate, setGrnDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [storeId, setStoreId] = useState('');
-  const [manufacturerId, setManufacturerId] = useState('mfr-none');
+  const [manufacturerId, setManufacturerId] = useState('');
   const [purchaseIndentId, setPurchaseIndentId] = useState('none');
   const [voucherNumber, setVoucherNumber] = useState('');
   const [remarks, setRemarks] = useState('');
   const [registerPageNo, setRegisterPageNo] = useState('');
   const [lines, setLines] = useState<InventoryGrnLineDraft[]>([EMPTY_GRN_LINE()]);
 
+  const isSaving = createGrn.isPending || updateGrn.isPending || submitGrn.isPending;
+  const isSubmitted = existingGrn?.status === 'submitted';
+  const isReadOnly = isSubmitted;
+
+  useEffect(() => {
+    if (!existingGrn) return;
+    setGrnId(existingGrn.id);
+    setGrnNumber(existingGrn.grn_number);
+    setGrnType(existingGrn.grn_type === 'purchase' ? 'Purchase' : 'Transfer');
+    setGrnDate(existingGrn.grn_date);
+    setStoreId(existingGrn.store_id);
+    setManufacturerId(existingGrn.manufacturer_id ?? '');
+    setVoucherNumber(existingGrn.voucher_invoice_no ?? '');
+    setRegisterPageNo(existingGrn.register_page_no ?? '');
+    setRemarks(existingGrn.remarks ?? '');
+    setLines(mapApiLinesToDraft(existingGrn.lines));
+  }, [existingGrn]);
+
+  useEffect(() => {
+    if (grnIdFromUrl) setGrnId(grnIdFromUrl);
+  }, [grnIdFromUrl]);
+
   useEffect(() => {
     if (!storeId && stores[0]) setStoreId(stores[0].id);
   }, [storeId, stores]);
+
+  useEffect(() => {
+    if (isPlaceholderManufacturerId(manufacturerId) || manufacturers.length === 0) return;
+    if (!manufacturers.some((row) => row.id === manufacturerId)) {
+      setManufacturerId('');
+    }
+  }, [manufacturerId, manufacturers]);
 
   const updateLine = (lineId: string, patch: Partial<InventoryGrnLineDraft>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
@@ -62,14 +128,84 @@ export function InventoryGrnFormPage() {
     });
   };
 
+  const buildPayload = () => ({
+    grn_type: grnType,
+    grn_date: grnDate,
+    store_id: storeId,
+    manufacturer_id: resolveManufacturerIdForPayload(manufacturerId, manufacturers),
+    voucher_invoice_no: voucherNumber,
+    register_page_no: registerPageNo,
+    remarks,
+    lines,
+  });
+
+  const persistDraft = async (): Promise<string | null> => {
+    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+      toast.success('GRN draft saved (mock). Enable VITE_INVENTORY_API_ENABLED for live APIs.');
+      return null;
+    }
+    if (!storeId) {
+      toast.error('Select a store');
+      return null;
+    }
+    if (grnType === 'Purchase' && !isManufacturerSelected(manufacturerId, manufacturers)) {
+      if (manufacturersError) {
+        toast.error('Could not load manufacturers. Check master-data service and retry.');
+      } else if (isLoadingManufacturers) {
+        toast.error('Manufacturers are still loading. Please wait and try again.');
+      } else if (manufacturers.length === 0) {
+        toast.error('No manufacturers found. Add one under Inventory Supply Masters → Manufacturers.');
+      } else {
+        toast.error('Select a manufacturer for purchase GRN');
+      }
+      return null;
+    }
+
+    try {
+      if (grnId) {
+        const saved = await updateGrn.mutateAsync({ grnId, payload: buildPayload() });
+        setGrnNumber(saved.grn_number);
+        return saved.id;
+      }
+      const created = await createGrn.mutateAsync(buildPayload());
+      setGrnId(created.id);
+      setGrnNumber(created.grn_number);
+      return created.id;
+    } catch {
+      toast.error('Failed to save GRN draft');
+      return null;
+    }
+  };
+
   const handleSaveDraft = () => {
-    toast.success('GRN draft saved (mock). API integration will persist this form.');
-    void navigate({ to: '/inventory/grn-logs' });
+    void (async () => {
+      const id = await persistDraft();
+      if (id || !OPERATIONAL_INVENTORY_API_ENABLED) {
+        if (OPERATIONAL_INVENTORY_API_ENABLED) toast.success('GRN draft saved');
+        void navigate({ to: '/inventory/grn-logs' });
+      }
+    })();
   };
 
   const handleSubmit = () => {
-    toast.success('GRN submitted (mock). Stock ledger update will connect to inventory APIs.');
-    void navigate({ to: '/inventory/grn-logs' });
+    void (async () => {
+      if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+        toast.success('GRN submitted (mock). Enable VITE_INVENTORY_API_ENABLED for live APIs.');
+        void navigate({ to: '/inventory/grn-logs' });
+        return;
+      }
+
+      const id = grnId ?? (await persistDraft());
+      if (!id) return;
+
+      try {
+        await submitGrn.mutateAsync(id);
+        toast.success('GRN submitted');
+        void navigate({ to: '/inventory/grn-logs' });
+      } catch {
+        toast.error('Failed to submit GRN');
+      }
+    })();
   };
 
   return (
@@ -82,20 +218,37 @@ export function InventoryGrnFormPage() {
       ]}
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" asChild>
+          <Button type="button" variant="outline" size="sm" asChild disabled={isSaving}>
             <Link to="/inventory/grn-logs">Cancel</Link>
           </Button>
-          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={handleSaveDraft}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            disabled={isSaving || isReadOnly}
+            onClick={handleSaveDraft}
+          >
             <Save className="size-4" aria-hidden />
             Save draft
           </Button>
-          <Button type="button" size="sm" className="gap-1.5" onClick={handleSubmit}>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            disabled={isSaving || isReadOnly}
+            onClick={handleSubmit}
+          >
             <Send className="size-4" aria-hidden />
             Submit GRN
           </Button>
         </div>
       }
     >
+      {isLoadingGrn && grnIdFromUrl ? (
+        <p className="text-sm text-muted-foreground">Loading GRN…</p>
+      ) : null}
+
       <InventoryPanel title="GRN Details">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2">
@@ -147,11 +300,24 @@ export function InventoryGrnFormPage() {
             <Label>
               Manufacturer <span className="text-destructive">*</span>
             </Label>
-            <Select value={manufacturerId} onValueChange={setManufacturerId}>
+            <Select
+              value={manufacturerId || '__none__'}
+              onValueChange={(value) => setManufacturerId(value === '__none__' ? '' : value)}
+              disabled={isReadOnly || isLoadingManufacturers}
+            >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue
+                  placeholder={
+                    isLoadingManufacturers
+                      ? 'Loading manufacturers…'
+                      : manufacturersError
+                        ? 'Failed to load manufacturers'
+                        : 'Select manufacturer'
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">Select manufacturer</SelectItem>
                 {manufacturers.map((manufacturer) => (
                   <SelectItem key={manufacturer.id} value={manufacturer.id}>
                     {manufacturer.name}
@@ -159,6 +325,20 @@ export function InventoryGrnFormPage() {
                 ))}
               </SelectContent>
             </Select>
+            {manufacturersError ? (
+              <p className="text-xs text-destructive">
+                Could not load manufacturer master (master-data). Ensure master-data service is running.
+              </p>
+            ) : null}
+            {!manufacturersError && !isLoadingManufacturers && manufacturers.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No manufacturers in master. Add them under{' '}
+                <Link to="/inventory-supply-masters/manufacturers" className="text-primary underline">
+                  Inventory Supply Masters → Manufacturers
+                </Link>
+                .
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label>Purchase Indent (optional)</Label>

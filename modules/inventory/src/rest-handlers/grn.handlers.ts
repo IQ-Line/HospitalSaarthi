@@ -1,0 +1,107 @@
+import type { FastifyInstance } from "fastify";
+import { DrizzleInventoryGrnRepository } from "../data-access/grn.repo.js";
+import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.js";
+import type { StoreRepo } from "../ports.js";
+import { createGrn } from "../use-cases/create-grn.js";
+import { getGrn } from "../use-cases/get-grn.js";
+import { listGrns } from "../use-cases/list-grns.js";
+import { replaceGrnLines } from "../use-cases/replace-grn-lines.js";
+import { submitGrn } from "../use-cases/submit-grn.js";
+import { updateGrn } from "../use-cases/update-grn.js";
+import {
+  createGrnBodySchema,
+  listGrnsQuerySchema,
+  replaceGrnLinesBodySchema,
+  updateGrnBodySchema,
+} from "./grn.schemas.js";
+
+type GrnHandlerDeps = {
+  grnRepo: DrizzleInventoryGrnRepository;
+  storeRepo: StoreRepo;
+  itemRepo: DrizzleInventoryItemRepository;
+};
+
+function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
+  const id = request.user?.id ?? request.user?.sub;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+export function registerGrnHandlers(app: FastifyInstance, deps: GrnHandlerDeps): void {
+  app.get<{ Querystring: Record<string, string | undefined> }>(
+    "/grns",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const query = listGrnsQuerySchema.parse(request.query);
+      const data = await listGrns({ grnRepo: deps.grnRepo }, request.tenantId, query);
+      return reply.send(data);
+    },
+  );
+
+  app.post<{ Body: unknown }>(
+    "/grns",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const body = createGrnBodySchema.parse(request.body);
+      const data = await createGrn(
+        { grnRepo: deps.grnRepo, storeRepo: deps.storeRepo, itemRepo: deps.itemRepo },
+        request.tenantId,
+        body,
+        actorIdFromRequest(request),
+      );
+      return reply.status(201).send({ data });
+    },
+  );
+
+  app.get<{ Params: { grnId: string } }>(
+    "/grns/:grnId",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const data = await getGrn({ grnRepo: deps.grnRepo }, request.tenantId, request.params.grnId);
+      return reply.send({ data });
+    },
+  );
+
+  app.patch<{ Params: { grnId: string }; Body: unknown }>(
+    "/grns/:grnId",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const body = updateGrnBodySchema.parse(request.body);
+      const data = await updateGrn(
+        { grnRepo: deps.grnRepo, storeRepo: deps.storeRepo },
+        request.tenantId,
+        request.params.grnId,
+        body,
+      );
+      return reply.send({ data });
+    },
+  );
+
+  app.put<{ Params: { grnId: string }; Body: unknown }>(
+    "/grns/:grnId/lines",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const body = replaceGrnLinesBodySchema.parse(request.body);
+      await replaceGrnLines(
+        { grnRepo: deps.grnRepo, itemRepo: deps.itemRepo },
+        request.tenantId,
+        request.params.grnId,
+        body.lines,
+      );
+      const data = await getGrn({ grnRepo: deps.grnRepo }, request.tenantId, request.params.grnId);
+      return reply.send({ data });
+    },
+  );
+
+  app.post<{ Params: { grnId: string } }>(
+    "/grns/:grnId/submit",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const data = await submitGrn(
+        { grnRepo: deps.grnRepo, itemRepo: deps.itemRepo },
+        request.tenantId,
+        request.params.grnId,
+      );
+      return reply.send({ data });
+    },
+  );
+}
