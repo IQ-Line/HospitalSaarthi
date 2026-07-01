@@ -51,4 +51,10 @@ export class GrnValidationError extends InventoryError {
     super(message, 422, "VALIDATION_ERROR");
   }
 }
-  
+
+export class ItemNotFoundError extends InventoryError {
+  constructor() {
+    super("Item not found", 404, "NOT_FOUND");
+  }
+}
+

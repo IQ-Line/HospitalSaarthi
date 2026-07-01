@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
   AlertTriangle,
@@ -52,7 +52,7 @@ interface InventoryStockPageProps {
 
 export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPageProps) {
   const [search, setSearch] = useState('');
-  const [storeId, setStoreId] = useState<string>('store-cms');
+  const [storeId, setStoreId] = useState<string>('');
   const [viewMode, setViewMode] = useState<StockViewMode>('list');
   const [showReorderColumn, setShowReorderColumn] = useState(true);
   const [showUomColumn, setShowUomColumn] = useState(true);
@@ -67,6 +67,13 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: stores = [] } = useInventoryStores();
+
+  useEffect(() => {
+    if (!storeId && stores.length > 0) {
+      setStoreId(stores[0]!.id);
+    }
+  }, [storeId, stores]);
+
   const { data, isLoading } = useInventoryStock({
     search: search || undefined,
     store_id: storeId,
@@ -327,6 +334,7 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
 
       <InventoryStockDetailSheet
         row={selectedRow}
+        storeId={storeId}
         storeName={storeName}
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}

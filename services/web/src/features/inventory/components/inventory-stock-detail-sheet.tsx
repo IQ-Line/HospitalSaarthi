@@ -21,6 +21,7 @@ import { InventoryStockStatusBadge } from './inventory-stock-status';
 
 interface InventoryStockDetailSheetProps {
   row: InventoryStockRow | null;
+  storeId: string;
   storeName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -28,12 +29,13 @@ interface InventoryStockDetailSheetProps {
 
 export function InventoryStockDetailSheet({
   row,
+  storeId,
   storeName,
   open,
   onOpenChange,
 }: InventoryStockDetailSheetProps) {
-  const stockId = open && row ? row.id : null;
-  const { data: lots = [], isLoading } = useInventoryStockLots(stockId);
+  const itemId = open && row ? row.id : null;
+  const { data: lots = [], isLoading } = useInventoryStockLots(itemId, storeId || undefined);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>

@@ -76,3 +76,45 @@ export type InventorySvcGrnDetail = {
 export type InventorySvcSingleResponse<T> = {
   data: T;
 };
+
+export type InventorySvcStockRow = {
+  id: string;
+  item_id: string;
+  item_code: string;
+  item_name: string;
+  quantity: number;
+  uom: string;
+  reorder_at: number;
+  min_reorder: number;
+  status: 'critical' | 'low' | 'normal';
+  store_id: string;
+  batches: number;
+};
+
+export type InventorySvcStockListResponse = {
+  data: InventorySvcStockRow[];
+  total: number;
+  summary: {
+    critical: number;
+    low: number;
+    normal: number;
+  };
+};
+
+export type InventorySvcStockBatchRow = {
+  id: string;
+  lot_number: string;
+  expiry_date: string;
+  received_date: string;
+  quantity: number;
+  expiry_status: 'expired' | 'expiring_soon' | null;
+};
+
+export type InventorySvcStockBatchesResponse = {
+  data: InventorySvcStockBatchRow[];
+  summary: {
+    available_qty: number;
+    status: 'critical' | 'low' | 'normal';
+    batch_count: number;
+  };
+};

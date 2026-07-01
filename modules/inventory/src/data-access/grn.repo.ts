@@ -12,6 +12,7 @@ import type {
   UpdateGrnInput,
 } from "../domain/grn.types.js";
 import { inventoryGrnLines, inventoryGrns, inventoryItems } from "../schema/tables.js";
+import { GrnValidationError } from "../errors.js";
 
 function mapGrnRow(row: typeof inventoryGrns.$inferSelect): GrnRow {
   return {
@@ -94,10 +95,36 @@ function listFilters(tenantId: string, query: ListGrnsQuery): SQL[] {
   return filters;
 }
 
-function buildGrnNumber(grnDate: string): string {
-  const datePart = grnDate.replace(/-/g, "");
-  const suffix = randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase();
-  return `GRN-${datePart}-${suffix}`;
+
+function readExecuteRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (result && typeof result === "object" && "rows" in result) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+
+function parseSubmitRpcResult(value: unknown): { grn_id?: string } | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as { grn_id?: string };
+    } catch {
+      return null;
+    }
+  }
+  if (typeof value === "object") return value as { grn_id?: string };
+  return null;
+}
+
+function mapSubmitRpcError(error: unknown): never {
+  if (error instanceof GrnValidationError) throw error;
+  if (error && typeof error === "object" && "message" in error) {
+    const raw = String((error as { message: string }).message);
+    const cleaned = raw.replace(/^error:\s*/i, "").split("\n")[0]?.trim();
+    if (cleaned) throw new GrnValidationError(cleaned);
+  }
+  throw error;
 }
 
 export class DrizzleInventoryGrnRepository {
@@ -323,28 +350,22 @@ export class DrizzleInventoryGrnRepository {
     });
   }
 
-  async submit(tenantId: string, grnId: string): Promise<GrnRow | undefined> {
-    const existing = await this.findById(tenantId, grnId);
-    if (!existing || existing.status !== "draft") return undefined;
+  async submit(tenantId: string, grnId: string, userId: string): Promise<GrnRow | undefined> {
+    try {
+      const result = await this.db.execute(sql`
+        SELECT inventory.submit_inventory_grn_as(
+          ${grnId}::uuid,
+          ${tenantId}::uuid,
+          ${userId}::uuid
+        ) AS result
+      `);
+      const rows = readExecuteRows<{ result: unknown }>(result);
+      const payload = parseSubmitRpcResult(rows[0]?.result);
+      if (!payload?.grn_id) return undefined;
+    } catch (error) {
+      mapSubmitRpcError(error);
+    }
 
-    const grnNumber = buildGrnNumber(existing.grn_date);
-    const [row] = await this.db
-      .update(inventoryGrns)
-      .set({
-        status: "submitted",
-        grn_number: grnNumber,
-        submitted_at: new Date(),
-        updated_at: new Date(),
-      })
-      .where(
-        and(
-          eq(inventoryGrns.iq_tenant_id, tenantId),
-          eq(inventoryGrns.id, grnId),
-          eq(inventoryGrns.status, "draft"),
-        ),
-      )
-      .returning();
-
-    return row ? mapGrnRow(row) : undefined;
+    return this.findById(tenantId, grnId);
   }
 }

@@ -11,7 +11,8 @@ export const inventoryQueryKeys = {
   items: () => [...inventoryQueryKeys.all, 'items'] as const,
   dashboard: (storeId?: string) => [...inventoryQueryKeys.all, 'dashboard', storeId] as const,
   stock: (params: InventoryListParams) => [...inventoryQueryKeys.all, 'stock', params] as const,
-  stockLots: (stockId: string) => [...inventoryQueryKeys.all, 'stock-lots', stockId] as const,
+  stockLots: (itemId: string, storeId?: string) =>
+    [...inventoryQueryKeys.all, 'stock-lots', itemId, storeId] as const,
   indents: (params: InventoryIndentListParams) => [...inventoryQueryKeys.all, 'indents', params] as const,
   grnLogs: (params: InventoryGrnListParams) => [...inventoryQueryKeys.all, 'grn-logs', params] as const,
   transfers: (params: InventoryTransferListParams) => [...inventoryQueryKeys.all, 'transfers', params] as const,

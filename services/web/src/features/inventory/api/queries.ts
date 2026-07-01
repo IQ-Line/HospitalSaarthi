@@ -26,9 +26,9 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
-import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStoreRow } from './api-types';
+import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStockBatchesResponse, InventorySvcStockListResponse, InventorySvcStoreRow } from './api-types';
 import { inventorySvcGet, inventorySvcGetList } from './inventory-api-client';
-import { mapInventorySvcGrnListResponse, mapInventorySvcItemRow, mapInventorySvcStoreRow, mapUiGrnTypeToApi } from './mappers';
+import { mapInventorySvcGrnListResponse, mapInventorySvcItemRow, mapInventorySvcStockBatchRow, mapInventorySvcStockListResponse, mapInventorySvcStoreRow, mapUiGrnTypeToApi } from './mappers';
 import { inventoryQueryKeys } from './query-keys';
 
 type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
@@ -64,13 +64,28 @@ async function fetchInventoryDashboard(storeId?: string): Promise<InventoryDashb
 
 async function fetchInventoryStock(params: InventoryListParams): Promise<InventoryStockListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStock(params);
-  // Stock list not yet on inventory-svc.
-  return mockFetchInventoryStock(params);
+  if (!params.store_id) {
+    return { data: [], total: 0, summary: { critical: 0, low: 0, normal: 0 } };
+  }
+  const response = await inventorySvcGet<InventorySvcStockListResponse>('/stock', {
+    store_id: params.store_id,
+    search: params.search,
+    status: params.status && params.status !== 'all' ? params.status : undefined,
+    page_size: 500,
+  });
+  return mapInventorySvcStockListResponse(response);
 }
 
-async function fetchInventoryStockLots(stockId: string): Promise<InventoryStockLot[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStockLots(stockId);
-  return mockFetchInventoryStockLots(stockId);
+async function fetchInventoryStockLots(
+  itemId: string,
+  storeId: string,
+): Promise<InventoryStockLot[]> {
+  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStockLots(itemId);
+  const response = await inventorySvcGet<InventorySvcStockBatchesResponse>(
+    `/stock/${encodeURIComponent(itemId)}/batches`,
+    { store_id: storeId },
+  );
+  return response.data.map(mapInventorySvcStockBatchRow);
 }
 
 async function fetchInventoryIndents(
@@ -146,18 +161,22 @@ export function useInventoryDashboard(storeId?: string): QueryResult<InventoryDa
 
 export function useInventoryStock(params: InventoryListParams = {}): QueryResult<InventoryStockListData> {
   const query = useQuery({
-    queryKey: inventoryQueryKeys.stock(params),
+    queryKey: [...inventoryQueryKeys.stock(params), inventoryApiMode],
     queryFn: () => fetchInventoryStock(params),
+    enabled: !OPERATIONAL_INVENTORY_API_ENABLED || Boolean(params.store_id),
     staleTime: 30_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
 }
 
-export function useInventoryStockLots(stockId: string | null): QueryResult<InventoryStockLot[]> {
+export function useInventoryStockLots(
+  itemId: string | null,
+  storeId: string | undefined,
+): QueryResult<InventoryStockLot[]> {
   const query = useQuery({
-    queryKey: inventoryQueryKeys.stockLots(stockId ?? ''),
-    queryFn: () => fetchInventoryStockLots(stockId!),
-    enabled: Boolean(stockId),
+    queryKey: [...inventoryQueryKeys.stockLots(itemId ?? '', storeId), inventoryApiMode],
+    queryFn: () => fetchInventoryStockLots(itemId!, storeId!),
+    enabled: Boolean(itemId) && Boolean(storeId),
     staleTime: 30_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };

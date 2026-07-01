@@ -10,7 +10,16 @@ export type SubmitGrnDeps = {
   itemRepo: DrizzleInventoryItemRepository;
 };
 
-export async function submitGrn(deps: SubmitGrnDeps, tenantId: string, grnId: string) {
+export async function submitGrn(
+  deps: SubmitGrnDeps,
+  tenantId: string,
+  grnId: string,
+  actorId: string | null,
+) {
+  if (!actorId) {
+    throw new GrnValidationError("User context is required to submit GRN");
+  }
+
   const existing = await deps.grnRepo.findById(tenantId, grnId);
   if (!existing) throw new GrnNotFoundError();
   if (existing.status !== "draft") {
@@ -47,7 +56,7 @@ export async function submitGrn(deps: SubmitGrnDeps, tenantId: string, grnId: st
     })),
   );
 
-  const row = await deps.grnRepo.submit(tenantId, grnId);
+  const row = await deps.grnRepo.submit(tenantId, grnId, actorId);
   if (!row) throw new GrnNotFoundError();
   return wireGrn(row)!;
 }

@@ -100,6 +100,7 @@ export function registerGrnHandlers(app: FastifyInstance, deps: GrnHandlerDeps):
         { grnRepo: deps.grnRepo, itemRepo: deps.itemRepo },
         request.tenantId,
         request.params.grnId,
+        actorIdFromRequest(request),
       );
       return reply.send({ data });
     },

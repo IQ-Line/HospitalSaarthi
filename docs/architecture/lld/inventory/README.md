@@ -28,7 +28,7 @@ Enable live operational APIs in dev: `VITE_INVENTORY_API_ENABLED=true` in `servi
 | Submodule | Sidebar | API status |
 |-----------|---------|------------|
 | Dashboard | Yes | Mock |
-| Stock | Yes | Mock |
+| Stock | Yes | **Live** (list + batches) |
 | Indents | Yes | Mock |
 | Transfers | Yes | Mock |
 | GRN | Yes | **Live** (partial) |
@@ -51,8 +51,8 @@ Legend: **✓** ported or in use · **◐** partial · **○** not started · **
 |------------|--------------------|-------------------------|---------------------|------------------------|
 | Stores list | `masters/stores/` | `stores.validation.ts`, `stores.service.ts` | `masters/stores/store-validation.ts`, pages | ◐ `GET /stores` live |
 | Items CRUD | `items/` | `items.validation.ts`, `items.service.ts` | `masters/items/`, supply attributes | ◐ `GET/POST /items` live |
-| GRN | `grn/` | `grn.validation.ts`, `grn.service.ts`, `submit_inventory_grn` RPC | `grn/`, `shared/schemas/grn-schema.ts` | ◐ CRUD + submit; no stock RPC |
-| Stock levels | `stock/` | `stock.service.ts`, `stock-status.ts` | `stock/`, `inventory-stock-levels-shared.ts` | ○ mock UI |
+| GRN | `grn/` | `grn.validation.ts`, `grn.service.ts`, `submit_inventory_grn` RPC | `grn/`, `shared/schemas/grn-schema.ts` | ◐ CRUD + submit + stock RPC |
+| Stock levels | `stock/` | `stock.service.ts`, `stock-status.ts` | `stock/`, `inventory-stock-levels-shared.ts` | ◐ list + batches live |
 | Indents | `indents/` | `indent.validation.ts`, `indent.service.ts` | `indents/indent-draft-validation.ts` | ○ mock UI |
 | Transfers | (stock ledger) | via stock service | `shared/schemas/transfer-schema.ts` | ○ mock UI |
 | Adjustments | (ledger) | stock paths | `shared/schemas/stock-adjustment-schema.ts` | ○ |
@@ -80,7 +80,7 @@ Masters UI: `services/web/src/features/inventory-masters/`. Operational inventor
 
 | RPC / operation | hims-backend | HospitalSaarthi |
 |-----------------|--------------|-----------------|
-| `submit_inventory_grn_as` | Posts stock + ledger on GRN submit | **Missing** — submit only updates GRN header |
+| `submit_inventory_grn_as` | Posts stock + ledger on GRN submit | ✓ `inventory.submit_inventory_grn_as` |
 | Stock transfer receive | stock service | Not started |
 | Indent approve / fulfill | indent service | Not started |
 | Adjustment post | stock service | Not started |
@@ -133,7 +133,7 @@ IQSandbox/apps/iqhealth/src/modules/inventory/<area>/
 | Schema | ✓ | `inventory_grns`, `inventory_grn_lines` |
 | API | ◐ | CRUD + submit (see below) |
 | Server validation | ◐ | `domain/grn.validation.ts`, `use-cases/validate-grn-input.ts`, `rest-handlers/grn.schemas.ts` |
-| Stock posting on submit | ○ | hims `submit_inventory_grn_as` not ported |
+| Stock posting on submit | ✓ | `inventory.submit_inventory_grn_as` RPC (`0002_…sql`) |
 | Web UI | ◐ | `inventory-grn-logs-page.tsx`, `inventory-grn-form-page.tsx` |
 | Client validation | ◐ | `features/inventory/lib/grn-validation.ts` |
 
@@ -167,13 +167,13 @@ POST   /api/inventory/v1/grns/:grnId/submit
 | `grn.schemas.ts` | Ported → `rest-handlers/grn.schemas.ts` |
 | `grn.service.ts` | → use-cases |
 | `grn.repository.ts` | Done → `data-access/grn.repo.ts` |
-| `submit_inventory_grn` RPC | **Required next** |
+| `submit_inventory_grn` RPC | ✓ → `inventory.submit_inventory_grn_as` |
 
 **Server rules (ported):** `assertGrnDateNotFuture`, `assertPurchaseManufacturer`, `assertPurchaseHeader` (on submit), `assertLineAgainstItem`, duplicate line guard.
 
 **Client rules (iqhealth):** future date; purchase manufacturer + voucher on submit; `grn_qty` / `purchase_rate` > 0; lot + expiry per item tracking.
 
-**Next steps:** stock RPC on submit; wire client validation into form; `grn-line-validation.ts` blur errors; OpenAPI paths; PR line linking (`pr_line_id`, `requested_qty`).
+**Next steps:** wire client validation blur errors; OpenAPI paths; PR line linking (`pr_line_id`, `requested_qty`); pharmacy batch mirror (iqhealth only).
 
 ---
 
@@ -181,17 +181,17 @@ POST   /api/inventory/v1/grns/:grnId/submit
 
 | Layer | Status |
 |-------|--------|
-| Schema | ✓ `inventory_stock`, `inventory_lots`, `inventory_transactions` |
-| API | ○ |
-| Web UI | ○ mock — `inventory-stock-page.tsx`, `inventory-stock-status.tsx` |
+| Schema | ✓ `inventory.stock`, `inventory.lots`, `inventory.transactions` |
+| API | ◐ `GET /stock`, `GET /stock/:itemId/batches` |
+| Web UI | ◐ live list + batch detail sheet (`inventory-stock-page.tsx`) |
 
 **IQSandbox:** `stock/api.ts`, `inventory-stock-levels-shared.ts`, `inventory-stock-prd-status.ts`, `inventory-stock-export.ts`, `stock-ledger-cross-module.ts`.
 
 **hims-backend:** `stock.service.ts`, `stock.repository.ts`, `stock.schemas.ts`, `stock-status.ts`, `stock-export.ts`.
 
-**Suggested endpoints:** `GET /api/inventory/v1/stock`, `GET /api/inventory/v1/stock/:itemId/lots`.
+**Implemented:** `stock.repo.ts` (aggregated CTE), `list-stock.ts`, `get-stock-batches.ts`, `stock.handlers.ts`; frontend `api/queries.ts` + mappers.
 
-**Next steps:** Port repository to Drizzle; replace mock in `api/queries.ts`; wire stock detail sheet.
+**Next steps:** Export xlsx/json; adjust stock mutation; authz targets for `/stock`; OpenAPI paths; dashboard low-stock feed from stock API.
 
 ---
 
