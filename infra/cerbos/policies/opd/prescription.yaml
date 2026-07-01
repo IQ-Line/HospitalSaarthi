@@ -1,0 +1,115 @@
+---
+# OPD — prescription lifecycle (drafts, update, finalize/cancel, delete) and clinical-report renders.
+# Capabilities: opd:prescription:{create,read,update,delete}.
+# `prescription.finalize`/`prescription.cancel` are update-class state transitions and gate on
+# opd:prescription:update (mirrors registration.update_status reusing the update capability).
+# The clinical-report renders (GET /visits/{id}/documents/*) are prescription reads.
+# Policies authorize by tenant + capability keys; roles are context, not grants.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "opd_prescription"
+  version: default
+  rules:
+    - actions:
+        - "prescription.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:prescription:read" in request.principal.attr.capabilities ||
+              "opd:prescription:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:prescription:read" in request.principal.attr.capabilities ||
+              "opd:prescription:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:prescription:create" in request.principal.attr.capabilities ||
+              "opd:prescription:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:prescription:create" in request.principal.attr.capabilities ||
+              "opd:prescription:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.update"
+        - "prescription.finalize"
+        - "prescription.cancel"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:prescription:update" in request.principal.attr.capabilities ||
+              "opd:prescription:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.update"
+        - "prescription.finalize"
+        - "prescription.cancel"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:prescription:update" in request.principal.attr.capabilities ||
+              "opd:prescription:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:prescription:delete" in request.principal.attr.capabilities ||
+              "opd:prescription:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "prescription.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "opd:prescription:delete" in request.principal.attr.capabilities ||
+              "opd:prescription:delete" in request.principal.attr.delegated_capabilities
+            )

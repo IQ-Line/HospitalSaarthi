@@ -5,10 +5,14 @@
 > authorization, mirroring the TS `@hims/ts-sdk-authz` PEP. **Scope confirmed by the user 2026-07-01
 > (Option B — the full Cerbos PEP, not just close-the-bypass).**
 >
-> **Status:** Phase 0 + Phase 1 DONE (2026-07-01). Phase 0 confirmations in §8; Phase 1 (the
-> `hims_authz` package) built, gated (53 tests, ruff clean), adversarially reviewed (§9), committed.
-> Half A (#48-M3 `is_system`) done (`4eeb53cd`). **Phase 2 (opd Cerbos policies + capability seeds)
-> is next.** Ground truth from the codebase + installed cerbos 0.15.1 + the recovered prior scaffold.
+> **Status:** Phase 0 + 1 + 2 DONE (2026-07-01). Phase 0 confirmations §8; Phase 1 (`hims_authz`
+> package) §9 (53 tests, adversarially reviewed); Phase 2 = opd Cerbos policies + capability seeds
+> (`infra/cerbos/policies/opd/{prescription,health_document}.yaml` + `opd_permissions_test.yaml`
+> [15 policy tests green via `cerbos compile`] + master-data alembic `045_opd_authorization_catalog.py`
+> seeding `opd:prescription:{crud}` + `opd:health-document:{create,read}`). Half A (#48-M3) done
+> (`4eeb53cd`). **Phase 3 (wire opd-svc PEP + remove SYSTEM_DOCTOR_ID header-trust) is next** — the
+> live seed→UM-sync→Cerbos round-trip lands there. Capability-key derivation verified against
+> `map-master-data-permission.ts` (`<module>:<feature>:<action>`, resource segments joined with `-`).
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
