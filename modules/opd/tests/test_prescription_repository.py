@@ -193,13 +193,11 @@ def test_finalize_stamps_finalizing_doctor_as_prescriber(
 def test_finalize_with_unknown_actor_keeps_existing_prescriber(
     prescription_repo: PrescriptionRepository,
 ) -> None:
-    """A finalize with no resolvable actor (nil SYSTEM_DOCTOR_ID) must NOT clobber
-    the existing prescriber — it is never worse than leaving doctor_id untouched."""
-    from opd.core.principal import SYSTEM_DOCTOR_ID
-
+    """A finalize with no resolvable actor (doctor_id=None) must NOT clobber the existing
+    prescriber — it is never worse than leaving doctor_id untouched."""
     created = _create(prescription_repo, doctor_id=DOCTOR_ID)
     finalized = prescription_repo.finalize(
-        TENANT_A, created.id, changed_by=None, doctor_id=SYSTEM_DOCTOR_ID
+        TENANT_A, created.id, changed_by=None, doctor_id=None
     )
 
     assert finalized.doctor_id == DOCTOR_ID

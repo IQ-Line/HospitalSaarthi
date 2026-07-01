@@ -101,6 +101,11 @@ class Authz:
         )
         return cls(verifier=verifier, enricher=enricher, client=client)
 
+    @property
+    def verifier(self) -> TokenVerifier:
+        """The token verifier — share it with :class:`IdentityGateMiddleware`."""
+        return self._verifier
+
     async def get_identity(self, request: Request) -> VerifiedIdentity:
         cached = getattr(request.state, _IDENTITY_STATE, None)
         if isinstance(cached, VerifiedIdentity):
@@ -130,6 +135,32 @@ class Authz:
         setattr(request.state, _PRINCIPAL_STATE, principal)
         return principal
 
+    async def authorize(
+        self,
+        request: Request,
+        kind: str,
+        action: str,
+        *,
+        resource_id: ResourceIdResolver | None = None,
+        resource_attr: ResourceAttrResolver | None = None,
+    ) -> CerbosPrincipal:
+        """Verify + enrich + Cerbos-check ``action`` on ``kind``; raise 401/403 on failure.
+
+        The reusable core behind :meth:`require`; a table-driven guard can call it directly.
+        """
+        principal = await self.get_principal(request)
+        rid = self._resolve_resource_id(request, resource_id)
+        attr = self._resolve_resource_attr(request, principal, resource_attr)
+        try:
+            allowed = await self._client.is_allowed(principal, kind, action, rid, attr)
+        except AuthorizationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden"
+            ) from exc
+        if not allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        return principal
+
     def require(
         self,
         kind: str,
@@ -141,20 +172,9 @@ class Authz:
         """Return a dependency that authorizes ``action`` on ``kind`` and yields the principal."""
 
         async def _dependency(request: Request) -> CerbosPrincipal:
-            principal = await self.get_principal(request)
-            rid = self._resolve_resource_id(request, resource_id)
-            attr = self._resolve_resource_attr(request, principal, resource_attr)
-            try:
-                allowed = await self._client.is_allowed(principal, kind, action, rid, attr)
-            except AuthorizationError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden"
-                ) from exc
-            if not allowed:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden"
-                )
-            return principal
+            return await self.authorize(
+                request, kind, action, resource_id=resource_id, resource_attr=resource_attr
+            )
 
         return _dependency
 

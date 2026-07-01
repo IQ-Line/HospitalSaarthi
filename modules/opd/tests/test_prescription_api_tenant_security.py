@@ -95,20 +95,22 @@ def test_cross_tenant_cannot_read_or_mutate(prescription_client: TestClient) -> 
     assert owner_view.json()["data"]["clinical"]["symptoms"] == []
 
 
-def test_create_without_tenant_header_returns_400(prescription_client: TestClient) -> None:
+def test_create_without_auth_returns_401(prescription_client: TestClient) -> None:
+    # No bearer token: the identity gate rejects before the handler (was 400 header-trust).
     response = prescription_client.post(API_PREFIX, json=make_create_payload())
-    assert response.status_code == 400
+    assert response.status_code == 401
 
 
-def test_read_without_tenant_header_returns_400(prescription_client: TestClient) -> None:
+def test_read_without_auth_returns_401(prescription_client: TestClient) -> None:
     response = prescription_client.get(f"{API_PREFIX}/by-visit/{uuid4()}")
-    assert response.status_code == 400
+    assert response.status_code == 401
 
 
-def test_invalid_tenant_header_returns_400(prescription_client: TestClient) -> None:
+def test_forged_bearer_returns_401(prescription_client: TestClient) -> None:
+    # A malformed / unverifiable token cannot be used to spoof a tenant.
     response = prescription_client.post(
         API_PREFIX,
         json=make_create_payload(),
-        headers={"iq_tenant_id": "not-a-uuid", "x-user-id": str(uuid4())},
+        headers={"Authorization": "Bearer not.a.valid.jwt"},
     )
-    assert response.status_code == 400
+    assert response.status_code == 401

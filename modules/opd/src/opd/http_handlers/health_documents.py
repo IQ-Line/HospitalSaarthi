@@ -9,6 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 
+from opd.core.authz import guard
 from opd.core.deps import DbSession, TenantId
 from opd.core.principal import resolve_doctor_id
 from opd.core.schemas_api import (
@@ -28,6 +29,10 @@ from opd.lib.file_upload_validation import (
 router = APIRouter(tags=["OpdHealthDocuments"])
 
 UploaderId = Annotated[UUID, Depends(resolve_doctor_id)]
+
+# Per-route Cerbos guards (resource kind opd_health_document).
+_GUARD_HD_CREATE = Depends(guard("opd_health_document", "health_document.create"))
+_GUARD_HD_READ = Depends(guard("opd_health_document", "health_document.read"))
 
 
 def _download_path(document_id: UUID) -> str:
@@ -73,6 +78,7 @@ def _accepts_json_sas_url(accept_header: str) -> bool:
     "/patients/{patient_id}/health-documents",
     response_model=HealthDocumentUploadResponse,
     status_code=201,
+    dependencies=[_GUARD_HD_CREATE],
 )
 async def upload_patient_health_document(
     patient_id: UUID,
@@ -131,6 +137,7 @@ async def upload_patient_health_document(
 @router.get(
     "/patients/{patient_id}/health-documents",
     response_model=HealthDocumentListResponse,
+    dependencies=[_GUARD_HD_READ],
 )
 def list_patient_health_documents(
     patient_id: UUID,
@@ -163,6 +170,7 @@ def list_patient_health_documents(
 @router.get(
     "/health-documents/{document_id}/download",
     response_model=HealthDocumentDownloadResponse,
+    dependencies=[_GUARD_HD_READ],
     responses={
         200: {
             "description": "File bytes (when Accept is a file MIME type, not JSON-only)",

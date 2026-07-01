@@ -3,9 +3,10 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 
+from opd.core.authz import guard
 from opd.core.deps import DbSession, TenantId
 from opd.lib.build_clinical_report_payload import ClinicalReportType
 from opd.lib.clinical_report_context import ClinicalReportContext
@@ -14,7 +15,12 @@ from opd.services.clinical_documents_service import (
     get_clinical_report_pdf,
 )
 
-router = APIRouter(prefix="/visits", tags=["ClinicalDocuments"])
+# Clinical-report renders are prescription reads (all routes here share one guard).
+router = APIRouter(
+    prefix="/visits",
+    tags=["ClinicalDocuments"],
+    dependencies=[Depends(guard("opd_prescription", "prescription.read"))],
+)
 
 
 def _clinical_context_from_query(

@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from opd.core.authz import guard
 from opd.core.principal import resolve_doctor_id
 from opd.core.tenant import require_tenant_id
 from opd.data_access.prescription_repository import (
@@ -35,6 +36,15 @@ router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 TenantId = Annotated[UUID, Depends(require_tenant_id)]
 DoctorId = Annotated[UUID, Depends(resolve_doctor_id)]
 
+# Per-route Cerbos guards (resource kind opd_prescription). Declared once; each reads
+# app.state.authz at request time and raises 401 (unauthenticated) / 403 (denied).
+_GUARD_READ = Depends(guard("opd_prescription", "prescription.read"))
+_GUARD_CREATE = Depends(guard("opd_prescription", "prescription.create"))
+_GUARD_UPDATE = Depends(guard("opd_prescription", "prescription.update"))
+_GUARD_FINALIZE = Depends(guard("opd_prescription", "prescription.finalize"))
+_GUARD_CANCEL = Depends(guard("opd_prescription", "prescription.cancel"))
+_GUARD_DELETE = Depends(guard("opd_prescription", "prescription.delete"))
+
 _MAX_BATCH_VISIT_IDS = 100
 
 
@@ -56,7 +66,12 @@ def _conflict(exc: PrescriptionConflictError) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
 
-@router.get("", response_model=PrescriptionListResponse, summary="List prescriptions for a patient")
+@router.get(
+    "",
+    response_model=PrescriptionListResponse,
+    summary="List prescriptions for a patient",
+    dependencies=[_GUARD_READ],
+)
 def list_prescriptions(
     service: Annotated[PrescriptionService, Depends(get_prescription_service)],
     tenant_id: TenantId,
@@ -73,6 +88,7 @@ def list_prescriptions(
     response_model=PrescriptionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a draft prescription for a registration visit_id",
+    dependencies=[_GUARD_CREATE],
 )
 def create_prescription(
     payload: PrescriptionCreate,
@@ -93,6 +109,7 @@ def create_prescription(
     "/by-visit/{visit_id}",
     response_model=PrescriptionSingleResponse,
     summary="Get prescription by registration visit_id (1:1)",
+    dependencies=[_GUARD_READ],
 )
 def get_prescription_by_visit(
     visit_id: UUID,
@@ -110,6 +127,7 @@ def get_prescription_by_visit(
     "/by-visits",
     response_model=PrescriptionEncounterOverlayBatchResponse,
     summary="Batch prescription + visit queue status by registration visit_ids",
+    dependencies=[_GUARD_READ],
 )
 def get_prescription_overlays_by_visits(
     tenant_id: TenantId,
@@ -135,6 +153,7 @@ def get_prescription_overlays_by_visits(
     "/{prescription_id}",
     response_model=PrescriptionSingleResponse,
     summary="Get prescription by id",
+    dependencies=[_GUARD_READ],
 )
 def get_prescription(
     prescription_id: UUID,
@@ -152,6 +171,7 @@ def get_prescription(
     "/{prescription_id}",
     response_model=PrescriptionSingleResponse,
     summary="Replace draft prescription clinical content",
+    dependencies=[_GUARD_UPDATE],
 )
 def update_prescription(
     prescription_id: UUID,
@@ -174,6 +194,7 @@ def update_prescription(
     "/{prescription_id}/finalize",
     response_model=PrescriptionSingleResponse,
     summary="Finalize a draft prescription",
+    dependencies=[_GUARD_FINALIZE],
 )
 def finalize_prescription(
     prescription_id: UUID,
@@ -205,6 +226,7 @@ def finalize_prescription(
     "/{prescription_id}/cancel",
     response_model=PrescriptionSingleResponse,
     summary="Cancel a draft prescription",
+    dependencies=[_GUARD_CANCEL],
 )
 def cancel_prescription(
     prescription_id: UUID,
@@ -227,6 +249,7 @@ def cancel_prescription(
     "/{prescription_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Soft-delete a prescription",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_prescription(
     prescription_id: UUID,
