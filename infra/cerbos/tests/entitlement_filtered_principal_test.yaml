@@ -1,11 +1,62 @@
-# Cerbos tests: entitlement-filtered principal
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: entitlement_filtered_principal_test
+description: >-
+  ADR-0032: User Management intersects a principal's stored grants with the tenant's module
+  entitlement BEFORE calling Cerbos, so a capability for a module that is NOT entitled to the
+  tenant is absent from principal.attr.capabilities. This proves enforcement is on the
+  post-intersection capabilities — the SAME principal (identical roles) is allowed when the
+  capability is present (module entitled) and denied when it has been filtered out
+  (module not entitled). See delegated_capabilities_test.yaml for attribute patterns.
 
-# When principal hydration intersects stored grants with tenant entitlement,
-# capabilities not in tenant_entitlement must not satisfy capability-based rules.
+principals:
+  entitled_doctor:
+    # OPD module entitled to the tenant -> opd:prescription:read survives intersection.
+    id: doctor-entitled
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:read"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  entitlement_filtered_doctor:
+    # Same role, but OPD is NOT entitled to the tenant -> the stored grant is intersected out.
+    id: doctor-filtered
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
 
-# Example scenario (documented — extend with concrete principals when seed data stable):
-# - User has stored opd:visits:read but OPD module disabled for tenant
-# - Principal effective capabilities exclude opd:visits:read
-# - Cerbos DENY on opd visit resource requiring that capability
+resources:
+  prescription:
+    id: rx-1
+    kind: opd_prescription
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 
-# See ADR-0032 and delegated_capabilities_test.yaml for principal attribute patterns.
+tests:
+  - name: entitled principal (capability present) is allowed
+    input:
+      principals: [entitled_doctor]
+      resources: [prescription]
+      actions: [prescription.read]
+    expected:
+      - principal: entitled_doctor
+        resource: prescription
+        actions: { prescription.read: EFFECT_ALLOW }
+
+  - name: entitlement-filtered principal (capability intersected out) is denied
+    input:
+      principals: [entitlement_filtered_doctor]
+      resources: [prescription]
+      actions: [prescription.read]
+    expected:
+      - principal: entitlement_filtered_doctor
+        resource: prescription
+        actions: { prescription.read: EFFECT_DENY }
