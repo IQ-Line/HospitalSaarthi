@@ -11,6 +11,8 @@ import type {
   InventoryStockListData,
   InventoryStockLot,
   InventoryStore,
+  InventoryTransferListData,
+  InventoryTransferListParams,
 } from '../types';
 import {
   MOCK_DASHBOARD,
@@ -23,6 +25,7 @@ import {
   MOCK_RECONCILIATION_ROWS,
   MOCK_STOCK_LOTS,
   MOCK_STOCK_ROWS,
+  MOCK_TRANSFERS,
 } from './fixtures';
 
 function summarizeStock(rows: typeof MOCK_STOCK_ROWS) {
@@ -129,4 +132,25 @@ export async function mockFetchInventoryGrnLogs(
 
 export async function mockFetchInventoryReconciliation(): Promise<InventoryReconciliationRow[]> {
   return MOCK_RECONCILIATION_ROWS;
+}
+
+export async function mockFetchInventoryTransfers(
+  params: InventoryTransferListParams = {},
+): Promise<InventoryTransferListData> {
+  let rows = [...MOCK_TRANSFERS];
+  if (params.search?.trim()) {
+    const q = params.search.trim().toLowerCase();
+    rows = rows.filter(
+      (row) =>
+        row.transfer_number.toLowerCase().includes(q) ||
+        row.from_store.toLowerCase().includes(q) ||
+        row.to_store.toLowerCase().includes(q) ||
+        row.transfer_type.toLowerCase().includes(q) ||
+        row.status.toLowerCase().includes(q),
+    );
+  }
+  const limit = params.limit ?? 10;
+  const page = params.page ?? 1;
+  const start = (page - 1) * limit;
+  return { data: rows.slice(start, start + limit), total: rows.length };
 }

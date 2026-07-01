@@ -10,6 +10,7 @@ import {
   mockFetchInventoryStock,
   mockFetchInventoryStockLots,
   mockFetchInventoryStores,
+  mockFetchInventoryTransfers,
 } from '../mock/operations';
 import type {
   InventoryDashboardData,
@@ -24,6 +25,8 @@ import type {
   InventoryStockListData,
   InventoryStockLot,
   InventoryStore,
+  InventoryTransferListData,
+  InventoryTransferListParams,
 } from '../types';
 import { inventoryQueryKeys, INVENTORY_API_BASE } from './query-keys';
 
@@ -117,6 +120,20 @@ async function fetchInventoryReconciliation(): Promise<InventoryReconciliationRo
   return response.data;
 }
 
+async function fetchInventoryTransfers(
+  params: InventoryTransferListParams,
+): Promise<InventoryTransferListData> {
+  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryTransfers(params);
+  const q = new URLSearchParams();
+  if (params.search?.trim()) q.set('search', params.search.trim());
+  if (params.page) q.set('page', String(params.page));
+  if (params.limit) q.set('limit', String(params.limit));
+  const query = q.toString();
+  return apiClient<InventoryTransferListData>(
+    `${INVENTORY_API_BASE}/transfers${query ? `?${query}` : ''}`,
+  );
+}
+
 export function useInventoryStores(): QueryResult<InventoryStore[]> {
   const query = useQuery({
     queryKey: inventoryQueryKeys.stores(),
@@ -199,6 +216,17 @@ export function useInventoryReconciliation(): QueryResult<InventoryReconciliatio
     queryKey: inventoryQueryKeys.reconciliation(),
     queryFn: fetchInventoryReconciliation,
     staleTime: 30_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
+export function useInventoryTransfers(
+  params: InventoryTransferListParams = {},
+): QueryResult<InventoryTransferListData> {
+  const query = useQuery({
+    queryKey: inventoryQueryKeys.transfers(params),
+    queryFn: () => fetchInventoryTransfers(params),
+    staleTime: 15_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
 }

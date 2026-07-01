@@ -11,6 +11,8 @@ import type {
   InventoryStockLot,
   InventoryStockRow,
   InventoryStore,
+  InventoryTransferLine,
+  InventoryTransferRow,
 } from '../types';
 
 export const MOCK_INVENTORY_STORES: InventoryStore[] = [
@@ -25,7 +27,7 @@ export const MOCK_INVENTORY_ITEMS: InventoryItemOption[] = [
   { id: 'item-3', code: 'DOLO 500mg', name: 'Paracetamol 500mg tablet', uom: 'unit' },
   { id: 'item-4', code: 'MED-000002', name: 'Ibuprofen 400mg tablet', uom: 'unit' },
   { id: 'item-5', code: 'CON-000002', name: 'HIMS Journey Demo SKU', uom: 'Tablet' },
-  { id: 'item-6', code: 'TEST-SKU-001', name: 'Azithromycin 500mg tablet', uom: 'strips' },
+  { id: 'item-6', code: 'TEST-SKU-001', name: 'Amoxicillin 500mg capsule', uom: 'unit' },
 ];
 
 export const MOCK_MANUFACTURERS: InventoryManufacturerOption[] = [
@@ -234,6 +236,77 @@ export const MOCK_GRN_LOGS: InventoryGrnLogRow[] = [
 
 export const MOCK_RECONCILIATION_ROWS: InventoryReconciliationRow[] = [];
 
+export const MOCK_TRANSFERS: InventoryTransferRow[] = [
+  {
+    id: 'trf-1',
+    transfer_number: 'TRF-20260701-7E5C445F',
+    transfer_date: '2026-07-01',
+    from_store_id: null,
+    to_store_id: null,
+    from_store: '—',
+    to_store: '—',
+    transfer_type: 'normal',
+    status: 'Completed',
+    lines: [],
+  },
+  {
+    id: 'trf-2',
+    transfer_number: 'TRF-20260701-8A1B2C3D',
+    transfer_date: '2026-07-01',
+    from_store_id: 'store-cms',
+    to_store_id: 'store-new',
+    from_store: 'Central Medical Store',
+    to_store: 'New store',
+    transfer_type: 'normal',
+    status: 'Completed',
+    lines: [
+      {
+        id: 'tl-1',
+        item_id: 'item-6',
+        item_code: 'TEST-SKU-001',
+        item_name: 'Amoxicillin 500mg capsule',
+        uom: 'unit',
+        quantity: 50,
+      },
+    ],
+  },
+  {
+    id: 'trf-3',
+    transfer_number: 'TRF-20260630-F4E5D6C7',
+    transfer_date: '2026-06-30',
+    from_store_id: 'store-new',
+    to_store_id: 'store-inv',
+    from_store: 'New store',
+    to_store: 'Inventory store',
+    transfer_type: 'emergency',
+    status: 'Completed',
+    lines: [],
+  },
+  {
+    id: 'trf-4',
+    transfer_number: 'TRF-20260629-B8C9D0E1',
+    transfer_date: '2026-06-29',
+    from_store_id: 'store-cms',
+    to_store_id: 'store-inv',
+    from_store: 'Central Medical Store',
+    to_store: 'Inventory store',
+    transfer_type: 'normal',
+    status: 'Draft',
+    remarks: 'Monthly replenishment',
+    lines: [
+      {
+        id: 'tl-2',
+        item_id: 'item-3',
+        item_code: 'DOLO 500mg',
+        item_name: 'Paracetamol 500mg tablet',
+        uom: 'unit',
+        quantity: 100,
+        line_remarks: 'Urgent ward stock',
+      },
+    ],
+  },
+];
+
 export const EMPTY_GRN_LINE = (): InventoryGrnLineDraft => ({
   id: crypto.randomUUID(),
   item_id: '',
@@ -260,4 +333,14 @@ export const EMPTY_INDENT_LINE = (): InventoryIndentLine => ({
   requested_qty: 0,
   last_grn: null,
   remarks: '',
+});
+
+export const EMPTY_TRANSFER_LINE = (): InventoryTransferLine => ({
+  id: crypto.randomUUID(),
+  item_id: '',
+  item_code: '',
+  item_name: '',
+  uom: '',
+  quantity: 0,
+  line_remarks: '',
 });

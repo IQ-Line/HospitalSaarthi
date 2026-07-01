@@ -2,6 +2,7 @@ import type {
   InventoryGrnListParams,
   InventoryIndentListParams,
   InventoryListParams,
+  InventoryTransferListParams,
 } from '../types';
 
 export const inventoryQueryKeys = {
@@ -14,6 +15,7 @@ export const inventoryQueryKeys = {
   stockLots: (stockId: string) => [...inventoryQueryKeys.all, 'stock-lots', stockId] as const,
   indents: (params: InventoryIndentListParams) => [...inventoryQueryKeys.all, 'indents', params] as const,
   grnLogs: (params: InventoryGrnListParams) => [...inventoryQueryKeys.all, 'grn-logs', params] as const,
+  transfers: (params: InventoryTransferListParams) => [...inventoryQueryKeys.all, 'transfers', params] as const,
   reconciliation: () => [...inventoryQueryKeys.all, 'reconciliation'] as const,
 };
 

@@ -217,3 +217,42 @@ export type InventoryGrnFormValues = {
   register_page_no: string;
   lines: InventoryGrnLineDraft[];
 };
+
+export type InventoryTransferStatus = 'Draft' | 'In transit' | 'Completed' | 'Cancelled';
+
+export type InventoryTransferType = 'normal' | 'emergency';
+
+export type InventoryTransferLine = {
+  id: string;
+  item_id?: string;
+  item_code: string;
+  item_name: string;
+  uom: string;
+  quantity: number;
+  line_remarks?: string;
+};
+
+export type InventoryTransferRow = {
+  id: string;
+  transfer_number: string;
+  transfer_date: string;
+  from_store_id: string | null;
+  to_store_id: string | null;
+  from_store: string;
+  to_store: string;
+  transfer_type: InventoryTransferType;
+  status: InventoryTransferStatus;
+  remarks?: string;
+  lines: InventoryTransferLine[];
+};
+
+export type InventoryTransferListParams = {
+  search?: string;
+  page?: number;
+  limit?: number;
+};
+
+export type InventoryTransferListData = {
+  data: InventoryTransferRow[];
+  total: number;
+};
