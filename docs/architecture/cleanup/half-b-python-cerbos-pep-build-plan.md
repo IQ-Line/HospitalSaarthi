@@ -5,9 +5,10 @@
 > authorization, mirroring the TS `@hims/ts-sdk-authz` PEP. **Scope confirmed by the user 2026-07-01
 > (Option B — the full Cerbos PEP, not just close-the-bypass).**
 >
-> **Status:** Phase 0 DONE (2026-07-01) — all confirmations locked, see §8. Ground truth gathered from
-> the codebase + the installed cerbos 0.15.1 + the recovered prior scaffold. Half A (#48-M3 `is_system`)
-> is already done (`4eeb53cd`). Phase 1 (build the package) is next.
+> **Status:** Phase 0 + Phase 1 DONE (2026-07-01). Phase 0 confirmations in §8; Phase 1 (the
+> `hims_authz` package) built, gated (53 tests, ruff clean), adversarially reviewed (§9), committed.
+> Half A (#48-M3 `is_system`) done (`4eeb53cd`). **Phase 2 (opd Cerbos policies + capability seeds)
+> is next.** Ground truth from the codebase + installed cerbos 0.15.1 + the recovered prior scaffold.
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
@@ -314,3 +315,36 @@ but NOT cerbos (adding it via py-sdk-authz is additive).
 - **Detritus cleaned** (Phase 0): removed the stale `egg-info/ .pytest_cache/ src+tests __pycache__/`;
   **kept `.venv/` (cerbos 0.15.1 already installed) + `.ruff_cache/`** for fast WSL2 iteration. The dir now
   collapses to fully-gitignored, so new sources stage cleanly.
+
+---
+
+## 9. Phase 1 — DONE (`hims_authz` package built + reviewed, 2026-07-01)
+
+Built `packages/py-sdk-authz` (import `hims_authz`) as **7 modules** — `types` (VerifiedIdentity /
+CerbosPrincipal / AuthzSettings + fail-closed exceptions), `verify` (PyJWKClient RS256/JWKS,
+full alg/kid/iss/aud/max-age/required-claim checks mirroring `verify.ts`), `enrichment` (HTTP-first
+`/auth/principal` + `(user_id, jti)`-keyed TTL cache + id/tenant cross-check, **fail-closed**),
+`client` (async `AsyncCerbosClient`, fail-closed on PDP outage + startup probe), `dependency`
+(`Authz.require(kind, action, ...)` FastAPI guard, memoized on request.state), `middleware`
+(fail-closed identity gate), `__init__` — plus **5 test files, 53 tests, ruff clean**. The recovered
+prior scaffold was NOT adopted (it fails open 3 ways); its correct wire-shape + `/auth/principal`
+mapping were re-derived into the fail-closed rebuild.
+
+**Adversarial review (3 independent lenses) — verdict: no fail-open, contract matches byte-for-byte.**
+- JWT-crypto lens: `verify.py` matches `verify.ts` check-for-check (stricter in places); real RS256 test crypto.
+- Fail-open lens: the 3 prior holes are closed; core authn/enrichment/authz strictly fail-closed.
+- Test-integrity + contract lens: tests sincere; Python Cerbos wire == TS `buildCerbosPrincipalWire`
+  snapshot branch (verified at the UM producer that top-level `roles` == `attributes.role_codes`, so the
+  role_codes merge is value-preserving). No attr key dropped/renamed.
+
+**Findings applied (all fail-closed-safe hardening / coverage, none were "code is wrong"):**
+F1 middleware now denies WebSocket handshakes on non-public paths (only `lifespan` fast-paths);
+F2 `_is_public` rejects dot-segment paths (proxy/sub-app normalization defense);
+F3 pinned `pyjwt>=2.10.0` (a list issuer is silently reject-all on <2.10);
++ added tests: JWKS key-resolution-failure→closed, `aud`-missing→reject, full 8-key attr-parity
+assertion, enrichment body-validation (invalid-JSON / non-object / empty-id), middleware
+prefix-boundary (`/healthz`→401) and gate-verify-failure (forged→401).
+
+**Consumption (for Phase 3/4):** opd + master-data add
+`hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }` under `[tool.uv.sources]`.
+The B008-clean idiom is a module-level `guard = authz.require(kind, action)` then `Depends(guard)`.
