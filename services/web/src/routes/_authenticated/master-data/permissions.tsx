@@ -24,11 +24,9 @@ import {
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
   useCreatePermission,
-  useDeletePermission,
   usePermissions,
   useUpdatePermission,
 } from '@/features/master-data/api';
@@ -55,7 +53,7 @@ export const Route = createFileRoute('/_authenticated/master-data/permissions')(
 });
 
 function PermissionsPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('permissions', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('permissions', {
     productModuleSlug: 'master-data',
   });
   const [tableSearch, setTableSearch] = useState('');
@@ -63,7 +61,6 @@ function PermissionsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingPermission, setEditingPermission] = useState<Permission | null>(null);
   const [viewingPermission, setViewingPermission] = useState<Permission | null>(null);
-  const [deletingPermission, setDeletingPermission] = useState<Permission | null>(null);
 
   const action = actionFilter === 'all' ? undefined : actionFilter;
   const { data, isLoading, error } = usePermissions(action);
@@ -71,7 +68,6 @@ function PermissionsPage() {
 
   const createMutation = useCreatePermission();
   const updateMutation = useUpdatePermission();
-  const deleteMutation = useDeletePermission();
 
   const createForm = useForm<PermissionFormValues>({
     resolver: zodResolver(permissionFormSchema),
@@ -153,18 +149,13 @@ function PermissionsPage() {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingPermission(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       updateMutation.isPending,
       updateMutation.variables,
@@ -195,17 +186,6 @@ function PermissionsPage() {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingPermission) return;
-    try {
-      await deleteMutation.mutateAsync(deletingPermission.id);
-      toast.success('Permission deleted');
-      setDeletingPermission(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   if (error) {
     return (
@@ -315,16 +295,6 @@ function PermissionsPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={!!deletingPermission}
-        onOpenChange={(open) => !open && setDeletingPermission(null)}
-        title="Delete permission"
-        description={`Soft-delete permission "${deletingPermission?.name ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
-      />
     </MasterDataPageShell>
   );
 }

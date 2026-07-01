@@ -13,7 +13,6 @@ import {
 } from '@pulse/ui/select';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -22,8 +21,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
-  useVisitpadDelete,
+import {
   useVisitpadPatch,
   useVisitpadPost,
   useVisitpadRxColumns,
@@ -76,7 +74,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/rx-columns')({
 
 function VisitpadRxColumnsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-rx-columns');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);
@@ -91,7 +89,6 @@ function VisitpadRxColumnsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadRxColumn | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadRxColumn | null>(null);
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
     setPageIndex(0);
@@ -107,7 +104,6 @@ function VisitpadRxColumnsPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(RX_BASE);
-  const del = useVisitpadDelete(RX_BASE);
   const create = useVisitpadPost(RX_BASE);
   const platformImport = useVisitpadRxColumnsPlatformImport(section);
   const { data: tenantRxKeys, isLoading: tenantRxKeysLoading } = useVisitpadTenantImportKeys(
@@ -121,7 +117,7 @@ function VisitpadRxColumnsPage() {
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
   const sectionLabel = sectionLabelFor(section);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const activeToggle = useCatalogActiveToggleConfirm({
     disabled: patch.isPending || !canUpdate,
@@ -199,13 +195,11 @@ function VisitpadRxColumnsPage() {
       },
       visitpadActionsColumn<VisitpadRxColumn>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -342,26 +336,6 @@ function VisitpadRxColumnsPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete Rx column"
-        description={`Remove “${deleting?.display_name ?? deleting?.code ?? ''}” from this catalog?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Rx column deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
