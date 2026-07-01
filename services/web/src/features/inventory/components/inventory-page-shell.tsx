@@ -10,22 +10,45 @@ import {
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
 
+export type InventoryBreadcrumbSegment = {
+  label: string;
+  to?: string;
+};
+
 interface InventoryPageShellProps {
   title: string;
   description?: string;
+  /** Single tail segment after Inventory (legacy). */
   breadcrumbLabel?: string;
+  /** Full trail after Dashboard; last segment is the current page. */
+  breadcrumbs?: InventoryBreadcrumbSegment[];
   actions?: ReactNode;
   children: ReactNode;
+}
+
+function resolveBreadcrumbs(
+  breadcrumbLabel?: string,
+  breadcrumbs?: InventoryBreadcrumbSegment[],
+): InventoryBreadcrumbSegment[] {
+  if (breadcrumbs?.length) {
+    return breadcrumbs;
+  }
+  const tail = breadcrumbLabel ?? 'Inventory';
+  if (tail === 'Inventory') {
+    return [{ label: 'Inventory' }];
+  }
+  return [{ label: 'Inventory', to: '/inventory/dashboard' }, { label: tail }];
 }
 
 export function InventoryPageShell({
   title,
   description,
   breadcrumbLabel,
+  breadcrumbs,
   actions,
   children,
 }: InventoryPageShellProps) {
-  const tail = breadcrumbLabel ?? title;
+  const trail = resolveBreadcrumbs(breadcrumbLabel, breadcrumbs);
 
   return (
     <div className="space-y-4 p-6">
@@ -36,20 +59,23 @@ export function InventoryPageShell({
               <Link to="/dashboard">Dashboard</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to="/inventory/dashboard">Inventory</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          {tail !== 'Inventory' ? (
-            <>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{tail}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </>
-          ) : null}
+          {trail.map((segment, index) => {
+            const isLast = index === trail.length - 1;
+            return (
+              <span key={`${segment.label}-${index}`} className="contents">
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  {isLast || !segment.to ? (
+                    <BreadcrumbPage>{segment.label}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link to={segment.to}>{segment.label}</Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              </span>
+            );
+          })}
         </BreadcrumbList>
       </Breadcrumb>
 

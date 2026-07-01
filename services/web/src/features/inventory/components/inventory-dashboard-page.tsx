@@ -6,7 +6,6 @@ import {
   CalendarClock,
   ShieldCheck,
 } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import { InventoryKpiCard, InventoryPanel } from './inventory-kpi-card';
 import { InventoryPageShell } from './inventory-page-shell';
@@ -17,10 +16,6 @@ export function InventoryDashboardPage() {
   const stats = data?.stats;
   const lowStock = data?.low_stock_items ?? [];
   const expiringLots = data?.expiring_lots ?? [];
-
-  const placeholder = (label: string) => {
-    toast.info(`${label} will be available when APIs are connected.`);
-  };
 
   return (
     <InventoryPageShell title="Inventory" breadcrumbLabel="Inventory">
@@ -58,8 +53,8 @@ export function InventoryDashboardPage() {
       <InventoryPanel
         title="Pharmacy — Inventory Bridge"
         action={
-          <Button type="button" variant="outline" size="sm" onClick={() => placeholder('Reconciliation')}>
-            Open reconciliation
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link to="/inventory/reconciliation">Open reconciliation</Link>
           </Button>
         }
       >
@@ -89,6 +84,9 @@ export function InventoryDashboardPage() {
                 <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
                   <div>
                     <p className="font-medium">{item.item_name}</p>
+                    {item.item_code ? (
+                      <p className="text-xs text-muted-foreground">Code: {item.item_code}</p>
+                    ) : null}
                     <p className="text-muted-foreground">
                       {item.quantity} {item.uom} · reorder at {item.reorder_at}
                     </p>
@@ -121,7 +119,7 @@ export function InventoryDashboardPage() {
         <div className="flex flex-wrap gap-2">
           {[
             { label: 'GRN logs', to: '/inventory/grn-logs' as const },
-            { label: 'New GRN', action: () => placeholder('New GRN') },
+            { label: 'New GRN', to: '/inventory/grn-logs/new' as const },
             { label: 'Record Consumption', to: '/inventory/consume' as const },
             { label: 'New Adjustment', to: '/inventory/adjustments' as const },
             { label: 'Reorder Suggestions', to: '/inventory/reorder' as const },
