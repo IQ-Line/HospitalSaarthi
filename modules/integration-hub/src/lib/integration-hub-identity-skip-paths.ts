@@ -9,8 +9,9 @@ export const INTEGRATION_HUB_BRIDGE_DISCOVERY_PATHS = [
 
 export const INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES = [
   ...INTEGRATION_HUB_BRIDGE_DISCOVERY_PATHS,
-  /** NHA inbound callbacks (no platform JWT). */
-  "/api/v3",
+  /** K8s / load-balancer probes (no platform JWT). */
+  "/healthz",
+  "/api/abdm/v1/healthz",
 ] as const;
 
 export function isBridgeDiscoveryPath(path: string): boolean {
