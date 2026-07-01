@@ -125,10 +125,16 @@ verifies the JWT (`authMode:"protected"`), so this is real enforcement, not head
 (super-admin, JWT forwarded through the provisioning adapter) is unaffected; every other caller gets
 `is_system` forced false. Sincere end-to-end test drives the real router. See the commit for details.
 
-### Half B — Python direct-to-service enforcement (opd, master-data) — **Phase-4; pre-prod gate**
+### Half B — Python direct-to-service enforcement (opd, master-data)
 
-**Decision: do NOT build per-module Python PDPs now.** This is Phase-4 "Authorization rebuild" work
-(roadmap §6), and it is the correct call for cleanup, not avoidance:
+> **UPDATE 2026-07-01: the user greenlit building Half B now (the FULL per-module Cerbos PEP, not just
+> close-the-bypass).** Build plan: **`half-b-python-cerbos-pep-build-plan.md`** (canonical tooling =
+> PyJWT `PyJWKClient` for RS256/JWKS verify + official async `cerbos` Python SDK for the PDP; enrichment
+> HTTP-first via UM `/auth/principal`; rebuild `packages/py-sdk-authz` clean). The analysis below records
+> WHY it was initially deferred (still useful context); it is now being executed.
+
+**Original framing (deferred rationale — kept for the record):** This is Phase-4 "Authorization rebuild"
+work (roadmap §6), and deferring it was the correct default for cleanup, not avoidance:
 
 - **No verified principal exists downstream.** opd (`core/tenant.py`, `core/principal.py`) and
   master-data (`api/deps.py get_catalog_scope`) read only `iq_tenant_id`/`x-tenant-id` and
