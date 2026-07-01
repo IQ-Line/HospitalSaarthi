@@ -1,4 +1,4 @@
-import { useEffect, type FormEvent } from 'react';
+import { useEffect, useMemo, type FormEvent } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import {
   Collapsible,
@@ -19,6 +19,7 @@ import { ChevronDown } from 'lucide-react';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import type { Department } from '@/features/master-data/types';
 import type { InventoryStoreType } from '@/features/inventory-masters/types';
+import type { InventoryStoreRecord } from '../types';
 import type { StoreFormInput } from '../validation';
 
 type StoreFormDialogProps = {
@@ -30,6 +31,8 @@ type StoreFormDialogProps = {
   isSubmitting?: boolean;
   facilityLabel: string;
   storeTypes: InventoryStoreType[];
+  indentTargetStores: InventoryStoreRecord[];
+  editingStoreId?: string;
   departments: Department[];
   form: UseFormReturn<StoreFormInput>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -58,7 +61,16 @@ function OperationalToggle({
           <Label htmlFor={name} className="font-normal">
             {label}
           </Label>
-          <Switch id={name} checked={field.value} onCheckedChange={field.onChange} />
+          <Switch
+            id={name}
+            checked={field.value}
+            onCheckedChange={(checked) => {
+              field.onChange(checked);
+              if (name === 'indent_authority' && !checked) {
+                form.setValue('indent_target_store_id', '');
+              }
+            }}
+          />
         </div>
       )}
     />
@@ -74,21 +86,36 @@ export function StoreFormDialog({
   isSubmitting,
   facilityLabel,
   storeTypes,
+  indentTargetStores,
+  editingStoreId,
   departments,
   form,
   onSubmit,
 }: StoreFormDialogProps) {
   const storeTypeId = form.watch('store_type_id');
+  const indentAuthority = form.watch('indent_authority');
+
+  const indentTargets = useMemo(
+    () =>
+      indentTargetStores.filter(
+        (store) => store.is_active && store.id !== editingStoreId,
+      ),
+    [indentTargetStores, editingStoreId],
+  );
 
   useEffect(() => {
     if (!storeTypeId) return;
     const selected = storeTypes.find((row) => row.id === storeTypeId);
     if (!selected) return;
-    form.setValue('can_receive_stock', selected.receive_stock);
-    form.setValue('can_dispense', selected.dispense);
+    form.setValue('can_receive_stock', selected.can_receive_stock);
+    form.setValue('can_dispense', selected.can_dispense);
     form.setValue('can_issue_to_ward', selected.can_issue_to_ward);
     form.setValue('track_batch_expiry', selected.track_batch_expiry);
     form.setValue('indent_authority', selected.indent_authority);
+    form.setValue(
+      'indent_target_store_id',
+      selected.indent_authority ? (selected.default_indent_target_store_id ?? '') : '',
+    );
   }, [storeTypeId, storeTypes, form]);
 
   return (
@@ -215,6 +242,41 @@ export function StoreFormDialog({
           <OperationalToggle form={form} name="can_issue_to_ward" label="Can issue to ward" />
           <OperationalToggle form={form} name="track_batch_expiry" label="Track batch & expiry" />
           <OperationalToggle form={form} name="indent_authority" label="Indent authority" />
+          {indentAuthority ? (
+            <div className="space-y-2 sm:col-span-2">
+              <Label>
+                Indent target store <span className="text-destructive">*</span>
+              </Label>
+              <Controller
+                control={form.control}
+                name="indent_target_store_id"
+                render={({ field }) => (
+                  <Select value={field.value || undefined} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select active store" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {indentTargets.map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.store_name} ({store.store_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {form.formState.errors.indent_target_store_id ? (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.indent_target_store_id.message}
+                </p>
+              ) : null}
+              {indentTargets.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Create at least one other active store to use as an indent target.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </CollapsibleContent>
       </Collapsible>
     </EntityFormDialog>

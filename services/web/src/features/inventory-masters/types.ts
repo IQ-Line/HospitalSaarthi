@@ -74,18 +74,32 @@ export type InventoryManufacturer = {
   status: InventoryMasterStatus;
 };
 
-export type InventoryStoreType = {
-  id: string;
-  code: string;
-  store_type: string;
-  description: string | null;
-  receive_stock: boolean;
-  dispense: boolean;
+export type InventoryStoreTypeOperationalConfig = {
+  can_receive_stock: boolean;
+  can_dispense: boolean;
   can_issue_to_ward: boolean;
   track_batch_expiry: boolean;
   indent_authority: boolean;
-  status: InventoryMasterStatus;
+  default_indent_target_store_id: string | null;
 };
+
+export const DEFAULT_STORE_TYPE_OPERATIONAL_CONFIG: InventoryStoreTypeOperationalConfig = {
+  can_receive_stock: true,
+  can_dispense: false,
+  can_issue_to_ward: false,
+  track_batch_expiry: true,
+  indent_authority: false,
+  default_indent_target_store_id: null,
+};
+
+export type InventoryStoreType = {
+  id: string;
+  code: string;
+  /** Display name — maps from API `name`. */
+  store_type: string;
+  description: string | null;
+  status: InventoryMasterStatus;
+} & InventoryStoreTypeOperationalConfig;
 
 export type InventoryMasterTabId =
   | 'item-master'

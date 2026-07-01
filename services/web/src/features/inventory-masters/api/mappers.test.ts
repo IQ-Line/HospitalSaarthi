@@ -78,8 +78,12 @@ describe('inventory master API mappers', () => {
       updated_at: '2026-01-01T00:00:00Z',
     });
 
-    expect(row.receive_stock).toBe(true);
-    expect(row.dispense).toBe(false);
+    expect(row.can_receive_stock).toBe(true);
+    expect(row.can_dispense).toBe(false);
+    expect(row.can_issue_to_ward).toBe(false);
+    expect(row.track_batch_expiry).toBe(true);
+    expect(row.indent_authority).toBe(false);
+    expect(row.default_indent_target_store_id).toBeNull();
     expect(row.store_type).toBe('Main Store');
   });
 

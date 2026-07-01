@@ -26,7 +26,37 @@ export async function updateStore(
     }
   }
 
-  const row = await deps.storeRepo.update(tenantId, storeId, input, actorId);
+  const existing = await deps.storeRepo.findById(tenantId, storeId);
+  if (!existing) {
+    throw new StoreNotFoundError();
+  }
+
+  const indentAuthority = input.indent_authority ?? existing.indent_authority;
+  let indentTargetStoreId =
+    input.indent_target_store_id !== undefined
+      ? input.indent_target_store_id
+      : existing.indent_target_store_id;
+
+  if (!indentAuthority) {
+    indentTargetStoreId = null;
+  } else if (!indentTargetStoreId?.trim()) {
+    throw new StoreValidationError(
+      "Indent target store is required when indent authority is enabled.",
+    );
+  } else if (indentTargetStoreId === storeId) {
+    throw new StoreValidationError("Indent target store cannot be the same store.");
+  }
+
+  const row = await deps.storeRepo.update(
+    tenantId,
+    storeId,
+    {
+      ...input,
+      indent_authority: indentAuthority,
+      indent_target_store_id: indentTargetStoreId,
+    },
+    actorId,
+  );
   if (!row) {
     throw new StoreNotFoundError();
   }

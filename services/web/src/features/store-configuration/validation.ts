@@ -11,6 +11,15 @@ export const storeFormSchema = z.object({
   can_issue_to_ward: z.boolean().default(false),
   track_batch_expiry: z.boolean().default(true),
   indent_authority: z.boolean().default(false),
+  indent_target_store_id: z.string().uuid().optional().or(z.literal('')),
+}).superRefine((values, ctx) => {
+  if (values.indent_authority && !values.indent_target_store_id?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Select an indent target store when indent authority is enabled.',
+      path: ['indent_target_store_id'],
+    });
+  }
 });
 
 export type StoreFormValues = z.output<typeof storeFormSchema>;
@@ -27,4 +36,5 @@ export const EMPTY_STORE_FORM_VALUES: StoreFormInput = {
   can_issue_to_ward: false,
   track_batch_expiry: true,
   indent_authority: false,
+  indent_target_store_id: '',
 };
