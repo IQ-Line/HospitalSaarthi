@@ -56,7 +56,7 @@ const uomSchema = z.object({
 
 const storageSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  description: z.string().trim().min(1, 'Description is required'),
+  description: z.string().optional(),
   is_active: z.boolean(),
 });
 
@@ -67,20 +67,14 @@ const categorySchema = z.object({
   is_active: z.boolean(),
 });
 
-const hsnSchema = z
-  .object({
-    hsn_code: z.string().trim().regex(/^\d{4,8}$/, 'HSN code must be 4–8 digits'),
-    effective_from: z.string().trim().min(1, 'Effective date is required'),
-    cgst_pct: z.coerce.number().min(0),
-    sgst_pct: z.coerce.number().min(0),
-    igst_pct: z.coerce.number().min(0),
-    remarks: z.string().optional(),
-    is_active: z.boolean(),
-  })
-  .refine((v) => v.cgst_pct + v.sgst_pct === v.igst_pct, {
-    message: 'CGST + SGST must equal IGST',
-    path: ['igst_pct'],
-  });
+const hsnSchema = z.object({
+  hsn_code: z.string().trim().regex(/^\d{4,8}$/, 'HSN code must be 4–8 digits'),
+  effective_from: z.string().trim().min(1, 'Effective date is required'),
+  cgst_pct: z.coerce.number().min(0),
+  sgst_pct: z.coerce.number().min(0),
+  igst_pct: z.coerce.number().min(0),
+  is_active: z.boolean(),
+});
 
 const STORE_TYPE_DESCRIPTION_MAX_LENGTH = 500;
 const NONE_STORE_VALUE = '__none__';
@@ -108,12 +102,45 @@ const storeTypeSchema = z.object({
 });
 
 const manufacturerSchema = z.object({
-  code: z.string().trim().min(1, 'Code is required'),
+  code: z.string().optional(),
   display_name: z.string().trim().min(1, 'Display name is required'),
   is_active: z.boolean(),
 });
 
 type DeleteTarget = { id: string; label: string };
+
+function computeIgstRate(cgst: number, sgst: number): number {
+  return Math.round((cgst + sgst) * 10000) / 10000;
+}
+
+function resolveManufacturerCode(code: string | undefined, displayName: string): string {
+  const trimmed = code?.trim().toLowerCase() ?? '';
+  if (/^[a-z0-9_]{3,9}$/.test(trimmed)) return trimmed;
+  const fromName = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 9);
+  if (fromName.length >= 3) return fromName;
+  return `m${Date.now().toString(36).slice(-8)}`.slice(0, 9);
+}
+
+function RequiredLabel({
+  htmlFor,
+  children,
+  required = false,
+}: {
+  htmlFor?: string;
+  children: ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
+      {children}
+      {required ? <span className="text-destructive"> *</span> : null}
+    </Label>
+  );
+}
 
 type InventoryMasterCrudDialogsProps = {
   tabId: InventoryMasterTabId;
@@ -656,7 +683,7 @@ function StorageCrudDialog(props: {
 
   const toBody = (values: z.infer<typeof storageSchema>) => ({
     name: values.name,
-    description: values.description,
+    description: values.description?.trim() || '',
     is_active: values.is_active,
   });
 
@@ -670,12 +697,14 @@ function StorageCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="storage-name">Name</Label>
+            <RequiredLabel htmlFor="storage-name" required>
+              Name
+            </RequiredLabel>
             <Input id="storage-name" {...form.register('name')} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="storage-desc">Description</Label>
-            <Input id="storage-desc" {...form.register('description')} />
+            <RequiredLabel htmlFor="storage-desc">Description</RequiredLabel>
+            <Input id="storage-desc" placeholder="Optional" {...form.register('description')} />
           </div>
           <ActiveField
             checked={form.watch('is_active')}
@@ -704,10 +733,18 @@ function HsnCrudDialog(props: {
       cgst_pct: 0,
       sgst_pct: 0,
       igst_pct: 0,
-      remarks: '',
       is_active: true,
     },
   });
+
+  const cgstPct = form.watch('cgst_pct');
+  const sgstPct = form.watch('sgst_pct');
+
+  useEffect(() => {
+    const cg = Number(cgstPct) || 0;
+    const sg = Number(sgstPct) || 0;
+    form.setValue('igst_pct', computeIgstRate(cg, sg), { shouldValidate: true });
+  }, [cgstPct, sgstPct, form]);
 
   useEffect(() => {
     if (props.createOpen) {
@@ -717,7 +754,6 @@ function HsnCrudDialog(props: {
         cgst_pct: 0,
         sgst_pct: 0,
         igst_pct: 0,
-        remarks: '',
         is_active: true,
       });
     }
@@ -731,7 +767,6 @@ function HsnCrudDialog(props: {
         cgst_pct: props.editing.cgst_percent,
         sgst_pct: props.editing.sgst_percent,
         igst_pct: props.editing.igst_percent,
-        remarks: '',
         is_active: props.editing.status === 'active',
       });
     }
@@ -743,7 +778,6 @@ function HsnCrudDialog(props: {
     cgst_pct: values.cgst_pct,
     sgst_pct: values.sgst_pct,
     igst_pct: values.igst_pct,
-    remarks: values.remarks?.trim() || null,
     is_active: values.is_active,
   });
 
@@ -752,13 +786,17 @@ function HsnCrudDialog(props: {
     cgst_pct: values.cgst_pct,
     sgst_pct: values.sgst_pct,
     igst_pct: values.igst_pct,
-    remarks: values.remarks?.trim() || null,
     is_active: values.is_active,
   });
 
+  const igstDisplay = String(form.watch('igst_pct') ?? 0);
+
   return (
     <CrudDialogPair
-      entityLabel="HSN / GST"
+      entityLabel="HSN & GST"
+      createSubmitLabel="Save"
+      editSubmitLabel="Save"
+      fieldsClassName="grid gap-4 md:grid-cols-2"
       {...props}
       form={form}
       onCreate={(values) => props.create.mutateAsync(toCreateBody(values))}
@@ -766,31 +804,67 @@ function HsnCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="hsn-code">HSN code</Label>
-            <Input id="hsn-code" {...form.register('hsn_code')} disabled={props.editing != null} />
+            <RequiredLabel htmlFor="hsn-code" required>
+              HSN Code
+            </RequiredLabel>
+            <Input
+              id="hsn-code"
+              className="font-mono"
+              placeholder="4–8 digits"
+              inputMode="numeric"
+              maxLength={8}
+              {...form.register('hsn_code')}
+              disabled={props.editing != null}
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="hsn-date">Effective from</Label>
+            <RequiredLabel htmlFor="hsn-date" required>
+              Date of Activation
+            </RequiredLabel>
             <Input id="hsn-date" type="date" {...form.register('effective_from')} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="cgst">CGST %</Label>
-              <Input id="cgst" type="number" step="0.01" {...form.register('cgst_pct')} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sgst">SGST %</Label>
-              <Input id="sgst" type="number" step="0.01" {...form.register('sgst_pct')} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="igst">IGST %</Label>
-              <Input id="igst" type="number" step="0.01" {...form.register('igst_pct')} />
-            </div>
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="cgst" required>
+              CGST Rate (%)
+            </RequiredLabel>
+            <Input id="cgst" type="number" step="0.01" min={0} {...form.register('cgst_pct')} />
           </div>
-          <ActiveField
-            checked={form.watch('is_active')}
-            onCheckedChange={(value) => form.setValue('is_active', value)}
-          />
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="sgst" required>
+              SGST Rate (%)
+            </RequiredLabel>
+            <Input id="sgst" type="number" step="0.01" min={0} {...form.register('sgst_pct')} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="igst" required>
+              IGST Rate (%)
+            </RequiredLabel>
+            <Input
+              id="igst"
+              className="bg-muted"
+              placeholder="Auto"
+              value={igstDisplay}
+              readOnly
+              disabled
+              tabIndex={-1}
+              aria-readonly
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+            <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+              <Label htmlFor="hsn-status" className="text-sm font-medium text-foreground">
+                Status
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                IGST is calculated as CGST + SGST. Updates apply to future transactions only.
+              </p>
+            </div>
+            <Switch
+              id="hsn-status"
+              checked={form.watch('is_active')}
+              onCheckedChange={(value) => form.setValue('is_active', value)}
+            />
+          </div>
         </>
       )}
     />
@@ -899,6 +973,9 @@ function StoreTypeCrudDialog(props: {
   return (
     <CrudDialogPair
       entityLabel="Store type"
+      createSubmitLabel="Save"
+      editSubmitLabel="Save"
+      fieldsClassName="grid gap-4 md:grid-cols-2"
       {...props}
       form={form}
       onCreate={(values) => props.create.mutateAsync(toCreateBody(values))}
@@ -907,7 +984,7 @@ function StoreTypeCrudDialog(props: {
         <>
           {props.editing ? (
             <div className="flex flex-col gap-2 md:col-span-2">
-              <Label htmlFor="store-code">Store type code</Label>
+              <RequiredLabel htmlFor="store-code">Store type code</RequiredLabel>
               <Input
                 id="store-code"
                 className="font-mono"
@@ -918,13 +995,13 @@ function StoreTypeCrudDialog(props: {
             </div>
           ) : null}
           <div className={`flex flex-col gap-2 ${props.editing ? '' : 'md:col-span-2'}`}>
-            <Label htmlFor="store-name">
-              Store type name <span className="text-destructive">*</span>
-            </Label>
+            <RequiredLabel htmlFor="store-name" required>
+              Store type name
+            </RequiredLabel>
             <Input id="store-name" {...form.register('name')} />
           </div>
           <div className="flex flex-col gap-2 md:col-span-2">
-            <Label htmlFor="store-desc">Description</Label>
+            <RequiredLabel htmlFor="store-desc">Description</RequiredLabel>
             <Textarea
               id="store-desc"
               className="min-h-[72px] resize-y"
@@ -942,7 +1019,8 @@ function StoreTypeCrudDialog(props: {
                 Inactive types are hidden when creating new stores. Existing stores are unchanged.
               </p>
             </div>
-            <ActiveField
+            <Switch
+              id="store-status"
               checked={form.watch('is_active')}
               onCheckedChange={(value) => form.setValue('is_active', value)}
             />
@@ -1052,7 +1130,7 @@ function ManufacturerCrudDialog(props: {
   }, [props.editing, form]);
 
   const toCreateBody = (values: z.infer<typeof manufacturerSchema>) => ({
-    code: values.code,
+    code: resolveManufacturerCode(values.code, values.display_name),
     display_name: values.display_name,
     display_order: 0,
     is_active: values.is_active,
@@ -1073,11 +1151,18 @@ function ManufacturerCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="mfr-code">Code</Label>
-            <Input id="mfr-code" {...form.register('code')} disabled={props.editing != null} />
+            <RequiredLabel htmlFor="mfr-code">Code</RequiredLabel>
+            <Input
+              id="mfr-code"
+              placeholder="Optional"
+              {...form.register('code')}
+              disabled={props.editing != null}
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="mfr-name">Display name</Label>
+            <RequiredLabel htmlFor="mfr-name" required>
+              Display name
+            </RequiredLabel>
             <Input id="mfr-name" {...form.register('display_name')} />
           </div>
           <ActiveField
@@ -1101,6 +1186,9 @@ function CrudDialogPair<T extends Record<string, unknown>>({
   onCreate,
   onEdit,
   renderFields,
+  fieldsClassName = 'flex flex-col gap-4',
+  createSubmitLabel = 'Create',
+  editSubmitLabel = 'Save',
 }: {
   entityLabel: string;
   createOpen: boolean;
@@ -1112,6 +1200,9 @@ function CrudDialogPair<T extends Record<string, unknown>>({
   onCreate: (values: T) => Promise<unknown>;
   onEdit: (id: string, values: T) => Promise<unknown>;
   renderFields: () => ReactNode;
+  fieldsClassName?: string;
+  createSubmitLabel?: string;
+  editSubmitLabel?: string;
 }) {
   const submitCreate: SubmitHandler<T> = async (values) => {
     try {
@@ -1140,11 +1231,12 @@ function CrudDialogPair<T extends Record<string, unknown>>({
         open={createOpen}
         onOpenChange={onCreateOpenChange}
         title={`Add ${entityLabel}`}
-        submitLabel="Create"
-        loading={busy}
+        description=""
+        submitLabel={createSubmitLabel}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitCreate)}
       >
-        <div className="flex flex-col gap-4">{renderFields()}</div>
+        <div className={fieldsClassName}>{renderFields()}</div>
       </EntityFormDialog>
       <EntityFormDialog
         open={editing != null}
@@ -1152,11 +1244,12 @@ function CrudDialogPair<T extends Record<string, unknown>>({
           if (!open) onEditingChange(null);
         }}
         title={`Edit ${entityLabel}`}
-        submitLabel="Save"
-        loading={busy}
+        description=""
+        submitLabel={editSubmitLabel}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitEdit)}
       >
-        <div className="flex flex-col gap-4">{renderFields()}</div>
+        <div className={fieldsClassName}>{renderFields()}</div>
       </EntityFormDialog>
     </>
   );

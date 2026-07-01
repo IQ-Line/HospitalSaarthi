@@ -25,6 +25,15 @@ export function departmentLabelFromIds(ids: string[], departments: Department[])
   return `${names.slice(0, 2).join(', ')} +${names.length - 2}`;
 }
 
+export type ItemMasterHsnSnapshot = {
+  id: string;
+  hsn_code: string;
+  effective_from: string;
+  cgst_pct: number;
+  sgst_pct: number;
+  igst_pct: number;
+};
+
 export type ItemMasterPharmacyAttributes = {
   genericName: string;
   strength: string;
@@ -58,6 +67,7 @@ export type CreateItemMasterPayload = {
   is_short_expiry: boolean;
   loose_sale_allowed: boolean;
   hsn_gst_id?: string | null;
+  hsn_selections?: ItemMasterHsnSnapshot[];
   catalog_number?: string;
   reorder_level: number;
   storage_condition_id?: string | null;

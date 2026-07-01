@@ -18,4 +18,4 @@ export const inventoryQueryKeys = {
 };
 
 /** Future BFF base path for inventory operational APIs. */
-export const INVENTORY_API_BASE = '/api/v1/inventory';
+export const INVENTORY_API_BASE = '/api/inventory/v1';
