@@ -285,6 +285,11 @@ export interface GatewayClient {
     linkToken?: string;
     /** HIP id for HIE-CM calls. */
     xHipId?: string;
+    /**
+     * Gateway session endpoint for bearer acquisition.
+     * `v0.5` matches legacy abdi-lims-backed scan-and-share (`/gateway/v0.5/sessions`).
+     */
+    bearerSession?: "v3" | "v0.5";
   }): Promise<TRes>;
 
   /** GET with gateway bearer unless `withBearer: false`. */
@@ -311,6 +316,9 @@ export interface GatewayClient {
     certValidUntilMs: number | null;
     certCached: boolean;
   };
+
+  /** Drop cached gateway bearer (legacy adapter fetched a fresh token per outbound call). */
+  invalidateBearer(): void;
 }
 
 export interface FideliusEncryptor {

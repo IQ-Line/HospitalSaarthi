@@ -6,9 +6,13 @@ import { buildAbdmDepsForTenant } from "../../../lib/build-abdm-deps.js";
 import type { GatewayClient } from "../ports.js";
 import { runInboundCallback } from "./m2/m2-inbound-helper.js";
 import { INTEGRATION_HUB_SCHEMA_NAME } from "../schema/tables.js";
+import { abdmWarn } from "../lib/abdm-adapter-log.js";
+import { AbdmGatewayError } from "../lib/gateway-errors.js";
 
 const ACTIVE_WINDOW_MS = 60 * 60 * 1000;
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+/** Token TTL echoed to NHA in on-share ack (seconds) — matches legacy abdi-lims-backed. */
+const ON_SHARE_PROFILE_EXPIRY_SEC = 1800;
 
 type ShareProfileJson = Record<string, unknown>;
 
@@ -34,14 +38,17 @@ function endOfIstDay(): Date {
 function parseSharePatient(body: unknown): {
   abhaAddress: string;
   profile: ShareProfileJson;
+  counterContext: string;
 } | null {
   const root = body as {
     profile?: { patient?: Record<string, unknown> };
+    metaData?: { context?: unknown };
   };
   const patient = root.profile?.patient;
   const abhaAddress = String(patient?.abhaAddress ?? "").trim();
   if (!patient || !abhaAddress) return null;
-  return { abhaAddress, profile: patient };
+  const counterContext = String(root.metaData?.context ?? "1").trim() || "1";
+  return { abhaAddress, profile: patient, counterContext };
 }
 
 function mapGender(raw: unknown): "male" | "female" | "other" | "" {
@@ -225,10 +232,12 @@ async function acknowledgeShare(input: {
   requestId: string;
   abhaAddress: string;
   tokenNumber: number;
-  counterId: number;
+  counterContext: string;
   xCmId: string;
+  gatewayEnvironment: "sandbox" | "production";
   errorStatus?: boolean;
 }): Promise<void> {
+  const counterId = String(Number(input.counterContext) || 1);
   const body = input.errorStatus
     ? {
         error: {
@@ -242,20 +251,40 @@ async function acknowledgeShare(input: {
           abhaAddress: input.abhaAddress,
           status: "SUCCESS",
           profile: {
-            context: input.counterId,
-            tokenNumber: input.tokenNumber,
-            expiry: 1800,
+            context: counterId,
+            tokenNumber: String(input.tokenNumber),
+            expiry: String(ON_SHARE_PROFILE_EXPIRY_SEC),
           },
         },
         response: { requestId: input.requestId },
       };
-  await input.gateway.post({
-    path: "/api/hiecm/patient-share/v3/on-share",
-    body,
-    target: "gateway",
-    requestId: input.requestId,
-    headers: { "X-CM-ID": input.xCmId },
-  });
+  try {
+    // Sandbox: legacy abdi-lims uses /gateway/v0.5/sessions for on-share (mileStoneNumber=1).
+    // Production (ABHA_LIVE): legacy uses /api/hiecm/gateway/v3/sessions — same as M2.
+    const bearerSession = input.gatewayEnvironment === "production" ? "v3" : "v0.5";
+    input.gateway.invalidateBearer();
+    await input.gateway.post({
+      path: "/api/hiecm/patient-share/v3/on-share",
+      body,
+      target: "gateway",
+      bearerSession,
+      headers: { "X-CM-ID": input.xCmId },
+    });
+  } catch (e) {
+    if (e instanceof AbdmGatewayError) {
+      abdmWarn("abdm.scan_share.on_share_failed", {
+        statusCode: e.statusCode,
+        abdmCode: typeof e.abdmCode === "string" ? e.abdmCode : undefined,
+        requestId: input.requestId,
+        abhaAddress: input.abhaAddress,
+        counterContext: input.counterContext,
+        message: e.message,
+        responseBody:
+          e.responseBody !== undefined ? JSON.stringify(e.responseBody).slice(0, 500) : undefined,
+      });
+    }
+    throw e;
+  }
 }
 
 async function listActiveIssuances(
@@ -491,8 +520,9 @@ export async function registerScanShareCallbackRoutes(
             requestId,
             abhaAddress: parsed.abhaAddress,
             tokenNumber: existing.token_number,
-            counterId: 1,
+            counterContext: parsed.counterContext,
             xCmId: deps.xCmId,
+            gatewayEnvironment: integrationCtx.profile.gatewayEnvironment,
             errorStatus: true,
           });
           return;
@@ -523,8 +553,9 @@ export async function registerScanShareCallbackRoutes(
           requestId,
           abhaAddress: parsed.abhaAddress,
           tokenNumber: issuance.token_number,
-          counterId: 1,
+          counterContext: parsed.counterContext,
           xCmId: deps.xCmId,
+          gatewayEnvironment: integrationCtx.profile.gatewayEnvironment,
         });
       },
     });

@@ -15,8 +15,9 @@ describe("INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES", () => {
     );
   });
 
-  it("includes NHA callback prefix when identity runs at app root", () => {
-    expect(INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES).toContain("/api/v3");
+  it("includes health probe paths without JWT", () => {
+    expect(INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES).toContain("/healthz");
+    expect(INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES).toContain("/api/abdm/v1/healthz");
   });
 });
 

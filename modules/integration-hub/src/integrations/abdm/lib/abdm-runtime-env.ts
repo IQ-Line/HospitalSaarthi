@@ -10,7 +10,10 @@ export function isNonDevNodeEnv(): boolean {
 /** Sandbox / local: permissive callback JWS and optional plaintext tokens. */
 export function allowInsecureAbdmCallbacks(): boolean {
   if (!isNonDevNodeEnv()) return true;
-  return process.env["ABDM_ALLOW_INSECURE_CALLBACKS"] === "true";
+  return (
+    process.env["ABDM_ALLOW_INSECURE_CALLBACKS"] === "true" ||
+    process.env["INTEGRATION_HUB_ALLOW_INSECURE_CALLBACKS"] === "true"
+  );
 }
 
 export function allowPlaintextTokensAtRest(): boolean {

@@ -84,6 +84,14 @@ export function registerHttpErrorHandler(app: {
 
     const gatewayErr = asAbdmGatewayError(err);
     if (gatewayErr) {
+      request.log.warn(
+        {
+          statusCode: gatewayErr.statusCode,
+          abdmCode: gatewayErr.abdmCode ?? null,
+          responseBody: gatewayErr.responseBody,
+        },
+        "NHA gateway upstream error",
+      );
       const status =
         gatewayErr.statusCode >= 400 && gatewayErr.statusCode < 600
           ? gatewayErr.statusCode

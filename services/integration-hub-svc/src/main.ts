@@ -242,19 +242,18 @@ async function main() {
 
   const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
 
-  if (identityAuth) {
-    const { identityPlugin } = await import("@hims/ts-sdk-identity");
-    // Register at app root so skipPathPrefixes match full request URLs.
-    await app.register(identityPlugin, {
-      ...identityAuth,
-      skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
-    });
-  }
-
   await app.register(async (api) => {
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {
+      if (identityAuth) {
+        const { identityPlugin } = await import("@hims/ts-sdk-identity");
+        // Platform JWT only on /api/abdm/v1 — never on /api/v3 NHA callbacks (gateway Bearer JWS).
+        await scopedApp.register(identityPlugin, {
+          ...identityAuth,
+          skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+        });
+      }
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });
