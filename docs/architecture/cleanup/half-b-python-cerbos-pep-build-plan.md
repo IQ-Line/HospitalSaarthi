@@ -13,8 +13,13 @@
 > (deps seam for tests). opd 86 pytest green (82 adapted via a `tenant_headers`→minted-JWT seam that
 > preserves tenant isolation + 4 new authz tests), ruff clean; **live round-trip vs real Cerbos 5/5
 > correct** (allow-with-cap / deny-no-cap / deny-cross-tenant / finalize-gates-on-update). Half A
-> (#48-M3) done (`4eeb53cd`). **Phase 4 (wire master-data PEP + dual-scope global/tenant policies) is
-> next.** Capability-key derivation verified against `map-master-data-permission.ts`.
+> (#48-M3) done (`4eeb53cd`). **Phase 4a DONE** — master-data Cerbos policies
+(`infra/cerbos/policies/master_data/{module,permission,system_role,module_permission,department}.yaml`
++ `master_data_permissions_test.yaml` [20 tests green, 95 total] + alembic
+`046_master_data_authorization_catalog.py` seeding `master-data:{module,permission,system-role,
+module-permission,department}:{create,update,delete}`). **Phase 4b (wire master-data create_app PEP +
+scope-aware guards + actor_id + 113-test migration) is next** — full design in §10. Capability-key
+derivation verified against `map-master-data-permission.ts`.
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 
@@ -354,3 +359,61 @@ prefix-boundary (`/healthz`→401) and gate-verify-failure (forged→401).
 **Consumption (for Phase 3/4):** opd + master-data add
 `hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }` under `[tool.uv.sources]`.
 The B008-clean idiom is a module-level `guard = authz.require(kind, action)` then `Depends(guard)`.
+
+---
+
+## 10. Phase 4 design (master-data) — recon + decisions (2026-07-01)
+
+**Structure (differs from opd):** master-data runs DIRECTLY — `modules/master-data/app/main.py:69`
+`app = create_app()` at import; **no `services/master-data-svc` wrapper**; flat `app/*` layout (import
+root `app.`). `create_app()` at `app/main.py:46` takes **NO `deps` param** (must add), sets no
+`app.state.authz`, imports no `hims_authz`. Settings `app/core/config.py` (`MASTER_DATA_` prefix) has
+auth SCAFFOLDING (`auth_disabled`/`jwt_secret` HS256/`auth_bypass`/`dev_bearer_token`) but NONE of
+JWKS/issuer/audience/Cerbos/UM — add an `AuthEnvSettings` mirroring opd's.
+
+**Dual-scope:** `get_catalog_scope(request)` (`app/api/deps.py:62`) is HEADER-driven per-request
+(`iq_tenant_id`|`x-tenant-id` → `CatalogScope.iq_tenant_id`: `None`=global(`master_global`) /
+UUID=tenant(`master_tenant`)). Scope is NOT per-route-fixed.
+
+**Policy model (DECIDED — mirror `master_data_visitpad.yaml`: colon resource kind, `roles:["*"]`,
+capability match, bare-verb grouped actions):**
+- **Global catalogs** `master_data:{module,permission,system_role,module_permission}` — writes
+  (`create`/`update`/`delete`) gated on capability ONLY, **no tenant-equality** (the write caps are
+  platform-operator-scoped; same shape as visitpad).
+- **`master_data:department`** (tenant catalog) — `create`/`update`/`delete`/`import` gated on
+  capability + **tenant-equality** (`principal.iq_tenant_id == resource.iq_tenant_id`), `roles:["*"]`,
+  PLUS a `roles:["super-admin"]` cross-tenant variant (no tenant-eq) — like opd/registration.
+- **READS: identity-gate-only** (authenticated, NO capability guard). Rationale: catalog reads are
+  config metadata needed for frontend nav (`GET /modules/nav`); gating them on a read cap risks
+  breaking the SPA. The PRIMARY #51 gap is unauthenticated WRITES. (Read caps ARE seeded for catalog
+  completeness / future gating, but no read guard is wired.)
+
+**Capability keys (derivation-verified, module `master-data`):** permission slug →
+`mapMasterDataPermissionToRuntimeCapability` key: `master-data.module.create`→`master-data:module:create`;
+`master-data.system.role.create`→`master-data:system-role:create`;
+`master-data.module.permission.create`→`master-data:module-permission:create`;
+`master-data.department.create`→`master-data:department:create`. `import` is NOT a runtime action →
+the import route gates on the department **create** cap. (`master-data` module row seeded by `027`.)
+
+**Guard (scope-aware — differs from opd's principal-tenant default):** global-catalog guard
+`resource_attr={}`; department guard `resource_attr={"iq_tenant_id": scope.iq_tenant_id or ""}` read
+from `get_catalog_scope(request)` (so tenant-eq compares the SCOPE/header tenant vs the principal
+tenant → cross-tenant writes deny). actor: handlers pass `actor_id=None` today → replace with the
+verified `sub` via a `resolve_actor_id(request)` dep (services already thread `actor_id` →
+`created_by`/`updated_by`).
+
+**Phase 4b test-migration (the heavy part — needs fresh context):** 113 tests, PER-FILE client
+fixtures each `create_app()` + `dependency_overrides` (repos pinned to a scope), scope via headers,
+**NO bearer, NO shared token/authed-client fixture**. Seam: add a conftest test-authz + token helper
+(like opd's), each per-file fixture → `create_app(deps={"authz": test_authz})` +
+`TestClient(app, headers={bearer})`; update any `created_by is None` assertions (now = the token
+`sub`). The autouse `_api_prefix_for_tests` sets `AUTH_BYPASS=false`.
+
+**Phase 5 dead code (master-data):** `app/core/security.py` (hardcoded `platform-admin` principal,
+zero callers), `app/middleware/auth_policy.py` (HS256/unsigned `resolve_superadmin_actor`),
+`app/api/auth.py` `require_superadmin` (never `Depends`-wired), `app/middleware/auth_middleware.py`
+`BearerAuthContextMiddleware` (never rejects). Plus config auth scaffolding.
+
+**Split:** 4a = policies + capability-seed migration + `cerbos compile` tests (self-contained, like
+Phase 2). 4b = `create_app` deps/middleware + config + scope-aware guards + actor_id + 113-test
+migration (like Phase 3).

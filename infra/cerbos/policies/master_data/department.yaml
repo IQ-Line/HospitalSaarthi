@@ -1,0 +1,72 @@
+---
+# Master Data — department catalog (TENANT-scoped, master_tenant). Unlike the global catalogs,
+# writes are tenant-isolated: capability + iq_tenant_id equality, plus a super-admin cross-tenant
+# variant. `import` (import-from-platform, bulk create) shares the create capability.
+# Reads are identity-gate-only.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "master_data:department"
+  version: default
+  rules:
+    - actions: ["create", "import"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:department:create" in request.principal.attr.capabilities ||
+              "master-data:department:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["create", "import"]
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "master-data:department:create" in request.principal.attr.capabilities ||
+            "master-data:department:create" in request.principal.attr.delegated_capabilities
+
+    - actions: ["update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:department:update" in request.principal.attr.capabilities ||
+              "master-data:department:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["update"]
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "master-data:department:update" in request.principal.attr.capabilities ||
+            "master-data:department:update" in request.principal.attr.delegated_capabilities
+
+    - actions: ["delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "master-data:department:delete" in request.principal.attr.capabilities ||
+              "master-data:department:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions: ["delete"]
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "master-data:department:delete" in request.principal.attr.capabilities ||
+            "master-data:department:delete" in request.principal.attr.delegated_capabilities
