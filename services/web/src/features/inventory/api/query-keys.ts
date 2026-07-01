@@ -19,5 +19,5 @@ export const inventoryQueryKeys = {
   reconciliation: () => [...inventoryQueryKeys.all, 'reconciliation'] as const,
 };
 
-/** Future BFF base path for inventory operational APIs. */
+/** inventory-svc operational APIs (proxied at `/api/inventory/v1`). */
 export const INVENTORY_API_BASE = '/api/inventory/v1';

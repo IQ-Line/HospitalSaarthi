@@ -118,29 +118,16 @@ export function InventoryDashboardPage() {
       <InventoryPanel title="Quick Actions">
         <div className="flex flex-wrap gap-2">
           {[
+            { label: 'Stock', to: '/inventory/stock' as const },
+            { label: 'Indents', to: '/inventory/indents' as const },
+            { label: 'Transfers', to: '/inventory/transfers' as const },
             { label: 'GRN logs', to: '/inventory/grn-logs' as const },
             { label: 'New GRN', to: '/inventory/grn-logs/new' as const },
-            { label: 'Record Consumption', to: '/inventory/consume' as const },
-            { label: 'New Adjustment', to: '/inventory/adjustments' as const },
-            { label: 'Reorder Suggestions', to: '/inventory/reorder' as const },
-            { label: 'Physical Count', to: '/inventory/physical-counts' as const },
-          ].map((entry) =>
-            'to' in entry ? (
-              <Button key={entry.label} type="button" variant="outline" size="sm" asChild>
-                <Link to={entry.to}>{entry.label}</Link>
-              </Button>
-            ) : (
-              <Button
-                key={entry.label}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={entry.action}
-              >
-                {entry.label}
-              </Button>
-            ),
-          )}
+          ].map((entry) => (
+            <Button key={entry.label} type="button" variant="outline" size="sm" asChild>
+              <Link to={entry.to}>{entry.label}</Link>
+            </Button>
+          ))}
         </div>
       </InventoryPanel>
     </InventoryPageShell>

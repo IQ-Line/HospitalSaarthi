@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { apiClient } from '@/lib/api-client';
+import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
   mockFetchInventoryDashboard,
   mockFetchInventoryGrnLogs,
@@ -28,110 +28,77 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
-import { inventoryQueryKeys, INVENTORY_API_BASE } from './query-keys';
+import type { InventorySvcItemRow, InventorySvcStoreRow } from './api-types';
+import { inventorySvcGetList } from './inventory-api-client';
+import { mapInventorySvcItemRow, mapInventorySvcStoreRow } from './mappers';
+import { inventoryQueryKeys } from './query-keys';
 
 type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
 
-/**
- * Flip to `true` when inventory-svc operational routes are proxied on the BFF.
- * Mock fetchers mirror the same response shapes for a straightforward swap.
- */
-const OPERATIONAL_INVENTORY_API_ENABLED = false;
-
 async function fetchInventoryStores(): Promise<InventoryStore[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStores();
-  const response = await apiClient<{ data: InventoryStore[] }>(`${INVENTORY_API_BASE}/stores`);
-  return response.data;
+  const response = await inventorySvcGetList<InventorySvcStoreRow>('/stores', {
+    is_active: true,
+    limit: 200,
+  });
+  return response.data.map(mapInventorySvcStoreRow);
 }
 
 async function fetchInventoryItems(): Promise<InventoryItemOption[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryItems();
-  const response = await apiClient<{ data: InventoryItemOption[] }>(`${INVENTORY_API_BASE}/items`);
-  return response.data;
+  const response = await inventorySvcGetList<InventorySvcItemRow>('/items', {
+    is_active: true,
+    limit: 200,
+  });
+  return response.data.map(mapInventorySvcItemRow);
 }
 
 async function fetchInventoryManufacturers(): Promise<InventoryManufacturerOption[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryManufacturers();
-  const response = await apiClient<{ data: InventoryManufacturerOption[] }>(
-    `${INVENTORY_API_BASE}/manufacturers`,
-  );
-  return response.data;
+  // Manufacturers live in master-data until inventory-svc exposes an operational lookup.
+  return mockFetchInventoryManufacturers();
 }
 
 async function fetchInventoryDashboard(storeId?: string): Promise<InventoryDashboardData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryDashboard();
-  const suffix = storeId ? `?store_id=${encodeURIComponent(storeId)}` : '';
-  return apiClient<InventoryDashboardData>(`${INVENTORY_API_BASE}/dashboard${suffix}`);
+  // Dashboard aggregate not yet on inventory-svc.
+  return mockFetchInventoryDashboard();
 }
 
 async function fetchInventoryStock(params: InventoryListParams): Promise<InventoryStockListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStock(params);
-  const q = new URLSearchParams();
-  if (params.search?.trim()) q.set('search', params.search.trim());
-  if (params.store_id) q.set('store_id', params.store_id);
-  if (params.status && params.status !== 'all') q.set('status', params.status);
-  const query = q.toString();
-  return apiClient<InventoryStockListData>(
-    `${INVENTORY_API_BASE}/stock${query ? `?${query}` : ''}`,
-  );
+  // Stock list not yet on inventory-svc.
+  return mockFetchInventoryStock(params);
 }
 
 async function fetchInventoryStockLots(stockId: string): Promise<InventoryStockLot[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStockLots(stockId);
-  const response = await apiClient<{ data: InventoryStockLot[] }>(
-    `${INVENTORY_API_BASE}/stock/${stockId}/lots`,
-  );
-  return response.data;
+  return mockFetchInventoryStockLots(stockId);
 }
 
 async function fetchInventoryIndents(
   params: InventoryIndentListParams,
 ): Promise<InventoryIndentListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryIndents(params);
-  const q = new URLSearchParams();
-  if (params.search?.trim()) q.set('search', params.search.trim());
-  if (params.status && params.status !== 'all') q.set('status', params.status);
-  if (params.page) q.set('page', String(params.page));
-  if (params.limit) q.set('limit', String(params.limit));
-  const query = q.toString();
-  return apiClient<InventoryIndentListData>(
-    `${INVENTORY_API_BASE}/indents${query ? `?${query}` : ''}`,
-  );
+  return mockFetchInventoryIndents(params);
 }
 
 async function fetchInventoryGrnLogs(params: InventoryGrnListParams): Promise<InventoryGrnListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryGrnLogs(params);
-  const q = new URLSearchParams();
-  if (params.search?.trim()) q.set('search', params.search.trim());
-  if (params.status && params.status !== 'all') q.set('status', params.status);
-  if (params.type && params.type !== 'all') q.set('type', params.type);
-  if (params.summary_filter) q.set('summary_filter', params.summary_filter);
-  const query = q.toString();
-  return apiClient<InventoryGrnListData>(
-    `${INVENTORY_API_BASE}/grn-logs${query ? `?${query}` : ''}`,
-  );
+  return mockFetchInventoryGrnLogs(params);
 }
 
 async function fetchInventoryReconciliation(): Promise<InventoryReconciliationRow[]> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryReconciliation();
-  const response = await apiClient<{ data: InventoryReconciliationRow[] }>(
-    `${INVENTORY_API_BASE}/pharmacy-reconciliation`,
-  );
-  return response.data;
+  return mockFetchInventoryReconciliation();
 }
 
 async function fetchInventoryTransfers(
   params: InventoryTransferListParams,
 ): Promise<InventoryTransferListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryTransfers(params);
-  const q = new URLSearchParams();
-  if (params.search?.trim()) q.set('search', params.search.trim());
-  if (params.page) q.set('page', String(params.page));
-  if (params.limit) q.set('limit', String(params.limit));
-  const query = q.toString();
-  return apiClient<InventoryTransferListData>(
-    `${INVENTORY_API_BASE}/transfers${query ? `?${query}` : ''}`,
-  );
+  // Transfers list not yet on inventory-svc.
+  return mockFetchInventoryTransfers(params);
 }
 
 export function useInventoryStores(): QueryResult<InventoryStore[]> {
