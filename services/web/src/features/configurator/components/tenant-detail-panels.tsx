@@ -75,7 +75,6 @@ import {
 } from '@/features/billing/validation';
 import {
   useCreateDepartment,
-  useDeleteDepartment,
   useDepartments,
   useUpdateDepartment,
   DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
@@ -92,7 +91,7 @@ import {
   type DepartmentFormInput,
   type DepartmentFormValues,
 } from '@/features/master-data/validation';
-import { useCreateRole, useDeleteRole, useUpdateRole } from '@/features/user-management/api/mutations';
+import { useCreateRole, useUpdateRole } from '@/features/user-management/api/mutations';
 import {
   assignableCapabilityCatalogOptions,
   roleListOptions,
@@ -377,7 +376,7 @@ function DepartmentFormFields({
 }
 
 export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
   const [tableSearch, setTableSearch] = useState('');
@@ -387,7 +386,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
-  const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
   const deptType = typeFilter === 'all' ? undefined : typeFilter;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -404,7 +402,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
 
   const createMutation = useCreateDepartment(iqTenantId);
   const updateMutation = useUpdateDepartment(iqTenantId);
-  const deleteMutation = useDeleteDepartment(iqTenantId);
 
   const createForm = useForm<DepartmentFormInput, unknown, DepartmentFormValues>({
     resolver: zodResolver(departmentFormSchema),
@@ -475,18 +472,13 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingDepartment(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       updateMutation.isPending,
       updateMutation.variables,
@@ -517,17 +509,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingDepartment) return;
-    try {
-      await deleteMutation.mutateAsync(deletingDepartment.id);
-      toast.success('Department deleted');
-      setDeletingDepartment(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -642,17 +623,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deletingDepartment}
-        onOpenChange={(open) => !open && setDeletingDepartment(null)}
-        title="Delete department"
-        description={`Soft-delete department "${deletingDepartment?.name ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
-      />
     </div>
   );
 }
@@ -799,7 +769,6 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const { data: roles = [], isLoading, error } = useQuery(roleListOptions(iqTenantId));
   const [state, dispatch] = useReducer(tenantRoleReducer, tenantRoleInitialState);
   const [editorMode, setEditorMode] = useState<TenantRoleEditorMode>(null);
-  const [deleteRoleDialogOpen, setDeleteRoleDialogOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState('');
   const [capabilitySearch, setCapabilitySearch] = useState('');
   const [dialogSavePending, setDialogSavePending] = useState(false);
@@ -807,7 +776,6 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
   const [createFormSession, setCreateFormSession] = useState(0);
 
   const createRole = useCreateRole(iqTenantId);
-  const deleteRole = useDeleteRole(iqTenantId);
   const selectedRole = roles.find((role) => role.id === state.selectedRoleId) ?? null;
   const isViewMode = editorMode === 'view';
   const isEditMode = editorMode === 'edit';
@@ -980,20 +948,6 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
     qc.invalidateQueries({ queryKey: userManagementKeys.roleCapabilities(roleId) }).catch(() => {});
   }
 
-  const handleDeleteRole = () => {
-    if (!selectedRole) return;
-    const nextRoleId = roles.find((r) => r.id !== selectedRole.id)?.id ?? '';
-    deleteRole.mutate(selectedRole.id, {
-      onSuccess: () => {
-        toast.success(`Role "${selectedRole.display_name}" deleted`);
-        setDeleteRoleDialogOpen(false);
-        setEditorMode(null);
-        dispatch({ type: 'selectRole', roleId: nextRoleId });
-      },
-      onError: (err) => toast.error(tenantRoleMutationError(err)),
-    });
-  };
-
   const handleResetEditor = () => {
     if (isCreateMode) {
       resetCreateEditorState();
@@ -1078,7 +1032,6 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           isDirty={editorDirty}
           savePending={savePending}
           saveDisabled={!canSaveDialog}
-          deletePending={deleteRole.isPending}
           assignedCapabilitiesPending={
             isEditMode || isViewMode ? roleCapabilitiesQuery.isPending : false
           }
@@ -1148,23 +1101,8 @@ export function TenantRoleTemplatesPanel({ iqTenantId }: { iqTenantId: string })
           }
           onReset={handleResetEditor}
           onSave={() => void handleSaveEditor()}
-          onDelete={() => setDeleteRoleDialogOpen(true)}
         />
       ) : null}
-
-      <ConfirmDialog
-        open={deleteRoleDialogOpen}
-        onOpenChange={setDeleteRoleDialogOpen}
-        title="Delete role?"
-        description={
-          selectedRole
-            ? `"${selectedRole.display_name}" will be removed. People who already had this role keep the access they were given.`
-            : 'This role will be removed.'
-        }
-        confirmLabel={deleteRole.isPending ? 'Deleting...' : 'Delete role'}
-        destructive
-        onConfirm={handleDeleteRole}
-      />
     </>
   );
 }

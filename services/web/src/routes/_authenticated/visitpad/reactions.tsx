@@ -6,7 +6,6 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -17,8 +16,7 @@ import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadAllergyReactions,
-  useVisitpadAllergyReactionsGlobalLibrary,
-  useVisitpadDelete,
+  useVisitpadAllergyReactionsGlobalLibrary,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -56,7 +54,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/reactions')({
 
 function VisitpadReactionsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-reactions');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -70,7 +68,6 @@ function VisitpadReactionsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadAllergyReaction | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadAllergyReaction | null>(null);
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
     setPageIndex(0);
@@ -85,7 +82,6 @@ function VisitpadReactionsPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(RXN_BASE);
-  const del = useVisitpadDelete(RXN_BASE);
   const create = useVisitpadPost(RXN_BASE);
   const platformImport = useVisitpadPlatformImport('/allergy-reactions/import-from-platform');
   const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
@@ -95,7 +91,7 @@ function VisitpadReactionsPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -173,13 +169,11 @@ function VisitpadReactionsPage() {
       },
       visitpadActionsColumn<VisitpadAllergyReaction>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -294,26 +288,6 @@ function VisitpadReactionsPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete reaction"
-        description={`Soft-delete reaction “${deleting?.display_name ?? deleting?.code ?? ''}”?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Reaction deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>

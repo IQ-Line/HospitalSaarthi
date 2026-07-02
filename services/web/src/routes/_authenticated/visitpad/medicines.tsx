@@ -15,7 +15,6 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -29,8 +28,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
-  useVisitpadDelete,
+import {
   useVisitpadMedicines,
   useVisitpadMedicinesGlobalLibrary,
   useVisitpadPatch,
@@ -150,7 +148,7 @@ function DosageFormSelect<T extends FieldValues>({
 
 function VisitpadMedicinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-medicines');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [schedule, setSchedule] = useState<string>('all');
@@ -165,7 +163,6 @@ function VisitpadMedicinesPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadMedicine | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadMedicine | null>(null);
   const sch = schedule === 'all' ? undefined : schedule;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
@@ -181,7 +178,6 @@ function VisitpadMedicinesPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(MED_BASE);
-  const del = useVisitpadDelete(MED_BASE);
   const create = useVisitpadPost(MED_BASE);
   const platformImport = useVisitpadPlatformImport('/medicines/import-from-platform');
   const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
@@ -191,7 +187,7 @@ function VisitpadMedicinesPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -287,13 +283,11 @@ function VisitpadMedicinesPage() {
       },
       visitpadActionsColumn<VisitpadMedicine>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -419,26 +413,6 @@ function VisitpadMedicinesPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete medicine"
-        description={`Soft-delete “${deleting?.display_name ?? deleting?.code ?? ''}”?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Medicine deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>

@@ -177,18 +177,20 @@ export function InventoryMasterCrudDialogs({
         onOpenChange={(open) => {
           if (!open) onDeletingChange(null);
         }}
-        title="Delete record?"
+        title="Deactivate record?"
         description={
-          deleting ? `Delete “${deleting.label}”? This can be restored from the catalog.` : ''
+          deleting
+            ? `“${deleting.label}” will be deactivated. You can activate it again later.`
+            : ''
         }
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         destructive
         loading={del.isPending}
         onConfirm={async () => {
           if (!deleting) return;
           try {
             await del.mutateAsync(deleting.id);
-            toast.success('Deleted');
+            toast.success('Deactivated');
             onDeletingChange(null);
           } catch (error) {
             toast.error(mutationErrorMessage(error));

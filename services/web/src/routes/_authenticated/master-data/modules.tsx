@@ -24,11 +24,9 @@ import {
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
   useCreateModule,
-  useDeleteModule,
   useModules,
   useUpdateModule,
 } from '@/features/master-data/api';
@@ -61,7 +59,7 @@ const moduleCategoryOptions: Array<{ value: ModuleCategory; label: string }> = [
 ];
 
 function ModulesPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('modules', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('modules', {
     productModuleSlug: 'master-data',
   });
   const [tableSearch, setTableSearch] = useState('');
@@ -69,7 +67,6 @@ function ModulesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [viewingModule, setViewingModule] = useState<Module | null>(null);
-  const [deletingModule, setDeletingModule] = useState<Module | null>(null);
 
   const category = categoryFilter === 'all' ? undefined : categoryFilter;
   const { data, isLoading, error } = useModules(category, { globalCatalog: true });
@@ -77,7 +74,6 @@ function ModulesPage() {
 
   const createMutation = useCreateModule();
   const updateMutation = useUpdateModule();
-  const deleteMutation = useDeleteModule();
 
   const createForm = useForm<ModuleFormValues>({
     resolver: zodResolver(moduleFormSchema),
@@ -177,18 +173,13 @@ function ModulesPage() {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingModule(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       updateMutation.isPending,
       updateMutation.variables,
@@ -219,17 +210,6 @@ function ModulesPage() {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingModule) return;
-    try {
-      await deleteMutation.mutateAsync(deletingModule.id);
-      toast.success('Module deleted');
-      setDeletingModule(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   if (error) {
     return (
@@ -341,16 +321,6 @@ function ModulesPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={!!deletingModule}
-        onOpenChange={(open) => !open && setDeletingModule(null)}
-        title="Delete module"
-        description={`Soft-delete module "${deletingModule?.name ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
-      />
     </MasterDataPageShell>
   );
 }
