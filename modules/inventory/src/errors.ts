@@ -58,3 +58,15 @@ export class ItemNotFoundError extends InventoryError {
   }
 }
 
+export class IndentNotFoundError extends InventoryError {
+  constructor() {
+    super("Indent not found", 404, "NOT_FOUND");
+  }
+}
+
+export class IndentValidationError extends InventoryError {
+  constructor(message: string) {
+    super(message, 422, "VALIDATION_ERROR");
+  }
+}
+

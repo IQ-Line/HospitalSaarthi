@@ -14,6 +14,12 @@ export const inventoryQueryKeys = {
   stockLots: (itemId: string, storeId?: string) =>
     [...inventoryQueryKeys.all, 'stock-lots', itemId, storeId] as const,
   indents: (params: InventoryIndentListParams) => [...inventoryQueryKeys.all, 'indents', params] as const,
+  indentActiveCheck: (params: {
+    from_store_id: string;
+    to_store_id?: string;
+    item_id: string;
+    exclude_indent_id?: string;
+  }) => [...inventoryQueryKeys.all, 'indent-active-check', params] as const,
   grnLogs: (params: InventoryGrnListParams) => [...inventoryQueryKeys.all, 'grn-logs', params] as const,
   transfers: (params: InventoryTransferListParams) => [...inventoryQueryKeys.all, 'transfers', params] as const,
   reconciliation: () => [...inventoryQueryKeys.all, 'reconciliation'] as const,

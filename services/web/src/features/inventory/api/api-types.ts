@@ -118,3 +118,70 @@ export type InventorySvcStockBatchesResponse = {
     batch_count: number;
   };
 };
+
+export type InventorySvcIndentStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'partially_approved'
+  | 'rejected'
+  | 'in_fulfillment'
+  | 'fulfilled';
+
+export type InventorySvcIndentLine = {
+  id: string;
+  item_id: string;
+  requested_qty: number;
+  approved_qty: number | null;
+  line_remarks: string | null;
+  preferred_lot_id: string | null;
+  sort_order: number;
+  item: {
+    id: string;
+    item_code: string;
+    name: string;
+    unit_of_measure: string;
+    is_lot_tracked: boolean;
+  } | null;
+};
+
+export type InventorySvcIndentRow = {
+  id: string;
+  indent_number: string;
+  indent_date: string;
+  from_store_id: string;
+  to_store_id: string;
+  indent_type: 'store_transfer' | 'pharmacy_refill' | 'emergency';
+  priority: 'normal' | 'urgent' | 'stat';
+  status: InventorySvcIndentStatus;
+  fulfillment_route: 'stock_transfer' | 'procurement';
+  purchase_indent_number: string | null;
+  rejection_reason: string | null;
+  inventory_grn_id: string | null;
+  remarks: string | null;
+  from_store?: { store_id: string; store_code: string; store_name: string } | null;
+  to_store?: { store_id: string; store_code: string; store_name: string } | null;
+  lines?: InventorySvcIndentLine[];
+};
+
+export type InventorySvcIndentListResponse = {
+  items: InventorySvcIndentRow[];
+  total: number;
+};
+
+export type InventorySvcIndentStoreOption = {
+  store_id: string;
+  store_code: string;
+  store_name: string;
+  indent_authority: boolean;
+  indent_target_store_id: string | null;
+};
+
+export type InventorySvcIndentItemOption = {
+  item_id: string;
+  item_code: string;
+  name: string;
+  unit_of_measure: string;
+  is_lot_tracked: boolean;
+  available_qty: number;
+};

@@ -1,6 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { InventoryIndentFormPage } from '@/features/inventory/components/inventory-indent-form-page';
+import { InventoryIndentDetailPage } from '@/features/inventory/components/inventory-indent-detail-page';
 
 export const Route = createFileRoute('/_authenticated/inventory/indents/new')({
-  component: InventoryIndentFormPage,
+  component: NewIndentRoute,
 });
+
+function NewIndentRoute() {
+  return <InventoryIndentDetailPage indentId="new" />;
+}

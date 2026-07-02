@@ -84,6 +84,17 @@ export const inventoryItemCodeSequences = inventorySchema.table(
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] })],
 );
 
+export const inventoryIndentSequences = inventorySchema.table(
+  "indent_sequences",
+  {
+    ...tenantColumn(),
+    period_key: text("period_key").notNull(),
+    last_value: integer("last_value").notNull().default(0),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.period_key] })],
+);
+
 // ─── Item catalog ────────────────────────────────────────────────────────────
 
 export const inventoryItems = inventorySchema.table(

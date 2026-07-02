@@ -89,15 +89,25 @@ export type InventoryStockListData = {
 };
 
 export type InventoryIndentStatus =
-  | 'Draft'
-  | 'Approved'
-  | 'In Fulfillment'
-  | 'Fulfilled'
-  | 'Cancelled';
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'partially_approved'
+  | 'rejected'
+  | 'in_fulfillment'
+  | 'fulfilled';
 
-export type InventoryIndentPriority = 'NORMAL' | 'URGENT' | 'STAT';
+export type InventoryIndentActiveMatch = {
+  indent_id: string;
+  indent_number: string;
+  status: InventoryIndentStatus;
+};
 
-export type InventoryIndentRoute = 'Transfer' | 'Procurement';
+export type InventoryIndentPriority = 'normal' | 'urgent' | 'stat';
+
+export type InventoryIndentType = 'store_transfer' | 'pharmacy_refill' | 'emergency';
+
+export type InventoryIndentRoute = 'stock_transfer' | 'procurement';
 
 export type InventoryIndentLine = {
   id: string;
@@ -107,20 +117,33 @@ export type InventoryIndentLine = {
   uom: string;
   qty_available?: number | null;
   requested_qty: number;
+  approved_qty?: number | null;
   last_grn?: string | null;
   remarks?: string;
+  preferred_lot_id?: string | null;
 };
 
 export type InventoryIndentRow = {
   id: string;
   indent_number: string;
   request_date: string;
+  from_store_id: string;
+  to_store_id: string;
   from_store: string;
   to_store: string;
   route: InventoryIndentRoute;
+  indent_type: InventoryIndentType;
   priority: InventoryIndentPriority;
   status: InventoryIndentStatus;
+  purchase_indent_number?: string | null;
+  rejection_reason?: string | null;
+  inventory_grn_id?: string | null;
   lines: InventoryIndentLine[];
+};
+
+export type InventoryIndentDetail = InventoryIndentRow & {
+  remarks?: string | null;
+  fulfillment_route: InventoryIndentRoute;
 };
 
 export type InventoryIndentListParams = {
