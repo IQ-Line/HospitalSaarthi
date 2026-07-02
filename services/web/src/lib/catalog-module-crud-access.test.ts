@@ -39,6 +39,18 @@ describe('catalogModuleCrudAccess', () => {
     expect(registration.canDelete).toBe(true);
   });
 
+  it('grants registration list read when desk staff has create only', () => {
+    const createOnly = new Set([
+      'registration:registration:create',
+      'frontdesk:shell:access',
+    ]);
+    const registration = catalogModuleCrudAccess(createOnly, 'registration', {
+      productModuleSlug: 'frontdesk',
+    });
+    expect(registration.canRead).toBe(true);
+    expect(registration.canCreate).toBe(true);
+  });
+
   it('requires explicit create for add actions', () => {
     const keys = new Set(['allergens:allergens:update']);
     const access = catalogModuleCrudAccess(keys, 'allergens');

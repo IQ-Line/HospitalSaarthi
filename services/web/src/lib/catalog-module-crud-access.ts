@@ -112,9 +112,13 @@ export function catalogModuleCrudAccess(
     }
   }
 
-  /**
-   * Item Master tab uses L2 `inventory-master` — inherit CRUD from any granted inventory L3 master.
-   */
+  /** Desk staff with create/update must see the OPD registration list (read is not always assigned separately). */
+  if (catalogModuleSlug === 'registration') {
+    if (mergedCreate || mergedUpdate) {
+      canRead = true;
+    }
+  }
+
   if (catalogModuleSlug === 'inventory-master') {
     canRead =
       canRead ||
