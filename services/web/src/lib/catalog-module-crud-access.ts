@@ -1,4 +1,8 @@
 import { principalHasCatalogModuleAction } from '@/lib/catalog-route-access';
+import {
+  principalHasAnyInventoryMasterL3Action,
+  principalHasAnyInventoryMasterL3RouteAccess,
+} from '@/lib/inventory-catalog-slugs';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 import { MD_VISITPAD_CREATE, MD_VISITPAD_VIEW } from '@/lib/runtime-capability-keys';
 import { isVisitpadL3CatalogModuleSlug } from '@/lib/visitpad-catalog-slugs';
@@ -104,6 +108,25 @@ export function catalogModuleCrudAccess(
     if (shell.canMutate) {
       mergedCreate = true;
       mergedUpdate = true;
+      mergedDelete = true;
+    }
+  }
+
+  /**
+   * Item Master tab uses L2 `inventory-master` — inherit CRUD from any granted inventory L3 master.
+   */
+  if (catalogModuleSlug === 'inventory-master') {
+    canRead =
+      canRead ||
+      principalHasAnyInventoryMasterL3RouteAccess(capabilityKeys) ||
+      principalHasAnyInventoryMasterL3Action(capabilityKeys, 'read');
+    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'create')) {
+      mergedCreate = true;
+    }
+    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'update')) {
+      mergedUpdate = true;
+    }
+    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'delete')) {
       mergedDelete = true;
     }
   }

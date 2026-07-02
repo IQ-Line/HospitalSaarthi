@@ -172,7 +172,16 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
+      zod:
+        specifier: ^3.25.7
+        version: 3.25.76
     devDependencies:
+      fastify:
+        specifier: ^5.3.3
+        version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.0.1
+        version: 5.1.0
       vitest:
         specifier: ^3.1.3
         version: 3.2.4(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)
@@ -856,12 +865,21 @@ importers:
       '@hims/inventory':
         specifier: workspace:*
         version: link:../../modules/inventory
+      '@hims/ts-sdk-db':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-db
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
+      '@hims/ts-sdk-tenant':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-tenant
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
+      fastify-plugin:
+        specifier: ^5.0.1
+        version: 5.1.0
     devDependencies:
       tsx:
         specifier: ^4.20.5
@@ -1134,6 +1152,9 @@ importers:
       modern-screenshot:
         specifier: ^4.6.8
         version: 4.7.0
+      qrcode.react:
+        specifier: ^4.2.0
+        version: 4.2.0(react@19.2.5)
       react:
         specifier: ^19.1.0
         version: 19.2.5
@@ -5963,6 +5984,11 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  qrcode.react@4.2.0:
+    resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -11932,6 +11958,10 @@ snapshots:
   proxy-from-env@2.1.0: {}
 
   punycode@2.3.1: {}
+
+  qrcode.react@4.2.0(react@19.2.5):
+    dependencies:
+      react: 19.2.5
 
   quick-format-unescaped@4.0.4: {}
 

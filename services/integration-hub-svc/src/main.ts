@@ -24,6 +24,7 @@ import {
   NoOpRecordFoundationClient,
   registerM2CallbackRoutes,
   registerM3CallbackRoutes,
+  registerScanShareCallbackRoutes,
   registerM2EventConsumers,
   createHipDataPushClientFromEnv,
   DrizzleLinkOtpsRepo,
@@ -189,6 +190,7 @@ async function main() {
       gatewayBaseUrl: GATEWAY_BASE_URL,
       abhaApiBaseUrl: ABHA_API_BASE_URL,
     },
+    db,
     sessions,
     inboundMessages,
     linkTokens,
@@ -233,25 +235,25 @@ async function main() {
   await app.register(async (v3) => {
     await registerM2CallbackRoutes(v3, sharedInfra);
     await registerM3CallbackRoutes(v3, sharedInfra);
+    await registerScanShareCallbackRoutes(v3, sharedInfra);
   }, { prefix: "/api/v3" });
 
   const abdmRouter = createRouter(sharedInfra);
 
   const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
 
-  if (identityAuth) {
-    const { identityPlugin } = await import("@hims/ts-sdk-identity");
-    // Register at app root so skipPathPrefixes match full request URLs.
-    await app.register(identityPlugin, {
-      ...identityAuth,
-      skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
-    });
-  }
-
   await app.register(async (api) => {
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {
+      if (identityAuth) {
+        const { identityPlugin } = await import("@hims/ts-sdk-identity");
+        // Platform JWT only on /api/abdm/v1 — never on /api/v3 NHA callbacks (gateway Bearer JWS).
+        await scopedApp.register(identityPlugin, {
+          ...identityAuth,
+          skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+        });
+      }
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });

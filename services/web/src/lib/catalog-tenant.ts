@@ -4,10 +4,11 @@ import {
   DEVELOPMENT_BOOTSTRAP_TENANT_ID,
   DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
   DEVELOPMENT_VISITPAD_CATALOG_TENANT_UUID,
-} from '../../../../packages/dev-bootstrap/src/dev-tenant-ids.ts';
+} from '../../../../packages/dev-bootstrap/src/dev-tenant-ids';
 
 const VISITPAD_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/visitpad';
 const DEPARTMENTS_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/departments';
+const INVENTORY_CATALOG_API_PATH_PREFIX = '/api/v1/master-data/inventory';
 
 /**
  * Visitpad / master-data catalog sends `iq_tenant_id` when the active tenant id is a
@@ -45,15 +46,25 @@ export function isVisitpadCatalogApiPath(path: string): boolean {
   return path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX);
 }
 
-/** Visitpad + departments catalogs use ``global_master`` / ``tenant_master`` dual schemas. */
+export function isInventoryCatalogApiPath(path: string): boolean {
+  return path.startsWith(INVENTORY_CATALOG_API_PATH_PREFIX);
+}
+
+/** Visitpad, departments, and inventory catalogs use ``global_master`` / ``tenant_master`` dual schemas. */
 export function isMasterDataDualSchemaCatalogApiPath(path: string): boolean {
   return (
     path.startsWith(VISITPAD_CATALOG_API_PATH_PREFIX) ||
-    path.startsWith(DEPARTMENTS_CATALOG_API_PATH_PREFIX)
+    path.startsWith(DEPARTMENTS_CATALOG_API_PATH_PREFIX) ||
+    path.startsWith(INVENTORY_CATALOG_API_PATH_PREFIX)
   );
 }
 
-/** Platform super-admin edits dual-schema catalogs via `global_master` — omit `iq_tenant_id`. */
+/**
+ * Platform super-admin edits Visitpad / departments via `global_master` — omit `iq_tenant_id`.
+ *
+ * Inventory supply masters are hospital-operational: always tenant-scoped when a UUID tenant
+ * is active (see {@link resolveInventoryCatalogScopeKey}).
+ */
 export function visitpadCatalogOmitsIqTenantHeader(input: {
   path: string;
   authRoles?: readonly string[];
@@ -62,10 +73,20 @@ export function visitpadCatalogOmitsIqTenantHeader(input: {
   if (!isMasterDataDualSchemaCatalogApiPath(input.path)) {
     return false;
   }
+  if (isInventoryCatalogApiPath(input.path)) {
+    return false;
+  }
   return resolvePlatformSuperAdmin({
     authRoles: input.authRoles,
     principalRoles: input.principalRoles,
   });
+}
+
+/** React Query scope for inventory master-data (`/api/v1/master-data/inventory/*`). */
+export function resolveInventoryCatalogScopeKey(
+  tenantId: string | null | undefined,
+): string {
+  return catalogIqTenantHeaderValue(tenantId) ?? 'global';
 }
 
 export function isVisitpadTenantCatalogScope(tenantId: string | null | undefined): boolean {

@@ -1,8 +1,9 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { EnvelopeValidationError } from "@hims/ts-sdk-events";
 import {
-  AbdmGatewayError,
   AbdmUseCaseError,
+  asAbdmGatewayError,
+  formatNhaUpstreamMessage,
   IntegrationProfileNotFoundError,
   IntegrationTenantRequiredError,
 } from "@hims/integration-hub";
@@ -81,13 +82,24 @@ export function registerHttpErrorHandler(app: {
       });
     }
 
-    if (err instanceof AbdmGatewayError) {
+    const gatewayErr = asAbdmGatewayError(err);
+    if (gatewayErr) {
+      request.log.warn(
+        {
+          statusCode: gatewayErr.statusCode,
+          abdmCode: gatewayErr.abdmCode ?? null,
+          responseBody: gatewayErr.responseBody,
+        },
+        "NHA gateway upstream error",
+      );
       const status =
-        err.statusCode >= 400 && err.statusCode < 600 ? err.statusCode : 502;
+        gatewayErr.statusCode >= 400 && gatewayErr.statusCode < 600
+          ? gatewayErr.statusCode
+          : 502;
       return reply.status(status).send({
         error: "Upstream",
-        message: err.message,
-        code: err.abdmCode ?? null,
+        message: formatNhaUpstreamMessage(gatewayErr),
+        code: gatewayErr.abdmCode ?? null,
       });
     }
 

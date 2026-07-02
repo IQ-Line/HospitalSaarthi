@@ -16,6 +16,14 @@ import { CreateAbhaDialog } from '@/features/abha/components/create-abha-dialog'
 import type { AbhaCreatedPayload } from '@/features/abha/types';
 import { RegistrationFormHeader, RegistrationTodayStatsSidebar } from '@/features/frontdesk/components/registration-form-chrome';
 import {
+  ScanShareQueueDialog,
+  mergeScanSharePrefill,
+  redeemScanShareToken,
+  submitScanShareTokenLookup,
+  useScanShareStatus,
+  type PrefillPayload,
+} from '@/features/frontdesk/components/scan-share-queue';
+import {
   RegistrationPatientSection,
   type RegistrationAbhaContext,
 } from '@/features/frontdesk/components/registration-patient-section';
@@ -87,6 +95,16 @@ export function OpdRegistrationCreatePage() {
   const [abhaCardDownloading, setAbhaCardDownloading] = useState(false);
   /** Header search UI; patient/registration lookup from form phase is not wired yet. */
   const [formSearchDraft, setFormSearchDraft] = useState('');
+  const [scanShareQueueOpen, setScanShareQueueOpen] = useState(false);
+  const [scanShareTokenDraft, setScanShareTokenDraft] = useState('');
+  const pendingScanShareTokenRef = useRef<number | null>(null);
+  const scanShareStatusQuery = useScanShareStatus();
+  const scanShareAvailable = scanShareStatusQuery.data?.available === true;
+  const scanShareDisabledReason =
+    scanShareStatusQuery.data?.reason ??
+    (scanShareStatusQuery.isLoading
+      ? 'Checking ABDM scan-and-share…'
+      : 'ABDM scan-and-share is not available for this tenant.');
   const tenantName = useTenantStore((s) => s.tenantName);
   const branches = useTenantStore((s) => s.branches);
   const activeBranch = useTenantStore((s) => s.activeBranch);
@@ -175,6 +193,23 @@ export function OpdRegistrationCreatePage() {
       },
     },
   });
+
+  const applyScanSharePrefill = useCallback(
+    (payload: PrefillPayload) => {
+      form.reset(mergeScanSharePrefill(form.getValues(), payload.prefill));
+      pendingScanShareTokenRef.current = payload.token_number;
+      const abha = payload.prefill.patient?.abha_address;
+      const abhaNumber = payload.prefill.patient?.abha_number;
+      if (abha) {
+        setAbhaRegistration({
+          sessionId: `scan-share-${payload.token_number}`,
+          abhaAddress: abha,
+          abhaNumber: abhaNumber ?? '',
+        });
+      }
+    },
+    [form],
+  );
 
   const [
     billingRegistrationFee,
@@ -558,6 +593,14 @@ export function OpdRegistrationCreatePage() {
       submitIdempotencyKeyRef.current = undefined;
     },
     onSuccess: (res, variables) => {
+      const redeemToken = pendingScanShareTokenRef.current;
+      if (redeemToken != null) {
+        pendingScanShareTokenRef.current = null;
+        void redeemScanShareToken(redeemToken).catch(() => {
+          toast.warning(`Visit saved, but token ${redeemToken} could not be cleared`);
+        });
+      }
+      void queryClient.invalidateQueries({ queryKey: ['scan-share', 'active'] });
       void queryClient.invalidateQueries({ queryKey: ['registrations', 'list'] });
       const isFollowUp =
         Boolean(variables.existingPatientId) ||
@@ -692,10 +735,27 @@ export function OpdRegistrationCreatePage() {
         <RegistrationFormHeader
           searchValue={formSearchDraft}
           onSearchChange={setFormSearchDraft}
-          onPatientQueue={() => {
-            void navigate({ to: '/frontdesk/opd-registration' });
-          }}
+          onPatientQueue={() => setScanShareQueueOpen(true)}
+          tokenValue={scanShareTokenDraft}
+          onTokenChange={scanShareAvailable ? setScanShareTokenDraft : undefined}
+          onTokenSubmit={
+            scanShareAvailable
+              ? () => {
+                  void submitScanShareTokenLookup(scanShareTokenDraft, applyScanSharePrefill);
+                }
+              : undefined
+          }
+          scanShareDisabled={!scanShareAvailable}
+          scanShareDisabledReason={scanShareDisabledReason}
           actions={<VisitRegistrationSectionMenu />}
+        />
+        <ScanShareQueueDialog
+          open={scanShareQueueOpen}
+          onOpenChange={setScanShareQueueOpen}
+          onApply={applyScanSharePrefill}
+          status={scanShareStatusQuery.data}
+          statusLoading={scanShareStatusQuery.isLoading}
+          onRefreshStatus={() => void scanShareStatusQuery.refetch()}
         />
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="mt-3 lg:mt-4">
