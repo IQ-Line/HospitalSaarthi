@@ -1,11 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
+from hims_authz import Authz, IdentityGateMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.errors import register_exception_handlers
 from app.api.v1.router import api_router
+from app.core.authz import build_authz
 from app.core.config import get_settings
 from app.core.database import (
     database_target_label,
@@ -13,7 +16,6 @@ from app.core.database import (
     verify_database_connection,
 )
 from app.core.logging import configure_logging
-from app.middleware.auth_middleware import BearerAuthContextMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 from app.middleware.request_logging import RequestLoggingMiddleware
 
@@ -39,13 +41,25 @@ async def lifespan(app: FastAPI):
             database_target_label(settings.database_url),
         )
     logger.info("Master Data listening under prefix %s", settings.api_prefix)
-    yield
-    reset_database_engine()
+    authz: Authz = app.state.authz
+    await authz.assert_reachable()  # fail fast if the Cerbos PDP is unreachable
+    try:
+        yield
+    finally:
+        await authz.aclose()
+        reset_database_engine()
 
 
-def create_app() -> FastAPI:
+def create_app(deps: dict[str, Any] | None = None) -> FastAPI:
+    """Build the Master Data app with the in-process authorization PEP wired in.
+
+    ``deps`` lets tests (or a composition root) inject a stub ``Authz``; otherwise the real
+    PEP is built from Master Data's settings (JWKS/issuer/audience/Cerbos/UM).
+    """
     configure_logging()
     settings = get_settings()
+    deps = deps or {}
+    authz: Authz = deps.get("authz") or build_authz()
 
     app = FastAPI(
         title="HIMS Master Data API",
@@ -56,9 +70,16 @@ def create_app() -> FastAPI:
         ),
         lifespan=lifespan,
     )
+    app.state.authz = authz
     # Order: last added is outermost. RequestContextMiddleware must run first so the
-    # request_id ContextVar is bound before RequestLoggingMiddleware emits any logs.
-    app.add_middleware(BearerAuthContextMiddleware)
+    # request_id ContextVar is bound before RequestLoggingMiddleware emits any logs; the
+    # fail-closed identity gate sits innermost (closest to the routes) so a 401 is still
+    # logged with a request_id. Per-route guards then authorize via Cerbos.
+    app.add_middleware(
+        IdentityGateMiddleware,
+        verifier=authz.verifier,
+        public_path_prefixes=(f"{settings.api_prefix}/health",),
+    )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)
     register_exception_handlers(app)

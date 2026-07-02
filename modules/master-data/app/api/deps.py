@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -34,6 +35,22 @@ from app.repositories.visitpad.vital import VisitpadVitalRepository
 
 def get_session() -> Generator[Session, None, None]:
     yield from get_db_session()
+
+
+async def resolve_actor_id(request: Request) -> UUID:
+    """Audit actor from the VERIFIED principal (JWT ``sub``), never a raw header.
+
+    The identity gate verified the token in-process before the handler ran; this reads that
+    verified subject so ``created_by`` / ``updated_by`` record the real operator. Replaces the
+    former ``actor_id=None`` — an unauthenticated caller is rejected by the gate before here.
+    """
+    identity = await request.app.state.authz.get_identity(request)
+    try:
+        return UUID(identity.user_id)
+    except ValueError as exc:  # pragma: no cover — verified tokens carry a UUID subject
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid subject"
+        ) from exc
 
 
 def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> CatalogScope:

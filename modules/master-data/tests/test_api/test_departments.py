@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 
 from app.api.deps import get_department_repository
 from app.core.catalog_scope import CatalogScope
@@ -73,11 +74,13 @@ class FakeDepartmentRepository:
         return department
 
 
-def test_get_departments_returns_list() -> None:
-    app = create_app()
+def test_get_departments_returns_list(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
     app.dependency_overrides[get_department_repository] = lambda: FakeDepartmentRepository()
 
-    response = TestClient(app).get("/api/v1/master-data/departments")
+    response = TestClient(app, headers=auth_headers).get("/api/v1/master-data/departments")
 
     assert response.status_code == 200
     body = response.json()
@@ -86,12 +89,14 @@ def test_get_departments_returns_list() -> None:
     assert body["data"][0]["type"] == "clinical"
 
 
-def test_post_department_creates_row() -> None:
-    app = create_app()
+def test_post_department_creates_row(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
     repo = FakeDepartmentRepository()
     app.dependency_overrides[get_department_repository] = lambda: repo
 
-    response = TestClient(app).post(
+    response = TestClient(app, headers=auth_headers).post(
         "/api/v1/master-data/departments",
         json={
             "name": "Cardiology",

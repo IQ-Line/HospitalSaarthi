@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -51,8 +52,12 @@ def mp_sqlite_session() -> Iterator[Session]:
 
 
 @pytest.fixture()
-def mp_client(mp_sqlite_session: Session) -> Iterator[TestClient]:
-    app = create_app()
+def mp_client(
+    mp_sqlite_session: Session,
+    test_authz: Authz,
+    auth_headers: dict[str, str],
+) -> Iterator[TestClient]:
+    app = create_app(deps={"authz": test_authz})
 
     def _session() -> Iterator[Session]:
         yield mp_sqlite_session
@@ -71,7 +76,7 @@ def mp_client(mp_sqlite_session: Session) -> Iterator[TestClient]:
         lambda: ModulePermissionRepository(mp_sqlite_session, scope)
     )
 
-    with TestClient(app) as client:
+    with TestClient(app, headers=auth_headers) as client:
         yield client
     app.dependency_overrides.clear()
 

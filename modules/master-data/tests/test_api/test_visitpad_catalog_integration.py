@@ -6,6 +6,7 @@ from collections.abc import Generator, Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -43,14 +44,16 @@ def visitpad_catalog_sqlite_session() -> Iterator[Session]:
 @pytest.fixture()
 def visitpad_catalog_client(
     visitpad_catalog_sqlite_session: Session,
+    test_authz: Authz,
+    auth_headers: dict[str, str],
 ) -> Generator[TestClient, None, None]:
-    app = create_app()
+    app = create_app(deps={"authz": test_authz})
 
     def _session() -> Generator[Session, None, None]:
         yield visitpad_catalog_sqlite_session
 
     app.dependency_overrides[get_session] = _session
-    with TestClient(app) as client:
+    with TestClient(app, headers=auth_headers) as client:
         yield client
     app.dependency_overrides.clear()
 

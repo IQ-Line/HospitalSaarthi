@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import get_module_repository, get_session
@@ -65,20 +66,24 @@ class FakeModuleRepository:
         return None
 
 
-def test_get_meta_returns_service_stamp() -> None:
-    app = create_app()
-    response = TestClient(app).get("/api/v1/master-data/meta")
+def test_get_meta_returns_service_stamp(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
+    response = TestClient(app, headers=auth_headers).get("/api/v1/master-data/meta")
     assert response.status_code == 200
     body = response.json()
     assert body["service"] == "hims-master-data"
     assert body["api_prefix"] == "/api/v1/master-data"
 
 
-def test_get_modules_returns_module_list() -> None:
-    app = create_app()
+def test_get_modules_returns_module_list(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
     app.dependency_overrides[get_module_repository] = lambda: FakeModuleRepository()
 
-    response = TestClient(app).get("/api/v1/master-data/modules")
+    response = TestClient(app, headers=auth_headers).get("/api/v1/master-data/modules")
 
     assert response.status_code == 200
     body = response.json()
@@ -91,8 +96,10 @@ def test_get_modules_returns_module_list() -> None:
     assert body["data"][0]["is_deleted"] is False
 
 
-def test_get_module_by_id_returns_wrapped_module() -> None:
-    app = create_app()
+def test_get_module_by_id_returns_wrapped_module(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
     fixed_id = UUID("11111111-1111-4111-8111-111111111111")
 
     class Repo(FakeModuleRepository):
@@ -101,22 +108,27 @@ def test_get_module_by_id_returns_wrapped_module() -> None:
 
     app.dependency_overrides[get_module_repository] = lambda: Repo()
 
-    response = TestClient(app).get(f"/api/v1/master-data/modules/{fixed_id}")
+    response = TestClient(app, headers=auth_headers).get(f"/api/v1/master-data/modules/{fixed_id}")
     assert response.status_code == 200
     assert response.json()["data"]["slug"] == "master-data"
 
 
-def test_get_module_by_slug_returns_wrapped_module() -> None:
-    app = create_app()
+def test_get_module_by_slug_returns_wrapped_module(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
     app.dependency_overrides[get_module_repository] = lambda: FakeModuleRepository()
 
-    response = TestClient(app).get("/api/v1/master-data/modules/by-slug/master-data")
+    client = TestClient(app, headers=auth_headers)
+    response = client.get("/api/v1/master-data/modules/by-slug/master-data")
     assert response.status_code == 200
     assert response.json()["data"]["name"] == "master_data"
 
 
-def test_get_module_by_id_404_uses_error_envelope() -> None:
-    app = create_app()
+def test_get_module_by_id_404_uses_error_envelope(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
+    app = create_app(deps={"authz": test_authz})
 
     class EmptyRepo(FakeModuleRepository):
         def get_module_by_id(self, module_id: UUID, *, include_deleted: bool = False):
@@ -124,13 +136,15 @@ def test_get_module_by_id_404_uses_error_envelope() -> None:
 
     app.dependency_overrides[get_module_repository] = lambda: EmptyRepo()
 
-    response = TestClient(app).get(f"/api/v1/master-data/modules/{uuid4()}")
+    response = TestClient(app, headers=auth_headers).get(f"/api/v1/master-data/modules/{uuid4()}")
     assert response.status_code == 404
     body = response.json()
     assert body["error"]["code"] == "NOT_FOUND"
 
 
-def test_post_module_201_with_fake_repository() -> None:
+def test_post_module_201_with_fake_repository(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
     fixed_id = UUID("aaaaaaaa-bbbb-4ccc-dddd-eeeeeeeeeeee")
 
     class CreatingRepo(FakeModuleRepository):
@@ -144,11 +158,11 @@ def test_post_module_201_with_fake_repository() -> None:
     def _dummy_session():
         yield DummySession()
 
-    app = create_app()
+    app = create_app(deps={"authz": test_authz})
     app.dependency_overrides[get_module_repository] = lambda: CreatingRepo()
     app.dependency_overrides[get_session] = _dummy_session
 
-    response = TestClient(app).post(
+    response = TestClient(app, headers=auth_headers).post(
         "/api/v1/master-data/modules",
         json={
             "name": "new_mod",
@@ -162,7 +176,9 @@ def test_post_module_201_with_fake_repository() -> None:
     assert response.json()["data"]["name"] == "new_mod"
 
 
-def test_post_module_check_violation_returns_400() -> None:
+def test_post_module_check_violation_returns_400(
+    test_authz: Authz, auth_headers: dict[str, str]
+) -> None:
     class BrokenRepo(FakeModuleRepository):
         def create_module(self, _module):
             raise IntegrityError(
@@ -178,11 +194,11 @@ def test_post_module_check_violation_returns_400() -> None:
     def _dummy_session():
         yield DummySession()
 
-    app = create_app()
+    app = create_app(deps={"authz": test_authz})
     app.dependency_overrides[get_module_repository] = lambda: BrokenRepo()
     app.dependency_overrides[get_session] = _dummy_session
 
-    response = TestClient(app).post(
+    response = TestClient(app, headers=auth_headers).post(
         "/api/v1/master-data/modules",
         json={
             "name": "new_mod",

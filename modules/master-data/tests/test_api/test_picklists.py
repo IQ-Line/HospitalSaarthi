@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -44,8 +45,12 @@ def picklist_sqlite_session() -> Iterator[Session]:
 
 
 @pytest.fixture()
-def picklist_client(picklist_sqlite_session: Session) -> Iterator[TestClient]:
-    app = create_app()
+def picklist_client(
+    picklist_sqlite_session: Session,
+    test_authz: Authz,
+    auth_headers: dict[str, str],
+) -> Iterator[TestClient]:
+    app = create_app(deps={"authz": test_authz})
 
     def _repo() -> PicklistRepository:
         return PicklistRepository(picklist_sqlite_session)
@@ -55,7 +60,7 @@ def picklist_client(picklist_sqlite_session: Session) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_picklist_repository] = _repo
     app.dependency_overrides[get_session] = _session
-    with TestClient(app) as client:
+    with TestClient(app, headers=auth_headers) as client:
         yield client
     app.dependency_overrides.clear()
 

@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic",
     "fastapi",
+    "hims_sdk_authz",
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
@@ -15,8 +16,12 @@ dependencies = [
     "python-dotenv>=1.2.2",
 ]
 
+[tool.uv.sources]
+hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }
+
 [dependency-groups]
 dev = [
+    "cryptography",
     "httpx",
     "pytest",
     "pytest-asyncio",

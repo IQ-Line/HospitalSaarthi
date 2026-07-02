@@ -17,9 +17,30 @@
 (`infra/cerbos/policies/master_data/{module,permission,system_role,module_permission,department}.yaml`
 + `master_data_permissions_test.yaml` [20 tests green, 95 total] + alembic
 `046_master_data_authorization_catalog.py` seeding `master-data:{module,permission,system-role,
-module-permission,department}:{create,update,delete}`). **Phase 4b (wire master-data create_app PEP +
-scope-aware guards + actor_id + 113-test migration) is next** — full design in §10. Capability-key
-derivation verified against `map-master-data-permission.ts`.
+module-permission,department}:{create,update,delete}`). **Phase 4b DONE (2026-07-02)** — master-data
+create_app PEP wired: `create_app(deps)` builds/injects `Authz`, sets `app.state.authz`, adds
+`IdentityGateMiddleware` (public = `{api_prefix}/health` only; `BearerAuthContextMiddleware` unwired —
+file deleted in Phase 5), lifespan `assert_reachable`/`aclose`; `AuthEnvSettings` added. Two guards in
+`app/core/authz.py`: `guard(kind, action)` (global catalogs, `resource_attr={}`) + scope-aware
+`department_guard(action)` (`resource_attr={"iq_tenant_id": scope tenant}`). All 5 catalog write routes
+(POST/PATCH/DELETE + department import) carry a guard; `actor_id=None` → verified JWT `sub` via
+`resolve_actor_id`; reads identity-gate-only by design. Test seam: conftest RS256 stub-PEP
+(`test_authz`/`denying_authz`/`recording_deny_authz`/`auth_headers`/`forged_auth_headers`/`actor_sub`);
+per-file client fixtures rewired to `create_app(deps=…)` + bearer. **152 pytest green**, ruff clean;
+**live round-trip vs real Cerbos 11/11** (global cap allow/deny, hyphen-cap↔underscore-kind, department
+tenant-eq/cross-tenant/super-admin/global-scope). **Adversarial review (2 agents):** the 5-catalog PEP
+is fail-closed (no bypass found); 4 mutation-proved test gaps CLOSED (every write verb guard-proven,
+actor-id value asserted, department scope-attr observed, forged-token 401).
+>
+> **Residual (defer-with-a-gate):** the **13 visitpad catalogs (36 write routes)** are now
+> authenticated (identity gate — the unauthenticated bypass IS closed) but NOT yet capability/tenant
+> gated; their pre-existing `master_data_visitpad.yaml` policy is capability-only (no tenant-eq), so
+> closing the authenticated-cross-tenant gap needs a tenant-isolated policy + verified `visitpad-*` cap
+> seeds + a scope guard on 36 routes + tests. Tracked as **Phase 4c** (recoverable failure mode:
+> authenticated-but-coarse; gate: NetworkPolicy edge-only in Phase 5 + this note). Picklist writes same
+> status. **Note:** `guard`/`build_authz` duplicate opd's (~15 lines); consolidate into `hims_authz`
+> when a 3rd Python module appears (not now). Phase-5 dead-code sweep MUST delete the unsigned-JWT
+> `auth_policy.resolve_superadmin_actor` landmine (`verify_signature=False` when `jwt_secret` unset).
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 

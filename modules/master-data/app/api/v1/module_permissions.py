@@ -11,8 +11,10 @@ from app.api.deps import (
     get_module_repository,
     get_permission_repository,
     get_session,
+    resolve_actor_id,
 )
 from app.api.errors import ResourceNotFoundError
+from app.core.authz import guard
 from app.repositories.module_permission_repository import ModulePermissionRepository
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
@@ -33,6 +35,11 @@ from app.services.module_permission_service import (
 )
 
 router = APIRouter(prefix="/module-permissions", tags=["Module permissions"])
+
+# Global catalog: writes are capability-gated (no tenant equality); reads are identity-gate-only.
+_GUARD_CREATE = Depends(guard("master_data:module_permission", "create"))
+_GUARD_UPDATE = Depends(guard("master_data:module_permission", "update"))
+_GUARD_DELETE = Depends(guard("master_data:module_permission", "delete"))
 
 
 @router.get(
@@ -63,6 +70,7 @@ def get_module_permissions(
     response_model=ModulePermissionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a module↔permission link",
+    dependencies=[_GUARD_CREATE],
 )
 def post_module_permission(
     payload: ModulePermissionCreate,
@@ -73,13 +81,14 @@ def post_module_permission(
     module_repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     permission_repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModulePermissionSingleResponse:
     row = create_module_permission(
         mp_repository,
         module_repository,
         permission_repository,
         payload,
-        actor_id=None,
+        actor_id=actor_id,
     )
     session.commit()
     return ModulePermissionSingleResponse(data=ModulePermissionResponse.model_validate(row))
@@ -119,6 +128,7 @@ def get_module_permission_by_id_route(
     "/{module_permission_id}",
     response_model=ModulePermissionSingleResponse,
     summary="Update a module↔permission link",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_module_permission(
     module_permission_id: UUID,
@@ -128,12 +138,13 @@ def patch_module_permission(
         Depends(get_module_permission_repository),
     ],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModulePermissionSingleResponse:
     row = update_module_permission(
         mp_repository,
         module_permission_id,
         payload,
-        actor_id=None,
+        actor_id=actor_id,
     )
     session.commit()
     return ModulePermissionSingleResponse(data=ModulePermissionResponse.model_validate(row))
@@ -143,12 +154,14 @@ def patch_module_permission(
     "/{module_permission_id}",
     response_model=ModulePermissionSingleResponse,
     summary="Soft-delete a module↔permission link",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_module_permission(
     module_permission_id: UUID,
     repository: Annotated[ModulePermissionRepository, Depends(get_module_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModulePermissionSingleResponse:
-    row = soft_delete_module_permission(repository, module_permission_id, actor_id=None)
+    row = soft_delete_module_permission(repository, module_permission_id, actor_id=actor_id)
     session.commit()
     return ModulePermissionSingleResponse(data=ModulePermissionResponse.model_validate(row))

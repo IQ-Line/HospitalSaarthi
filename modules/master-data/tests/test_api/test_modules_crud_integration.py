@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from hims_authz import Authz
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -46,8 +47,12 @@ def module_sqlite_session() -> Iterator[Session]:
 
 
 @pytest.fixture()
-def module_client(module_sqlite_session: Session) -> Iterator[TestClient]:
-    app = create_app()
+def module_client(
+    module_sqlite_session: Session,
+    test_authz: Authz,
+    auth_headers: dict[str, str],
+) -> Iterator[TestClient]:
+    app = create_app(deps={"authz": test_authz})
 
     def _session() -> Generator[Session, None, None]:
         yield module_sqlite_session
@@ -57,7 +62,7 @@ def module_client(module_sqlite_session: Session) -> Iterator[TestClient]:
 
     app.dependency_overrides[get_session] = _session
     app.dependency_overrides[get_module_repository] = _repo
-    with TestClient(app) as client:
+    with TestClient(app, headers=auth_headers) as client:
         yield client
     app.dependency_overrides.clear()
 
@@ -73,9 +78,13 @@ def _create_json(name: str, slug: str, **extra: object) -> dict:
     return body
 
 
-def test_module_crud_lifecycle_and_slug_reuse_after_soft_delete(module_client: TestClient) -> None:
+def test_module_crud_lifecycle_and_slug_reuse_after_soft_delete(
+    module_client: TestClient, actor_sub: str
+) -> None:
     r = module_client.post("/api/v1/master-data/modules", json=_create_json("billing", "billing"))
     assert r.status_code == 201
+    # created_by is the VERIFIED token sub (resolve_actor_id), not null / not a header value.
+    assert r.json()["data"]["created_by"] == actor_sub
     mid = UUID(r.json()["data"]["id"])
 
     g = module_client.get(f"/api/v1/master-data/modules/{mid}")
@@ -96,6 +105,7 @@ def test_module_crud_lifecycle_and_slug_reuse_after_soft_delete(module_client: T
     )
     assert p.status_code == 200
     assert p.json()["data"]["name"] == "billing_svc"
+    assert p.json()["data"]["updated_by"] == actor_sub
 
     d = module_client.delete(f"/api/v1/master-data/modules/{mid}")
     assert d.status_code == 200
