@@ -163,10 +163,13 @@ work (roadmap §6), and deferring it was the correct default for cleanup, not av
    opd-svc + master-data ingress to same-namespace sources (BFF edge + S2S); nothing external reaches
    them except through the BFF (ingress routes only `/api`→bff, `/_cerbos`→cerbos, `/`→web).
 
-**Residual (task #58 / Phase 4c — the one gate that remains):** master-data **visitpad (36 write
-routes) + picklist writes** are now authenticated (identity gate) but not yet capability/tenant
-gated — recoverable (authenticated-but-coarse; the unauthenticated bypass IS closed), gated by the
-same-namespace NetworkPolicy until 4c wires their guards.
+**Residual — ✅ CLOSED by Phase 4c (2026-07-02, `57356fd2`):** master-data **visitpad (52 write
+routes)** are now capability + tenant gated (department-pattern `master_data_visitpad.yaml` +
+`visitpad_guard` on all 52 writes; cerbos 119/119, 252 pytest, live 11/11, adversarially reviewed).
+**Picklists have no write routes** — nothing to gate. Only `actor_id` audit-attribution for visitpad
+is deferred (audit, not security; ~66 fns; belongs with the ADR-0024 audit-middleware follow-up).
+Task #51 (per-module in-process authz for opd + master-data) is now COMPLETE. Remaining Python-authz
+work is other modules (e.g. configurator-svc has no Cerbos PEP) — separate Phase-4 items, not #51.
 
 ### Gated follow-ups — RESOLVED by Half B (kept for the record)
 - **master-data dead `app/core/security.py`** — ✅ DELETED in Phase 5 (`d08710b4`+Phase-5 commit),

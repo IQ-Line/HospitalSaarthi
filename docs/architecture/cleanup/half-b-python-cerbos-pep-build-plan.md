@@ -32,14 +32,21 @@ tenant-eq/cross-tenant/super-admin/global-scope). **Adversarial review (2 agents
 is fail-closed (no bypass found); 4 mutation-proved test gaps CLOSED (every write verb guard-proven,
 actor-id value asserted, department scope-attr observed, forged-token 401).
 >
-> **Residual (defer-with-a-gate):** the **13 visitpad catalogs (36 write routes)** are now
-> authenticated (identity gate — the unauthenticated bypass IS closed) but NOT yet capability/tenant
-> gated; their pre-existing `master_data_visitpad.yaml` policy is capability-only (no tenant-eq), so
-> closing the authenticated-cross-tenant gap needs a tenant-isolated policy + verified `visitpad-*` cap
-> seeds + a scope guard on 36 routes + tests. Tracked as **Phase 4c** (recoverable failure mode:
-> authenticated-but-coarse; gate: same-namespace NetworkPolicy from Phase 5 + this note). Picklist
-> writes same status. **Note:** `guard`/`build_authz` duplicate opd's (~15 lines); consolidate into
-> `hims_authz` when a 3rd Python module appears (not now).
+> **Phase 4c DONE (2026-07-02) — `57356fd2`:** the 13 visitpad catalogs (**52** write routes, recon
+> corrected from the earlier "36" estimate) are now capability + tenant gated, closing the
+> authenticated-cross-tenant gap. `master_data_visitpad.yaml` rewritten to the department pattern
+> (tenant-eq + super-admin cross-tenant variant + `import`; create-cap for all write verbs, both
+> `visitpad-master:`/`visitpad-templates:` prefixes; the pre-seeded `030`+`035` caps back it —
+> reachable on `alembic upgrade head`). `authz.py` extracted the shared `tenant_scoped_guard` (DRYs
+> the 4b duplication note); `visitpad_guard` wired on all 52 writes via an 11-agent per-file fan-out,
+> verified centrally (52 guards, 13 each verb, 0 GET touched). Tests: authz suite parametrizes all 52
+> visitpad writes (401 + 403) end-to-end + a structural "no unguarded visitpad write" introspection
+> test + a visitpad recording-stub test. **cerbos compile 119/119** (+22 visitpad), **252 pytest**,
+> **live round-trip 11/11**; adversarial review (mutation-tested a guard removal) found no bypass.
+> `actor_id` (audit) for visitpad deliberately deferred (~66 fns, orthogonal to the security gap;
+> like the department audit follow-up / ADR-0024). **Picklists have NO write routes** — nothing to
+> gate (recon confirmed). Empty-tenant policy edge is unreachable (verify.py fail-closes empty tenant;
+> documented in the policy).
 >
 > **Phase 5 DONE (2026-07-02):** DELETED all dead master-data auth scaffolding — `app/core/security.py`
 > (hardcoded platform-admin principal), `app/middleware/auth_policy.py` (the unsigned-JWT
