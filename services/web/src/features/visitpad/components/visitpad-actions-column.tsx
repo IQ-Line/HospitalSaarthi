@@ -1,7 +1,7 @@
 import { type ColumnDef } from '@tanstack/react-table';
 import { VisitpadRowActions } from '@/features/visitpad/components/visitpad-row-actions';
 
-/** Right-aligned edit/delete column; `enableHiding: false` keeps it pinned in the Columns menu. */
+/** Right-aligned edit column; optional deactivate when no status toggle exists. */
 export function visitpadActionsColumn<T extends { id: string }>({
   onEdit,
   onDelete,
@@ -10,7 +10,7 @@ export function visitpadActionsColumn<T extends { id: string }>({
   canDelete = true,
 }: {
   onEdit: (row: T) => void;
-  onDelete: (row: T) => void;
+  onDelete?: (row: T) => void;
   disabled?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -23,10 +23,10 @@ export function visitpadActionsColumn<T extends { id: string }>({
     cell: ({ row }) => (
       <VisitpadRowActions
         onEdit={() => onEdit(row.original)}
-        onDelete={() => onDelete(row.original)}
+        onDelete={onDelete ? () => onDelete(row.original) : undefined}
         disabled={disabled}
         canEdit={canEdit}
-        canDelete={canDelete}
+        canDelete={canDelete && onDelete != null}
       />
     ),
   };

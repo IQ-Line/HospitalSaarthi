@@ -32,7 +32,7 @@ export function InventoryMasterRowActions({
           {canEdit && onEdit ? <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem> : null}
           {canDelete && onDelete ? (
             <DropdownMenuItem className="text-destructive" onClick={onDelete}>
-              Delete
+              Deactivate
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
