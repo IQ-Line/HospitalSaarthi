@@ -21,6 +21,10 @@ resourcePolicy:
             (
               "registration:registration:read" in request.principal.attr.capabilities ||
               "registration:registration:read" in request.principal.attr.delegated_capabilities ||
+              "registration:registration:create" in request.principal.attr.capabilities ||
+              "registration:registration:create" in request.principal.attr.delegated_capabilities ||
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
               "opd:patient:read" in request.principal.attr.capabilities ||
               "opd:patient:read" in request.principal.attr.delegated_capabilities ||
               "opd:visit:read" in request.principal.attr.capabilities ||
@@ -37,6 +41,10 @@ resourcePolicy:
             (
               "registration:registration:read" in request.principal.attr.capabilities ||
               "registration:registration:read" in request.principal.attr.delegated_capabilities ||
+              "registration:registration:create" in request.principal.attr.capabilities ||
+              "registration:registration:create" in request.principal.attr.delegated_capabilities ||
+              "registration:registration:update" in request.principal.attr.capabilities ||
+              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
               "opd:patient:read" in request.principal.attr.capabilities ||
               "opd:patient:read" in request.principal.attr.delegated_capabilities ||
               "opd:visit:read" in request.principal.attr.capabilities ||
