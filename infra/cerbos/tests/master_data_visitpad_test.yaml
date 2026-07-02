@@ -1,0 +1,190 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: master_data_visitpad_test
+description: >-
+  Visitpad catalogs (one shared master_data:visitpad resource) are tenant-isolated like
+  departments: writes need the visitpad create capability AND iq_tenant_id equality, with a
+  super-admin cross-tenant override. import shares the create cap. Both the current
+  visitpad-master: and legacy visitpad-templates: cap prefixes are accepted.
+
+principals:
+  vp_writer:
+    id: w-1
+    roles: ["catalog-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["visitpad-master:visitpad:create"]
+      delegated_capabilities: []
+      role_codes: ["catalog-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  vp_writer_legacy:
+    id: w-2
+    roles: ["catalog-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["visitpad-templates:visitpad:create"]
+      delegated_capabilities: []
+      role_codes: ["catalog-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  vp_writer_delegated:
+    id: w-3
+    roles: ["catalog-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: ["visitpad-master:visitpad:create"]
+      role_codes: ["catalog-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  vp_nocap:
+    id: w-none
+    roles: ["catalog-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["catalog-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  vp_viewer:
+    id: v-1
+    roles: ["catalog-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["visitpad-master:visitpad:view"]
+      delegated_capabilities: []
+      role_codes: ["catalog-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  vp_super:
+    id: sa-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["visitpad-master:visitpad:create"]
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  vp_a:
+    id: vp-a
+    kind: master_data:visitpad
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  vp_b:
+    id: vp-b
+    kind: master_data:visitpad
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  vp_global:
+    id: vp-g
+    kind: master_data:visitpad
+    attr:
+      iq_tenant_id: ""
+
+tests:
+  - name: writer with create cap — all write verbs allowed in own tenant
+    input:
+      principals: [vp_writer]
+      resources: [vp_a]
+      actions: [create, update, delete, import]
+    expected:
+      - principal: vp_writer
+        resource: vp_a
+        actions:
+          create: EFFECT_ALLOW
+          update: EFFECT_ALLOW
+          delete: EFFECT_ALLOW
+          import: EFFECT_ALLOW
+
+  - name: writer denied cross-tenant (all write verbs)
+    input:
+      principals: [vp_writer]
+      resources: [vp_b]
+      actions: [create, update, delete, import]
+    expected:
+      - principal: vp_writer
+        resource: vp_b
+        actions:
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+          delete: EFFECT_DENY
+          import: EFFECT_DENY
+
+  - name: legacy visitpad-templates cap prefix is accepted (own tenant)
+    input:
+      principals: [vp_writer_legacy]
+      resources: [vp_a]
+      actions: [create]
+    expected:
+      - principal: vp_writer_legacy
+        resource: vp_a
+        actions: { create: EFFECT_ALLOW }
+
+  - name: delegated create cap is accepted (own tenant)
+    input:
+      principals: [vp_writer_delegated]
+      resources: [vp_a]
+      actions: [create]
+    expected:
+      - principal: vp_writer_delegated
+        resource: vp_a
+        actions: { create: EFFECT_ALLOW }
+
+  - name: no capability — denied even in own tenant
+    input:
+      principals: [vp_nocap]
+      resources: [vp_a]
+      actions: [create, update, delete, import]
+    expected:
+      - principal: vp_nocap
+        resource: vp_a
+        actions:
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+          delete: EFFECT_DENY
+          import: EFFECT_DENY
+
+  - name: super-admin with cap writes cross-tenant
+    input:
+      principals: [vp_super]
+      resources: [vp_b]
+      actions: [create, update, delete, import]
+    expected:
+      - principal: vp_super
+        resource: vp_b
+        actions:
+          create: EFFECT_ALLOW
+          update: EFFECT_ALLOW
+          delete: EFFECT_ALLOW
+          import: EFFECT_ALLOW
+
+  - name: global scope (empty resource tenant) — non-super-admin denied, super-admin allowed
+    input:
+      principals: [vp_writer, vp_super]
+      resources: [vp_global]
+      actions: [create]
+    expected:
+      - principal: vp_writer
+        resource: vp_global
+        actions: { create: EFFECT_DENY }
+      - principal: vp_super
+        resource: vp_global
+        actions: { create: EFFECT_ALLOW }
+
+  - name: view gated on the view capability
+    input:
+      principals: [vp_viewer, vp_nocap]
+      resources: [vp_a]
+      actions: [view]
+    expected:
+      - principal: vp_viewer
+        resource: vp_a
+        actions: { view: EFFECT_ALLOW }
+      - principal: vp_nocap
+        resource: vp_a
+        actions: { view: EFFECT_DENY }

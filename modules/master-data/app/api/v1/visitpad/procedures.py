@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_procedure_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.procedure import VisitpadProcedureRepository
 from app.schemas.visitpad.platform_import import (
     VisitpadCatalogKeysResponse,
@@ -34,6 +35,13 @@ from app.services.visitpad.procedures import (
 )
 
 router = APIRouter(prefix="/visitpad/procedures", tags=["Visitpad — Procedures"])
+
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
 
 @router.get("", response_model=VisitpadProcedureListResponse, summary="List procedures")
@@ -66,6 +74,7 @@ def get_procedures(
     response_model=VisitpadProcedureSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create procedure",
+    dependencies=[_GUARD_CREATE],
 )
 def post_procedure(
     payload: VisitpadProcedureCreate,
@@ -81,6 +90,7 @@ def post_procedure(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import procedures from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_procedures_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -131,6 +141,7 @@ def get_procedure(
     "/{procedure_id}",
     response_model=VisitpadProcedureSingleResponse,
     summary="Update procedure",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_procedure(
     procedure_id: UUID,
@@ -153,6 +164,7 @@ def patch_procedure(
     "/{procedure_id}",
     response_model=VisitpadProcedureSingleResponse,
     summary="Soft-delete procedure",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_procedure(
     procedure_id: UUID,

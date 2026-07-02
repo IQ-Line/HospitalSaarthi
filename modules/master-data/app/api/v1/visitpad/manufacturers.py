@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_manufacturer_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
 from app.schemas.visitpad.manufacturer import (
     VisitpadManufacturerCreate,
@@ -32,6 +33,13 @@ from app.services.visitpad.manufacturers import (
 from app.services.visitpad.platform_bulk_import import import_visitpad_manufacturers_from_platform
 
 router = APIRouter(prefix="/visitpad/manufacturers", tags=["Visitpad — Manufacturers"])
+
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
 
 @router.get(
@@ -64,6 +72,7 @@ def get_manufacturers(
     response_model=VisitpadManufacturerSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create manufacturer",
+    dependencies=[_GUARD_CREATE],
 )
 def post_manufacturer(
     payload: VisitpadManufacturerCreate,
@@ -81,6 +90,7 @@ def post_manufacturer(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import manufacturers from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_manufacturers_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -137,6 +147,7 @@ def get_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Update manufacturer",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_manufacturer(
     manufacturer_id: UUID,
@@ -157,6 +168,7 @@ def patch_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Soft-delete manufacturer",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_manufacturer(
     manufacturer_id: UUID,

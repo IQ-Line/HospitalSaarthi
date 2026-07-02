@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_vital_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.vital import VisitpadVitalRepository
 from app.schemas.visitpad.platform_import import (
     VisitpadCatalogKeysResponse,
@@ -33,6 +34,13 @@ from app.services.visitpad.vitals import (
 )
 
 router = APIRouter(prefix="/visitpad/vitals", tags=["Visitpad — Vitals"])
+
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
 
 @router.get("", response_model=VisitpadVitalListResponse, summary="List vitals")
@@ -75,6 +83,7 @@ def get_vital_import_keys(
     response_model=VisitpadVitalSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create vital",
+    dependencies=[_GUARD_CREATE],
 )
 def post_vital(
     payload: VisitpadVitalCreate,
@@ -90,6 +99,7 @@ def post_vital(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import vitals from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_vitals_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -120,7 +130,12 @@ def get_vital(
     return VisitpadVitalSingleResponse(data=VisitpadVitalResponse.model_validate(row))
 
 
-@router.patch("/{vital_id}", response_model=VisitpadVitalSingleResponse, summary="Update vital")
+@router.patch(
+    "/{vital_id}",
+    response_model=VisitpadVitalSingleResponse,
+    summary="Update vital",
+    dependencies=[_GUARD_UPDATE],
+)
 def patch_vital(
     vital_id: UUID,
     payload: VisitpadVitalUpdate,
@@ -142,6 +157,7 @@ def patch_vital(
     "/{vital_id}",
     response_model=VisitpadVitalSingleResponse,
     summary="Soft-delete vital",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_vital(
     vital_id: UUID,

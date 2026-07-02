@@ -26,6 +26,8 @@ from app.api.deps import get_catalog_scope
 from app.core.config import get_auth_env_settings
 
 DEPARTMENT_KIND = "master_data:department"
+# All 13 visitpad catalogs share ONE Cerbos resource kind (mirrors master_data_visitpad.yaml).
+VISITPAD_KIND = "master_data:visitpad"
 
 
 def build_authz_settings() -> AuthzSettings:
@@ -60,21 +62,31 @@ def guard(kind: str, action: str) -> Callable[[Request], Awaitable[None]]:
     return _dependency
 
 
-def department_guard(action: str) -> Callable[[Request], Awaitable[None]]:
-    """Tenant-isolated department guard: the Cerbos resource carries the request's catalog
-    **scope** tenant, so ``principal.iq_tenant_id == resource.iq_tenant_id`` denies
-    cross-tenant writes (global scope → empty tenant → super-admin only).
+def tenant_scoped_guard(kind: str, action: str) -> Callable[[Request], Awaitable[None]]:
+    """Tenant-isolated guard: the Cerbos resource carries the request's catalog **scope**
+    tenant, so the policy's ``principal.iq_tenant_id == resource.iq_tenant_id`` check denies
+    cross-tenant writes (global scope → empty tenant → super-admin only). Shared by the
+    department and visitpad catalogs, which are both dual-scoped (``get_catalog_scope``).
     """
 
     async def _dependency(request: Request) -> None:
         authz: Authz = request.app.state.authz
         scope = get_catalog_scope(request)
         tenant = str(scope.iq_tenant_id) if scope.iq_tenant_id is not None else ""
-        await authz.authorize(
-            request,
-            DEPARTMENT_KIND,
-            action,
-            resource_attr={"iq_tenant_id": tenant},
-        )
+        await authz.authorize(request, kind, action, resource_attr={"iq_tenant_id": tenant})
 
     return _dependency
+
+
+def department_guard(action: str) -> Callable[[Request], Awaitable[None]]:
+    """Tenant-isolated guard for the department catalog (``master_data:department``)."""
+    return tenant_scoped_guard(DEPARTMENT_KIND, action)
+
+
+def visitpad_guard(action: str) -> Callable[[Request], Awaitable[None]]:
+    """Tenant-isolated guard for the visitpad catalogs (``master_data:visitpad``).
+
+    Every visitpad catalog (units, medicines, diagnoses, …) maps to the one
+    ``master_data:visitpad`` Cerbos resource; the write capability is shared across them.
+    """
+    return tenant_scoped_guard(VISITPAD_KIND, action)

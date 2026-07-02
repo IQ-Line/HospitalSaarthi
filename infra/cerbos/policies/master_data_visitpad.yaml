@@ -1,22 +1,51 @@
 ---
+# Master Data — visitpad catalogs (units, medicines, diagnoses, allergens, …). All 13 catalogs
+# share this ONE resource kind. TENANT-scoped (master_tenant) like the department catalog:
+# writes are capability + iq_tenant_id equality, with a super-admin cross-tenant variant.
+# `import` (import-from-platform bulk create) shares the create capability. Reads are
+# identity-gate-only in the PEP (no guard wired); the view rule is kept for completeness.
+#
+# Writes gate on the single visitpad CREATE capability (there are no separate update/delete
+# caps — matches the seeded catalog). Both the current `visitpad-master:` and the legacy
+# `visitpad-templates:` prefixes are accepted (035 remapped templates -> master).
+#
+# The tenant-equality check (rule 1) relies on the invariant — enforced at the identity boundary,
+# not here — that a verified principal ALWAYS carries a non-empty iq_tenant_id (hims_authz
+# verify.py rejects empty/missing tenant with 401; enrichment pins principal tenant == token
+# tenant). A principal with iq_tenant_id="" is therefore unreachable, so "" == "" cannot grant a
+# global-scope write. Same shape as master_data/department.yaml (kept consistent, intentionally).
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: "master_data:visitpad"
   version: "default"
   rules:
-    - actions: ["create", "update", "delete"]
+    - actions: ["create", "update", "delete", "import"]
       roles: ["*"]
       effect: EFFECT_ALLOW
-      name: allow-admin-write-by-capability
+      name: allow-tenant-write-by-capability
       condition:
         match:
           expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
               "visitpad-master:visitpad:create" in request.principal.attr.capabilities ||
               "visitpad-templates:visitpad:create" in request.principal.attr.capabilities ||
               "visitpad-master:visitpad:create" in request.principal.attr.delegated_capabilities ||
               "visitpad-templates:visitpad:create" in request.principal.attr.delegated_capabilities
             )
+
+    - actions: ["create", "update", "delete", "import"]
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      name: allow-superadmin-cross-tenant-write
+      condition:
+        match:
+          expr: >-
+            "visitpad-master:visitpad:create" in request.principal.attr.capabilities ||
+            "visitpad-templates:visitpad:create" in request.principal.attr.capabilities ||
+            "visitpad-master:visitpad:create" in request.principal.attr.delegated_capabilities ||
+            "visitpad-templates:visitpad:create" in request.principal.attr.delegated_capabilities
+
     - actions: ["view"]
       roles: ["*"]
       effect: EFFECT_ALLOW
