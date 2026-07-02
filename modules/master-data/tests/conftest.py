@@ -19,8 +19,6 @@ from app.models import Base
 def _api_prefix_for_tests() -> Iterator[None]:
     """Force a stable API prefix for tests (overrides workspace or package `.env`)."""
     os.environ["MASTER_DATA_API_PREFIX"] = "/api/v1/master-data"
-    os.environ["MASTER_DATA_AUTH_BYPASS"] = "false"
-    os.environ.pop("MASTER_DATA_DEV_BEARER_TOKEN", None)
     from app.core.config import get_settings
 
     get_settings.cache_clear()

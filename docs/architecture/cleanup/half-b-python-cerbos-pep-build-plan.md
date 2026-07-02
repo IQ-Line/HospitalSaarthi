@@ -37,10 +37,20 @@ actor-id value asserted, department scope-attr observed, forged-token 401).
 > gated; their pre-existing `master_data_visitpad.yaml` policy is capability-only (no tenant-eq), so
 > closing the authenticated-cross-tenant gap needs a tenant-isolated policy + verified `visitpad-*` cap
 > seeds + a scope guard on 36 routes + tests. Tracked as **Phase 4c** (recoverable failure mode:
-> authenticated-but-coarse; gate: NetworkPolicy edge-only in Phase 5 + this note). Picklist writes same
-> status. **Note:** `guard`/`build_authz` duplicate opd's (~15 lines); consolidate into `hims_authz`
-> when a 3rd Python module appears (not now). Phase-5 dead-code sweep MUST delete the unsigned-JWT
-> `auth_policy.resolve_superadmin_actor` landmine (`verify_signature=False` when `jwt_secret` unset).
+> authenticated-but-coarse; gate: same-namespace NetworkPolicy from Phase 5 + this note). Picklist
+> writes same status. **Note:** `guard`/`build_authz` duplicate opd's (~15 lines); consolidate into
+> `hims_authz` when a 3rd Python module appears (not now).
+>
+> **Phase 5 DONE (2026-07-02):** DELETED all dead master-data auth scaffolding — `app/core/security.py`
+> (hardcoded platform-admin principal), `app/middleware/auth_policy.py` (the unsigned-JWT
+> `resolve_superadmin_actor` landmine — `verify_signature=False` when `jwt_secret` unset),
+> `app/middleware/auth_middleware.py` (no-op `BearerAuthContextMiddleware`), `app/api/auth.py`
+> (unwired `require_superadmin`), the `auth_disabled`/`jwt_secret`/`auth_bypass`/`dev_bearer_token`
+> config fields + `strip_dev_bearer` validator, and the dead `tests/test_utils/test_auth_policy.py`.
+> Added `infra/k8s/base/network-policies.yaml` (opd-svc + master-data ingress restricted to
+> same-namespace = BFF edge + S2S; defense-in-depth atop the in-process PEP). authz-assessment
+> §Resolution + master-map updated; pre-prod in-process-PDP/network gate SATISFIED. 146 pytest green,
+> ruff clean, `kubectl kustomize` builds.
 > Constraints unchanged: dev pinned `12963b72`; never push; explicit-path stage; never the 14 not-ours
 > untracked; commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
 

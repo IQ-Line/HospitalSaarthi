@@ -154,24 +154,29 @@ work (roadmap §6), and deferring it was the correct default for cleanup, not av
   are not reachable except through the edge.** Fine-grained per-service PDPs are the defense-in-depth
   layer the TS modules already have and the Python modules will gain in Phase-4.
 
-**PRE-PROD GATE (owned, load-bearing — no tenant goes live until BOTH):**
-1. **Network isolation.** opd-svc + master-data-svc must be reachable **only** via the BFF edge
-   (K8s NetworkPolicy / mesh mTLS deny-by-default). Today nothing enforces this at the app layer, so
-   the network boundary IS the security boundary — it must be provably closed before go-live.
-2. **In-process identity/PDP OR documented internal-only.** Either wire the Python PEP (the
-   `py-sdk-authz` initiative + Cerbos policies), or formally ratify these services as internal-only
-   with (1) as the enforcement. Recoverable failure mode: pre-prod, no data, edge already asserts
-   tenant scope for every downstream at once (#47).
+**PRE-PROD GATE — ✅ SATISFIED by Half B (2026-07-02), no longer load-bearing:**
+1. **In-process identity/PDP — DONE.** opd (`c82aa82a`) and master-data (`d08710b4`) now run the
+   full `hims_authz` PEP: in-process RS256/JWKS JWT verification (fail-closed identity gate) + per-route
+   Cerbos authorization. Tenant/actor come from the VERIFIED principal, never trusted headers. So the
+   app layer — not the network boundary — is now the primary security boundary.
+2. **Network isolation — DONE (defense-in-depth).** `infra/k8s/base/network-policies.yaml` restricts
+   opd-svc + master-data ingress to same-namespace sources (BFF edge + S2S); nothing external reaches
+   them except through the BFF (ingress routes only `/api`→bff, `/_cerbos`→cerbos, `/`→web).
 
-### Gated follow-ups (recorded, NOT done this turn — each safe/small, out of the M3 scope)
-- **master-data dead `app/core/security.py`** — `get_current_principal_placeholder()` returns a
-  hardcoded `roles=("platform-admin",)` principal; **zero usages** (verified). A genuine footgun if
-  ever wired. Safe to delete (ruff + pytest + `create_app()` boot gate). Removing it does not close
-  the bypass — it removes dead privilege-granting code.
-- **master-data unauthenticated writes / `actor_id` always NULL** — `require_superadmin` is defined
-  (`api/auth.py`) but wired on **no** route; every write passes `actor_id=None`. Proper fix needs a
-  verified principal (Half B / Phase-4). Attribution belongs with the deferred audit middleware
-  (ADR-0024), not a header-trust guard.
+**Residual (task #58 / Phase 4c — the one gate that remains):** master-data **visitpad (36 write
+routes) + picklist writes** are now authenticated (identity gate) but not yet capability/tenant
+gated — recoverable (authenticated-but-coarse; the unauthenticated bypass IS closed), gated by the
+same-namespace NetworkPolicy until 4c wires their guards.
+
+### Gated follow-ups — RESOLVED by Half B (kept for the record)
+- **master-data dead `app/core/security.py`** — ✅ DELETED in Phase 5 (`d08710b4`+Phase-5 commit),
+  along with the other dead auth scaffolding (`middleware/auth_policy.py` unsigned-JWT
+  `resolve_superadmin_actor`, `middleware/auth_middleware.py` no-op `BearerAuthContextMiddleware`,
+  `api/auth.py` unwired `require_superadmin`, and the `auth_disabled`/`jwt_secret`/`auth_bypass`/
+  `dev_bearer_token` config escape hatches).
+- **master-data unauthenticated writes / `actor_id` always NULL** — ✅ CLOSED (`d08710b4`): the five
+  admin catalogs' writes are Cerbos-guarded and `actor_id` is the verified JWT `sub` (real
+  `created_by`/`updated_by`, incl. the bulk platform-import path).
 - **configurator-svc** — role-string gates (`assertPlatformSuperAdmin`, `assertTenantOnboardingAllowed`
   org-scope) + two internal-key gates, **no Cerbos PEP**. Its identity fallback base64url-decodes the
   JWT **without signature verification** when `ENABLE_AUTH` is off (dev only). Full PEP = Phase-4.

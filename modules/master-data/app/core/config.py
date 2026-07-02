@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # `modules/master-data` — stable regardless of CWD.
@@ -78,40 +78,9 @@ class Settings(BaseSettings):
         default="/docs,/redoc,/openapi.json,/favicon.ico",
         description="Comma-separated path prefixes excluded from request logging.",
     )
-    # Tests: ``require_superadmin`` skips bearer; audit actor stays null.
-    auth_disabled: bool = Field(
-        default=False,
-        description="If true, skip JWT in superadmin dep (tests); audit columns unset.",
-    )
-    jwt_secret: str | None = Field(
-        default=None,
-        description=(
-            "HS256 secret for validating JWTs; if unset, signatures are not verified (dev only)."
-        ),
-    )
-    # Local/dev only — never enable bypass or dev token in production.
-    auth_bypass: bool = Field(
-        default=False,
-        description=(
-            "If true, mutation routes accept requests without a bearer token (Swagger/local only)."
-        ),
-    )
-    dev_bearer_token: str | None = Field(
-        default=None,
-        description=(
-            "If set, Authorization: Bearer <exact value> passes superadmin check; "
-            "audit actor stays null until JWT ``sub`` is used."
-        ),
-    )
-
-    @field_validator("dev_bearer_token", mode="before")
-    @classmethod
-    def strip_dev_bearer(cls, value: object) -> str | None:
-        if value is None or value == "":
-            return None
-        if isinstance(value, str):
-            return value.strip()
-        return value  # pragma: no cover
+    # Authorization is enforced in-process by the hims_authz PEP (identity gate + per-route
+    # Cerbos guards, wired in app.main / app.core.authz). There are NO HS256 / bypass / dev-token
+    # escape hatches — see AuthEnvSettings below for the JWKS/issuer/audience/Cerbos/UM config.
 
 
 def _resolve_database_url_from_env_files() -> str | None:

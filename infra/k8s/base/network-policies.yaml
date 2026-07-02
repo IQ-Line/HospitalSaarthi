@@ -1,0 +1,56 @@
+# Defense-in-depth network isolation for the two Python data-plane services that Half B (#51)
+# gave a real in-process authorization PEP (identity gate + per-route Cerbos guards).
+#
+# PRIMARY protection is the PEP itself: opd-svc and master-data now verify the JWT in-process
+# and authorize every write against Cerbos, so a direct call still needs a valid, entitled token.
+# These NetworkPolicies add a network layer on top: ingress is restricted to pods in the same
+# `himsv2` namespace (the BFF edge + sibling HIMS services for legitimate S2S — e.g. opd-svc ->
+# master-data visitpad-catalog lookups), so a pod in another namespace or an external client
+# cannot reach these services directly at all.
+#
+# Why same-namespace and not strictly bff-only: real service-to-service traffic terminates here
+# (opd-svc -> master-data, registration/others -> master-data), so a bff-only ingress rule would
+# break S2S. The ingress (nginx) routes only /api -> bff, /_cerbos -> cerbos, / -> web, so neither
+# service is reachable from outside the cluster except through the BFF. A stricter caller-allowlist
+# is a later hardening once the S2S caller set is enumerated.
+#
+# NOTE: enforced only on a NetworkPolicy-capable CNI (Azure CNI / Calico on AKS). Where the CNI
+# does not enforce it, this manifest still documents the intended isolation.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: opd-svc-namespace-only
+  namespace: himsv2
+spec:
+  podSelector:
+    matchLabels:
+      app: opd-svc
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Any pod in this namespace (BFF edge + sibling HIMS services). An empty podSelector
+        # inside `from` means "all pods in the NetworkPolicy's own namespace".
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8020
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: master-data-namespace-only
+  namespace: himsv2
+spec:
+  podSelector:
+    matchLabels:
+      app: master-data
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8010
