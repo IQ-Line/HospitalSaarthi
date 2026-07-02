@@ -14,6 +14,10 @@ interface AuthState {
   displayName: string | null;
   /** Canonical role codes from the access JWT (`roles` claim), for UX-only shell behavior. */
   roles: string[];
+  /**
+   * `null` = not checked yet (session restore). Avoids refetching `/auth/me` on every route preload.
+   */
+  mustChangePassword: boolean | null;
 
   setSession: (session: {
     accessToken: string;
@@ -21,7 +25,9 @@ interface AuthState {
     sessionToken: string;
     userId: string;
     displayName: string;
+    mustChangePassword?: boolean | null;
   }) => void;
+  setMustChangePassword: (mustChangePassword: boolean | null) => void;
   clearSession: () => void;
 }
 
@@ -33,6 +39,7 @@ const authSlice: StateCreator<AuthState> = (set, get) => ({
   userId: null,
   displayName: null,
   roles: [],
+  mustChangePassword: null,
 
   setSession: (session) => {
     if (get().userId !== session.userId) {
@@ -47,7 +54,13 @@ const authSlice: StateCreator<AuthState> = (set, get) => ({
       userId: session.userId,
       displayName: session.displayName,
       roles,
+      mustChangePassword:
+        session.mustChangePassword !== undefined ? session.mustChangePassword : get().mustChangePassword,
     });
+  },
+
+  setMustChangePassword: (mustChangePassword) => {
+    set({ mustChangePassword });
   },
 
   clearSession: () => {
@@ -60,6 +73,7 @@ const authSlice: StateCreator<AuthState> = (set, get) => ({
       userId: null,
       displayName: null,
       roles: [],
+      mustChangePassword: null,
     });
   },
 });

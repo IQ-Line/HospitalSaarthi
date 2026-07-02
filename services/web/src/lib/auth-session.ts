@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
+import { clearAuthMeCache } from '@/lib/auth-me';
 import { decodeAccessTokenPayload } from '@/lib/access-token';
 import type { AuthPrincipalResponse } from '@/lib/auth-principal';
 import { applyAuthorizationFromLogin } from '@/lib/authorization-context';
@@ -161,6 +162,7 @@ export async function completeInteractiveLogin(
     sessionToken: login.session_token,
     userId: login.user.id,
     displayName: login.user.full_name,
+    mustChangePassword: login.user.must_change_password === true,
   });
   authBootstrapComplete = true;
   authBootstrapPromise = null;
@@ -175,6 +177,7 @@ export async function completeInteractiveLogin(
 export async function forceLogoutDueToAccountDisabled(): Promise<void> {
   authBootstrapComplete = false;
   authBootstrapPromise = null;
+  clearAuthMeCache();
   useAuthStore.getState().clearSession();
   try {
     await authClient.signOut();
