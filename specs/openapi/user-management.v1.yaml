@@ -53,6 +53,55 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Sign in and return session, JWT, profile, and principal
+      description: >
+        Single interactive login for SPAs and integrators. Verifies email or username + password
+        via better-auth, issues access/refresh tokens, returns the platform user profile
+        (`/auth/me` shape), and the enriched authorization principal (`/auth/principal` shape).
+        Also returns `session_token` for better-auth session lifecycle. Browser clients may
+        receive `Set-Cookie` headers from the underlying auth session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identifier
+                - password
+              properties:
+                identifier:
+                  type: string
+                  description: Email (contains `@`) or username.
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Authenticated session bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InteractiveLoginResponse"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "404":
+          description: Auth user is not linked to a platform user row.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/change-password-complete:
     post:
       tags:
@@ -1860,6 +1909,42 @@ components:
           type: string
           enum: [standard, admin_only, delegated, phone_recovery, federated]
           description: Password recovery routing tier (admin-only for MVP).
+    InteractiveLoginResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+        - refresh_token
+        - refresh_expires_in
+        - session_token
+        - tenant_id
+        - user
+        - principal
+      properties:
+        access_token:
+          type: string
+          description: Short-lived RS256 JWT for Authorization Bearer on HIMS APIs.
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: access_token lifetime in seconds.
+        refresh_token:
+          type: string
+        refresh_expires_in:
+          type: integer
+        session_token:
+          type: string
+          description: better-auth opaque session token (sign-out / JWT refresh via /api/auth/token).
+        tenant_id:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/User"
+        principal:
+          $ref: "#/components/schemas/Principal"
     Principal:
       type: object
       description: >

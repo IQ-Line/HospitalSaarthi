@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@puls
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { authClient } from '@/lib/auth-client';
-import { completePasswordChange, fetchAuthMe } from '@/lib/auth-me';
+import { completePasswordChange } from '@/lib/auth-me';
 
 const changePasswordSchema = z
   .object({
@@ -52,8 +52,7 @@ function ChangePasswordPage() {
         return;
       }
 
-      await completePasswordChange();
-      const profile = await fetchAuthMe();
+      const profile = await completePasswordChange();
       if (profile.must_change_password === true) {
         setError('Password was updated but the account still requires a password change.');
         return;
