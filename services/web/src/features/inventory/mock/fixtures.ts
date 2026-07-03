@@ -16,18 +16,18 @@ import type {
 } from '../types';
 
 export const MOCK_INVENTORY_STORES: InventoryStore[] = [
-  { id: 'store-cms', name: 'Central Medical Store', store_code: 'CMS-001' },
-  { id: 'store-new', name: 'New store', store_code: '000-STO-00001' },
-  { id: 'store-inv', name: 'Inventory store', store_code: 'INV-002' },
+  { id: 'store-cms', name: 'Central Medical Store', store_code: 'CMS-001', is_central_store: true },
+  { id: 'store-new', name: 'New store', store_code: '000-STO-00001', is_central_store: false },
+  { id: 'store-inv', name: 'Inventory store', store_code: 'INV-002', is_central_store: false },
 ];
 
 export const MOCK_INVENTORY_ITEMS: InventoryItemOption[] = [
-  { id: 'item-1', code: 'DRU-000001', name: 'Amoxicillin 500mg capsule', uom: 'strips' },
-  { id: 'item-2', code: 'ITM-0001', name: 'Augmentin', uom: 'strips' },
-  { id: 'item-3', code: 'DOLO 500mg', name: 'Paracetamol 500mg tablet', uom: 'unit' },
-  { id: 'item-4', code: 'MED-000002', name: 'Ibuprofen 400mg tablet', uom: 'unit' },
-  { id: 'item-5', code: 'CON-000002', name: 'HIMS Journey Demo SKU', uom: 'Tablet' },
-  { id: 'item-6', code: 'TEST-SKU-001', name: 'Amoxicillin 500mg capsule', uom: 'unit' },
+  { id: 'item-1', code: 'DRU-000001', name: 'Amoxicillin 500mg capsule', uom: 'strips', tracking_mode: 'lot', is_expirable: true },
+  { id: 'item-2', code: 'ITM-0001', name: 'Augmentin', uom: 'strips', tracking_mode: 'lot', is_expirable: true },
+  { id: 'item-3', code: 'DOLO 500mg', name: 'Paracetamol 500mg tablet', uom: 'unit', tracking_mode: 'lot', is_expirable: true },
+  { id: 'item-4', code: 'MED-000002', name: 'Ibuprofen 400mg tablet', uom: 'unit', tracking_mode: 'lot', is_expirable: true },
+  { id: 'item-5', code: 'CON-000002', name: 'HIMS Journey Demo SKU', uom: 'Tablet', tracking_mode: 'none', is_expirable: false },
+  { id: 'item-6', code: 'TEST-SKU-001', name: 'Amoxicillin 500mg capsule', uom: 'unit', tracking_mode: 'lot', is_expirable: true },
 ];
 
 export const MOCK_MANUFACTURERS: InventoryManufacturerOption[] = [
@@ -313,10 +313,11 @@ export const EMPTY_GRN_LINE = (): InventoryGrnLineDraft => ({
   item_code: '',
   item_name: '',
   uom: '',
+  purchase_uom: '',
   required_qty: null,
   remaining_qty: null,
   grn_qty: 0,
-  amount: 0,
+  purchase_rate: 0,
   batch_no: '',
   expiry_date: '',
   storage: '',

@@ -14,6 +14,7 @@ export type InventoryStoreRecord = {
   track_batch_expiry: boolean;
   indent_authority: boolean;
   indent_target_store_id: string | null;
+  is_central_store: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -43,6 +44,7 @@ export type StoreCreateInput = {
   track_batch_expiry?: boolean;
   indent_authority?: boolean;
   indent_target_store_id?: string | null;
+  is_central_store?: boolean;
   is_active?: boolean;
 };
 

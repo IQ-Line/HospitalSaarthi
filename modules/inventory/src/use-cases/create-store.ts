@@ -1,6 +1,7 @@
 import type { CreateStoreInput } from "../domain/store.types.js";
 import type { InventoryDeps } from "../ports.js";
 import type { StoreRow } from "../domain/store.types.js";
+import { assertSingleCentralStore } from "../domain/store.validation.js";
 import { StoreTypeNotFoundError, StoreValidationError } from "../errors.js";
 
 export async function createStore(
@@ -47,6 +48,9 @@ export async function createStore(
     );
   }
 
+  const isCentralStore = input.is_central_store ?? false;
+  await assertSingleCentralStore(deps.storeRepo, tenantId, isCentralStore);
+
   return deps.storeRepo.create(
     tenantId,
     storeType.code,
@@ -59,6 +63,7 @@ export async function createStore(
       track_batch_expiry: input.track_batch_expiry ?? storeType.track_batch_expiry,
       indent_authority: indentAuthority,
       indent_target_store_id: indentTargetStoreId,
+      is_central_store: isCentralStore,
     },
     actorId,
   );

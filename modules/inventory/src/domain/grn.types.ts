@@ -11,6 +11,7 @@ export type GrnRow = {
   inventory_store_id: string;
   manufacturer_id: string | null;
   purchase_request_id: string | null;
+  inventory_indent_id: string | null;
   voucher_invoice_no: string;
   register_page_no: string | null;
   remarks: string | null;
@@ -62,6 +63,7 @@ export type CreateGrnLineInput = {
   grn_qty: number;
   base_uom: string;
   purchase_rate: number;
+  purchase_uom?: string | null;
   lot_number?: string;
   expiry_date?: string | null;
   storage_location?: string | null;
@@ -76,6 +78,8 @@ export type CreateGrnInput = {
   store_id: string;
   manufacturer_id?: string | null;
   purchase_request_id?: string | null;
+  indent_number?: string;
+  inventory_indent_id?: string | null;
   voucher_invoice_no?: string;
   register_page_no?: string | null;
   remarks?: string | null;
@@ -88,6 +92,8 @@ export type UpdateGrnInput = {
   store_id?: string;
   manufacturer_id?: string | null;
   purchase_request_id?: string | null;
+  indent_number?: string | null;
+  inventory_indent_id?: string | null;
   voucher_invoice_no?: string;
   register_page_no?: string | null;
   remarks?: string | null;

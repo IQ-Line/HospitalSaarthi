@@ -33,6 +33,7 @@ type StoreFormDialogProps = {
   storeTypes: InventoryStoreType[];
   indentTargetStores: InventoryStoreRecord[];
   editingStoreId?: string;
+  existingCentralStore?: InventoryStoreRecord | null;
   departments: Department[];
   form: UseFormReturn<StoreFormInput>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -88,12 +89,17 @@ export function StoreFormDialog({
   storeTypes,
   indentTargetStores,
   editingStoreId,
+  existingCentralStore,
   departments,
   form,
   onSubmit,
 }: StoreFormDialogProps) {
   const storeTypeId = form.watch('store_type_id');
   const indentAuthority = form.watch('indent_authority');
+  const isCentralStore = form.watch('is_central_store');
+
+  const centralStoreTakenByOther =
+    Boolean(existingCentralStore) && existingCentralStore?.id !== editingStoreId;
 
   const indentTargets = useMemo(
     () =>
@@ -225,6 +231,37 @@ export function StoreFormDialog({
               <Switch id="is_active" checked={field.value} onCheckedChange={field.onChange} />
             )}
           />
+        </div>
+
+        <div className="space-y-2 sm:col-span-2">
+          <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <div className="space-y-0.5">
+              <Label htmlFor="is_central_store" className="font-normal">
+                Procurement (central store)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                One per tenant. Only the central store can raise procurement indents.
+              </p>
+            </div>
+            <Controller
+              control={form.control}
+              name="is_central_store"
+              render={({ field }) => (
+                <Switch
+                  id="is_central_store"
+                  checked={field.value}
+                  disabled={centralStoreTakenByOther && !isCentralStore}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+          </div>
+          {centralStoreTakenByOther && !isCentralStore ? (
+            <p className="text-xs text-muted-foreground">
+              {existingCentralStore?.store_name} ({existingCentralStore?.store_code}) is already
+              the central store for this tenant.
+            </p>
+          ) : null}
         </div>
       </div>
 

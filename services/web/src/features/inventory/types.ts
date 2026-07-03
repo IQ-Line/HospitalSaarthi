@@ -10,6 +10,7 @@ export type InventoryStore = {
   id: string;
   name: string;
   store_code: string;
+  is_central_store: boolean;
 };
 
 export type InventoryItemOption = {
@@ -17,6 +18,8 @@ export type InventoryItemOption = {
   code: string;
   name: string;
   uom: string;
+  tracking_mode?: 'lot' | 'serial' | 'none';
+  is_expirable?: boolean;
 };
 
 export type InventoryManufacturerOption = {
@@ -97,6 +100,10 @@ export type InventoryIndentStatus =
 
 export type InventoryIndentPriority = 'NORMAL' | 'URGENT' | 'STAT';
 
+export type InventoryIndentFulfillment = 'stock_transfer' | 'procurement';
+
+export type InventoryIndentType = 'store_transfer' | 'pharmacy_refill' | 'emergency';
+
 export type InventoryIndentRoute = 'Transfer' | 'Procurement';
 
 export type InventoryIndentLine = {
@@ -175,15 +182,24 @@ export type InventoryGrnLineDraft = {
   item_code: string;
   item_name: string;
   uom: string;
+  purchase_uom: string;
+  tracking_mode?: 'lot' | 'serial' | 'none';
+  is_expirable?: boolean;
   required_qty: number | null;
   remaining_qty: number | null;
   grn_qty: number;
-  amount: number;
+  purchase_rate: number;
   batch_no: string;
   expiry_date: string;
   storage: string;
   remarks: string;
 };
+
+/** Line total per story: GRN Qty × Purchase Rate */
+export function calcGrnLineAmount(grnQty: number, purchaseRate: number): number {
+  if (!Number.isFinite(grnQty) || !Number.isFinite(purchaseRate)) return 0;
+  return Math.round(grnQty * purchaseRate * 100) / 100;
+}
 
 export type InventoryReconciliationRow = {
   id: string;
@@ -197,10 +213,10 @@ export type InventoryReconciliationRow = {
 
 export type InventoryIndentFormValues = {
   indent_date: string;
-  fulfillment: 'stock_transfer' | 'procurement';
+  fulfillment_route: InventoryIndentFulfillment;
   from_store_id: string;
-  to_store_id: string;
-  indent_type: 'store_transfer' | 'pharmacy_refill' | 'emergency';
+  to_store_id?: string;
+  indent_type: InventoryIndentType;
   priority: 'normal' | 'urgent' | 'stat';
   remarks: string;
   lines: InventoryIndentLine[];
@@ -210,8 +226,8 @@ export type InventoryGrnFormValues = {
   grn_type: InventoryGrnType;
   grn_date: string;
   store_id: string;
-  manufacturer_id: string;
-  purchase_indent_id: string;
+  vendor_id: string;
+  indent_number: string;
   voucher_number: string;
   remarks: string;
   register_page_no: string;

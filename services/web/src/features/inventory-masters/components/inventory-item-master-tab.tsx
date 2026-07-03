@@ -193,7 +193,7 @@ export function InventoryItemMasterTab({
       return;
     }
 
-    sidePanel.open(
+    const panel = (
       <ItemMasterFormPanel
         key="create"
         open
@@ -207,14 +207,23 @@ export function InventoryItemMasterTab({
         manufacturers={manufacturersQuery.data?.data ?? []}
         departments={departmentsQuery.data?.data ?? []}
         onSubmit={handleSubmit}
-      />,
-      closePanel,
-      {
-        showShellCloseButton: false,
-        sidePanelWidth: 'min(560px, 45vw)',
-        contentFingerprint: 'create',
-      },
+      />
     );
+
+    const openOptions = {
+      showShellCloseButton: false,
+      sidePanelWidth: 'min(560px, 45vw)',
+      contentFingerprint: 'create',
+    } as const;
+
+    // `open()` skips updates when the fingerprint is unchanged (loop guard). Lookup
+    // queries (departments, categories, …) often resolve after the first open, so
+    // refresh panel content without remounting the form via `setContent`.
+    if (sidePanel.isOpen) {
+      sidePanel.setContent(panel);
+    } else {
+      sidePanel.open(panel, closePanel, openOptions);
+    }
   }, [
     panelMode,
     sidePanel,

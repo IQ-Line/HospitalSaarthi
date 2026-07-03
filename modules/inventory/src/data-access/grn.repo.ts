@@ -11,8 +11,9 @@ import type {
   ListGrnsQuery,
   UpdateGrnInput,
 } from "../domain/grn.types.js";
-import { inventoryGrnLines, inventoryGrns, inventoryItems } from "../schema/tables.js";
+import { inventoryGrnLines, inventoryGrns, inventoryItems, inventoryLots, inventoryStock } from "../schema/tables.js";
 import { GrnValidationError } from "../errors.js";
+import { isPostgresUniqueViolation } from "../lib/postgres-errors.js";
 
 function mapGrnRow(row: typeof inventoryGrns.$inferSelect): GrnRow {
   return {
@@ -25,6 +26,7 @@ function mapGrnRow(row: typeof inventoryGrns.$inferSelect): GrnRow {
     inventory_store_id: row.inventory_store_id,
     manufacturer_id: row.manufacturer_id,
     purchase_request_id: row.purchase_request_id,
+    inventory_indent_id: row.inventory_indent_id,
     voucher_invoice_no: row.voucher_invoice_no,
     register_page_no: row.register_page_no,
     remarks: row.remarks,
@@ -95,36 +97,8 @@ function listFilters(tenantId: string, query: ListGrnsQuery): SQL[] {
   return filters;
 }
 
-
-function readExecuteRows<T>(result: unknown): T[] {
-  if (Array.isArray(result)) return result as T[];
-  if (result && typeof result === "object" && "rows" in result) {
-    return (result as { rows: T[] }).rows;
-  }
-  return [];
-}
-
-function parseSubmitRpcResult(value: unknown): { grn_id?: string } | null {
-  if (!value) return null;
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value) as { grn_id?: string };
-    } catch {
-      return null;
-    }
-  }
-  if (typeof value === "object") return value as { grn_id?: string };
-  return null;
-}
-
-function mapSubmitRpcError(error: unknown): never {
-  if (error instanceof GrnValidationError) throw error;
-  if (error && typeof error === "object" && "message" in error) {
-    const raw = String((error as { message: string }).message);
-    const cleaned = raw.replace(/^error:\s*/i, "").split("\n")[0]?.trim();
-    if (cleaned) throw new GrnValidationError(cleaned);
-  }
-  throw error;
+function finalizeGrnNumber(grnNumber: string): string {
+  return grnNumber.startsWith("DRAFT-") ? `GRN-${grnNumber.slice(6)}` : grnNumber;
 }
 
 export class DrizzleInventoryGrnRepository {
@@ -242,6 +216,7 @@ export class DrizzleInventoryGrnRepository {
           inventory_store_id: input.store_id,
           manufacturer_id: input.manufacturer_id ?? null,
           purchase_request_id: input.purchase_request_id ?? null,
+          inventory_indent_id: input.inventory_indent_id ?? null,
           voucher_invoice_no: input.voucher_invoice_no?.trim() ?? "",
           register_page_no: input.register_page_no ?? null,
           remarks: input.remarks ?? null,
@@ -261,7 +236,10 @@ export class DrizzleInventoryGrnRepository {
             item_id: line.item_id,
             grn_qty: String(line.grn_qty),
             base_uom: line.base_uom,
+            purchase_uom: line.purchase_uom ?? null,
             purchase_to_base_factor: "1",
+            requested_qty:
+              line.requested_qty != null ? String(line.requested_qty) : null,
             storage_location: line.storage_location ?? null,
             lot_number: line.lot_number ?? "",
             expiry_date: line.expiry_date ?? null,
@@ -290,6 +268,9 @@ export class DrizzleInventoryGrnRepository {
     if (input.store_id !== undefined) patch.inventory_store_id = input.store_id;
     if (input.manufacturer_id !== undefined) patch.manufacturer_id = input.manufacturer_id;
     if (input.purchase_request_id !== undefined) patch.purchase_request_id = input.purchase_request_id;
+    if (input.inventory_indent_id !== undefined) {
+      patch.inventory_indent_id = input.inventory_indent_id;
+    }
     if (input.voucher_invoice_no !== undefined) patch.voucher_invoice_no = input.voucher_invoice_no;
     if (input.register_page_no !== undefined) patch.register_page_no = input.register_page_no;
     if (input.remarks !== undefined) patch.remarks = input.remarks;
@@ -297,6 +278,30 @@ export class DrizzleInventoryGrnRepository {
     const [row] = await this.db
       .update(inventoryGrns)
       .set(patch)
+      .where(
+        and(
+          eq(inventoryGrns.iq_tenant_id, tenantId),
+          eq(inventoryGrns.id, grnId),
+          eq(inventoryGrns.status, "draft"),
+        ),
+      )
+      .returning();
+
+    return row ? mapGrnRow(row) : undefined;
+  }
+
+  async updateDocumentPath(
+    tenantId: string,
+    grnId: string,
+    field: "shipment_document_path" | "voucher_document_path",
+    relativePath: string,
+  ): Promise<GrnRow | undefined> {
+    const [row] = await this.db
+      .update(inventoryGrns)
+      .set({
+        [field]: relativePath,
+        updated_at: new Date(),
+      })
       .where(
         and(
           eq(inventoryGrns.iq_tenant_id, tenantId),
@@ -338,7 +343,10 @@ export class DrizzleInventoryGrnRepository {
           item_id: line.item_id,
           grn_qty: String(line.grn_qty),
           base_uom: line.base_uom,
+          purchase_uom: line.purchase_uom ?? null,
           purchase_to_base_factor: "1",
+          requested_qty:
+            line.requested_qty != null ? String(line.requested_qty) : null,
           storage_location: line.storage_location ?? null,
           lot_number: line.lot_number ?? "",
           expiry_date: line.expiry_date ?? null,
@@ -352,20 +360,141 @@ export class DrizzleInventoryGrnRepository {
 
   async submit(tenantId: string, grnId: string, userId: string): Promise<GrnRow | undefined> {
     try {
-      const result = await this.db.execute(sql`
-        SELECT inventory.submit_inventory_grn_as(
-          ${grnId}::uuid,
-          ${tenantId}::uuid,
-          ${userId}::uuid
-        ) AS result
-      `);
-      const rows = readExecuteRows<{ result: unknown }>(result);
-      const payload = parseSubmitRpcResult(rows[0]?.result);
-      if (!payload?.grn_id) return undefined;
-    } catch (error) {
-      mapSubmitRpcError(error);
-    }
+      return await this.db.transaction(async (tx) => {
+        const [grn] = await tx
+          .select()
+          .from(inventoryGrns)
+          .where(and(eq(inventoryGrns.iq_tenant_id, tenantId), eq(inventoryGrns.id, grnId)))
+          .limit(1);
 
-    return this.findById(tenantId, grnId);
+        if (!grn) return undefined;
+        if (grn.status !== "draft") {
+          throw new GrnValidationError("GRN is already submitted");
+        }
+
+        const lines = await tx
+          .select()
+          .from(inventoryGrnLines)
+          .where(
+            and(eq(inventoryGrnLines.iq_tenant_id, tenantId), eq(inventoryGrnLines.grn_id, grnId)),
+          )
+          .orderBy(asc(inventoryGrnLines.sort_order), asc(inventoryGrnLines.created_at));
+
+        if (lines.length === 0) {
+          throw new GrnValidationError("Add at least one line before submitting");
+        }
+
+        for (const line of lines) {
+          let lotId: string | null = null;
+          const lotNumber = line.lot_number.trim();
+
+          if (lotNumber.length > 0) {
+            const normalizedLot = lotNumber.toLowerCase();
+            const [existingLot] = await tx
+              .select({ id: inventoryLots.id })
+              .from(inventoryLots)
+              .where(
+                and(
+                  eq(inventoryLots.iq_tenant_id, tenantId),
+                  eq(inventoryLots.item_id, line.item_id),
+                  eq(inventoryLots.inventory_store_id, grn.inventory_store_id),
+                  sql`lower(btrim(${inventoryLots.lot_number})) = ${normalizedLot}`,
+                ),
+              )
+              .limit(1);
+
+            if (existingLot) {
+              lotId = existingLot.id;
+              await tx
+                .update(inventoryLots)
+                .set({
+                  initial_qty: sql`${inventoryLots.initial_qty} + ${line.grn_qty}`,
+                  unit_cost: line.purchase_rate,
+                  ...(line.expiry_date != null ? { expiry_date: line.expiry_date } : {}),
+                  updated_at: new Date(),
+                })
+                .where(
+                  and(eq(inventoryLots.iq_tenant_id, tenantId), eq(inventoryLots.id, existingLot.id)),
+                );
+            } else {
+              const [createdLot] = await tx
+                .insert(inventoryLots)
+                .values({
+                  iq_tenant_id: tenantId,
+                  item_id: line.item_id,
+                  inventory_store_id: grn.inventory_store_id,
+                  lot_number: lotNumber,
+                  expiry_date: line.expiry_date,
+                  received_date: grn.grn_date,
+                  initial_qty: line.grn_qty,
+                  unit_cost: line.purchase_rate,
+                  notes: line.line_remarks,
+                })
+                .returning({ id: inventoryLots.id });
+              lotId = createdLot?.id ?? null;
+            }
+          }
+
+          const stockFilters = [
+            eq(inventoryStock.iq_tenant_id, tenantId),
+            eq(inventoryStock.item_id, line.item_id),
+            eq(inventoryStock.inventory_store_id, grn.inventory_store_id),
+            lotId
+              ? eq(inventoryStock.lot_id, lotId)
+              : sql`${inventoryStock.lot_id} IS NULL`,
+          ];
+
+          const [existingStock] = await tx
+            .select({ id: inventoryStock.id })
+            .from(inventoryStock)
+            .where(and(...stockFilters))
+            .limit(1);
+
+          if (existingStock) {
+            await tx
+              .update(inventoryStock)
+              .set({
+                quantity: sql`${inventoryStock.quantity} + ${line.grn_qty}`,
+                updated_by: userId,
+                updated_at: new Date(),
+              })
+              .where(
+                and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, existingStock.id)),
+              );
+          } else {
+            await tx.insert(inventoryStock).values({
+              iq_tenant_id: tenantId,
+              item_id: line.item_id,
+              inventory_store_id: grn.inventory_store_id,
+              lot_id: lotId,
+              quantity: line.grn_qty,
+              created_by: userId,
+              updated_by: userId,
+            });
+          }
+        }
+
+        const [updated] = await tx
+          .update(inventoryGrns)
+          .set({
+            status: "submitted",
+            grn_number: finalizeGrnNumber(grn.grn_number),
+            submitted_at: new Date(),
+            updated_at: new Date(),
+          })
+          .where(and(eq(inventoryGrns.iq_tenant_id, tenantId), eq(inventoryGrns.id, grnId)))
+          .returning();
+
+        return updated ? mapGrnRow(updated) : undefined;
+      });
+    } catch (error) {
+      if (error instanceof GrnValidationError) throw error;
+      if (isPostgresUniqueViolation(error)) {
+        throw new GrnValidationError(
+          "A submitted purchase GRN with this manufacturer and voucher / invoice number already exists",
+        );
+      }
+      throw error;
+    }
   }
 }

@@ -1,13 +1,15 @@
 import type { DrizzleInventoryGrnRepository } from "../data-access/grn.repo.js";
-import type { StoreRepo } from "../ports.js";
+import type { StoreRepo, IndentRepo } from "../ports.js";
 import { GrnNotFoundError, GrnValidationError } from "../errors.js";
 import type { UpdateGrnInput } from "../domain/grn.types.js";
-import { assertGrnDateNotFuture, assertPurchaseManufacturer } from "../domain/grn.validation.js";
+import { assertGrnDateNotFuture } from "../domain/grn.validation.js";
+import { resolveGrnIndentId } from "../domain/resolve-grn-indent.js";
 import { wireGrn } from "./list-grns.js";
 
 export type UpdateGrnDeps = {
   grnRepo: DrizzleInventoryGrnRepository;
   storeRepo: StoreRepo;
+  indentRepo: IndentRepo;
 };
 
 export async function updateGrn(
@@ -29,15 +31,24 @@ export async function updateGrn(
     }
   }
 
-  const grnType = input.grn_type ?? existing.grn_type;
   const grnDate = input.grn_date ?? existing.grn_date;
-  const manufacturerId =
-    input.manufacturer_id !== undefined ? input.manufacturer_id : existing.manufacturer_id;
 
   assertGrnDateNotFuture(grnDate);
-  assertPurchaseManufacturer(grnType, manufacturerId);
 
-  const row = await deps.grnRepo.updateDraft(tenantId, grnId, input);
+  let patch: UpdateGrnInput = { ...input };
+  if (input.indent_number !== undefined) {
+    patch = {
+      ...patch,
+      inventory_indent_id: await resolveGrnIndentId(
+        deps.indentRepo,
+        tenantId,
+        input.indent_number,
+        grnId,
+      ),
+    };
+  }
+
+  const row = await deps.grnRepo.updateDraft(tenantId, grnId, patch);
   if (!row) throw new GrnNotFoundError();
   return wireGrn(row)!;
 }

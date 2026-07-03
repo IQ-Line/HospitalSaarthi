@@ -15,6 +15,7 @@ const grnLineSchema = z.object({
   item_id: z.string().uuid(),
   grn_qty: z.coerce.number().positive("GRN quantity must be > 0"),
   base_uom: z.string().trim().min(1).max(64),
+  purchase_uom: z.string().trim().max(64).nullable().optional(),
   purchase_rate: z.coerce.number().positive("Purchase rate must be > 0"),
   lot_number: z.string().trim().max(128).optional(),
   expiry_date: z.string().date().nullable().optional(),
@@ -30,6 +31,7 @@ const grnHeaderFields = {
   store_id: z.string().uuid(),
   manufacturer_id: z.string().uuid().nullable().optional(),
   purchase_request_id: z.string().uuid().nullable().optional(),
+  indent_number: z.string().trim().max(120).optional(),
   voucher_invoice_no: z.string().trim().max(128).optional(),
   register_page_no: z.string().trim().max(64).nullable().optional(),
   remarks: z.string().trim().max(250).nullable().optional(),
@@ -43,7 +45,6 @@ function refinePurchaseHeader(
   data: {
     grn_type: z.infer<typeof grnTypeSchema>;
     grn_date: string;
-    manufacturer_id?: string | null;
     voucher_invoice_no?: string;
   },
   ctx: z.RefinementCtx,
@@ -54,15 +55,6 @@ function refinePurchaseHeader(
       message: "GRN date cannot be in the future",
       path: ["grn_date"],
     });
-  }
-  if (data.grn_type === "purchase") {
-    if (!data.manufacturer_id) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Manufacturer is required for purchase GRN",
-        path: ["manufacturer_id"],
-      });
-    }
   }
 }
 
@@ -80,23 +72,18 @@ export const updateGrnBodySchema = z
     store_id: z.string().uuid().optional(),
     manufacturer_id: z.string().uuid().nullable().optional(),
     purchase_request_id: z.string().uuid().nullable().optional(),
+    indent_number: z.string().trim().max(120).nullable().optional(),
     voucher_invoice_no: z.string().trim().max(128).optional(),
     register_page_no: z.string().trim().max(64).nullable().optional(),
     remarks: z.string().trim().max(250).nullable().optional(),
   })
   .refine((body) => Object.keys(body).length > 0, { message: "At least one field is required" })
   .superRefine((data, ctx) => {
-    if (
-      data.grn_type ||
-      data.grn_date ||
-      data.manufacturer_id !== undefined ||
-      data.voucher_invoice_no !== undefined
-    ) {
+    if (data.grn_type || data.grn_date || data.voucher_invoice_no !== undefined) {
       refinePurchaseHeader(
         {
           grn_type: data.grn_type ?? "purchase",
           grn_date: data.grn_date ?? todayIsoDate(),
-          manufacturer_id: data.manufacturer_id,
           voucher_invoice_no: data.voucher_invoice_no,
         },
         ctx,

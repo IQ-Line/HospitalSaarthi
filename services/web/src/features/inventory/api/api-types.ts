@@ -9,6 +9,7 @@ export type InventorySvcStoreRow = {
   store_code: string;
   store_name: string;
   is_active: boolean;
+  is_central_store: boolean;
 };
 
 export type InventorySvcItemRow = {
@@ -18,6 +19,9 @@ export type InventorySvcItemRow = {
   display_name: string;
   item_classification: 'inventory' | 'medicine';
   is_active: boolean;
+  unit_of_measure?: string;
+  tracking_mode?: 'lot' | 'serial' | 'none';
+  is_expirable?: boolean;
 };
 
 export type InventorySvcGrnRow = {
@@ -49,17 +53,22 @@ export type InventorySvcGrnDetail = {
   grn_date: string;
   store_id: string;
   manufacturer_id: string | null;
+  indent_number: string | null;
   purchase_request_id: string | null;
   voucher_invoice_no: string | null;
   register_page_no: string | null;
   remarks: string | null;
+  shipment_document_path: string | null;
+  voucher_document_path: string | null;
   submitted_at: string | null;
   lines?: Array<{
     id: string;
     item_id: string;
     grn_qty: number;
     base_uom: string;
+    purchase_uom: string | null;
     purchase_rate: number;
+    requested_qty: number | null;
     lot_number: string;
     expiry_date: string | null;
     storage_location: string | null;

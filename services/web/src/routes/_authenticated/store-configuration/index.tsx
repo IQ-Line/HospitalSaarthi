@@ -99,6 +99,10 @@ function StoreConfigurationPage() {
   const departments = departmentsQuery.data?.data ?? [];
   const stores = data?.data ?? [];
   const indentTargetStores = indentTargetStoresQuery.data?.data ?? [];
+  const existingCentralStore = useMemo(
+    () => indentTargetStores.find((store) => store.is_central_store) ?? null,
+    [indentTargetStores],
+  );
   const total = data?.total ?? 0;
 
   const storeTypeNameById = useMemo(() => {
@@ -137,6 +141,7 @@ function StoreConfigurationPage() {
       track_batch_expiry: editingStore.track_batch_expiry,
       indent_authority: editingStore.indent_authority,
       indent_target_store_id: editingStore.indent_target_store_id ?? '',
+      is_central_store: editingStore.is_central_store,
     });
   }, [editingStore, editForm]);
 
@@ -161,6 +166,7 @@ function StoreConfigurationPage() {
         indent_target_store_id: values.indent_authority
           ? (values.indent_target_store_id?.trim() || null)
           : null,
+        is_central_store: values.is_central_store,
       });
       toast.success('Store created');
       setIsCreateOpen(false);
@@ -194,6 +200,7 @@ function StoreConfigurationPage() {
           indent_target_store_id: values.indent_authority
             ? (values.indent_target_store_id?.trim() || null)
             : null,
+          is_central_store: values.is_central_store,
         },
       });
       toast.success('Store updated');
@@ -223,6 +230,12 @@ function StoreConfigurationPage() {
         header: 'Store type',
         meta: { label: 'Store type' },
         cell: ({ row }) => storeTypeNameById.get(row.original.store_type_id) ?? '—',
+      },
+      {
+        id: 'central_store',
+        header: 'Procurement',
+        meta: { label: 'Procurement' },
+        cell: ({ row }) => (row.original.is_central_store ? 'Central store' : '—'),
       },
       {
         accessorKey: 'is_active',
@@ -340,6 +353,7 @@ function StoreConfigurationPage() {
         facilityLabel={facilityLabel}
         storeTypes={storeTypes}
         indentTargetStores={indentTargetStores}
+        existingCentralStore={existingCentralStore}
         departments={departments}
         form={createForm}
         onSubmit={submitCreate}
@@ -362,6 +376,7 @@ function StoreConfigurationPage() {
         storeTypes={storeTypes}
         indentTargetStores={indentTargetStores}
         editingStoreId={editingStore?.id}
+        existingCentralStore={existingCentralStore}
         departments={departments}
         form={editForm}
         onSubmit={submitEdit}

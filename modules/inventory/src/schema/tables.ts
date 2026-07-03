@@ -12,6 +12,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  sql,
   tenantColumn,
 } from "@hims/ts-sdk-db";
 
@@ -41,6 +42,7 @@ export const inventoryStores = inventorySchema.table(
     track_batch_expiry: boolean("track_batch_expiry").notNull().default(true),
     indent_authority: boolean("indent_authority").notNull().default(false),
     indent_target_store_id: uuid("indent_target_store_id"),
+    is_central_store: boolean("is_central_store").notNull().default(false),
     is_active: boolean("is_active").notNull().default(true),
     created_by: uuid("created_by"),
     updated_by: uuid("updated_by"),
@@ -52,6 +54,9 @@ export const inventoryStores = inventorySchema.table(
     uniqueIndex("uq_inventory_stores_tenant_store_code").on(t.iq_tenant_id, t.store_code),
     index("idx_inventory_stores_tenant_branch").on(t.iq_tenant_id, t.branch_id),
     index("idx_inventory_stores_tenant_store_type").on(t.iq_tenant_id, t.store_type_id),
+    uniqueIndex("uq_inventory_stores_tenant_central_store")
+      .on(t.iq_tenant_id)
+      .where(sql`${t.is_central_store} = true`),
     foreignKey({
       name: "inventory_stores_indent_target_store_fk",
       columns: [t.iq_tenant_id, t.indent_target_store_id],
@@ -160,6 +165,7 @@ export const inventoryGrns = inventorySchema.table(
     inventory_store_id: uuid("inventory_store_id").notNull(),
     manufacturer_id: uuid("manufacturer_id"),
     purchase_request_id: uuid("purchase_request_id"),
+    inventory_indent_id: uuid("inventory_indent_id"),
     voucher_invoice_no: text("voucher_invoice_no").notNull().default(""),
     register_page_no: text("register_page_no"),
     remarks: text("remarks"),
@@ -323,7 +329,7 @@ export const inventoryIndents = inventorySchema.table(
     indent_number: text("indent_number").notNull(),
     indent_date: date("indent_date").notNull(),
     from_store_id: uuid("from_store_id").notNull(),
-    to_store_id: uuid("to_store_id").notNull(),
+    to_store_id: uuid("to_store_id"),
     indent_type: text("indent_type").notNull().default("store_transfer"),
     priority: text("priority").notNull().default("normal"),
     remarks: text("remarks"),

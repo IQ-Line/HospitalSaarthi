@@ -3,7 +3,6 @@ import type { CreateGrnInput, CreateGrnLineInput } from "../domain/grn.types.js"
 import {
   assertGrnDateNotFuture,
   assertLineAgainstItem,
-  assertPurchaseManufacturer,
 } from "../domain/grn.validation.js";
 import { GrnValidationError } from "../errors.js";
 
@@ -49,7 +48,6 @@ export async function validateCreateGrnInput(
   input: CreateGrnInput,
 ): Promise<void> {
   assertGrnDateNotFuture(input.grn_date);
-  assertPurchaseManufacturer(input.grn_type, input.manufacturer_id);
   await validateGrnLinesAgainstItems(deps, tenantId, input.lines);
 }
 

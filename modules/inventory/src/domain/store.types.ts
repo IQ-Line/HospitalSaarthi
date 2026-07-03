@@ -13,6 +13,7 @@ export type StoreRow = {
   track_batch_expiry: boolean;
   indent_authority: boolean;
   indent_target_store_id: string | null;
+  is_central_store: boolean;
   is_active: boolean;
   created_by: string | null;
   updated_by: string | null;
@@ -44,6 +45,7 @@ export type CreateStoreInput = {
   physical_location?: string;
   is_active?: boolean;
   indent_target_store_id?: string | null;
+  is_central_store?: boolean;
 } & Partial<StoreOperationalFlags>;
 
 export type UpdateStoreInput = Partial<
@@ -56,6 +58,7 @@ export type UpdateStoreInput = Partial<
     | "physical_location"
     | "is_active"
     | "indent_target_store_id"
+    | "is_central_store"
   >
 > &
   Partial<StoreOperationalFlags>;

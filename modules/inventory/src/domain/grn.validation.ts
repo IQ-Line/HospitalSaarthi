@@ -25,22 +25,11 @@ export function assertGrnDateNotFuture(grnDate: string): void {
   }
 }
 
-export function assertPurchaseManufacturer(
-  grnType: "purchase" | "transfer",
-  manufacturerId: string | null | undefined,
-): void {
-  if (grnType !== "purchase") return;
-  if (!manufacturerId) {
-    throw new GrnValidationError("Manufacturer is required for purchase GRN");
-  }
-}
-
 export function assertPurchaseHeader(
   grnType: "purchase" | "transfer",
-  manufacturerId: string | null | undefined,
+  _manufacturerId: string | null | undefined,
   voucherInvoiceNo: string | undefined,
 ): void {
-  assertPurchaseManufacturer(grnType, manufacturerId);
   if (grnType !== "purchase") return;
   if (!voucherInvoiceNo?.trim()) {
     throw new GrnValidationError("Voucher / invoice number is required for purchase GRN");

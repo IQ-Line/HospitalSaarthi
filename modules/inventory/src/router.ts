@@ -4,6 +4,7 @@ import type { DbInstance } from "@hims/ts-sdk-db";
 import { DrizzleInventoryGrnRepository } from "./data-access/grn.repo.js";
 import { DrizzleInventoryItemRepository } from "./data-access/items.repo.js";
 import { DrizzleInventoryStockRepository } from "./data-access/stock.repo.js";
+import { createIndentRepo } from "./data-access/indent.repo.js";
 import { createStoreRepo } from "./data-access/store.repo.js";
 import { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
 import type { MasterDataGatewayPort } from "./ports.js";
@@ -31,13 +32,14 @@ async function inventoryRouter(
   const grnRepo = new DrizzleInventoryGrnRepository(options.db);
   const stockRepo = new DrizzleInventoryStockRepository(options.db);
   const storeRepo = createStoreRepo(options.db);
+  const indentRepo = createIndentRepo(options.db);
 
   registerItemHandlers(app, { itemRepo });
   registerStoreHandlers(app, {
     storeRepo,
     masterDataGateway: options.masterDataGateway,
   });
-  registerGrnHandlers(app, { grnRepo, storeRepo, itemRepo });
+  registerGrnHandlers(app, { grnRepo, storeRepo, itemRepo, indentRepo });
   registerStockHandlers(app, { stockRepo, storeRepo });
 }
 

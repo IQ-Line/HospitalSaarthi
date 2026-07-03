@@ -1,6 +1,7 @@
 import type { UpdateStoreInput } from "../domain/store.types.js";
 import type { InventoryDeps } from "../ports.js";
 import type { StoreRow } from "../domain/store.types.js";
+import { assertSingleCentralStore } from "../domain/store.validation.js";
 import { StoreNotFoundError, StoreTypeNotFoundError, StoreValidationError } from "../errors.js";
 
 export async function updateStore(
@@ -47,6 +48,9 @@ export async function updateStore(
     throw new StoreValidationError("Indent target store cannot be the same store.");
   }
 
+  const isCentralStore = input.is_central_store ?? existing.is_central_store;
+  await assertSingleCentralStore(deps.storeRepo, tenantId, isCentralStore, storeId);
+
   const row = await deps.storeRepo.update(
     tenantId,
     storeId,
@@ -54,6 +58,7 @@ export async function updateStore(
       ...input,
       indent_authority: indentAuthority,
       indent_target_store_id: indentTargetStoreId,
+      is_central_store: isCentralStore,
     },
     actorId,
   );

@@ -202,6 +202,7 @@ components:
         - can_issue_to_ward
         - track_batch_expiry
         - indent_authority
+        - is_central_store
         - is_active
         - created_at
         - updated_at
@@ -239,6 +240,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        is_central_store:
+          type: boolean
+          description: >
+            Mark as the tenant central (procurement) store. Only one per tenant.
         is_active:
           type: boolean
         created_at:
@@ -287,6 +292,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        is_central_store:
+          type: boolean
+          description: >
+            Mark as the tenant central (procurement) store. Only one per tenant.
         is_active:
           type: boolean
           default: true
@@ -324,6 +333,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        is_central_store:
+          type: boolean
+          description: >
+            Mark as the tenant central (procurement) store. Only one per tenant.
         is_active:
           type: boolean
     StoreListResponse:

@@ -1,5 +1,6 @@
 import type { DrizzleInventoryGrnRepository } from "../data-access/grn.repo.js";
 import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.js";
+import type { IndentRepo } from "../ports.js";
 import { GrnNotFoundError, GrnValidationError } from "../errors.js";
 import { assertPurchaseHeader } from "../domain/grn.validation.js";
 import { wireGrn } from "./list-grns.js";
@@ -8,6 +9,7 @@ import { validateGrnLinesAgainstItems } from "./validate-grn-input.js";
 export type SubmitGrnDeps = {
   grnRepo: DrizzleInventoryGrnRepository;
   itemRepo: DrizzleInventoryItemRepository;
+  indentRepo: IndentRepo;
 };
 
 export async function submitGrn(
@@ -58,5 +60,10 @@ export async function submitGrn(
 
   const row = await deps.grnRepo.submit(tenantId, grnId, actorId);
   if (!row) throw new GrnNotFoundError();
+
+  if (row.inventory_indent_id) {
+    await deps.indentRepo.linkGrn(tenantId, row.inventory_indent_id, row.id);
+  }
+
   return wireGrn(row)!;
 }

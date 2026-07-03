@@ -12,6 +12,7 @@ export const storeFormSchema = z.object({
   track_batch_expiry: z.boolean().default(true),
   indent_authority: z.boolean().default(false),
   indent_target_store_id: z.string().uuid().optional().or(z.literal('')),
+  is_central_store: z.boolean().default(false),
 }).superRefine((values, ctx) => {
   if (values.indent_authority && !values.indent_target_store_id?.trim()) {
     ctx.addIssue({
@@ -37,4 +38,5 @@ export const EMPTY_STORE_FORM_VALUES: StoreFormInput = {
   track_batch_expiry: true,
   indent_authority: false,
   indent_target_store_id: '',
+  is_central_store: false,
 };

@@ -16,19 +16,23 @@ import { Textarea } from '@pulse/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
 import { EMPTY_INDENT_LINE } from '../mock/fixtures';
 import { useInventoryItems, useInventoryStores } from '../api/queries';
-import type { InventoryIndentLine } from '../types';
+import type {
+  InventoryIndentFulfillment,
+  InventoryIndentLine,
+  InventoryIndentType,
+} from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryPanel } from './inventory-kpi-card';
+
+const FULFILLMENT_OPTIONS = [
+  { value: 'stock_transfer', label: 'Stock transfer' },
+  { value: 'procurement', label: 'PR (procurement)' },
+] as const;
 
 const INDENT_TYPES = [
   { value: 'store_transfer', label: 'Store transfer' },
   { value: 'pharmacy_refill', label: 'Pharmacy refill' },
   { value: 'emergency', label: 'Emergency' },
-] as const;
-
-const FULFILLMENT_OPTIONS = [
-  { value: 'stock_transfer', label: 'Stock transfer' },
-  { value: 'procurement', label: 'Procurement' },
 ] as const;
 
 export function InventoryIndentFormPage() {
@@ -37,20 +41,51 @@ export function InventoryIndentFormPage() {
   const { data: items = [] } = useInventoryItems();
 
   const [indentDate, setIndentDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [fulfillment, setFulfillment] = useState<'stock_transfer' | 'procurement'>('stock_transfer');
+  const [fulfillmentRoute, setFulfillmentRoute] =
+    useState<InventoryIndentFulfillment>('stock_transfer');
+  const [indentType, setIndentType] = useState<InventoryIndentType>('store_transfer');
   const [fromStoreId, setFromStoreId] = useState('');
   const [toStoreId, setToStoreId] = useState('');
-  const [indentType, setIndentType] = useState<'store_transfer' | 'pharmacy_refill' | 'emergency'>(
-    'store_transfer',
-  );
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'stat'>('normal');
   const [remarks, setRemarks] = useState('');
   const [lines, setLines] = useState<InventoryIndentLine[]>([EMPTY_INDENT_LINE()]);
+
+  const isProcurement = fulfillmentRoute === 'procurement';
 
   const totalQty = useMemo(
     () => lines.reduce((sum, line) => sum + (Number(line.requested_qty) || 0), 0),
     [lines],
   );
+
+  const fromStore = useMemo(
+    () => stores.find((store) => store.id === fromStoreId),
+    [stores, fromStoreId],
+  );
+
+  const procurementStores = useMemo(
+    () => stores.filter((store) => store.is_central_store),
+    [stores],
+  );
+
+  const canUseProcurement = procurementStores.length > 0;
+
+  const handleFulfillmentChange = (value: InventoryIndentFulfillment) => {
+    if (value === 'procurement') {
+      const centralStore = procurementStores[0];
+      if (centralStore) setFromStoreId(centralStore.id);
+      setToStoreId('');
+    }
+    setFulfillmentRoute(value);
+  };
+
+  const handleFromStoreChange = (storeId: string) => {
+    setFromStoreId(storeId);
+    const store = stores.find((entry) => entry.id === storeId);
+    if (isProcurement && store && !store.is_central_store) {
+      setFulfillmentRoute('stock_transfer');
+      toast.error('Only the central store can raise PR (procurement) indents.');
+    }
+  };
 
   const updateLine = (lineId: string, patch: Partial<InventoryIndentLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
@@ -70,6 +105,14 @@ export function InventoryIndentFormPage() {
   };
 
   const handleSaveDraft = () => {
+    if (isProcurement && !fromStore?.is_central_store) {
+      toast.error('Only the central store can raise PR (procurement) indents.');
+      return;
+    }
+    if (!isProcurement && !toStoreId) {
+      toast.error('Select a destination store for stock transfer fulfillment.');
+      return;
+    }
     toast.success('Indent draft saved (mock). API integration will persist this form.');
     void navigate({ to: '/inventory/indents' });
   };
@@ -111,52 +154,37 @@ export function InventoryIndentFormPage() {
               </div>
               <div className="space-y-2">
                 <Label>Fulfillment</Label>
-                <Select value={fulfillment} onValueChange={(v) => setFulfillment(v as typeof fulfillment)}>
+                <Select
+                  value={fulfillmentRoute}
+                  onValueChange={(v) => handleFulfillmentChange(v as InventoryIndentFulfillment)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {FULFILLMENT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={option.value === 'procurement' && !canUseProcurement}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>From store</Label>
-                <Select value={fromStoreId} onValueChange={setFromStoreId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.store_code} — {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>To store</Label>
-                <Select value={toStoreId} onValueChange={setToStoreId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.store_code} — {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isProcurement ? (
+                  <p className="text-xs text-muted-foreground">
+                    PR fulfillment is only from the central store. No destination store required.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label>Indent type</Label>
-                <Select value={indentType} onValueChange={(v) => setIndentType(v as typeof indentType)}>
+                <Select
+                  value={indentType}
+                  onValueChange={(v) => setIndentType(v as InventoryIndentType)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -169,6 +197,40 @@ export function InventoryIndentFormPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>From store</Label>
+                <Select value={fromStoreId} onValueChange={handleFromStoreChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(isProcurement ? procurementStores : stores).map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.store_code} — {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {!isProcurement ? (
+                <div className="space-y-2">
+                  <Label>
+                    To store <span className="text-destructive">*</span>
+                  </Label>
+                  <Select value={toStoreId} onValueChange={setToStoreId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {stores.map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.store_code} — {store.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-4 space-y-2">
@@ -290,6 +352,14 @@ export function InventoryIndentFormPage() {
 
         <InventoryPanel title="Summary">
           <dl className="space-y-3 text-sm">
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Fulfillment</dt>
+              <dd className="font-medium">{isProcurement ? 'PR' : 'Stock transfer'}</dd>
+            </div>
+            <div className="flex items-center justify-between">
+              <dt className="text-muted-foreground">Type</dt>
+              <dd className="font-medium capitalize">{indentType.replace('_', ' ')}</dd>
+            </div>
             <div className="flex items-center justify-between">
               <dt className="text-muted-foreground">Items</dt>
               <dd className="font-medium tabular-nums">{lines.length}</dd>

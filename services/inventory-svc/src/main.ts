@@ -1,7 +1,8 @@
 import Fastify from "fastify";
-import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
-import { tenantPlugin } from "@hims/ts-sdk-tenant";
+import multipart from "@fastify/multipart";
+import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
+import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
 import {
   applyInventorySchemaMigration,
   createRouter,
@@ -53,9 +54,37 @@ async function main() {
     warn: (detail, message) => app.log.warn(detail, message),
   });
   const inventoryRouter = createRouter({ db, masterDataGateway });
+  const identityAuth = validateAuthConfig();
 
   await app.register(async (api) => {
+    api.addHook("onRequest", async (request) => {
+      const headerTenant =
+        typeof request.headers["iq_tenant_id"] === "string"
+          ? request.headers["iq_tenant_id"].trim()
+          : typeof request.headers["x-tenant-id"] === "string"
+            ? request.headers["x-tenant-id"].trim()
+            : "";
+      if (headerTenant.length > 0) {
+        request.headers["iq_tenant_id"] = headerTenant;
+        request.headers["x-tenant-id"] = headerTenant;
+        return;
+      }
+      if (process.env["NODE_ENV"] !== "production" && process.env["AUTH_POLICY"] !== "required") {
+        request.headers["iq_tenant_id"] = INVENTORY_DEV_TENANT_ID;
+        request.headers["x-tenant-id"] = INVENTORY_DEV_TENANT_ID;
+      }
+    });
     await api.register(tenantPlugin);
+    await api.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: ["/docs"],
+    });
+    await api.register(multipart, {
+      limits: {
+        fileSize: 10 * 1024 * 1024,
+        files: 1,
+      },
+    });
     await api.register(inventoryRouter);
   }, { prefix: "/api/inventory/v1" });
 

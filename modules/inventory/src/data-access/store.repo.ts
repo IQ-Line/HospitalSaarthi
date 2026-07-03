@@ -24,6 +24,7 @@ function mapRow(row: typeof inventoryStores.$inferSelect): StoreRow {
     track_batch_expiry: row.track_batch_expiry,
     indent_authority: row.indent_authority,
     indent_target_store_id: row.indent_target_store_id,
+    is_central_store: row.is_central_store,
     is_active: row.is_active,
     created_by: row.created_by,
     updated_by: row.updated_by,
@@ -98,6 +99,20 @@ export function createStoreRepo(db: DbInstance): StoreRepo {
       return row ? mapRow(row) : undefined;
     },
 
+    async findCentralStore(tenantId) {
+      const [row] = await db
+        .select()
+        .from(inventoryStores)
+        .where(
+          and(
+            eq(inventoryStores.iq_tenant_id, tenantId),
+            eq(inventoryStores.is_central_store, true),
+          ),
+        )
+        .limit(1);
+      return row ? mapRow(row) : undefined;
+    },
+
     async create(tenantId, storeTypeCode, input, actorId) {
       try {
         return await db.transaction(async (tx) => {
@@ -139,6 +154,7 @@ export function createStoreRepo(db: DbInstance): StoreRepo {
               track_batch_expiry: input.track_batch_expiry ?? true,
               indent_authority: input.indent_authority ?? false,
               indent_target_store_id: input.indent_target_store_id ?? null,
+              is_central_store: input.is_central_store ?? false,
               is_active: input.is_active ?? true,
               created_by: actorId,
               updated_by: actorId,
@@ -179,6 +195,7 @@ export function createStoreRepo(db: DbInstance): StoreRepo {
       if (input.indent_target_store_id !== undefined) {
         patch.indent_target_store_id = input.indent_target_store_id;
       }
+      if (input.is_central_store !== undefined) patch.is_central_store = input.is_central_store;
       if (input.is_active !== undefined) patch.is_active = input.is_active;
 
       try {

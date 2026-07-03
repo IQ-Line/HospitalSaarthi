@@ -26,8 +26,8 @@ function bearerTokenFromHeaders(headers: Record<string, unknown>): string | unde
   return match?.[1]?.trim();
 }
 
-function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
-  const id = request.user?.id ?? request.user?.sub;
+function actorIdFromRequest(request: { user?: { userId?: string; id?: string; sub?: string } }): string | null {
+  const id = request.user?.userId ?? request.user?.id ?? request.user?.sub;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
@@ -46,6 +46,7 @@ function wireStore(row: Awaited<ReturnType<typeof getStore>>) {
     track_batch_expiry: row.track_batch_expiry,
     indent_authority: row.indent_authority,
     indent_target_store_id: row.indent_target_store_id,
+    is_central_store: row.is_central_store,
     is_active: row.is_active,
     created_at: row.created_at.toISOString(),
     updated_at: row.updated_at.toISOString(),
@@ -119,8 +120,28 @@ export function registerStoreHandlers(app: FastifyInstance, deps: InventoryDeps)
   );
 }
 
+function resolveUnhandledErrorStatus(error: unknown): number {
+  if (typeof error === "object" && error !== null && "statusCode" in error) {
+    const statusCode = (error as { statusCode: unknown }).statusCode;
+    if (typeof statusCode === "number" && statusCode >= 400 && statusCode < 600) {
+      return statusCode;
+    }
+  }
+  return 500;
+}
+
+function resolveUnhandledErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+  return "Internal Server Error";
+}
+
 export function registerInventoryErrorHandler(app: FastifyInstance): void {
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
     if (error instanceof InventoryError) {
       return reply.status(error.statusCode).send({
         statusCode: error.statusCode,
@@ -137,6 +158,20 @@ export function registerInventoryErrorHandler(app: FastifyInstance): void {
         code: "VALIDATION_ERROR",
       });
     }
-    throw error;
+
+    request.log.error({ err: error }, "Unhandled inventory API error");
+
+    const statusCode = resolveUnhandledErrorStatus(error);
+    const code =
+      typeof error === "object" && error !== null && "code" in error
+        ? String((error as { code: unknown }).code)
+        : "INTERNAL_SERVER_ERROR";
+
+    return reply.status(statusCode).send({
+      statusCode,
+      error: statusCode === 500 ? "Internal Server Error" : "Error",
+      message: resolveUnhandledErrorMessage(error),
+      code,
+    });
   });
 }

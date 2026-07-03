@@ -23,6 +23,7 @@ export function mapInventorySvcStoreRow(row: InventorySvcStoreRow): InventorySto
     id: row.id,
     name: row.store_name,
     store_code: row.store_code,
+    is_central_store: row.is_central_store ?? false,
   };
 }
 
@@ -31,7 +32,9 @@ export function mapInventorySvcItemRow(row: InventorySvcItemRow): InventoryItemO
     id: row.id,
     code: row.item_code,
     name: row.display_name?.trim() ? row.display_name : row.name,
-    uom: '',
+    uom: row.unit_of_measure ?? '',
+    tracking_mode: row.tracking_mode,
+    is_expirable: row.is_expirable,
   };
 }
 
