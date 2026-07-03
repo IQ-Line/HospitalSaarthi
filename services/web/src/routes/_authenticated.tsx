@@ -34,16 +34,22 @@ export const Route = createFileRoute('/_authenticated')({
 
     const onChangePassword = location.pathname === '/change-password';
     if (!onChangePassword) {
-      try {
-        const profile = await fetchAuthMe();
-        if (profile.must_change_password === true) {
-          throw redirect({ to: '/change-password' });
+      const { mustChangePassword } = useAuthStore.getState();
+      if (mustChangePassword === true) {
+        throw redirect({ to: '/change-password' });
+      }
+      if (mustChangePassword === null) {
+        try {
+          const profile = await fetchAuthMe();
+          if (profile.must_change_password === true) {
+            throw redirect({ to: '/change-password' });
+          }
+        } catch (err) {
+          if (err && typeof err === 'object' && 'to' in err) {
+            throw err;
+          }
+          /* auth/me may fail transiently; allow shell to load */
         }
-      } catch (err) {
-        if (err && typeof err === 'object' && 'to' in err) {
-          throw err;
-        }
-        /* auth/me may fail transiently; allow shell to load */
       }
     }
   },
