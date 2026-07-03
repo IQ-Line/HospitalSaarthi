@@ -608,6 +608,10 @@ export class DrizzleInventoryIndentRepository {
     ) {
       throw new IndentValidationError("Indent fulfillment already initiated");
     }
+    if (!existing.to_store_id) {
+      throw new IndentValidationError("Destination store is required for stock transfer fulfillment");
+    }
+    const toStoreId = existing.to_store_id;
 
     const lines = await this.listLines(tenantId, indentId);
 
@@ -619,7 +623,7 @@ export class DrizzleInventoryIndentRepository {
           tx,
           tenantId,
           existing.from_store_id,
-          existing.to_store_id,
+          toStoreId,
           line,
           qty,
         );

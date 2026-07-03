@@ -25,7 +25,7 @@ export type IndentRow = {
   indent_number: string;
   indent_date: string;
   from_store_id: string;
-  to_store_id: string;
+  to_store_id: string | null;
   indent_type: IndentType;
   priority: IndentPriority;
   remarks: string | null;
