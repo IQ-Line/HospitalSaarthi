@@ -1,13 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
-import { toast } from 'sonner';
 import { CapabilityGate } from '@/components/capability-gate';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useAnyCapability, useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
-import { ApiError } from '@/lib/api-client';
-import { useDetachRoleTemplate } from '../api/mutations';
 import { roleListOptions, useUserCapabilities } from '../api/queries';
 import type { AppliedRoleTemplate, UserCapabilityGrant } from '../types';
 import { AssignRoleDialog } from './assign-role-dialog';
@@ -19,16 +15,6 @@ type UserAccessPanelProps = {
   /** Hospital tenant when opened from the platform-wide user list. */
   tenantScope?: string;
 };
-
-function mutationErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    const body = err.body?.trim();
-    if (body) return body.length > 280 ? `${body.slice(0, 280)}...` : body;
-    return err.message;
-  }
-  if (err instanceof Error) return err.message;
-  return 'Something went wrong. Please try again.';
-}
 
 function grantsForRole(grants: UserCapabilityGrant[], roleId: string): string[] {
   return grants
@@ -50,11 +36,9 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
     enabled: umRoleRead,
   });
   const capabilitiesSnapshotQuery = useUserCapabilities(userId, true, tenantScope);
-  const detachRole = useDetachRoleTemplate(userId, tenantScope);
 
   const [assignOpen, setAssignOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<AppliedRoleTemplate | null>(null);
-  const [detachCandidate, setDetachCandidate] = useState<AppliedRoleTemplate | null>(null);
 
   const activeRoles = (rolesQuery.data ?? []).filter((role) => role.status === 'active');
   const appliedRoleIds = new Set(
@@ -68,19 +52,6 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
     if (!editingRole) return [];
     return grantsForRole(copiedGrants, editingRole.role_id);
   }, [copiedGrants, editingRole]);
-
-  const handleDetachRole = () => {
-    if (!detachCandidate) return;
-    detachRole.mutate(detachCandidate.role_id, {
-      onSuccess: () => {
-        toast.success(`Removed ${detachCandidate.role.display_name}`);
-        setDetachCandidate(null);
-      },
-      onError: (error) => {
-        toast.error(mutationErrorMessage(error));
-      },
-    });
-  };
 
   return (
     <>
@@ -135,16 +106,6 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
                     >
                       {umRoleAssign ? 'Change access' : 'View access'}
                     </Button>
-                    <CapabilityGate capability={UM_ROLE_ASSIGN}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDetachCandidate(applied)}
-                      >
-                        Remove
-                      </Button>
-                    </CapabilityGate>
                   </div>
                 </li>
               );
@@ -170,22 +131,6 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
         tenantScope={tenantScope}
         applied={editingRole}
         grantedCapabilityIds={editingRoleGrantedCapabilityIds}
-      />
-
-      <ConfirmDialog
-        open={detachCandidate !== null}
-        onOpenChange={(open) => {
-          if (!open) setDetachCandidate(null);
-        }}
-        title="Remove this role?"
-        description={
-          detachCandidate
-            ? `${detachCandidate.role.display_name} will be removed and its permissions will be taken away.`
-            : ''
-        }
-        confirmLabel={detachRole.isPending ? 'Removing...' : 'Remove role'}
-        destructive
-        onConfirm={handleDetachRole}
       />
     </>
   );

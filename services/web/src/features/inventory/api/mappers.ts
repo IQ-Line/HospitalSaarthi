@@ -1,6 +1,8 @@
 import type {
   InventorySvcGrnListResponse,
   InventorySvcGrnRow,
+  InventorySvcIndentListResponse,
+  InventorySvcIndentRow,
   InventorySvcItemRow,
   InventorySvcStockBatchRow,
   InventorySvcStockListResponse,
@@ -11,6 +13,8 @@ import type {
   InventoryGrnListData,
   InventoryGrnLogRow,
   InventoryGrnType,
+  InventoryIndentListData,
+  InventoryIndentRow,
   InventoryItemOption,
   InventoryStockListData,
   InventoryStockLot,
@@ -105,4 +109,53 @@ export function mapInventorySvcStockBatchRow(row: InventorySvcStockBatchRow): In
     received_date: row.received_date,
     quantity: row.quantity,
   };
+}
+
+function mapIndentLine(
+  line: NonNullable<InventorySvcIndentRow['lines']>[number],
+): InventoryIndentRow['lines'][number] {
+  return {
+    id: line.id,
+    item_id: line.item_id,
+    item_name: line.item?.name ?? '',
+    item_code: line.item?.item_code ?? '',
+    uom: line.item?.unit_of_measure ?? '',
+    requested_qty: line.requested_qty,
+    approved_qty: line.approved_qty,
+    remarks: line.line_remarks ?? undefined,
+    preferred_lot_id: line.preferred_lot_id,
+  };
+}
+
+export function mapInventorySvcIndentRow(row: InventorySvcIndentRow): InventoryIndentRow {
+  return {
+    id: row.id,
+    indent_number: row.indent_number,
+    request_date: row.indent_date,
+    from_store_id: row.from_store_id,
+    to_store_id: row.to_store_id,
+    from_store: row.from_store?.store_name ?? row.from_store_id,
+    to_store: row.to_store?.store_name ?? row.to_store_id,
+    route: row.fulfillment_route,
+    indent_type: row.indent_type,
+    priority: row.priority,
+    status: row.status,
+    purchase_indent_number: row.purchase_indent_number,
+    rejection_reason: row.rejection_reason,
+    inventory_grn_id: row.inventory_grn_id,
+    lines: (row.lines ?? []).map(mapIndentLine),
+  };
+}
+
+export function mapInventorySvcIndentListResponse(
+  response: InventorySvcIndentListResponse,
+): InventoryIndentListData {
+  return {
+    data: response.items.map(mapInventorySvcIndentRow),
+    total: response.total,
+  };
+}
+
+export function mapInventorySvcIndentDetail(row: InventorySvcIndentRow): InventoryIndentRow {
+  return mapInventorySvcIndentRow(row);
 }

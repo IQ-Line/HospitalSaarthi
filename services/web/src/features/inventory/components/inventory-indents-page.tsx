@@ -14,16 +14,9 @@ import {
 import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { useInventoryIndents } from '../api/queries';
-import type { InventoryIndentRow, InventoryIndentStatus } from '../types';
+import { INDENT_STATUS_FILTER_OPTIONS, indentStatusBadgeVariant, indentStatusLabel } from '../lib/indent-status';
+import type { InventoryIndentRow } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
-
-const STATUS_OPTIONS: Array<{ value: 'all' | InventoryIndentStatus; label: string }> = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'Draft', label: 'Draft' },
-  { value: 'Approved', label: 'Approved' },
-  { value: 'In Fulfillment', label: 'In Fulfillment' },
-  { value: 'Fulfilled', label: 'Fulfilled' },
-];
 
 function formatIndentDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -31,12 +24,6 @@ function formatIndentDate(iso: string) {
     month: 'short',
     year: 'numeric',
   });
-}
-
-function statusBadgeVariant(status: InventoryIndentStatus): 'default' | 'secondary' | 'outline' {
-  if (status === 'Approved') return 'default';
-  if (status === 'Draft') return 'secondary';
-  return 'outline';
 }
 
 function IndentLinesSubRow({ lines }: { lines: InventoryIndentRow['lines'] }) {
@@ -68,7 +55,7 @@ function IndentLinesSubRow({ lines }: { lines: InventoryIndentRow['lines'] }) {
 
 export function InventoryIndentsPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | InventoryIndentStatus>('all');
+  const [status, setStatus] = useState<'all' | InventoryIndentRow['status']>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -98,8 +85,14 @@ export function InventoryIndentsPage() {
         accessorKey: 'indent_number',
         header: 'Indent #',
         meta: { label: 'Indent #' },
-        cell: ({ getValue }) => (
-          <span className="font-medium text-primary">{getValue<string>()}</span>
+        cell: ({ row, getValue }) => (
+          <Link
+            to="/inventory/indents/$indentId"
+            params={{ indentId: row.original.id }}
+            className="font-medium text-primary hover:underline"
+          >
+            {getValue<string>()}
+          </Link>
         ),
       },
       { accessorKey: 'request_date', header: 'Request date', meta: { label: 'Request date' },
@@ -107,17 +100,22 @@ export function InventoryIndentsPage() {
       },
       { accessorKey: 'from_store', header: 'From store', meta: { label: 'From store' } },
       { accessorKey: 'to_store', header: 'To store', meta: { label: 'To store' } },
-      { accessorKey: 'route', header: 'Route', meta: { label: 'Route' } },
-      { accessorKey: 'priority', header: 'Priority', meta: { label: 'Priority' } },
+      { accessorKey: 'route', header: 'Route', meta: { label: 'Route' },
+        cell: ({ getValue }) => (getValue<string>() === 'procurement' ? 'Procurement' : 'Transfer'),
+      },
+      { accessorKey: 'priority', header: 'Priority', meta: { label: 'Priority' },
+        cell: ({ getValue }) => String(getValue<string>()).toUpperCase(),
+      },
       {
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => (
-          <Badge variant={statusBadgeVariant(getValue<InventoryIndentStatus>())}>
-            {getValue<string>()}
-          </Badge>
-        ),
+        cell: ({ getValue }) => {
+          const value = getValue<InventoryIndentRow['status']>();
+          return (
+            <Badge variant={indentStatusBadgeVariant(value)}>{indentStatusLabel(value)}</Badge>
+          );
+        },
       },
       {
         id: 'expand',
@@ -177,7 +175,7 @@ export function InventoryIndentsPage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {STATUS_OPTIONS.map((option) => (
+              {INDENT_STATUS_FILTER_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>

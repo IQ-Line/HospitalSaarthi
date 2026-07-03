@@ -1,10 +1,5 @@
 import { useEffect, useMemo, type FormEvent } from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@pulse/ui/collapsible';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import {
@@ -15,7 +10,6 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
-import { ChevronDown } from 'lucide-react';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import type { Department } from '@/features/master-data/types';
 import type { InventoryStoreType } from '@/features/inventory-masters/types';
@@ -58,8 +52,8 @@ function OperationalToggle({
       control={form.control}
       name={name}
       render={({ field }) => (
-        <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-          <Label htmlFor={name} className="font-normal">
+        <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2">
+          <Label htmlFor={name} className="text-sm font-medium text-foreground">
             {label}
           </Label>
           <Switch
@@ -222,8 +216,10 @@ export function StoreFormDialog({
           />
         </div>
 
-        <div className="flex items-center justify-between gap-3 sm:col-span-2">
-          <Label htmlFor="is_active">Status</Label>
+        <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 sm:col-span-2">
+          <Label htmlFor="is_active" className="text-sm font-medium">
+            Status
+          </Label>
           <Controller
             control={form.control}
             name="is_active"
@@ -265,15 +261,14 @@ export function StoreFormDialog({
         </div>
       </div>
 
-      <Collapsible defaultOpen className="space-y-3">
-        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium">
-          <span>Operational configuration</span>
-          <ChevronDown className="size-4" />
-        </CollapsibleTrigger>
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold">Operational configuration</h3>
         <p className="text-xs text-muted-foreground">
-          Inherited from the selected store type. Adjust only when required.
+          {editingStoreId
+            ? "Compared to this store's type defaults. Changes apply immediately after save."
+            : 'Inherited from the selected store type. Adjust only when required.'}
         </p>
-        <CollapsibleContent className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           <OperationalToggle form={form} name="can_receive_stock" label="Can receive stock" />
           <OperationalToggle form={form} name="can_dispense" label="Can dispense to patient" />
           <OperationalToggle form={form} name="can_issue_to_ward" label="Can issue to ward" />
@@ -314,8 +309,8 @@ export function StoreFormDialog({
               ) : null}
             </div>
           ) : null}
-        </CollapsibleContent>
-      </Collapsible>
+        </div>
+      </section>
     </EntityFormDialog>
   );
 }

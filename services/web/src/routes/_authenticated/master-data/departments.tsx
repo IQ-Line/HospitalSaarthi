@@ -23,11 +23,9 @@ import {
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
 import { Textarea } from '@pulse/ui/textarea';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
   useCreateDepartment,
-  useDeleteDepartment,
   useDepartmentPlatformImport,
   useDepartments,
   useDepartmentsGlobalLibrary,
@@ -69,7 +67,7 @@ const DEPARTMENT_TYPE_LABELS: Record<DepartmentType, string> = {
 };
 
 function DepartmentsPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
   const { tenantCatalog } = useMasterDataTenantCatalog();
@@ -87,7 +85,6 @@ function DepartmentsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
-  const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
   const deptType = typeFilter === 'all' ? undefined : typeFilter;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -110,7 +107,6 @@ function DepartmentsPage() {
 
   const createMutation = useCreateDepartment();
   const updateMutation = useUpdateDepartment();
-  const deleteMutation = useDeleteDepartment();
   const platformImport = useDepartmentPlatformImport();
 
   const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
@@ -228,18 +224,13 @@ function DepartmentsPage() {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingDepartment(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       updateMutation.isPending,
       updateMutation.variables,
@@ -270,17 +261,6 @@ function DepartmentsPage() {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingDepartment) return;
-    try {
-      await deleteMutation.mutateAsync(deletingDepartment.id);
-      toast.success('Department deleted');
-      setDeletingDepartment(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   return (
     <MasterDataPageShell
@@ -432,17 +412,6 @@ function DepartmentsPage() {
           draft: librarySearchDraft,
           onDraftChange: setLibrarySearchDraft,
         }}
-      />
-
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deletingDepartment}
-        onOpenChange={(open) => !open && setDeletingDepartment(null)}
-        title="Delete department"
-        description={`Soft-delete department "${deletingDepartment?.name ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
       />
     </MasterDataPageShell>
   );

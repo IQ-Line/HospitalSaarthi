@@ -4,7 +4,7 @@ import { Button } from '@pulse/ui/button';
 interface EntityRowActionsProps {
   onView: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   disabled?: boolean;
   /** Disables edit/delete when true (view stays enabled). Prefer `canEdit` / `canDelete` for per-action gates. */
   readOnly?: boolean;
@@ -22,7 +22,7 @@ export function EntityRowActions({
   canDelete,
 }: EntityRowActionsProps) {
   const allowEdit = !readOnly && (canEdit ?? true);
-  const showDelete = !readOnly && canDelete !== false;
+  const showDelete = !readOnly && canDelete !== false && onDelete != null;
   return (
     <div className="flex items-center justify-end gap-1">
       <Button
@@ -50,7 +50,7 @@ export function EntityRowActions({
           onClick={onDelete}
           disabled={disabled}
           className="text-destructive hover:text-destructive"
-          aria-label="Delete record"
+          aria-label="Deactivate record"
         >
           <Trash2 className="size-4" />
         </Button>

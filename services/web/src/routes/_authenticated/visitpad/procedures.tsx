@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -26,8 +25,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
-  useVisitpadDelete,
+import {
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -117,7 +115,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 
 function VisitpadProceduresPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-procedures');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -133,7 +131,6 @@ function VisitpadProceduresPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadProcedure | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadProcedure | null>(null);
   const cat = category === 'all' ? undefined : category;
   const bill = billing === 'all' ? undefined : billing;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -150,7 +147,6 @@ function VisitpadProceduresPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(PROC_BASE);
-  const del = useVisitpadDelete(PROC_BASE);
   const create = useVisitpadPost(PROC_BASE);
   const platformImport = useVisitpadPlatformImport('/procedures/import-from-platform');
   const { data: tenantCptKeys, isLoading: tenantCptKeysLoading } = useVisitpadTenantImportKeys(
@@ -160,7 +156,7 @@ function VisitpadProceduresPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantCptKeys ?? new Set<string>(), [tenantCptKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -248,13 +244,11 @@ function VisitpadProceduresPage() {
       },
       visitpadActionsColumn<VisitpadProcedure>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -398,26 +392,6 @@ function VisitpadProceduresPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete procedure"
-        description={`Soft-delete ${deleting?.cpt_code ?? ''} — ${deleting?.display_name ?? ''}?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Procedure deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>

@@ -23,11 +23,9 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { Switch } from '@pulse/ui/switch';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import {
   useCreateModulePermission,
-  useDeleteModulePermission,
   useModulePermissions,
   useModules,
   usePermissions,
@@ -57,7 +55,7 @@ export const Route = createFileRoute('/_authenticated/master-data/module-permiss
 });
 
 function ModulePermissionsPage() {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('permissions', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('permissions', {
     productModuleSlug: 'master-data',
   });
   const [tableSearch, setTableSearch] = useState('');
@@ -65,7 +63,6 @@ function ModulePermissionsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<ModulePermission | null>(null);
   const [viewingLink, setViewingLink] = useState<ModulePermission | null>(null);
-  const [deletingLink, setDeletingLink] = useState<ModulePermission | null>(null);
 
   const { data: modulesData } = useModules();
   const { data: permissionsData } = usePermissions();
@@ -90,7 +87,6 @@ function ModulePermissionsPage() {
 
   const createMutation = useCreateModulePermission();
   const updateMutation = useUpdateModulePermission();
-  const deleteMutation = useDeleteModulePermission();
 
   const createForm = useForm<ModulePermissionFormValues>({
     resolver: zodResolver(modulePermissionFormSchema),
@@ -188,18 +184,13 @@ function ModulePermissionsPage() {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingLink(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       moduleNameById,
       permissionNameById,
@@ -235,17 +226,6 @@ function ModulePermissionsPage() {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingLink) return;
-    try {
-      await deleteMutation.mutateAsync(deletingLink.id);
-      toast.success('Module permission deleted');
-      setDeletingLink(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   if (error) {
     return (
@@ -371,16 +351,6 @@ function ModulePermissionsPage() {
           )}
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={!!deletingLink}
-        onOpenChange={(open) => !open && setDeletingLink(null)}
-        title="Delete assignment"
-        description={`Soft-delete assignment "${deletingLink?.slug ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
-      />
     </MasterDataPageShell>
   );
 }

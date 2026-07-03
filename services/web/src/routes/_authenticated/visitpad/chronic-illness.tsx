@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -26,8 +25,7 @@ import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadChronicIllnesses,
-  useVisitpadChronicIllnessesGlobalLibrary,
-  useVisitpadDelete,
+  useVisitpadChronicIllnessesGlobalLibrary,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -99,7 +97,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chronic-illness')
 
 function VisitpadChronicIllnessPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chronic-illness');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -114,7 +112,6 @@ function VisitpadChronicIllnessPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChronicIllness | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadChronicIllness | null>(null);
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
@@ -130,7 +127,6 @@ function VisitpadChronicIllnessPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(CI_BASE);
-  const del = useVisitpadDelete(CI_BASE);
   const create = useVisitpadPost(CI_BASE);
   const platformImport = useVisitpadPlatformImport('/chronic-illnesses/import-from-platform');
   const { data: tenantIcdKeys, isLoading: tenantIcdKeysLoading } = useVisitpadTenantImportKeys(
@@ -140,7 +136,7 @@ function VisitpadChronicIllnessPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantIcdKeys ?? new Set<string>(), [tenantIcdKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -220,13 +216,11 @@ function VisitpadChronicIllnessPage() {
       },
       visitpadActionsColumn<VisitpadChronicIllness>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -357,26 +351,6 @@ function VisitpadChronicIllnessPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete chronic illness"
-        description={`Soft-delete ${deleting?.icd10_code ?? ''} — ${deleting?.display_name ?? ''}?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Chronic illness deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
