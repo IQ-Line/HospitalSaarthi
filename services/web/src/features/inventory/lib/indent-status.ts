@@ -2,7 +2,7 @@ import type { InventoryIndentStatus } from '../types';
 
 const STATUS_LABELS: Record<InventoryIndentStatus, string> = {
   draft: 'Draft',
-  submitted: 'Submitted',
+  submitted: 'Pending approval',
   approved: 'Approved',
   partially_approved: 'Partially approved',
   rejected: 'Rejected',
@@ -18,7 +18,7 @@ export const INDENT_STATUS_FILTER_OPTIONS: Array<{ value: 'all' | InventoryInden
   [
     { value: 'all', label: 'All statuses' },
     { value: 'draft', label: 'Draft' },
-    { value: 'submitted', label: 'Submitted' },
+    { value: 'submitted', label: 'Pending approval' },
     { value: 'approved', label: 'Approved' },
     { value: 'partially_approved', label: 'Partially approved' },
     { value: 'in_fulfillment', label: 'In fulfillment' },

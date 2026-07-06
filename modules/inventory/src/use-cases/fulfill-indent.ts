@@ -40,7 +40,7 @@ export async function fulfillIndent(
     {
       grn_type: "purchase",
       grn_date: existing.indent_date,
-      store_id: existing.to_store_id,
+      store_id: existing.to_store_id ?? existing.from_store_id,
       voucher_invoice_no: existing.purchase_indent_number ?? "",
       remarks: `From indent ${existing.indent_number}`,
       lines: await Promise.all(

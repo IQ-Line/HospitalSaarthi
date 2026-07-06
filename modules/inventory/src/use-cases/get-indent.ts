@@ -1,6 +1,6 @@
 import type { DrizzleInventoryIndentRepository } from "../data-access/indent.repo.js";
 import { IndentNotFoundError } from "../errors.js";
-import { wireIndent } from "./list-indents.js";
+import { attachIndentStoreRefs, wireIndent } from "./list-indents.js";
 
 export type GetIndentDeps = {
   indentRepo: DrizzleInventoryIndentRepository;
@@ -10,31 +10,15 @@ export async function getIndent(deps: GetIndentDeps, tenantId: string, indentId:
   const row = await deps.indentRepo.findById(tenantId, indentId);
   if (!row) throw new IndentNotFoundError();
 
-  const stores = await deps.indentRepo.findStoresWithIndentMeta(tenantId, [
-    row.from_store_id,
-    row.to_store_id,
-  ]);
-  const storeMap = new Map(stores.map((store) => [store.id, store]));
+  const storeIds = [row.from_store_id, row.to_store_id].filter((id): id is string => Boolean(id));
+  const storeRows = await deps.indentRepo.findStoresByIds(tenantId, storeIds);
+  const storeMap = new Map(storeRows.map((store) => [store.id, store]));
 
   const lines = await deps.indentRepo.listLinesWithItems(tenantId, indentId);
-  const wired = wireIndent(row)!;
+  const wired = attachIndentStoreRefs(wireIndent(row)!, row, storeMap);
 
   return {
     ...wired,
-    from_store: storeMap.get(row.from_store_id)
-      ? {
-          store_id: storeMap.get(row.from_store_id)!.id,
-          store_code: storeMap.get(row.from_store_id)!.store_code,
-          store_name: storeMap.get(row.from_store_id)!.store_name,
-        }
-      : null,
-    to_store: storeMap.get(row.to_store_id)
-      ? {
-          store_id: storeMap.get(row.to_store_id)!.id,
-          store_code: storeMap.get(row.to_store_id)!.store_code,
-          store_name: storeMap.get(row.to_store_id)!.store_name,
-        }
-      : null,
     lines: lines.map((line) => ({
       id: line.id,
       tenant_id: line.iq_tenant_id,

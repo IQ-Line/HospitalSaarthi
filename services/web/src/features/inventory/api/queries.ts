@@ -19,6 +19,7 @@ import type {
   InventoryIndentListParams,
   InventoryIndentActiveMatch,
   InventoryIndentRow,
+  InventoryIndentStoreOption,
   InventoryItemOption,
   InventoryListParams,
   InventoryReconciliationRow,
@@ -28,9 +29,20 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
-import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcIndentListResponse, InventorySvcIndentRow, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStockBatchesResponse, InventorySvcStockListResponse, InventorySvcStoreRow } from './api-types';
+import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcIndentListResponse, InventorySvcIndentRow, InventorySvcIndentStoreOption, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStockBatchesResponse, InventorySvcStockListResponse, InventorySvcStockTransferListResponse, InventorySvcStockTransferRow, InventorySvcStoreRow } from './api-types';
 import { inventorySvcGet, inventorySvcGetList } from './inventory-api-client';
-import { mapInventorySvcGrnListResponse, mapInventorySvcIndentDetail, mapInventorySvcIndentListResponse, mapInventorySvcItemRow, mapInventorySvcStockBatchRow, mapInventorySvcStockListResponse, mapInventorySvcStoreRow, mapUiGrnTypeToApi } from './mappers';
+import {
+  mapInventorySvcGrnListResponse,
+  mapInventorySvcIndentDetail,
+  mapInventorySvcIndentListResponse,
+  mapInventorySvcItemRow,
+  mapInventorySvcStockBatchRow,
+  mapInventorySvcStockListResponse,
+  mapInventorySvcStockTransferListResponse,
+  mapInventorySvcStockTransferRow,
+  mapInventorySvcStoreRow,
+  mapUiGrnTypeToApi,
+} from './mappers';
 import { inventoryQueryKeys } from './query-keys';
 
 type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
@@ -99,11 +111,27 @@ async function fetchInventoryIndents(
   const response = await inventorySvcGet<InventorySvcIndentListResponse>('/indents', {
     search: params.search,
     status: params.status && params.status !== 'all' ? params.status : undefined,
+    from_store_id: params.from_store_id,
+    to_store_id: params.to_store_id,
     include_lines: true,
     page,
     page_size: pageSize,
   });
   return mapInventorySvcIndentListResponse(response);
+}
+
+async function fetchInventoryIndentStores(): Promise<InventoryIndentStoreOption[]> {
+  const response = await inventorySvcGet<{ stores: InventorySvcIndentStoreOption[] }>(
+    '/indents/stores',
+    { role: 'all' },
+  );
+  return response.stores.map((store) => ({
+    id: store.store_id,
+    name: store.store_name,
+    store_code: store.store_code,
+    indent_authority: store.indent_authority,
+    indent_target_store_id: store.indent_target_store_id,
+  }));
 }
 
 async function fetchInventoryIndentById(indentId: string) {
@@ -164,8 +192,21 @@ async function fetchInventoryTransfers(
   params: InventoryTransferListParams,
 ): Promise<InventoryTransferListData> {
   if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryTransfers(params);
-  // Transfers list not yet on inventory-svc.
-  return mockFetchInventoryTransfers(params);
+  const page = params.page ?? 1;
+  const pageSize = params.limit ?? 10;
+  const response = await inventorySvcGet<InventorySvcStockTransferListResponse>('/transfers', {
+    search: params.search,
+    page,
+    page_size: pageSize,
+  });
+  return mapInventorySvcStockTransferListResponse(response);
+}
+
+async function fetchInventoryTransferById(transferId: string) {
+  const response = await inventorySvcGet<InventorySvcSingleResponse<InventorySvcStockTransferRow>>(
+    `/transfers/${encodeURIComponent(transferId)}`,
+  );
+  return mapInventorySvcStockTransferRow(response.data);
 }
 
 export function useInventoryStores(): QueryResult<InventoryStore[]> {
@@ -229,6 +270,16 @@ export function useInventoryIndents(
   return { data: query.data, isLoading: query.isPending, error: query.error };
 }
 
+export function useInventoryIndentStores(): QueryResult<InventoryIndentStoreOption[]> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.all, 'indent-stores', inventoryApiMode] as const,
+    queryFn: fetchInventoryIndentStores,
+    enabled: OPERATIONAL_INVENTORY_API_ENABLED,
+    staleTime: 60_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
 export function useInventoryIndentDetail(
   indentId: string | undefined,
 ): QueryResultWithRefetch<InventoryIndentRow | undefined> {
@@ -270,7 +321,6 @@ export function useInventoryIndentActiveChecks(
         enabled:
           OPERATIONAL_INVENTORY_API_ENABLED &&
           Boolean(fromStoreId) &&
-          Boolean(toStoreId) &&
           Boolean(line.item_id),
         staleTime: 15_000,
       };
@@ -326,4 +376,22 @@ export function useInventoryTransfers(
     staleTime: 15_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
+export function useInventoryTransferDetail(
+  transferId: string | undefined,
+): QueryResultWithRefetch<InventoryTransferListData['data'][number] | undefined> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.all, 'transfer', transferId, inventoryApiMode] as const,
+    queryFn: () => fetchInventoryTransferById(transferId!),
+    enabled: Boolean(transferId) && OPERATIONAL_INVENTORY_API_ENABLED,
+    staleTime: 15_000,
+  });
+  return {
+    data: query.data,
+    isLoading: query.isPending,
+    error: query.error,
+    isError: query.isError,
+    refetch: query.refetch,
+  };
 }

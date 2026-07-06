@@ -33,6 +33,7 @@ export type IndentRow = {
   fulfillment_route: IndentFulfillmentRoute;
   purchase_indent_number: string | null;
   rejection_reason: string | null;
+  approval_remarks: string | null;
   inventory_stock_transfer_id: string | null;
   inventory_purchase_request_id: string | null;
   inventory_grn_id: string | null;
@@ -81,7 +82,8 @@ export type IndentLineInput = {
 export type SaveIndentDraftInput = {
   indent_date: string;
   from_store_id: string;
-  to_store_id: string;
+  /** Null for procurement (external supplier); required for stock transfer. */
+  to_store_id: string | null;
   indent_type: IndentType;
   priority: IndentPriority;
   fulfillment_route: IndentFulfillmentRoute;

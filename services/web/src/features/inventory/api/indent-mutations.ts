@@ -12,7 +12,7 @@ import type {
 export type SaveIndentDraftPayload = {
   indent_date: string;
   from_store_id: string;
-  to_store_id: string;
+  to_store_id: string | null;
   indent_type: InventoryIndentType;
   priority: InventoryIndentPriority;
   fulfillment_route: InventoryIndentRoute;
@@ -61,19 +61,33 @@ export function useInventoryIndentSubmit() {
   });
 }
 
+export function useInventoryIndentCancel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (indentId: string) => {
+      await inventorySvcPost(`/indents/${encodeURIComponent(indentId)}/cancel`, {});
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all });
+    },
+  });
+}
+
 export function useInventoryIndentApprove() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       indentId,
       lines,
+      approval_remarks,
     }: {
       indentId: string;
       lines: Array<{ line_id: string; approved_qty: number }>;
+      approval_remarks?: string | null;
     }) => {
       const response = await inventorySvcPost<InventorySvcSingleResponse<InventorySvcIndentRow>>(
         `/indents/${encodeURIComponent(indentId)}/approve`,
-        { lines },
+        { lines, approval_remarks },
       );
       return mapInventorySvcIndentDetail(response.data);
     },

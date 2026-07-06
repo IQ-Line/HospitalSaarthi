@@ -35,17 +35,38 @@ export const indentLineInputSchema = z.object({
   sort_order: z.coerce.number().int().min(0).optional(),
 });
 
-export const saveIndentDraftBodySchema = z.object({
-  indent_date: z.string().date(),
-  from_store_id: z.string().uuid(),
-  to_store_id: z.string().uuid(),
-  indent_type: indentTypeSchema,
-  priority: indentPrioritySchema,
-  fulfillment_route: fulfillmentRouteSchema,
-  purchase_indent_number: z.string().trim().max(120).nullable().optional(),
-  remarks: z.string().trim().max(2000).nullable().optional(),
-  lines: z.array(indentLineInputSchema).min(1),
-});
+export const saveIndentDraftBodySchema = z
+  .object({
+    indent_date: z.string().date(),
+    from_store_id: z.string().uuid(),
+    to_store_id: z.string().uuid().nullable().optional(),
+    indent_type: indentTypeSchema,
+    priority: indentPrioritySchema,
+    fulfillment_route: fulfillmentRouteSchema,
+    purchase_indent_number: z.string().trim().max(120).nullable().optional(),
+    remarks: z.string().trim().max(2000).nullable().optional(),
+    lines: z.array(indentLineInputSchema).min(1),
+  })
+  .superRefine((body, ctx) => {
+    if (body.fulfillment_route === "stock_transfer" && !body.to_store_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Destination store is required for stock transfer",
+        path: ["to_store_id"],
+      });
+    }
+    if (
+      body.fulfillment_route === "stock_transfer" &&
+      body.to_store_id &&
+      body.from_store_id === body.to_store_id
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "From and to stores must differ",
+        path: ["to_store_id"],
+      });
+    }
+  });
 
 export const approveIndentBodySchema = z.object({
   lines: z
@@ -56,6 +77,7 @@ export const approveIndentBodySchema = z.object({
       }),
     )
     .min(1),
+  approval_remarks: z.string().trim().max(2000).nullable().optional(),
 });
 
 export const rejectIndentBodySchema = z.object({

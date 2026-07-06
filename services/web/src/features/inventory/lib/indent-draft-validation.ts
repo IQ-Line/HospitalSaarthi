@@ -28,18 +28,22 @@ export type IndentDraftValidationResult = {
 export function validateIndentDraft(input: IndentDraftValidationInput): IndentDraftValidationResult {
   const headerErrors: Record<string, string> = {};
   const lineErrors: IndentDraftLineErrors[] = input.lines.map(() => ({}));
+  const isProcurement = input.fulfillment_route === 'procurement';
 
   if (!input.from_store_id) {
-    headerErrors.from_store_id = 'Select a from store';
-  }
-  if (!input.to_store_id) {
-    headerErrors.to_store_id = 'Select a to store';
-  }
-  if (input.from_store_id && input.to_store_id && input.from_store_id === input.to_store_id) {
-    headerErrors.to_store_id = 'From and to stores must differ';
+    headerErrors.from_store_id = isProcurement ? 'Select a receiving store' : 'Select a from store';
   }
 
-  if (input.fulfillment_route === 'procurement') {
+  if (!isProcurement) {
+    if (!input.to_store_id) {
+      headerErrors.to_store_id = 'Select a to store';
+    }
+    if (input.from_store_id && input.to_store_id && input.from_store_id === input.to_store_id) {
+      headerErrors.to_store_id = 'From and to stores must differ';
+    }
+  }
+
+  if (isProcurement) {
     const ref = (input.purchase_indent_number ?? '').trim();
     if (!ref) {
       headerErrors.purchase_indent_number = 'Purchase indent number is required for procurement';

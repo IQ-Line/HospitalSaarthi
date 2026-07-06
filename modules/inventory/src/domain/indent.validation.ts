@@ -47,8 +47,17 @@ export function assertIndentLines(lines: IndentLineInput[]): IndentLineInput[] {
 
 export function validateSaveIndentDraft(input: SaveIndentDraftInput): SaveIndentDraftInput {
   if (!input.from_store_id?.trim()) {
-    throw new Error("Select a from store");
+    throw new Error(
+      input.fulfillment_route === "procurement" ? "Select a receiving store" : "Select a from store",
+    );
   }
+
+  if (input.fulfillment_route === "procurement") {
+    assertProcurementReference(input.fulfillment_route, input.purchase_indent_number);
+    const lines = assertIndentLines(input.lines);
+    return { ...input, to_store_id: null, lines };
+  }
+
   if (!input.to_store_id?.trim()) {
     throw new Error("Select a to store");
   }

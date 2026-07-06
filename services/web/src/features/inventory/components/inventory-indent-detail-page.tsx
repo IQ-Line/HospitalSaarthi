@@ -27,12 +27,27 @@ import { validateIndentDraft } from '../lib/indent-draft-validation';
 import { indentStatusBadgeVariant, indentStatusLabel } from '../lib/indent-status';
 import {
   useInventoryIndentApprove,
-  useInventoryIndentFulfill,
+  useInventoryIndentCancel,
   useInventoryIndentReject,
   useInventoryIndentSaveDraft,
   useInventoryIndentSubmit,
 } from '../api/indent-mutations';
-import { useInventoryIndentActiveChecks, useInventoryIndentDetail, useInventoryItems, useInventoryStores } from '../api/queries';
+import {
+  useInventoryIndentActiveChecks,
+  useInventoryIndentDetail,
+  useInventoryIndentStores,
+  useInventoryItems,
+  useInventoryStock,
+  useInventoryStores,
+} from '../api/queries';
+import {
+  canCreateTransferFromIndent,
+  indentTransferFromStoreId,
+  indentTransferToStoreId,
+  isPartialApproval,
+  resolveIndentDetailDirection,
+  type IndentListDirection,
+} from '../lib/indent-workflow';
 import { EMPTY_INDENT_LINE } from '../mock/fixtures';
 import type { InventoryIndentLine, InventoryIndentStatus } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
@@ -51,24 +66,31 @@ const FULFILLMENT_OPTIONS = [
 
 type InventoryIndentDetailPageProps = {
   indentId: string;
+  view?: IndentListDirection;
+  activeStoreId?: string;
 };
 
 function isEditableStatus(status: InventoryIndentStatus | undefined, isNew: boolean) {
   return isNew || status === 'draft';
 }
 
-export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPageProps) {
+export function InventoryIndentDetailPage({
+  indentId,
+  view,
+  activeStoreId,
+}: InventoryIndentDetailPageProps) {
   const navigate = useNavigate();
   const isNew = indentId === 'new';
   const { data: detail, isLoading, refetch } = useInventoryIndentDetail(isNew ? undefined : indentId);
   const { data: stores = [] } = useInventoryStores();
+  const { data: indentStores = [] } = useInventoryIndentStores();
   const { data: items = [] } = useInventoryItems();
 
   const saveDraft = useInventoryIndentSaveDraft();
   const submitIndent = useInventoryIndentSubmit();
   const approveIndent = useInventoryIndentApprove();
   const rejectIndent = useInventoryIndentReject();
-  const fulfillIndent = useInventoryIndentFulfill();
+  const cancelIndent = useInventoryIndentCancel();
 
   const [indentDate, setIndentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fulfillment, setFulfillment] = useState<'stock_transfer' | 'procurement'>('stock_transfer');
@@ -85,10 +107,55 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [approvalRemarks, setApprovalRemarks] = useState('');
 
+  const isProcurement = fulfillment === 'procurement';
+  const procurementStores = useMemo(
+    () => stores.filter((store) => store.is_central_store),
+    [stores],
+  );
+
+  const listDirection =
+    view ??
+    (detail ? resolveIndentDetailDirection(detail, activeStoreId) : 'outgoing');
+  const isIncoming = listDirection === 'incoming';
   const status = isNew ? 'draft' : detail?.status;
-  const editable = isEditableStatus(status, isNew);
-  const showApproval = status === 'submitted';
+  const editable = !isIncoming && isEditableStatus(status, isNew);
+  const showApproval = isIncoming && status === 'submitted';
+  const canCreateTransfer = detail ? canCreateTransferFromIndent(detail) : false;
+  const stockStoreId = detail ? indentTransferFromStoreId(detail) : toStoreId;
+
+  const { data: stockData } = useInventoryStock({
+    store_id: showApproval || canCreateTransfer ? stockStoreId : undefined,
+    status: 'all',
+  });
+
+  const availableQtyByItemCode = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of stockData?.data ?? []) {
+      map.set(row.item_code, row.quantity);
+    }
+    return map;
+  }, [stockData?.data]);
+
+  useEffect(() => {
+    if (!isNew || !activeStoreId || isProcurement) return;
+    const store = indentStores.find((entry) => entry.id === activeStoreId);
+    if (!store?.indent_authority) return;
+    setFromStoreId(activeStoreId);
+    if (store.indent_target_store_id) {
+      setToStoreId(store.indent_target_store_id);
+    }
+  }, [activeStoreId, indentStores, isNew, isProcurement]);
+
+  useEffect(() => {
+    if (!isNew || !isProcurement) return;
+    const central = procurementStores[0];
+    if (central) {
+      setFromStoreId(central.id);
+      setToStoreId('');
+    }
+  }, [isNew, isProcurement, procurementStores]);
 
   useEffect(() => {
     if (!detail || isNew) return;
@@ -96,7 +163,7 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
     setFulfillment(detail.route);
     setPurchaseIndentNumber(detail.purchase_indent_number ?? '');
     setFromStoreId(detail.from_store_id);
-    setToStoreId(detail.to_store_id);
+    setToStoreId(detail.to_store_id ?? '');
     setIndentType(detail.indent_type);
     setPriority(detail.priority);
     setRemarks(detail.remarks ?? '');
@@ -143,7 +210,8 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
     indentId,
   );
 
-  const lineTableColSpan = 6 + (showApproval ? 1 : 0) + (editable ? 1 : 0);
+  const lineTableColSpan =
+    6 + (showApproval ? 2 : 0) + (isIncoming && !showApproval ? 1 : 0) + (editable ? 1 : 0);
 
   const updateLine = (lineId: string, patch: Partial<InventoryIndentLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
@@ -166,10 +234,19 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
     });
   };
 
+  const handleFulfillmentChange = (value: typeof fulfillment) => {
+    setFulfillment(value);
+    if (value === 'procurement') {
+      setToStoreId('');
+      const central = procurementStores[0];
+      if (central) setFromStoreId(central.id);
+    }
+  };
+
   const buildPayload = () => ({
     indent_date: indentDate,
     from_store_id: fromStoreId,
-    to_store_id: toStoreId,
+    to_store_id: isProcurement ? null : toStoreId || null,
     indent_type: indentType,
     priority,
     fulfillment_route: fulfillment,
@@ -236,24 +313,56 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
   };
 
   const handleApprove = async () => {
+    const approvalLines = lines
+      .filter((line) => line.id && line.item_id)
+      .map((line) => ({
+        line_id: line.id,
+        approved_qty: Number(approvedQtyByLine[line.id] ?? line.requested_qty),
+      }));
+
+    for (const line of approvalLines) {
+      const source = lines.find((entry) => entry.id === line.line_id);
+      if (line.approved_qty > Number(source?.requested_qty ?? 0)) {
+        toast.error('Approved quantity cannot exceed requested quantity.');
+        return;
+      }
+    }
+
+    const partial = isPartialApproval(lines, approvedQtyByLine);
+    if (partial && !approvalRemarks.trim()) {
+      toast.error('Approval remarks are required for partial approval.');
+      return;
+    }
+
     if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Indent approved (mock).');
+      toast.success(partial ? 'Indent partially approved (mock).' : 'Indent approved (mock).');
       return;
     }
     try {
       await approveIndent.mutateAsync({
         indentId,
-        lines: lines
-          .filter((line) => line.id && line.item_id)
-          .map((line) => ({
-            line_id: line.id,
-            approved_qty: Number(approvedQtyByLine[line.id] ?? line.requested_qty),
-          })),
+        lines: approvalLines,
+        approval_remarks: partial ? approvalRemarks.trim() : null,
       });
-      toast.success('Approval saved');
+      toast.success(partial ? 'Partial approval saved' : 'Indent approved');
       void refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to approve indent');
+    }
+  };
+
+  const handleCancelDraft = async () => {
+    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+      toast.success('Draft indent cancelled (mock).');
+      void navigate({ to: '/inventory/indents', search: { tab: 'outgoing', storeId: activeStoreId } });
+      return;
+    }
+    try {
+      await cancelIndent.mutateAsync(indentId);
+      toast.success('Draft indent cancelled');
+      void navigate({ to: '/inventory/indents', search: { tab: 'outgoing', storeId: activeStoreId } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel indent');
     }
   };
 
@@ -269,20 +378,12 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
     }
   };
 
-  const handleFulfill = async () => {
-    try {
-      await fulfillIndent.mutateAsync(indentId);
-      toast.success('Fulfillment initiated');
-      void refetch();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to fulfill indent');
-    }
-  };
+  const listSearch = { tab: listDirection, storeId: activeStoreId };
 
   const title = isNew ? 'New indent' : (detail?.indent_number ?? 'Indent');
   const breadcrumbs = [
     { label: 'Inventory', to: '/inventory/dashboard' },
-    { label: 'Indents', to: '/inventory/indents' },
+    { label: 'Indents', to: '/inventory/indents', search: listSearch },
     { label: isNew ? 'New' : (detail?.indent_number ?? '…') },
   ];
 
@@ -304,7 +405,7 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
             <Badge variant={indentStatusBadgeVariant(status)}>{indentStatusLabel(status)}</Badge>
           ) : null}
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" asChild>
-            <Link to="/inventory/indents">
+            <Link to="/inventory/indents" search={listSearch}>
               <ArrowLeft className="size-4" aria-hidden />
               Back
             </Link>
@@ -320,13 +421,23 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                 Save draft
               </Button>
               {!isNew ? (
-                <Button
-                  type="button"
-                  onClick={() => void handleSubmit()}
-                  disabled={submitIndent.isPending || (submitAttempted && !draftValidation.isValid)}
-                >
-                  Submit
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    onClick={() => void handleSubmit()}
+                    disabled={submitIndent.isPending || (submitAttempted && !draftValidation.isValid)}
+                  >
+                    Submit
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => void handleCancelDraft()}
+                    disabled={cancelIndent.isPending}
+                  >
+                    Cancel draft
+                  </Button>
+                </>
               ) : null}
             </>
           ) : null}
@@ -340,9 +451,28 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
               </Button>
             </>
           ) : null}
-          {status === 'approved' || status === 'partially_approved' ? (
-            <Button type="button" onClick={() => void handleFulfill()} disabled={fulfillIndent.isPending}>
-              Initiate fulfillment
+          {canCreateTransfer && isIncoming ? (
+            <Button type="button" asChild>
+              <Link
+                to="/inventory/transfers"
+                search={{
+                  indentId: detail!.id,
+                  fromStoreId: indentTransferFromStoreId(detail!),
+                  toStoreId: indentTransferToStoreId(detail!),
+                }}
+              >
+                Create transfer
+              </Link>
+            </Button>
+          ) : null}
+          {detail?.inventory_stock_transfer_id ? (
+            <Button type="button" variant="outline" asChild>
+              <Link
+                to="/inventory/transfers"
+                search={{ transferId: detail.inventory_stock_transfer_id }}
+              >
+                View transfer
+              </Link>
             </Button>
           ) : null}
         </div>
@@ -351,6 +481,41 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
       {detail?.rejection_reason ? (
         <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
           Rejected: {detail.rejection_reason}
+        </div>
+      ) : null}
+
+      {detail?.approval_remarks ? (
+        <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-sm">
+          Partial approval note: {detail.approval_remarks}
+        </div>
+      ) : null}
+
+      {isIncoming && detail ? (
+        <div className="mb-4 grid gap-3 rounded-lg border bg-card p-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              {detail.route === 'procurement' ? 'Receiving store' : 'Requesting store'}
+            </p>
+            <p className="font-medium">{detail.from_store}</p>
+          </div>
+          {detail.route !== 'procurement' ? (
+            <div>
+              <p className="text-xs text-muted-foreground">Fulfilling store</p>
+              <p className="font-medium">{detail.to_store}</p>
+            </div>
+          ) : null}
+          <div>
+            <p className="text-xs text-muted-foreground">Requested by</p>
+            <p className="font-medium">{detail.created_by ?? '—'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Priority</p>
+            <p className="font-medium uppercase">{detail.priority}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Remarks</p>
+            <p className="font-medium">{detail.remarks?.trim() || '—'}</p>
+          </div>
         </div>
       ) : null}
 
@@ -373,21 +538,30 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                 <Select
                   value={fulfillment}
                   disabled={!editable}
-                  onValueChange={(v) => setFulfillment(v as typeof fulfillment)}
+                  onValueChange={(v) => handleFulfillmentChange(v as typeof fulfillment)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {FULFILLMENT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={option.value === 'procurement' && procurementStores.length === 0}
+                      >
                         {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {isProcurement ? (
+                  <p className="text-xs text-muted-foreground">
+                    Stock is procured from an external supplier. No internal store transfer.
+                  </p>
+                ) : null}
               </div>
-              {fulfillment === 'procurement' ? (
+              {isProcurement ? (
                 <div className="space-y-2">
                   <Label>Purchase indent #</Label>
                   <Input
@@ -402,40 +576,83 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                   ) : null}
                 </div>
               ) : null}
-              <div className="space-y-2">
-                <Label>From store</Label>
-                <Select
-                  value={fromStoreId || undefined}
-                  disabled={!editable}
-                  onValueChange={setFromStoreId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.store_code} — {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>To store</Label>
-                <Select value={toStoreId || undefined} disabled={!editable} onValueChange={setToStoreId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stores.map((store) => (
-                      <SelectItem key={store.id} value={store.id}>
-                        {store.store_code} — {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {isProcurement ? (
+                <div className="space-y-2">
+                  <Label>Receiving store</Label>
+                  <Select
+                    value={fromStoreId || undefined}
+                    disabled={!editable}
+                    onValueChange={setFromStoreId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {procurementStores.map((store) => (
+                        <SelectItem key={store.id} value={store.id}>
+                          {store.store_code} — {store.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {submitAttempted && draftValidation.headerErrors.from_store_id ? (
+                    <p className="text-xs text-destructive">
+                      {draftValidation.headerErrors.from_store_id}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>From store</Label>
+                    <Select
+                      value={fromStoreId || undefined}
+                      disabled={!editable}
+                      onValueChange={setFromStoreId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stores.map((store) => (
+                          <SelectItem key={store.id} value={store.id}>
+                            {store.store_code} — {store.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {submitAttempted && draftValidation.headerErrors.from_store_id ? (
+                      <p className="text-xs text-destructive">
+                        {draftValidation.headerErrors.from_store_id}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To store</Label>
+                    <Select
+                      value={toStoreId || undefined}
+                      disabled={!editable}
+                      onValueChange={setToStoreId}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {stores.map((store) => (
+                          <SelectItem key={store.id} value={store.id}>
+                            {store.store_code} — {store.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {submitAttempted && draftValidation.headerErrors.to_store_id ? (
+                      <p className="text-xs text-destructive">
+                        {draftValidation.headerErrors.to_store_id}
+                      </p>
+                    ) : null}
+                  </div>
+                </>
+              )}
               <div className="space-y-2">
                 <Label>Indent type</Label>
                 <Select
@@ -487,7 +704,19 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
             </div>
           </InventoryPanel>
 
-          <InventoryPanel title={`Requested items (${lines.length})`}>
+          <InventoryPanel title={isIncoming ? `Item details (${lines.length})` : `Requested items (${lines.length})`}>
+            {showApproval ? (
+              <div className="mb-4 space-y-2">
+                <Label htmlFor="approval-remarks">Approval remarks (required for partial approval)</Label>
+                <Textarea
+                  id="approval-remarks"
+                  value={approvalRemarks}
+                  onChange={(event) => setApprovalRemarks(event.target.value)}
+                  rows={2}
+                  placeholder="Explain why approved quantity is less than requested"
+                />
+              </div>
+            ) : null}
             <div className="overflow-x-auto">
               <table className="w-full min-w-[960px] text-sm">
                 <thead>
@@ -496,8 +725,11 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                     <th className="px-2 py-2 font-medium">Item</th>
                     <th className="px-2 py-2 font-medium">Item code</th>
                     <th className="px-2 py-2 font-medium">Base UOM</th>
+                    {isIncoming ? <th className="px-2 py-2 font-medium">Available qty</th> : null}
                     <th className="px-2 py-2 font-medium">Req. qty</th>
-                    {showApproval ? <th className="px-2 py-2 font-medium">Approved qty</th> : null}
+                    {showApproval || (isIncoming && status !== 'submitted') ? (
+                      <th className="px-2 py-2 font-medium">Approved qty</th>
+                    ) : null}
                     <th className="px-2 py-2 font-medium">Remarks</th>
                     {editable ? <th className="px-2 py-2" /> : null}
                   </tr>
@@ -532,6 +764,13 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                           </td>
                           <td className="px-2 py-2 text-muted-foreground">{line.item_code || '—'}</td>
                           <td className="px-2 py-2">{line.uom || '—'}</td>
+                          {isIncoming ? (
+                            <td className="px-2 py-2 tabular-nums">
+                              {line.item_code
+                                ? (availableQtyByItemCode.get(line.item_code) ?? 0)
+                                : '—'}
+                            </td>
+                          ) : null}
                           <td className="px-2 py-2">
                             {editable ? (
                               <Input
@@ -561,6 +800,10 @@ export function InventoryIndentDetailPage({ indentId }: InventoryIndentDetailPag
                                   }))
                                 }
                               />
+                            </td>
+                          ) : isIncoming && status !== 'submitted' ? (
+                            <td className="px-2 py-2 tabular-nums">
+                              {line.approved_qty ?? approvedQtyByLine[line.id] ?? '—'}
                             </td>
                           ) : null}
                           <td className="px-2 py-2">

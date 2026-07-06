@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus } from 'lucide-react';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
-import { useInventoryTransfers } from '../api/queries';
+import { useInventoryIndentDetail, useInventoryTransferDetail, useInventoryTransfers } from '../api/queries';
 import type { InventoryTransferRow, InventoryTransferStatus } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryTransferDialog } from './inventory-transfer-dialog';
@@ -35,12 +35,37 @@ function transferStatusBadgeClass(status: InventoryTransferStatus): string {
   }
 }
 
-export function InventoryTransfersPage() {
+type TransferIndentPrefill = {
+  indentId?: string;
+  transferId?: string;
+  fromStoreId?: string;
+  toStoreId?: string;
+};
+
+type InventoryTransfersPageProps = {
+  indentPrefill?: TransferIndentPrefill;
+};
+
+export function InventoryTransfersPage({ indentPrefill }: InventoryTransfersPageProps) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTransfer, setSelectedTransfer] = useState<InventoryTransferRow | null>(null);
+
+  const { data: indentDetail } = useInventoryIndentDetail(indentPrefill?.indentId);
+  const { data: transferDetail } = useInventoryTransferDetail(indentPrefill?.transferId);
+
+  useEffect(() => {
+    if (indentPrefill?.transferId && transferDetail) {
+      setSelectedTransfer(transferDetail);
+      setDialogOpen(true);
+      return;
+    }
+    if (!indentPrefill?.indentId || !indentDetail) return;
+    setSelectedTransfer(null);
+    setDialogOpen(true);
+  }, [indentDetail, indentPrefill?.indentId, indentPrefill?.transferId, transferDetail]);
 
   const { data, isLoading } = useInventoryTransfers({
     search: search || undefined,
@@ -159,6 +184,7 @@ export function InventoryTransfersPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         transfer={selectedTransfer}
+        indentPrefill={indentPrefill?.indentId ? indentDetail : null}
       />
     </InventoryPageShell>
   );

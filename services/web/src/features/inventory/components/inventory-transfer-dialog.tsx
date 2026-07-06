@@ -19,9 +19,12 @@ import {
   SelectValue,
 } from '@pulse/ui/select';
 import { cn } from '@pulse/utils';
+import { useInventoryTransferCreate } from '../api/transfer-mutations';
 import { useInventoryItems, useInventoryStores } from '../api/queries';
 import { EMPTY_TRANSFER_LINE } from '../mock/fixtures';
+import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import type {
+  InventoryIndentRow,
   InventoryTransferLine,
   InventoryTransferRow,
   InventoryTransferType,
@@ -33,6 +36,7 @@ type InventoryTransferDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transfer: InventoryTransferRow | null;
+  indentPrefill?: InventoryIndentRow | null;
 };
 
 function isReadOnly(transfer: InventoryTransferRow | null): boolean {
@@ -47,10 +51,13 @@ export function InventoryTransferDialog({
   open,
   onOpenChange,
   transfer,
+  indentPrefill,
 }: InventoryTransferDialogProps) {
   const { data: stores = [] } = useInventoryStores();
   const { data: items = [] } = useInventoryItems();
+  const createTransfer = useInventoryTransferCreate();
   const readOnly = isReadOnly(transfer);
+  const indentLocked = Boolean(indentPrefill);
 
   const [transferDate, setTransferDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fromStoreId, setFromStoreId] = useState('');
@@ -70,13 +77,39 @@ export function InventoryTransferDialog({
       setLines(transfer.lines.length > 0 ? transfer.lines : [EMPTY_TRANSFER_LINE()]);
       return;
     }
+    if (indentPrefill) {
+      setTransferDate(new Date().toISOString().slice(0, 10));
+      setFromStoreId(indentPrefill.to_store_id ?? '');
+      setToStoreId(indentPrefill.from_store_id);
+      setTransferType(
+        indentPrefill.indent_type === 'emergency' ? 'emergency' : 'normal',
+      );
+      setRemarks(
+        indentPrefill.remarks
+          ? `From indent ${indentPrefill.indent_number}: ${indentPrefill.remarks}`
+          : `From indent ${indentPrefill.indent_number}`,
+      );
+      setLines(
+        indentPrefill.lines
+          .filter((line) => Number(line.approved_qty ?? line.requested_qty) > 0)
+          .map((line) => ({
+            ...EMPTY_TRANSFER_LINE(),
+            item_id: line.item_id,
+            item_code: line.item_code,
+            item_name: line.item_name,
+            uom: line.uom,
+            quantity: Number(line.approved_qty ?? line.requested_qty),
+          })),
+      );
+      return;
+    }
     setTransferDate(new Date().toISOString().slice(0, 10));
     setFromStoreId('');
     setToStoreId('');
     setTransferType('normal');
     setRemarks('');
     setLines([EMPTY_TRANSFER_LINE()]);
-  }, [open, transfer]);
+  }, [open, transfer, indentPrefill]);
 
   const updateLine = (lineId: string, patch: Partial<InventoryTransferLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
@@ -93,7 +126,7 @@ export function InventoryTransferDialog({
     });
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     if (!fromStoreId || !toStoreId) {
       toast.error('Select both source and destination stores.');
       return;
@@ -102,8 +135,42 @@ export function InventoryTransferDialog({
       toast.error('Source and destination stores must be different.');
       return;
     }
-    toast.success('Transfer draft saved (mock). API integration will persist this form.');
-    onOpenChange(false);
+
+    const payloadLines = lines
+      .filter((line) => line.item_id && Number(line.quantity) > 0)
+      .map((line, index) => ({
+        item_id: line.item_id!,
+        transfer_qty: Number(line.quantity),
+        line_remarks: line.line_remarks?.trim() || null,
+        sort_order: index,
+      }));
+
+    if (payloadLines.length === 0) {
+      toast.error('Add at least one item with quantity greater than zero.');
+      return;
+    }
+
+    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+      toast.success('Transfer draft saved (mock).');
+      onOpenChange(false);
+      return;
+    }
+
+    try {
+      await createTransfer.mutateAsync({
+        transfer_date: transferDate,
+        from_store_id: fromStoreId,
+        to_store_id: toStoreId,
+        transfer_type: transferType,
+        remarks: remarks.trim() || null,
+        inventory_indent_id: indentPrefill?.id ?? null,
+        lines: payloadLines,
+      });
+      toast.success('Transfer created and linked to indent.');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save transfer');
+    }
   };
 
   const title =
@@ -133,7 +200,7 @@ export function InventoryTransferDialog({
                 <Label htmlFor="xfer-from-store">
                   From store / location <span className="text-destructive">*</span>
                 </Label>
-                <Select value={fromStoreId || undefined} onValueChange={setFromStoreId} disabled={readOnly}>
+                <Select value={fromStoreId || undefined} onValueChange={setFromStoreId} disabled={readOnly || indentLocked}>
                   <SelectTrigger id="xfer-from-store" className="h-9 w-full min-w-0">
                     <SelectValue placeholder="Source" />
                   </SelectTrigger>
@@ -150,7 +217,7 @@ export function InventoryTransferDialog({
                 <Label htmlFor="xfer-to-store">
                   To store / location <span className="text-destructive">*</span>
                 </Label>
-                <Select value={toStoreId || undefined} onValueChange={setToStoreId} disabled={readOnly}>
+                <Select value={toStoreId || undefined} onValueChange={setToStoreId} disabled={readOnly || indentLocked}>
                   <SelectTrigger id="xfer-to-store" className="h-9 w-full min-w-0">
                     <SelectValue placeholder="Destination" />
                   </SelectTrigger>
@@ -307,7 +374,13 @@ export function InventoryTransferDialog({
               </Button>
             </DialogClose>
           ) : (
-            <Button type="button" variant="secondary" size="sm" onClick={handleSaveDraft}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleSaveDraft()}
+              disabled={createTransfer.isPending}
+            >
               Save draft
             </Button>
           )}

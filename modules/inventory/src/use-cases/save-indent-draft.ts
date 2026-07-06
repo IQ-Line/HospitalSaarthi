@@ -14,8 +14,23 @@ export type SaveIndentDraftDeps = {
 
 async function assertStoresActive(deps: SaveIndentDraftDeps, tenantId: string, input: SaveIndentDraftInput) {
   const fromStore = await deps.storeRepo.findById(tenantId, input.from_store_id);
+  if (!fromStore?.is_active) {
+    throw new IndentValidationError("Store must be active");
+  }
+
+  if (input.fulfillment_route === "procurement") {
+    if (!fromStore.is_central_store) {
+      throw new IndentValidationError("Only the central store can raise procurement indents");
+    }
+    return;
+  }
+
+  if (!input.to_store_id) {
+    throw new IndentValidationError("Destination store is required for stock transfer");
+  }
+
   const toStore = await deps.storeRepo.findById(tenantId, input.to_store_id);
-  if (!fromStore?.is_active || !toStore?.is_active) {
+  if (!toStore?.is_active) {
     throw new IndentValidationError("Both stores must be active");
   }
 
