@@ -8,8 +8,7 @@ export const inventoryModuleManifest: ModuleManifest = {
   routePrefix: '/inventory',
   sortOrder: 36,
   keepNavigationGroup: true,
-  /** Until inventory L1 is in catalog, master-data L1 and inventory-master L2 both gate access. */
-  requiredModulesAny: ['inventory', 'inventory-master', 'master-data'],
+  requiredModulesAny: ['inventory'],
   navigation: [
     {
       id: 'inventory-dashboard',
@@ -23,28 +22,28 @@ export const inventoryModuleManifest: ModuleManifest = {
       label: 'Stock',
       icon: 'layers',
       route: '/inventory/stock',
-      catalogModuleSlug: 'inventory',
+      catalogModuleSlug: 'inventory-stock',
     },
     {
       id: 'inventory-indents',
       label: 'Indents',
       icon: 'clipboard-list',
       route: '/inventory/indents',
-      catalogModuleSlug: 'inventory',
+      catalogModuleSlug: 'inventory-indents',
     },
     {
       id: 'inventory-transfers',
       label: 'Transfers',
       icon: 'arrow-right-left',
       route: '/inventory/transfers',
-      catalogModuleSlug: 'inventory',
+      catalogModuleSlug: 'inventory-transfers',
     },
     {
       id: 'inventory-grn-logs',
       label: 'GRN logs',
       icon: 'file-text',
       route: '/inventory/grn-logs',
-      catalogModuleSlug: 'inventory',
+      catalogModuleSlug: 'inventory-grn',
     },
   ],
 };

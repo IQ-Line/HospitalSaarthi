@@ -90,9 +90,6 @@ export function allRegisteredManifestTenantGateSlugs(): ReadonlySet<string> {
     for (const slug of manifest.requiredModulesAny ?? []) {
       addCatalogSlugToSet(enabled, slug);
     }
-    for (const slug of manifest.requiredModules ?? []) {
-      addCatalogSlugToSet(enabled, slug);
-    }
   }
   return enabled;
 }
@@ -203,7 +200,8 @@ export function useTenantModuleNavContext(): {
         addCatalogSlugToSet(enriched, 'inventory-master');
         addCatalogSlugToSet(enriched, 'master-data');
       }
-      return buildEnabledModuleSlugsFromCatalog(enriched);
+      const enabled = buildEnabledModuleSlugsFromCatalog(enriched);
+      return enabled;
     }
 
     return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);

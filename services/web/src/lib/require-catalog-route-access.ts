@@ -22,7 +22,8 @@ export function requireCatalogRouteAccess(
       return;
     }
     const capabilityKeys = usePermissionsStore.getState().capabilityKeys;
-    if (!principalGrantsCatalogRouteAccess(capabilityKeys, route, options)) {
+    const granted = principalGrantsCatalogRouteAccess(capabilityKeys, route, options);
+    if (!granted) {
       throw redirect({ to: options?.redirectTo ?? '/dashboard' });
     }
   };
