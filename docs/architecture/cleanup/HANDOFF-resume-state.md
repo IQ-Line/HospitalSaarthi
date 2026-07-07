@@ -1,5 +1,23 @@
 # Cleanup initiative — resume state / handoff (snapshot 2026-07-07)
 
+> **RESUME POINT (Fable /goal run, mid-W3):** Committed+pushed: **W0** `d526cf14`, **W1** `0b0955f6`,
+> **W1.5 absorption** `fa3b1e3e` (backup tag `backup/pre-absorption-20260707`), **W2 PEP fleet** `2b206f8c`.
+> **W3 is STAGED but NOT committed** (git index on disk — survives a session reset; agents/context do not):
+> the bounded operator model (platform_admins table, JWT `scope:platform`, tenant-less operator token,
+> `ts-sdk-identity` scope-gated tenant relaxation, additive scope allow-rules with clinical policies
+> UNSCOPED = the bound, god-mode seed deleted) + ADRs **0034** (polyglot freeze) and **0035** (Phase-4
+> authz). Before committing W3: (1) finish the M1/M2 security fix — M1 = reject **400 tenant_target_required**
+> when a `scope:platform` (tenant-less) principal does a tenant-scoped UM write with no `iq_tenant_id`
+> header (else it persists tenant `""`); M2 = remove the operator scope term from
+> `master_data/department.yaml` + `master_data_visitpad.yaml` ONLY (clinical-reference data — keep it on
+> module/permission/system_role/module_permission); (2) run the affected auth battery (user-management,
+> user-management-svc, bff, ts-sdk-identity, configurator-svc + `cerbos compile --tests`) green; (3) commit
+> operator model + both ADRs together, push. Then **W4** (alembic squash-to-one-baseline absorbing seeds
+> 047/048/049 + fixing their hardcoded-PK downgrade round-trip; `make verify-local`; OM batch; D5 split),
+> **W5** functional hardening, wrap-up. Full live detail in machine-local memory `project_fable_run_progress.md`.
+> ADR-0035 already records the correct facts: the Python PEPs (#51 Half B) ARE built; D11 global-unique is
+> correct-by-layering (auth.user non-distributed = global; distributed users = per-tenant per Citus), not drift.
+
 Working branch **`dev--improved-v1`** (off `dev`). This doc is the quick operational pointer for
 picking the work back up (e.g. on a new machine). The full detail lives in:
 - `docs/architecture/cleanup/00-cleanup-master-map.md` — source of truth (20 areas, decision
