@@ -43,13 +43,17 @@ uv sync
 uv run ruff check .
 uv run pytest
 uv run alembic upgrade head
-uv run uvicorn app.main:app --reload --port 8010
 ```
+
+This module is the **logic library**; it is served by the thin host in
+`services/master-data-svc` (`uvicorn master_data_svc.main:app`). To run the
+service, use `services/master-data-svc` (see its README) or Nx below.
 
 From the repo root, use Nx:
 
 ```bash
-npx nx run master-data:lint
-npx nx run master-data:test
-npx nx run master-data:serve
+npx nx run master-data:lint         # module lint
+npx nx run master-data:test         # module tests
+npx nx run master-data:db-migrate   # alembic upgrade heads
+npx nx run master-data-svc:serve    # run the service (host imports this module)
 ```

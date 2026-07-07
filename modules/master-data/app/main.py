@@ -93,6 +93,3 @@ def create_app(deps: dict[str, Any] | None = None) -> FastAPI:
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_prefix)
     return app
-
-
-app = create_app()

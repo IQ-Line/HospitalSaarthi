@@ -162,7 +162,7 @@ run_service inventory-svc         services/inventory-svc         "${INVENTORY_SV
 run_service record-foundation-svc services/record-foundation-svc "${RECORD_FOUNDATION_SVC_PORT:-3009}"  /healthz -- "$TSX" src/main.ts
 
 # Python FastAPI services — bare uvicorn (no --reload).
-run_service master-data           modules/master-data            "${MASTER_DATA_SVC_PORT:-8010}"        /api/v1/master-data/health -- uv run uvicorn app.main:app --host 0.0.0.0 --port "${MASTER_DATA_SVC_PORT:-8010}"
+run_service master-data-svc       services/master-data-svc       "${MASTER_DATA_SVC_PORT:-8010}"        /api/v1/master-data/health -- uv run uvicorn master_data_svc.main:app --host 0.0.0.0 --port "${MASTER_DATA_SVC_PORT:-8010}"
 run_service opd-svc               services/opd-svc               "${OPD_SVC_PORT:-8020}"                /api/v1/opd/health          -- uv run uvicorn opd_svc.main:app --host 0.0.0.0 --port "${OPD_SVC_PORT:-8020}"
 
 # --- summary -----------------------------------------------------------------

@@ -170,10 +170,15 @@ http://localhost:8010/api/v1/master-data/modules
 If you prefer to run without Nx:
 
 ```bash
+# Migrate the module's catalog schema:
 cd modules/master-data
 uv sync
 uv run alembic upgrade head
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload
+
+# Serve via the thin service host (imports this module):
+cd ../../services/master-data-svc
+uv sync --reinstall-package hims-master-data
+uv run uvicorn master_data_svc.main:app --host 0.0.0.0 --port 8010 --reload
 ```
 
 ## 7. After DB or API changes — migrations, Swagger, reload

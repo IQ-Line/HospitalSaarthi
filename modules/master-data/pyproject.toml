@@ -1,7 +1,7 @@
 [project]
 name = "hims-master-data"
 version = "0.1.0"
-description = "Master Data service for the HIMS platform."
+description = "Master Data module for the HIMS platform (logic library; served by services/master-data-svc)."
 requires-python = ">=3.12"
 dependencies = [
     "alembic",
@@ -15,6 +15,16 @@ dependencies = [
     "uvicorn[standard]",
     "python-dotenv>=1.2.2",
 ]
+
+# Installable so the thin service host (services/master-data-svc) can import the
+# module's `create_app` factory. The importable package is `app` (the module's
+# established public surface — handlers, alembic env, and tests all import `app.*`).
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [tool.uv.sources]
 hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }
