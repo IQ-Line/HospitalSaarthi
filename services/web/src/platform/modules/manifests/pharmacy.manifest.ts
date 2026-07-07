@@ -1,23 +1,31 @@
 import type { ModuleManifest } from '../types';
-import { PHARMACY_DISPENSE_ACCESS_ANY } from '@/lib/runtime-capability-keys';
 
-/** Pharmacy counter — OPD prescription queue, walk-in dispense, and billing. */
+/** Pharmacy counter — dashboard, prescription queue, and dispense workspace. */
 export const pharmacyModuleManifest: ModuleManifest = {
   slug: 'pharmacy',
   name: 'Pharmacy',
   icon: 'pill-bottle',
   routePrefix: '/pharmacy',
+  tenantScoped: false,
   sortOrder: 35,
-  requiredModulesAny: ['pharmacy'],
-  requiredRolesAny: ['pharmacist'],
   navigation: [
     {
-      id: 'pharmacy-queue',
-      label: 'Prescription Queue',
+      id: 'pharmacy-dashboard',
+      label: 'Dashboard',
+      icon: 'layout-grid',
+      route: '/pharmacy/dashboard',
+    },
+    {
+      id: 'pharmacy-dispense',
+      label: 'Dispense',
       icon: 'pill-bottle',
+      route: '/pharmacy/dispense',
+    },
+    {
+      id: 'pharmacy-queue',
+      label: 'Queue',
+      icon: 'calendar-clock',
       route: '/pharmacy/queue',
-      catalogModuleSlug: 'dispense',
-      requiredCapabilities: [...PHARMACY_DISPENSE_ACCESS_ANY],
     },
   ],
 };
