@@ -5,6 +5,7 @@ import { DrizzleInventoryGrnRepository } from "./data-access/grn.repo.js";
 import { DrizzleInventoryIndentRepository } from "./data-access/indent.repo.js";
 import { DrizzleInventoryItemRepository } from "./data-access/items.repo.js";
 import { DrizzleInventoryStockRepository } from "./data-access/stock.repo.js";
+import { DrizzleInventoryTransferRepository } from "./data-access/transfer.repo.js";
 import { createStoreRepo } from "./data-access/store.repo.js";
 import { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
 import type { MasterDataGatewayPort } from "./ports.js";
@@ -12,6 +13,7 @@ import { registerGrnHandlers } from "./rest-handlers/grn.handlers.js";
 import { registerIndentHandlers } from "./rest-handlers/indents.handlers.js";
 import { registerItemHandlers } from "./rest-handlers/items.handlers.js";
 import { registerStockHandlers } from "./rest-handlers/stock.handlers.js";
+import { registerTransferHandlers } from "./rest-handlers/transfers.handlers.js";
 import { registerInventoryErrorHandler, registerStoreHandlers } from "./rest-handlers/stores.handlers.js";
 
 export type InventoryRouterOptions = {
@@ -33,6 +35,7 @@ async function inventoryRouter(
   const grnRepo = new DrizzleInventoryGrnRepository(options.db);
   const indentRepo = new DrizzleInventoryIndentRepository(options.db);
   const stockRepo = new DrizzleInventoryStockRepository(options.db);
+  const transferRepo = new DrizzleInventoryTransferRepository(options.db);
   const storeRepo = createStoreRepo(options.db);
 
   registerItemHandlers(app, { itemRepo });
@@ -48,6 +51,11 @@ async function inventoryRouter(
     itemRepo,
     stockRepo,
     grnRepo,
+  });
+  registerTransferHandlers(app, {
+    transferRepo,
+    indentRepo,
+    storeRepo,
   });
 }
 

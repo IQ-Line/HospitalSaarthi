@@ -92,6 +92,12 @@ export async function mockFetchInventoryIndents(
   if (params.search?.trim()) {
     rows = rows.filter((row) => matchesSearch(row.indent_number, params.search));
   }
+  if (params.from_store_id) {
+    rows = rows.filter((row) => row.from_store_id === params.from_store_id);
+  }
+  if (params.to_store_id) {
+    rows = rows.filter((row) => row.to_store_id === params.to_store_id);
+  }
   const limit = params.limit ?? 10;
   const page = params.page ?? 1;
   const start = (page - 1) * limit;

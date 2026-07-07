@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/page-header';
 export type InventoryBreadcrumbSegment = {
   label: string;
   to?: string;
+  search?: Record<string, string | undefined>;
 };
 
 interface InventoryPageShellProps {
@@ -69,7 +70,9 @@ export function InventoryPageShell({
                     <BreadcrumbPage>{segment.label}</BreadcrumbPage>
                   ) : (
                     <BreadcrumbLink asChild>
-                      <Link to={segment.to}>{segment.label}</Link>
+                      <Link to={segment.to} search={segment.search}>
+                        {segment.label}
+                      </Link>
                     </BreadcrumbLink>
                   )}
                 </BreadcrumbItem>

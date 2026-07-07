@@ -348,6 +348,7 @@ export const inventoryIndents = inventorySchema.table(
     fulfillment_route: text("fulfillment_route").notNull().default("stock_transfer"),
     purchase_indent_number: text("purchase_indent_number"),
     rejection_reason: text("rejection_reason"),
+    approval_remarks: text("approval_remarks"),
     inventory_stock_transfer_id: uuid("inventory_stock_transfer_id"),
     inventory_purchase_request_id: uuid("inventory_purchase_request_id"),
     inventory_grn_id: uuid("inventory_grn_id"),
@@ -431,6 +432,105 @@ export const inventoryIndentLines = inventorySchema.table(
       foreignColumns: [inventoryLots.iq_tenant_id, inventoryLots.id],
     })
       .onDelete("set null")
+      .onUpdate("no action"),
+  ],
+);
+
+// ─── Stock transfers ─────────────────────────────────────────────────────────
+
+export const inventoryStockTransferSequences = inventorySchema.table(
+  "stock_transfer_sequences",
+  {
+    ...tenantColumn(),
+    period_key: text("period_key").notNull(),
+    last_value: integer("last_value").notNull().default(0),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.period_key] })],
+);
+
+export const inventoryStockTransfers = inventorySchema.table(
+  "stock_transfers",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    transfer_number: text("transfer_number").notNull(),
+    transfer_date: date("transfer_date").notNull(),
+    from_store_id: uuid("from_store_id").notNull(),
+    to_store_id: uuid("to_store_id").notNull(),
+    transfer_type: text("transfer_type").notNull().default("normal"),
+    status: text("status").notNull().default("draft"),
+    remarks: text("remarks"),
+    inventory_indent_id: uuid("inventory_indent_id"),
+    created_by: uuid("created_by"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    uniqueIndex("uq_inventory_stock_transfers_tenant_number").on(
+      t.iq_tenant_id,
+      t.transfer_number,
+    ),
+    index("idx_inventory_stock_transfers_tenant_date").on(t.iq_tenant_id, t.transfer_date),
+    index("idx_inventory_stock_transfers_tenant_indent").on(t.iq_tenant_id, t.inventory_indent_id),
+    foreignKey({
+      name: "inventory_stock_transfers_from_store_fk",
+      columns: [t.iq_tenant_id, t.from_store_id],
+      foreignColumns: [inventoryStores.iq_tenant_id, inventoryStores.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfers_to_store_fk",
+      columns: [t.iq_tenant_id, t.to_store_id],
+      foreignColumns: [inventoryStores.iq_tenant_id, inventoryStores.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfers_indent_fk",
+      columns: [t.iq_tenant_id, t.inventory_indent_id],
+      foreignColumns: [inventoryIndents.iq_tenant_id, inventoryIndents.id],
+    })
+      .onDelete("set null")
+      .onUpdate("no action"),
+  ],
+);
+
+export const inventoryStockTransferLines = inventorySchema.table(
+  "stock_transfer_lines",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    stock_transfer_id: uuid("stock_transfer_id").notNull(),
+    item_id: uuid("item_id").notNull(),
+    transfer_qty: numeric("transfer_qty", { precision: 12, scale: 3 }).notNull(),
+    line_remarks: text("line_remarks"),
+    sort_order: integer("sort_order").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_inventory_stock_transfer_lines_transfer").on(
+      t.iq_tenant_id,
+      t.stock_transfer_id,
+      t.sort_order,
+    ),
+    foreignKey({
+      name: "inventory_stock_transfer_lines_transfer_fk",
+      columns: [t.iq_tenant_id, t.stock_transfer_id],
+      foreignColumns: [inventoryStockTransfers.iq_tenant_id, inventoryStockTransfers.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfer_lines_item_fk",
+      columns: [t.iq_tenant_id, t.item_id],
+      foreignColumns: [inventoryItems.iq_tenant_id, inventoryItems.id],
+    })
+      .onDelete("restrict")
       .onUpdate("no action"),
   ],
 );

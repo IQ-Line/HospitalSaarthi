@@ -37,6 +37,7 @@ function mapIndentRow(row: typeof inventoryIndents.$inferSelect): IndentRow {
     fulfillment_route: row.fulfillment_route as IndentRow["fulfillment_route"],
     purchase_indent_number: row.purchase_indent_number,
     rejection_reason: row.rejection_reason,
+    approval_remarks: row.approval_remarks,
     inventory_stock_transfer_id: row.inventory_stock_transfer_id,
     inventory_purchase_request_id: row.inventory_purchase_request_id,
     inventory_grn_id: row.inventory_grn_id,
@@ -284,11 +285,36 @@ export class DrizzleInventoryIndentRepository {
       .update(inventoryIndents)
       .set({
         inventory_grn_id: grnId,
+        status: "fulfilled",
+        fulfilled_at: new Date(),
         updated_at: new Date(),
       })
       .where(
         and(eq(inventoryIndents.iq_tenant_id, tenantId), eq(inventoryIndents.id, indentId)),
       );
+  }
+
+  async linkStockTransfer(tenantId: string, indentId: string, transferId: string): Promise<void> {
+    const [row] = await this.db
+      .update(inventoryIndents)
+      .set({
+        inventory_stock_transfer_id: transferId,
+        status: "in_fulfillment",
+        updated_at: new Date(),
+      })
+      .where(
+        and(
+          eq(inventoryIndents.iq_tenant_id, tenantId),
+          eq(inventoryIndents.id, indentId),
+          inArray(inventoryIndents.status, ["approved", "partially_approved"]),
+          sql`${inventoryIndents.inventory_stock_transfer_id} IS NULL`,
+        ),
+      )
+      .returning();
+
+    if (!row) {
+      throw new IndentValidationError("Indent is not eligible for stock transfer linking");
+    }
   }
 
   async listLines(tenantId: string, indentId: string): Promise<IndentLineRow[]> {
@@ -360,6 +386,23 @@ export class DrizzleInventoryIndentRepository {
       .orderBy(asc(inventoryStores.store_code));
 
     return rows;
+  }
+
+  /** Includes inactive stores so historical indents still show store names. */
+  async findStoresByIds(tenantId: string, storeIds: string[]) {
+    const uniqueIds = [...new Set(storeIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return [];
+
+    return this.db
+      .select({
+        id: inventoryStores.id,
+        store_code: inventoryStores.store_code,
+        store_name: inventoryStores.store_name,
+      })
+      .from(inventoryStores)
+      .where(
+        and(eq(inventoryStores.iq_tenant_id, tenantId), inArray(inventoryStores.id, uniqueIds)),
+      );
   }
 
   async listActiveIndentsForItem(
@@ -443,7 +486,7 @@ export class DrizzleInventoryIndentRepository {
           status: "draft",
           indent_date: input.indent_date,
           from_store_id: input.from_store_id,
-          to_store_id: input.to_store_id,
+          to_store_id: input.to_store_id ?? null,
           indent_type: input.indent_type,
           priority: input.priority,
           fulfillment_route: input.fulfillment_route,
@@ -471,7 +514,7 @@ export class DrizzleInventoryIndentRepository {
         .set({
           indent_date: input.indent_date,
           from_store_id: input.from_store_id,
-          to_store_id: input.to_store_id,
+          to_store_id: input.to_store_id ?? null,
           indent_type: input.indent_type,
           priority: input.priority,
           fulfillment_route: input.fulfillment_route,
@@ -534,6 +577,7 @@ export class DrizzleInventoryIndentRepository {
     indentId: string,
     lines: ApproveIndentLineInput[],
     actorId: string,
+    approvalRemarks?: string | null,
   ): Promise<IndentRow | undefined> {
     const existing = await this.findById(tenantId, indentId);
     if (!existing) return undefined;
@@ -573,12 +617,20 @@ export class DrizzleInventoryIndentRepository {
       throw new IndentValidationError("At least one line must have approved quantity > 0");
     }
 
+    if (hasPartial) {
+      const trimmed = approvalRemarks?.trim() ?? "";
+      if (!trimmed) {
+        throw new IndentValidationError("Approval remarks are required for partial approval");
+      }
+    }
+
     const nextStatus = hasPartial ? "partially_approved" : "approved";
 
     const [row] = await this.db
       .update(inventoryIndents)
       .set({
         status: nextStatus,
+        approval_remarks: hasPartial ? approvalRemarks?.trim() ?? null : null,
         approved_at: new Date(),
         approved_by: actorId,
         updated_at: new Date(),
@@ -622,6 +674,35 @@ export class DrizzleInventoryIndentRepository {
       .returning();
 
     return row ? mapIndentRow(row) : undefined;
+  }
+
+  async cancelDraft(tenantId: string, indentId: string): Promise<boolean> {
+    const existing = await this.findById(tenantId, indentId);
+    if (!existing || existing.status !== "draft") {
+      return false;
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(inventoryIndentLines)
+        .where(
+          and(
+            eq(inventoryIndentLines.iq_tenant_id, tenantId),
+            eq(inventoryIndentLines.indent_id, indentId),
+          ),
+        );
+      await tx
+        .delete(inventoryIndents)
+        .where(
+          and(
+            eq(inventoryIndents.iq_tenant_id, tenantId),
+            eq(inventoryIndents.id, indentId),
+            eq(inventoryIndents.status, "draft"),
+          ),
+        );
+    });
+
+    return true;
   }
 
   async fulfillStockTransfer(tenantId: string, indentId: string): Promise<IndentRow | undefined> {

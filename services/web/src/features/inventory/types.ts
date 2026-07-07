@@ -13,6 +13,14 @@ export type InventoryStore = {
   is_central_store: boolean;
 };
 
+export type InventoryIndentStoreOption = {
+  id: string;
+  name: string;
+  store_code: string;
+  indent_authority: boolean;
+  indent_target_store_id: string | null;
+};
+
 export type InventoryItemOption = {
   id: string;
   code: string;
@@ -142,7 +150,11 @@ export type InventoryIndentRow = {
   status: InventoryIndentStatus;
   purchase_indent_number?: string | null;
   rejection_reason?: string | null;
+  approval_remarks?: string | null;
   inventory_grn_id?: string | null;
+  inventory_stock_transfer_id?: string | null;
+  created_by?: string | null;
+  remarks?: string | null;
   lines: InventoryIndentLine[];
 };
 
@@ -154,6 +166,8 @@ export type InventoryIndentDetail = InventoryIndentRow & {
 export type InventoryIndentListParams = {
   search?: string;
   status?: 'all' | InventoryIndentStatus;
+  from_store_id?: string;
+  to_store_id?: string;
   page?: number;
   limit?: number;
 };

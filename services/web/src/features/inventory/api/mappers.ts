@@ -7,6 +7,8 @@ import type {
   InventorySvcStockBatchRow,
   InventorySvcStockListResponse,
   InventorySvcStockRow,
+  InventorySvcStockTransferListResponse,
+  InventorySvcStockTransferRow,
   InventorySvcStoreRow,
 } from './api-types';
 import type {
@@ -20,6 +22,10 @@ import type {
   InventoryStockLot,
   InventoryStockRow,
   InventoryStore,
+  InventoryTransferListData,
+  InventoryTransferRow,
+  InventoryTransferStatus,
+  InventoryTransferType,
 } from '../types';
 
 export function mapInventorySvcStoreRow(row: InventorySvcStoreRow): InventoryStore {
@@ -135,14 +141,18 @@ export function mapInventorySvcIndentRow(row: InventorySvcIndentRow): InventoryI
     from_store_id: row.from_store_id,
     to_store_id: row.to_store_id,
     from_store: row.from_store?.store_name ?? row.from_store_id,
-    to_store: row.to_store?.store_name ?? row.to_store_id,
+    to_store: row.to_store?.store_name ?? row.to_store_id ?? '—',
     route: row.fulfillment_route,
     indent_type: row.indent_type,
     priority: row.priority,
     status: row.status,
     purchase_indent_number: row.purchase_indent_number,
     rejection_reason: row.rejection_reason,
+    approval_remarks: row.approval_remarks,
     inventory_grn_id: row.inventory_grn_id,
+    inventory_stock_transfer_id: row.inventory_stock_transfer_id,
+    created_by: row.created_by,
+    remarks: row.remarks,
     lines: (row.lines ?? []).map(mapIndentLine),
   };
 }
@@ -158,4 +168,54 @@ export function mapInventorySvcIndentListResponse(
 
 export function mapInventorySvcIndentDetail(row: InventorySvcIndentRow): InventoryIndentRow {
   return mapInventorySvcIndentRow(row);
+}
+
+const TRANSFER_STATUS_MAP: Record<
+  InventorySvcStockTransferRow['status'],
+  InventoryTransferStatus
+> = {
+  draft: 'Draft',
+  in_transit: 'In transit',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
+const TRANSFER_TYPE_MAP: Record<InventorySvcStockTransferRow['transfer_type'], InventoryTransferType> = {
+  normal: 'normal',
+  emergency: 'emergency',
+};
+
+export function mapInventorySvcStockTransferRow(
+  row: InventorySvcStockTransferRow,
+): InventoryTransferRow {
+  return {
+    id: row.id,
+    transfer_number: row.transfer_number,
+    transfer_date: row.transfer_date,
+    from_store_id: row.from_store_id,
+    to_store_id: row.to_store_id,
+    from_store: row.from_store?.store_name ?? row.from_store_id,
+    to_store: row.to_store?.store_name ?? row.to_store_id,
+    transfer_type: TRANSFER_TYPE_MAP[row.transfer_type],
+    status: TRANSFER_STATUS_MAP[row.status],
+    remarks: row.remarks ?? undefined,
+    lines: (row.lines ?? []).map((line) => ({
+      id: line.id,
+      item_id: line.item_id,
+      item_code: line.item?.item_code ?? '',
+      item_name: line.item?.name ?? '',
+      uom: line.item?.unit_of_measure ?? '',
+      quantity: line.transfer_qty,
+      line_remarks: line.line_remarks ?? undefined,
+    })),
+  };
+}
+
+export function mapInventorySvcStockTransferListResponse(
+  response: InventorySvcStockTransferListResponse,
+): InventoryTransferListData {
+  return {
+    data: response.items.map(mapInventorySvcStockTransferRow),
+    total: response.total,
+  };
 }

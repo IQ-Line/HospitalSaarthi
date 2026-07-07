@@ -70,3 +70,15 @@ export class IndentValidationError extends InventoryError {
   }
 }
 
+export class TransferNotFoundError extends InventoryError {
+  constructor() {
+    super("Transfer not found", 404, "NOT_FOUND");
+  }
+}
+
+export class TransferValidationError extends InventoryError {
+  constructor(message: string) {
+    super(message, 422, "VALIDATION_ERROR");
+  }
+}
+

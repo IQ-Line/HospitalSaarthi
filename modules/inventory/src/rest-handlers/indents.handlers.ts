@@ -5,6 +5,7 @@ import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.j
 import type { DrizzleInventoryStockRepository } from "../data-access/stock.repo.js";
 import type { StoreRepo } from "../ports.js";
 import { approveIndent, rejectIndent } from "../use-cases/approve-indent.js";
+import { cancelIndentDraft } from "../use-cases/cancel-indent-draft.js";
 import { fulfillIndent } from "../use-cases/fulfill-indent.js";
 import { getIndent } from "../use-cases/get-indent.js";
 import {
@@ -33,8 +34,10 @@ type IndentHandlerDeps = {
   grnRepo: DrizzleInventoryGrnRepository;
 };
 
-function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
-  const id = request.user?.id ?? request.user?.sub;
+function actorIdFromRequest(request: {
+  user?: { userId?: string; id?: string; sub?: string };
+}): string | null {
+  const id = request.user?.userId ?? request.user?.id ?? request.user?.sub;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
@@ -185,11 +188,12 @@ export function registerIndentHandlers(app: FastifyInstance, deps: IndentHandler
     async (request, reply) => {
       const body = approveIndentBodySchema.parse(request.body);
       const data = await approveIndent(
-        { indentRepo: deps.indentRepo },
+        { indentRepo: deps.indentRepo, itemRepo: deps.itemRepo, storeRepo: deps.storeRepo },
         request.tenantId,
         request.params.indentId,
         body.lines,
         actorIdFromRequest(request),
+        body.approval_remarks,
       );
       return reply.send({ data });
     },
@@ -205,6 +209,19 @@ export function registerIndentHandlers(app: FastifyInstance, deps: IndentHandler
         request.tenantId,
         request.params.indentId,
         body.reason,
+      );
+      return reply.send({ data });
+    },
+  );
+
+  app.post<{ Params: { indentId: string } }>(
+    "/indents/:indentId/cancel",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const data = await cancelIndentDraft(
+        { indentRepo: deps.indentRepo },
+        request.tenantId,
+        request.params.indentId,
       );
       return reply.send({ data });
     },

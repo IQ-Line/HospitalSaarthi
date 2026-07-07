@@ -159,14 +159,17 @@ export type InventorySvcIndentRow = {
   indent_number: string;
   indent_date: string;
   from_store_id: string;
-  to_store_id: string;
+  to_store_id: string | null;
   indent_type: 'store_transfer' | 'pharmacy_refill' | 'emergency';
   priority: 'normal' | 'urgent' | 'stat';
   status: InventorySvcIndentStatus;
   fulfillment_route: 'stock_transfer' | 'procurement';
   purchase_indent_number: string | null;
   rejection_reason: string | null;
+  approval_remarks: string | null;
   inventory_grn_id: string | null;
+  inventory_stock_transfer_id: string | null;
+  created_by: string | null;
   remarks: string | null;
   from_store?: { store_id: string; store_code: string; store_name: string } | null;
   to_store?: { store_id: string; store_code: string; store_name: string } | null;
@@ -184,6 +187,43 @@ export type InventorySvcIndentStoreOption = {
   store_name: string;
   indent_authority: boolean;
   indent_target_store_id: string | null;
+};
+
+export type InventorySvcStockTransferStatus = 'draft' | 'in_transit' | 'completed' | 'cancelled';
+
+export type InventorySvcStockTransferType = 'normal' | 'emergency';
+
+export type InventorySvcStockTransferLine = {
+  id: string;
+  item_id: string;
+  transfer_qty: number;
+  line_remarks: string | null;
+  item?: {
+    id: string;
+    item_code: string;
+    name: string;
+    unit_of_measure: string;
+  } | null;
+};
+
+export type InventorySvcStockTransferRow = {
+  id: string;
+  transfer_number: string;
+  transfer_date: string;
+  from_store_id: string;
+  to_store_id: string;
+  transfer_type: InventorySvcStockTransferType;
+  status: InventorySvcStockTransferStatus;
+  remarks: string | null;
+  inventory_indent_id: string | null;
+  from_store?: { store_id: string; store_code: string; store_name: string } | null;
+  to_store?: { store_id: string; store_code: string; store_name: string } | null;
+  lines?: InventorySvcStockTransferLine[];
+};
+
+export type InventorySvcStockTransferListResponse = {
+  items: InventorySvcStockTransferRow[];
+  total: number;
 };
 
 export type InventorySvcIndentItemOption = {
