@@ -233,6 +233,7 @@ export class HttpGatewayClient implements GatewayClient {
     requestId?: string;
     linkToken?: string;
     xHipId?: string;
+    bearerSession?: "v3" | "v0.5";
   }): Promise<TRes> {
     try {
       return await this.doPost<TReq, TRes>(input);
@@ -245,6 +246,44 @@ export class HttpGatewayClient implements GatewayClient {
     }
   }
 
+  private async fetchLegacyV05BearerToken(): Promise<string> {
+    const clientId = await this.secrets.resolve(this.clientIdRef);
+    const clientSecret = await this.secrets.resolve(this.clientSecretRef);
+    const url = joinUrl(this.gatewayBaseUrl, "/gateway/v0.5/sessions");
+    const res = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, clientSecret, grantType: "client_credentials" }),
+    });
+    const text = await res.text();
+    let json: unknown;
+    try {
+      json = text ? JSON.parse(text) : undefined;
+    } catch {
+      json = undefined;
+    }
+    if (!res.ok) {
+      const { code, message } = parseNhaErrorBody(json);
+      throw new AbdmGatewayError(message ?? res.statusText, {
+        statusCode: res.status,
+        abdmCode: code,
+        responseBody: json ?? (text ? { raw: text.slice(0, 500) } : undefined),
+      });
+    }
+    const session = json as NhaGatewaySessionResponseBody | undefined;
+    if (!session?.accessToken) {
+      throw gatewayUnavailable("Legacy v0.5 session response missing accessToken", res.status, json);
+    }
+    return session.accessToken;
+  }
+
+  private async resolveBearerToken(session: "v3" | "v0.5" = "v3"): Promise<string> {
+    if (session === "v0.5") {
+      return this.fetchLegacyV05BearerToken();
+    }
+    return this.getBearerToken();
+  }
+
   private async doPost<TReq, TRes>(input: {
     path: string;
     body: TReq;
@@ -254,6 +293,7 @@ export class HttpGatewayClient implements GatewayClient {
     requestId?: string;
     linkToken?: string;
     xHipId?: string;
+    bearerSession?: "v3" | "v0.5";
   }): Promise<TRes> {
     const target = input.target ?? "abha";
     // HIE-CM v3 APIs (generate-token, link/carecontext, …) require gateway bearer.
@@ -267,7 +307,7 @@ export class HttpGatewayClient implements GatewayClient {
       ...input.headers,
     };
     if (withBearer) {
-      const token = await this.getBearerToken();
+      const token = await this.resolveBearerToken(input.bearerSession ?? "v3");
       headers.Authorization = `Bearer ${token}`;
     }
     if (target === "gateway") {
@@ -324,6 +364,9 @@ export class HttpGatewayClient implements GatewayClient {
       const token = await this.getBearerToken();
       headers.Authorization = `Bearer ${token}`;
     }
+    if (target === "gateway") {
+      headers["X-CM-ID"] = headers["X-CM-ID"] ?? this.xCmId;
+    }
     const res = await fetchWithTimeout(url, { method: "GET", headers });
     const parser = input.responseParser ?? "json";
     if (parser === "abha-card") {
@@ -372,7 +415,7 @@ export class HttpGatewayClient implements GatewayClient {
       throw new AbdmGatewayError(message ?? res.statusText, {
         statusCode: res.status,
         abdmCode: code,
-        responseBody: json,
+        responseBody: json ?? (text ? { raw: text.slice(0, 500) } : undefined),
       });
     }
     return json as TRes;

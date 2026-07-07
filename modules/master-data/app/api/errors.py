@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.repositories.department_repository import DuplicateDepartmentKeyError
+from app.repositories.inventory.integrity import DuplicateInventoryCatalogKeyError
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
@@ -19,6 +20,7 @@ from app.repositories.visitpad.conversion import (
 from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError
 from app.repositories.visitpad.unit import DuplicateVisitpadUnitKeyError
 from app.services.department_service import DepartmentNotFoundError
+from app.services.inventory._errors import InvalidInventoryCatalogError
 from app.services.module_permission_service import (
     InvalidModulePermissionReferenceError,
     ModulePermissionNotFoundError,
@@ -267,6 +269,26 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=409,
             content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(DuplicateInventoryCatalogKeyError)
+    async def _duplicate_inventory_catalog(
+        _request: Request,
+        exc: DuplicateInventoryCatalogKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload("CONFLICT", exc.message),
+        )
+
+    @app.exception_handler(InvalidInventoryCatalogError)
+    async def _invalid_inventory_catalog(
+        _request: Request,
+        exc: InvalidInventoryCatalogError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content=error_payload("BAD_REQUEST", exc.message),
         )
 
     @app.exception_handler(InvalidVitalRangeError)

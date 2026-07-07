@@ -11,6 +11,7 @@ PDF platform sidecar. Apply directly, or use as input for Helm/Kustomize/ArgoCD.
 - `hims.azurecr.io/bff:<sha>`
 - `hims.azurecr.io/billing-svc:<sha>`
 - `hims.azurecr.io/pharmacy-svc:<sha>`
+- `hims.azurecr.io/inventory-svc:<sha>`
 - `hims.azurecr.io/cerbos:<sha>` from Nx project `cerbos-policies`
 - `hims.azurecr.io/configurator-svc:<sha>`
 - `hims.azurecr.io/empi-svc:<sha>`
@@ -213,6 +214,7 @@ own runtime ports unless overridden. These manifests use the service defaults:
 | `empi-svc` | `3002` |
 | `billing-svc` | `3003` |
 | `pharmacy-svc` | `3004` |
+| `inventory-svc` | `3008` |
 | `user-management-svc` | `3005` |
 | `registration-svc` | `3006` |
 | `integration-hub-svc` | `3007` |

@@ -9,12 +9,41 @@ export const m3PurposeCodes = [
   "PATRQT",
 ] as const;
 
+export const searchConsentRequestsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    name: { type: "string" },
+    from: { type: "string" },
+    to: { type: "string" },
+    drName: { type: "string" },
+    hiTypes: { type: "string" },
+    status: {
+      type: "string",
+      enum: ["requested", "granted", "denied", "expired", "revoked"],
+    },
+    page: { type: "integer", minimum: 1 },
+    limit: { type: "integer", minimum: 1, maximum: 50 },
+  },
+};
+
+export const consentArtefactRecordsQuerySchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    consentId: { type: "string", minLength: 1 },
+  },
+};
+
 export const startConsentRequestBodySchema = {
   type: "object" as const,
   required: ["patientAbhaAddress", "purpose", "hiTypes", "dateRange"],
   additionalProperties: false,
   properties: {
     patientAbhaAddress: { type: "string", minLength: 1 },
+    patientId: { type: "string", minLength: 1 },
+    patientName: { type: "string", minLength: 1 },
+    patientAbhaNumber: { type: "string", minLength: 1 },
     hipId: { type: "string", minLength: 1 },
     purpose: { type: "string", enum: [...m3PurposeCodes] },
     hiTypes: {
@@ -69,5 +98,20 @@ export const m3TransferIdParamSchema = {
       pattern:
         "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     },
+  },
+};
+
+export const m3AttachmentParamsSchema = {
+  type: "object" as const,
+  required: ["sessionId", "bundleId", "num"],
+  additionalProperties: false,
+  properties: {
+    sessionId: {
+      type: "string",
+      pattern:
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    },
+    bundleId: { type: "string", minLength: 1, maxLength: 256 },
+    num: { type: "string", pattern: "^[1-9][0-9]*$" },
   },
 };

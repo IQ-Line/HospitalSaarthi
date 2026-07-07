@@ -92,4 +92,15 @@ describe('catalog slug resolution for sidebar module gates', () => {
     expect(enabled.has('master-data')).toBe(true);
     expect(enabled.has('user-management')).toBe(true);
   });
+
+  it('super-admin enabled slugs include inventory when inventory L1 is active', () => {
+    const index = indexWith([
+      { id: '1', slug: 'inventory', level: 1, parent_id: null },
+      { id: '2', slug: 'inventory-master', level: 2, parent_id: '1' },
+    ]);
+
+    const enabled = buildEnabledModuleSlugsFromCatalog(catalogSlugSetFromIndex(index));
+    expect(enabled.has('inventory')).toBe(true);
+    expect(enabled.has('inventory-master')).toBe(false);
+  });
 });

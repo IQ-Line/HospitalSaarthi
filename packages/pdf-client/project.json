@@ -1,13 +1,10 @@
 {
   "name": "pdf-client",
-  "tags": ["type:sdk", "scope:platform"],
+  "tags": [
+    "type:sdk",
+    "scope:platform"
+  ],
   "targets": {
-    "test": {
-      "command": "vitest run",
-      "options": {
-        "cwd": "packages/pdf-client"
-      }
-    },
     "lint": {
       "command": "eslint src/",
       "options": {

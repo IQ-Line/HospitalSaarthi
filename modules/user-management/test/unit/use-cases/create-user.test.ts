@@ -63,7 +63,7 @@ describe("createUser", () => {
           actorId: "a1",
           correlationId: "c1",
         },
-        { full_name: 123, email: "bad@example.com", password: "password123" } as unknown as CreateUserInput,
+        { full_name: 123, email: "bad@example.com", username: "baduser", password: "password123" } as unknown as CreateUserInput,
       ),
     ).rejects.toMatchObject({ issue: "full_name_invalid_type" });
   });
@@ -80,7 +80,7 @@ describe("createUser", () => {
           actorId: "a1",
           correlationId: "c1",
         },
-        { full_name: "   ", email: "blank@example.com", password: "password123" },
+        { full_name: "   ", email: "blank@example.com", username: "blankuser", password: "password123" },
       ),
     ).rejects.toMatchObject({ issue: "full_name_empty" });
   });
@@ -208,6 +208,7 @@ describe("createUser", () => {
         full_name: "New User",
         username: "new.user",
         email: "new.user@example.com",
+        username: "newuser",
         password: "password123",
         capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d610"],
         role_template_ids: [
@@ -223,6 +224,7 @@ describe("createUser", () => {
         tenantId: "tenant-a",
         username: "new.user",
         password: "password123",
+        username: "newuser",
       }),
     );
     expect(created.recovery_tier).toBe("standard");
@@ -342,6 +344,7 @@ describe("createUser", () => {
         full_name: "Subset User",
         username: "subset.user",
         email: "subset.user@example.com",
+        username: "subsetuser",
         password: "password123",
         role_template_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d621"],
         role_template_capability_ids: ["f47ac10b-58cc-4372-a567-0e02b2c3d611"],
@@ -401,6 +404,7 @@ describe("createUser", () => {
           full_name: "X",
           username: "x.user",
           email: "x@example.com",
+          username: "xuser",
           password: "password123",
           capability_ids: [capId],
         },
@@ -435,6 +439,7 @@ describe("createUser", () => {
         full_name: "Rollback User",
         username: "rollback.user",
         email: "rollback@example.com",
+        username: "rollbackuser",
         password: "password123",
       }),
     ).rejects.toBeInstanceOf(UnexpectedPersistenceError);

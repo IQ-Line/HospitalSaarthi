@@ -77,6 +77,7 @@ const ROUTE_TABLE: Record<string, RouteTarget> = {
   "GET /visits": { param: null, defaultId: "visits-list", action: "registration.read" },
   "GET /visits/:visitId": { param: "visitId", defaultId: "visit-detail", action: "registration.read" },
   "POST /workflows/new-patient/registrations": { param: null, defaultId: "new", action: "registration.create" },
+  "POST /workflows/opd-registrations/complete": { param: null, defaultId: "opd-complete", action: "registration.create" },
   "POST /workflows/existing-patient/registrations": { param: null, defaultId: "new-visit", action: "registration.create" },
   "POST /visits": { param: null, defaultId: "new-visit", action: "registration.create" },
   "PATCH /visits/:visitId": { param: "visitId", defaultId: "visit-update", action: "registration.update" },

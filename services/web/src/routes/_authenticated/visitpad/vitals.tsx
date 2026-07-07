@@ -8,7 +8,6 @@ import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -19,7 +18,6 @@ import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-cat
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
-  useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -149,9 +147,8 @@ function VisitpadVitalsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadVital | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadVital | null>(null);
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vitals');
-  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -168,13 +165,12 @@ function VisitpadVitalsPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(VITALS_BASE);
-  const del = useVisitpadDelete(VITALS_BASE);
   const create = useVisitpadPost(VITALS_BASE);
   const platformImport = useVisitpadPlatformImport('/vitals/import-from-platform');
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const { data: tenantCodes, isLoading: tenantCodesLoading } = useVisitpadTenantImportKeys(
     '/vitals',
@@ -302,13 +298,11 @@ function VisitpadVitalsPage() {
       },
       visitpadActionsColumn<VisitpadVital>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -444,27 +438,6 @@ function VisitpadVitalsPage() {
           } catch (e) {
             toast.error(mutationErrorMessage(e));
           }
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete vital"
-        description={`Soft-delete vital “${deleting?.code ?? ''}”?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Vital deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
         }}
       />
 

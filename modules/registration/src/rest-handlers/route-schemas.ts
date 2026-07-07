@@ -194,6 +194,44 @@ export const newPatientIntakeBodySchema = {
   },
 } as const;
 
+const billingFeeLineSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    item_code: { type: "string" },
+    line_discount_percentage: { type: "number", minimum: 0, maximum: 100 },
+  },
+} as const;
+
+const opdRegistrationBillingSchema = {
+  type: "object" as const,
+  additionalProperties: false,
+  properties: {
+    registration_fee: billingFeeLineSchema,
+    consultation_fee: billingFeeLineSchema,
+    department_name: { type: "string" },
+    invoice_discount: { type: "number", minimum: 0 },
+    amount_paid: { type: "number", minimum: 0 },
+    payment_method: {
+      type: "string",
+      enum: ["CASH", "CARD", "UPI", "CHEQUE", "BANK_TRANSFER"],
+    },
+    payment_notes: { type: "string" },
+  },
+} as const;
+
+export const opdRegistrationCompleteBodySchema = {
+  type: "object" as const,
+  required: ["patient"],
+  additionalProperties: false,
+  properties: {
+    patient: demographicsSchema,
+    permanent_address: visitRegistrationAddressSchema,
+    billing: opdRegistrationBillingSchema,
+    ...visitEncounterFields,
+  },
+} as const;
+
 export const createVisitBodySchema = {
   type: "object" as const,
   required: ["patient_id"],

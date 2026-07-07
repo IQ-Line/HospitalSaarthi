@@ -27,6 +27,7 @@ import type {
 import { userManagementPlugin } from "../../src/router.js";
 import { NoopUserProvisioningRepository } from "../../src/test-support/noop-user-provisioning-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "../../src/test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "../../src/test-support/department-catalog-port-stub.js";
 import { publishUserManagementEvent } from "../../src/events/publish-user-management-event.js";
 import { USER_MANAGEMENT_EVENT_ROLE_ASSIGNED } from "../../src/events/constants.js";
 
@@ -94,6 +95,7 @@ const noopTenantModuleEntitlementPort = {
 };
 
 const noopMasterDataModuleCatalogPort = createMasterDataModuleCatalogPortStub();
+const noopDepartmentCatalogPort = createDepartmentCatalogPortStub();
 
 class NoopRoleCapabilityRepository implements RoleCapabilityRepository {
   async listCapabilitiesByRole(): Promise<Capability[]> {
@@ -153,6 +155,12 @@ class StubUserRepository implements UserRepository {
     };
   }
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
     return null;
   }
   async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
@@ -433,6 +441,7 @@ describe("OpenAPI/runtime coherence", () => {
               };
             },
           },
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -488,6 +497,7 @@ describe("OpenAPI/runtime coherence", () => {
               };
             },
           },
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -519,18 +529,24 @@ describe("OpenAPI/runtime coherence", () => {
     expect(spec).toContain("security:");
     expect(spec).toContain("- bearerAuth: []");
     // Operation-level `security: []` overrides the global `- bearerAuth: []` to mark an
-    // intentionally public route. The only public path here is /auth/api-key/validate
-    // (X-API-Key auth; runtime authMode "public"). Assert the marker exists AND lives
-    // nowhere else, so no protected route can silently downgrade to public.
-    const apiKeyStart = spec.indexOf("\n  /auth/api-key/validate:");
-    const nextPath = /\n {2}\/\S*:\n/g;
-    nextPath.lastIndex = apiKeyStart + 1;
-    const apiKeyEnd = nextPath.exec(spec)?.index ?? spec.length;
-    const apiKeyBlock = spec.slice(apiKeyStart, apiKeyEnd);
-    const totalMarkers = (spec.match(/security: \[\]/g) ?? []).length;
-    const apiKeyMarkers = (apiKeyBlock.match(/security: \[\]/g) ?? []).length;
+    // intentionally public route. The public paths here are /auth/api-key/validate
+    // (X-API-Key auth) and /auth/login (pre-auth interactive login) — both runtime
+    // authMode "public". Assert the marker exists on each AND lives nowhere else, so no
+    // protected route can silently downgrade to public.
+    const blockFor = (pathKey: string): string => {
+      const start = spec.indexOf(`\n  ${pathKey}:`);
+      const nextPath = /\n {2}\/\S*:\n/g;
+      nextPath.lastIndex = start + 1;
+      const end = nextPath.exec(spec)?.index ?? spec.length;
+      return spec.slice(start, end);
+    };
+    const countMarkers = (s: string): number => (s.match(/security: \[\]/g) ?? []).length;
+    const totalMarkers = countMarkers(spec);
+    const apiKeyMarkers = countMarkers(blockFor("/auth/api-key/validate"));
+    const loginMarkers = countMarkers(blockFor("/auth/login"));
     expect(apiKeyMarkers).toBeGreaterThan(0); // public route keeps its marker
-    expect(totalMarkers).toBe(apiKeyMarkers); // no other route carries it
+    expect(loginMarkers).toBeGreaterThan(0); // public route keeps its marker
+    expect(totalMarkers).toBe(apiKeyMarkers + loginMarkers); // only the two public routes carry it
     expect(spec).toContain("required: false");
     expect(spec).toContain("deprecated: true");
     const applyRoleTemplateSection = spec.slice(spec.indexOf("Apply a role template to a user"));
@@ -576,6 +592,7 @@ describe("OpenAPI/runtime coherence", () => {
               };
             },
           },
+          departmentCatalogPort: noopDepartmentCatalogPort,
         });
       },
       { prefix: "/api/user-management" },
@@ -630,8 +647,9 @@ describe("OpenAPI/runtime coherence", () => {
     // secret and is only mounted when its resolver dep is wired, so it is absent
     // here; if it were added this loop would force a conscious public-set update.)
     // This keeps any protected route from silently downgrading to public.
+    const publicPaths = new Set(["/auth/api-key/validate", "/auth/login"]);
     for (const route of runtimeRoutes) {
-      const expected = route.normPath === "/auth/api-key/validate" ? "public" : "protected";
+      const expected = publicPaths.has(route.normPath) ? "public" : "protected";
       expect(route.authMode, `${route.method} ${route.normPath}`).toBe(expected);
     }
 

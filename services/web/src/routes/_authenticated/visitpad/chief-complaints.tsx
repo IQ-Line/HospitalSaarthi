@@ -9,7 +9,6 @@ import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -23,7 +22,6 @@ import {
   useVisitpadChiefComplaintDescriptor,
   useVisitpadChiefComplaints,
   useVisitpadChiefComplaintsGlobalLibrary,
-  useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -65,7 +63,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 
 function VisitpadChiefComplaintsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chief-complaints');
-  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
@@ -80,7 +78,6 @@ function VisitpadChiefComplaintsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadChiefComplaint | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadChiefComplaint | null>(null);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const bs = bodySystem === 'all' ? undefined : bodySystem;
   const tr = triage === 'all' ? undefined : triage;
@@ -98,7 +95,6 @@ function VisitpadChiefComplaintsPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(CC_BASE);
-  const del = useVisitpadDelete(CC_BASE);
   const create = useVisitpadPost(CC_BASE);
   const platformImport = useVisitpadPlatformImport('/chief-complaints/import-from-platform');
   const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
@@ -108,7 +104,7 @@ function VisitpadChiefComplaintsPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -260,13 +256,11 @@ function VisitpadChiefComplaintsPage() {
       },
       visitpadActionsColumn<VisitpadChiefComplaint>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -410,27 +404,6 @@ function VisitpadChiefComplaintsPage() {
           } catch (e) {
             toast.error(mutationErrorMessage(e));
           }
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete chief complaint"
-        description={`Soft-delete “${deleting?.display_name ?? deleting?.code ?? ''}”?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Chief complaint deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
         }}
       />
 

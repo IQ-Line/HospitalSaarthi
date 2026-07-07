@@ -6,7 +6,9 @@ import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
+import { ensureDataRequestForConsent } from "./start-data-request.js";
 import type { M3HiuContext } from "./context.js";
+import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 export async function handleOnFetchCallback(
   input: AbdmTenantInput<OnConsentFetchCallback & { inboundRequestId: string }>,
@@ -121,21 +123,56 @@ export async function handleOnFetchCallback(
   });
 
   if (allDone) {
-    await deps.m3ConsentRequests.patch({
+    await finalizeConsentGranted(deps, {
       iqTenantId: input.iqTenantId,
       consentRequestId,
-      state: M3Hiu.CONSENT_GRANTED,
       consentArtefactIds: mergedIds,
+      consentId,
+      patientId,
+      dataEraseAt: detail.permission.dataEraseAt,
     });
-    if (deps.eventBus) {
-      await deps.eventBus.publish(
-        createConsentGrantedEnvelope(input.iqTenantId, {
-          consentId,
-          patientId,
-          dataEraseAt: detail.permission.dataEraseAt,
-        }),
+  }
+
+  if (input.consent.status === "GRANTED") {
+    try {
+      await ensureDataRequestForConsent(
+        { iqTenantId: input.iqTenantId, consentId },
+        deps,
       );
+    } catch (e) {
+      abdmWarn("abdm.m3.hiu_auto_data_request_failed", {
+        consentId,
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
+  }
+}
+
+async function finalizeConsentGranted(
+  deps: AbdmAdapterDeps,
+  params: {
+    iqTenantId: string;
+    consentRequestId: string;
+    consentArtefactIds: string[];
+    consentId: string;
+    patientId: string;
+    dataEraseAt: string;
+  },
+): Promise<void> {
+  await deps.m3ConsentRequests.patch({
+    iqTenantId: params.iqTenantId,
+    consentRequestId: params.consentRequestId,
+    state: M3Hiu.CONSENT_GRANTED,
+    consentArtefactIds: params.consentArtefactIds,
+  });
+  if (deps.eventBus) {
+    await deps.eventBus.publish(
+      createConsentGrantedEnvelope(params.iqTenantId, {
+        consentId: params.consentId,
+        patientId: params.patientId,
+        dataEraseAt: params.dataEraseAt,
+      }),
+    );
   }
 }
 

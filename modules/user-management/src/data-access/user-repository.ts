@@ -14,6 +14,7 @@ import type {
   UserStatus,
   UserWithTenant,
 } from "../ports/index.js";
+import type { RecoveryTier } from "../domain/types.js";
 import { roles, user_roles, users } from "../schema/tables.js";
 
 function drizzleUserReadResourceAbacWhere(f: UserReadListResourceAbac): SQL {
@@ -43,6 +44,7 @@ function rowToUser(row: {
   status: string;
   username: string | null;
   recovery_tier: string;
+  must_change_password: boolean;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
@@ -64,7 +66,8 @@ function rowToUser(row: {
     phone: row.phone,
     auth_user_id: row.auth_user_id,
     username: row.username,
-    recovery_tier: row.recovery_tier,
+    recovery_tier: row.recovery_tier as RecoveryTier,
+    must_change_password: row.must_change_password,
     org_id: row.org_id,
     department: row.department,
     clearance_tier_required: row.clearance_tier_required,
@@ -94,6 +97,7 @@ const userColumns = {
   status: users.status,
   username: users.username,
   recovery_tier: users.recovery_tier,
+  must_change_password: users.must_change_password,
   org_id: users.org_id,
   department: users.department,
   clearance_tier_required: users.clearance_tier_required,
@@ -154,6 +158,7 @@ export class DrizzleUserRepository implements UserRepository {
         status: users.status,
         username: users.username,
         recovery_tier: users.recovery_tier,
+        must_change_password: users.must_change_password,
         org_id: users.org_id,
         department: users.department,
         clearance_tier_required: users.clearance_tier_required,
@@ -161,6 +166,64 @@ export class DrizzleUserRepository implements UserRepository {
       })
       .from(users)
       .where(or(eq(users.id, identityUserId), eq(users.auth_user_id, identityUserId)))
+      .limit(1);
+
+    if (!row) return null;
+    const { iq_tenant_id, ...u } = row;
+    return { ...rowToUser(u), iq_tenant_id };
+  }
+
+  async findUserByAuthUsername(username: string): Promise<UserWithTenant | null> {
+    const normalized = username.trim();
+    if (normalized === "") return null;
+
+    const [row] = await this.db
+      .select({
+        id: users.id,
+        full_name: users.full_name,
+        email: users.email,
+        phone: users.phone,
+        auth_user_id: users.auth_user_id,
+        status: users.status,
+        username: users.username,
+        recovery_tier: users.recovery_tier,
+        must_change_password: users.must_change_password,
+        org_id: users.org_id,
+        department: users.department,
+        clearance_tier_required: users.clearance_tier_required,
+        iq_tenant_id: users.iq_tenant_id,
+      })
+      .from(users)
+      .where(eq(users.username, normalized))
+      .limit(1);
+
+    if (!row) return null;
+    const { iq_tenant_id, ...u } = row;
+    return { ...rowToUser(u), iq_tenant_id };
+  }
+
+  async findUserByEmail(email: string): Promise<UserWithTenant | null> {
+    const normalized = email.trim().toLowerCase();
+    if (normalized === "") return null;
+
+    const [row] = await this.db
+      .select({
+        id: users.id,
+        full_name: users.full_name,
+        email: users.email,
+        phone: users.phone,
+        auth_user_id: users.auth_user_id,
+        status: users.status,
+        username: users.username,
+        recovery_tier: users.recovery_tier,
+        must_change_password: users.must_change_password,
+        org_id: users.org_id,
+        department: users.department,
+        clearance_tier_required: users.clearance_tier_required,
+        iq_tenant_id: users.iq_tenant_id,
+      })
+      .from(users)
+      .where(sql`lower(btrim(${users.email})) = ${normalized}`)
       .limit(1);
 
     if (!row) return null;
@@ -221,6 +284,7 @@ export class DrizzleUserRepository implements UserRepository {
       clearance_tier_required: number;
       status: UserStatus;
       auth_user_id: string | null;
+      must_change_password: boolean;
       updated_at: Date;
     }> = {};
 
@@ -250,6 +314,9 @@ export class DrizzleUserRepository implements UserRepository {
     }
     if (input.auth_user_id !== undefined) {
       patch.auth_user_id = input.auth_user_id;
+    }
+    if (input.must_change_password !== undefined) {
+      patch.must_change_password = input.must_change_password;
     }
 
     if (Object.keys(patch).length === 0) {

@@ -1,6 +1,7 @@
 import { HttpGatewayClient } from "../integrations/abdm/data-access/gateway-client.http.js";
+import { EnvSecretsClient } from "../integrations/abdm/data-access/env-secrets.client.js";
 import { createSmsClientFromProfile } from "../integrations/abdm/data-access/sms-client.js";
-import type { AbdmAdapterDeps } from "../integrations/abdm/ports.js";
+import type { AbdmAdapterDeps, GatewayClient } from "../integrations/abdm/ports.js";
 import type { IntegrationContext, TenantIntegrationProfile } from "./integration-context.js";
 import { IntegrationProfileNotFoundError } from "./integration-hub-errors.js";
 import type { IntegrationProfileRepo } from "./integration-profile-repo.js";
@@ -10,6 +11,7 @@ import {
   PROFILE_CLIENT_SECRET_REF,
 } from "./per-tenant-secrets.js";
 import type { EventBus } from "@hims/ts-sdk-events";
+import type { DbInstance } from "@hims/ts-sdk-db";
 import type {
   AbdmSessionsPort,
   ConsentArtefactsPort,
@@ -40,6 +42,7 @@ export interface IntegrationHubDeploymentConfig {
 export interface IntegrationHubSharedInfra {
   profiles: IntegrationProfileRepo;
   deployment: IntegrationHubDeploymentConfig;
+  db?: DbInstance;
   sessions: AbdmSessionsPort;
   inboundMessages: InboundMessagesPort;
   linkTokens: LinkTokensPort;
@@ -162,4 +165,25 @@ export async function buildAbdmDepsForTenant(
   };
 
   return { iqTenantId, profile, deps };
+}
+
+function resolveDeploymentCmId(): string {
+  return (
+    process.env["INTEGRATION_HUB_ABDM_X_CM_ID"]?.trim() ||
+    process.env["ABDM_X_CM_ID"]?.trim() ||
+    "sbx"
+  );
+}
+
+/** Deployment-level gateway client using env OAuth credentials (no tenant profile). */
+export function buildDeploymentGatewayClient(
+  shared: IntegrationHubSharedInfra,
+): GatewayClient {
+  const secrets = new EnvSecretsClient();
+  return new HttpGatewayClient({
+    gatewayBaseUrl: shared.deployment.gatewayBaseUrl,
+    abhaApiBaseUrl: shared.deployment.abhaApiBaseUrl,
+    xCmId: resolveDeploymentCmId(),
+    secrets,
+  });
 }

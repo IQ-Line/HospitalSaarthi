@@ -1,11 +1,69 @@
 import cors from "@fastify/cors";
 import { fromNodeHeaders } from "better-auth/node";
 import type { FastifyInstance } from "fastify";
+import { AuthInvalidCredentialsError } from "../../../../modules/user-management/src/domain/errors.js";
 import type { HimsBetterAuthInstance } from "./create-hims-better-auth.js";
 
 export type RegisterBetterAuthOptions = {
   trustedOrigins: string[];
 };
+
+function readSetCookieHeaders(response: Response): string[] {
+  if (typeof response.headers.getSetCookie === "function") {
+    return response.headers.getSetCookie();
+  }
+  const single = response.headers.get("set-cookie");
+  return single ? [single] : [];
+}
+
+/** better-auth email/username sign-in for `POST /auth/login`. */
+export function createBetterAuthInteractiveSignIn(
+  auth: HimsBetterAuthInstance,
+  authBaseUrl: string,
+) {
+  return {
+    async signIn({ identifier, password }: { identifier: string; password: string }) {
+      const trimmed = identifier.trim();
+      const isEmail = trimmed.includes("@");
+      const path = isEmail ? "/api/auth/sign-in/email" : "/api/auth/sign-in/username";
+      const body = isEmail
+        ? { email: trimmed.toLowerCase(), password }
+        : { username: trimmed, password };
+
+      const response = await auth.handler(
+        new Request(`${authBaseUrl}${path}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+      );
+
+      const text = await response.text();
+      if (!response.ok) {
+        throw new AuthInvalidCredentialsError();
+      }
+
+      let parsed: { token?: unknown; user?: { id?: unknown } };
+      try {
+        parsed = JSON.parse(text) as { token?: unknown; user?: { id?: unknown } };
+      } catch {
+        throw new AuthInvalidCredentialsError();
+      }
+
+      const sessionToken = typeof parsed.token === "string" ? parsed.token : "";
+      const authUserId = typeof parsed.user?.id === "string" ? parsed.user.id : "";
+      if (sessionToken === "" || authUserId === "") {
+        throw new AuthInvalidCredentialsError();
+      }
+
+      return {
+        authUserId,
+        sessionToken,
+        setCookieHeaders: readSetCookieHeaders(response),
+      };
+    },
+  };
+}
 
 /**
  * Mounts better-auth on `/api/auth/*` (sessions, sign-in, JWT `/token`, JWKS `/.well-known/jwks.json` under basePath).

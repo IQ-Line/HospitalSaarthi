@@ -1,6 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { LinkOtpStorePort } from "../ports.js";
 import { isNonDevNodeEnv } from "./abdm-runtime-env.js";
+import { secureOtpCompare } from "./secure-otp-compare.js";
 
 export interface StoredLinkOtp {
   otp: string;
@@ -52,7 +53,7 @@ export class InMemoryLinkOtpStore implements LinkOtpStorePort {
     if (!row) return false;
     this.entries.delete(k);
     if (Date.now() > row.expiresAtMs) return false;
-    return row.otp === input.token.trim();
+    return secureOtpCompare(row.otp, input.token);
   }
 }
 

@@ -13,6 +13,7 @@ import { listTenantIntegrationProfiles } from "../use-cases/list-tenant-integrat
 import { createTenantIntegrationProfile } from "../use-cases/create-tenant-integration-profile.js";
 import { getTenantIntegrationProfileById } from "../use-cases/get-tenant-integration-profile-by-id.js";
 import { getActiveIntegrationProfileByHipId } from "../use-cases/get-active-integration-profile-by-hip-id.js";
+import { listActiveAbdmIntegrationProfiles } from "../use-cases/list-active-abdm-integration-profiles.js";
 import { updateTenantIntegrationProfile } from "../use-cases/update-tenant-integration-profile.js";
 import { deleteTenantIntegrationProfile } from "../use-cases/delete-tenant-integration-profile.js";
 import {
@@ -111,6 +112,11 @@ export function registerTenantIntegrationProfilesHandler(
       return row;
     },
   );
+
+  app.get("/integration-profiles/active-abdm", async (request) => {
+    assertConfiguratorInternalAccess(request);
+    return listActiveAbdmIntegrationProfiles(tenantIntegrationProfilesRepo);
+  });
 
   app.get<{ Params: { tenantId: string }; Querystring: IntegrationProfilesListQuery }>(
     "/tenants/:tenantId/integration-profiles",

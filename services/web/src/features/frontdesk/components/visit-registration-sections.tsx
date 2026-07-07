@@ -339,6 +339,7 @@ function BillingSectionCompact({
             id="visit-reg-discount-pct"
             min={0}
             max={100}
+            step="any"
             className="h-10 tabular-nums"
             value={watch('billing.invoice_discount') ?? 0}
             onChange={(v) =>
@@ -382,6 +383,7 @@ function BillingSectionCompact({
           <FormNumberInput
             id="visit-reg-amount-paid"
             min={0}
+            step="any"
             className="h-10 tabular-nums"
             value={watch('billing.amount_paid') ?? 0}
             onChange={(v) =>
@@ -522,6 +524,7 @@ function BillingSectionDetailed({
               <BillingNumericInputCell>
                 <FormNumberInput
                   min={0}
+                  step="any"
                   className={BILLING_INPUT_CLASS}
                   value={invoiceDiscount}
                   onChange={(v) =>
@@ -998,6 +1001,7 @@ function BillingFeeRow({
         <FormNumberInput
           min={0}
           max={100}
+          step="any"
           className={BILLING_INPUT_CLASS}
           value={discountPercent}
           onChange={(pct) => {

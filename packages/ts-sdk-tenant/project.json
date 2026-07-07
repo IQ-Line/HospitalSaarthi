@@ -3,17 +3,13 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/ts-sdk-tenant/src",
   "projectType": "library",
-  "tags": ["scope:sdk", "type:sdk"],
+  "tags": [
+    "scope:sdk",
+    "type:sdk"
+  ],
   "targets": {
     "lint": {
       "executor": "@nx/eslint:lint"
-    },
-    "test": {
-      "executor": "@nx/js:node",
-      "options": {
-        "args": ["--run"],
-        "runtimeExecutable": "vitest"
-      }
     }
   }
 }

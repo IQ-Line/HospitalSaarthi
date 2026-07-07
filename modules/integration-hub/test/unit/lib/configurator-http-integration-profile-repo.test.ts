@@ -88,4 +88,24 @@ describe("ConfiguratorHttpIntegrationProfileRepo", () => {
 
     await expect(repo.findActiveByHipId("UNKNOWN")).resolves.toBeUndefined();
   });
+
+  it("findAllActiveAbdm uses internal active-abdm route", async () => {
+    const fetchMock = vi.fn(async () => Response.json([profileRow]));
+    const repo = new ConfiguratorHttpIntegrationProfileRepo({
+      baseUrl: "http://localhost:3001",
+      internalApiKey: "secret-key",
+      fetchImpl: fetchMock,
+    });
+
+    const profiles = await repo.findAllActiveAbdm();
+    expect(profiles).toHaveLength(1);
+    expect(profiles[0]?.hipId).toBe("IN3610001625");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://localhost:3001/api/configurator/v1/integration-profiles/active-abdm",
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-configurator-internal-key": "secret-key" },
+      }),
+    );
+  });
 });

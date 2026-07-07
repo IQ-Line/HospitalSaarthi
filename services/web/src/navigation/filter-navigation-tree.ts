@@ -1,12 +1,16 @@
 import { principalHasAnyRole } from '@/lib/principal-roles';
+import { principalGrantsCatalogModuleSlugRouteAccess } from '@/lib/catalog-route-access';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import {
   catalogProductSlugsForNode,
   inferRoutePrefixFromRoute,
   principalGrantsNavNodeAccess,
+  principalHasL1ProductShellAccess,
+  resolveCatalogModuleSlugsForNavRoute,
   type NavCapabilityAccessInput,
 } from './nav-capability-access';
 import type { NavFilterContext, NavigationNode } from './types';
+import type { ModuleCatalogEntry } from '@/platform/modules/types';
 
 function tenantHasModuleSlug(enabledModuleSlugs: ReadonlySet<string>, slug: string): boolean {
   return catalogSlugVariants(slug).some((variant) => enabledModuleSlugs.has(variant));
@@ -94,11 +98,53 @@ function passesCapabilityGate(
   return principalGrantsNavNodeAccess(access, node, parent);
 }
 
+/**
+ * Admin (super-admin / tenant-admin) branch of catalog visibility: product shells are hidden
+ * unless the admin holds some capability, route access, or L1 shell access for the product.
+ */
+function adminCatalogVisibilityHidesNode(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+  slug: string,
+  entry: ModuleCatalogEntry,
+): boolean {
+  if (entry.module_kind !== 'product') {
+    return false;
+  }
+  const productSlugs = catalogProductSlugsForNode(node);
+  if (productSlugs.length > 0 && ctx.hasAnyCapabilityForProduct?.(productSlugs)) {
+    return false;
+  }
+  if (ctx.navAccess) {
+    const routeSlugs = node.route
+      ? resolveCatalogModuleSlugsForNavRoute(node.route, {
+          routePrefix: inferRoutePrefixFromRoute(node.route),
+          catalogModuleSlug: node.catalogModuleSlug,
+          catalogIndex: ctx.catalogIndex,
+        })
+      : [slug];
+    if (principalGrantsCatalogModuleSlugRouteAccess(ctx.navAccess.capabilityKeys, routeSlugs)) {
+      return false;
+    }
+    if (principalHasL1ProductShellAccess(ctx.navAccess.capabilityKeys, productSlugs, node.route)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function catalogVisibilityScopeHidesNode(
   node: NavigationNode,
   ctx: NavFilterContext,
 ): boolean {
+  // Tenant-admin-only product shells (inventory-supply-masters, …) use explicit flag.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return false;
+  }
   if (!ctx.catalogIndex) {
+    return false;
+  }
+  if (node.tenantAdminOnly) {
     return false;
   }
   const slug = node.catalogModuleSlug ?? resolveSlugFromRoute(node.route);
@@ -110,7 +156,7 @@ function catalogVisibilityScopeHidesNode(
     return false;
   }
   if (ctx.isSuperAdmin || ctx.isTenantAdmin) {
-    return entry.module_kind === 'product';
+    return adminCatalogVisibilityHidesNode(node, ctx, slug, entry);
   }
   return entry.visibility_scope === 'superadmin';
 }
@@ -129,6 +175,9 @@ export function isNavigationNodeVisible(
   if (node.superAdminOnly && !ctx.isSuperAdmin) {
     return false;
   }
+  if (node.tenantAdminOnly && !ctx.isTenantAdmin && !ctx.isSuperAdmin) {
+    return false;
+  }
   if (!passesRoleGate(node, ctx, parent)) {
     return false;
   }
@@ -138,6 +187,10 @@ export function isNavigationNodeVisible(
   const gatedNode = nodeWithInheritedTenantGates(node, parent);
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
+  }
+  // Tenant-admin catalog screens (inventory masters, store config) are role-gated, not capability-gated.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return true;
   }
   if (!ctx.navAccess) {
     return false;

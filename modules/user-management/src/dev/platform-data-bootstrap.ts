@@ -38,7 +38,7 @@ export type PlatformDataBootstrapResult = {
   super_admin_capabilities: number;
 };
 
-type BetterAuthSignUpApi = {
+type BetterAuthServerApi = {
   api: {
     signUpEmail(args: {
       body: {
@@ -47,6 +47,7 @@ type BetterAuthSignUpApi = {
         name: string;
         password: string;
         platform_user_id: string;
+        username: string;
       };
     }): Promise<unknown>;
   };
@@ -143,6 +144,14 @@ async function ensureSuperAdminAuthUser(
     .limit(1);
 
   if (existing) {
+    await db
+      .update(authUser)
+      .set({
+        username: seedUser.username,
+        displayUsername: seedUser.username,
+        updatedAt: new Date(),
+      })
+      .where(eq(authUser.id, existing.id));
     return existing.id;
   }
 
@@ -153,6 +162,7 @@ async function ensureSuperAdminAuthUser(
       password: seedUser.password,
       iq_tenant_id: DEV_TENANT_ID,
       platform_user_id: platformUserId,
+      username: seedUser.username,
     },
   });
 

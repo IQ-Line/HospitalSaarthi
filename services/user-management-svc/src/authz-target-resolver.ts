@@ -191,6 +191,9 @@ const ROUTE_TABLE: Record<string, RouteHandler> = {
   "GET /providers": tenantScoped("auth", "provider-list", "auth.read"),
   "GET /auth/me": authSelf(),
   "GET /auth/principal": authSelf(),
+  // Self-service must-change-password completion (authMode:"protected"): the caller holds a JWT
+  // and acts on their own account. Scoped to their home tenant like the other /auth/* shell routes.
+  "POST /auth/change-password-complete": authSelf(),
 };
 
 export function createUserManagementAuthzTargetResolver(

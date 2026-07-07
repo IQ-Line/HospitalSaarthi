@@ -29,6 +29,10 @@ export type ResetUserPasswordInput = {
  * sessions on its own. NOTE: §15.10 (prefer `auth.api.*` over direct SQL for revocation) is a known
  * deferred deviation — the injected revoker deletes session rows directly today; it is revisited
  * with the Cerbos / BFF-Token-Handler passes. We reuse the existing port rather than deepen it.
+ *
+ * The user's `must_change_password` flag is set true so the next interactive login forces a
+ * self-chosen password (the recovery credential the admin set is a one-time handoff). Enforcement
+ * of that flag at login/gating is a later wave; here we only make the data true.
  */
 export async function resetUserPassword(
   deps: ResetUserPasswordDeps,
@@ -43,8 +47,15 @@ export async function resetUserPassword(
     return null;
   }
 
-  await deps.authPasswordResetter.setPassword(userId, input.new_password);
+  // Revoke first, then set the new password: this narrows the window in which an old (possibly
+  // compromised) session coexists with the freshly-set credential. Each step is idempotent, so the
+  // ordering is a hardening, not a correctness dependency.
   await deps.authSessionRevoker.revokeAllSessionsForPlatformUser(userId);
+  await deps.authPasswordResetter.setPassword(userId, input.new_password);
 
-  return user;
+  const updated = await deps.userRepository.updateUser(ctx.tenantId, userId, {
+    must_change_password: true,
+  });
+
+  return updated ?? { ...user, must_change_password: true };
 }

@@ -115,6 +115,24 @@ export class DrizzleM3DataTransfersRepo implements M3DataTransfersPort {
     return rows[0] ? rowToRecord(rows[0]) : null;
   }
 
+  async findLatestByConsentId(
+    iqTenantId: string,
+    consentId: string,
+  ): Promise<M3DataTransferRow | null> {
+    const rows = await this.db
+      .select()
+      .from(abdmM3DataTransfers)
+      .where(
+        and(
+          eq(abdmM3DataTransfers.iq_tenant_id, iqTenantId),
+          eq(abdmM3DataTransfers.consent_id, consentId),
+        ),
+      )
+      .orderBy(desc(abdmM3DataTransfers.updated_at))
+      .limit(1);
+    return rows[0] ? rowToRecord(rows[0]) : null;
+  }
+
   async patch(input: {
     iqTenantId: string;
     transferId: string;

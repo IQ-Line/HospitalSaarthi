@@ -17,6 +17,7 @@ const PORT = Number(process.env['BFF_PORT'] ?? 3000);
 interface UpstreamRoute {
   prefix: string;
   upstream: string;
+  rewritePrefix?: string;
 }
 
 function buildUpstreams(): UpstreamRoute[] {
@@ -62,6 +63,10 @@ function buildUpstreams(): UpstreamRoute[] {
     {
       prefix: '/api/pharmacy/v1',
       upstream: process.env['PHARMACY_URL'] ?? 'http://localhost:3004',
+    },
+    {
+      prefix: '/api/inventory/v1',
+      upstream: process.env['INVENTORY_URL'] ?? 'http://localhost:3008',
     },
     {
       prefix: '/api/abdm/v1',
@@ -387,7 +392,7 @@ export async function buildApp(): Promise<FastifyInstance> {
     await app.register(proxy, {
       upstream: route.upstream,
       prefix: route.prefix,
-      rewritePrefix: route.prefix,
+      rewritePrefix: route.rewritePrefix ?? route.prefix,
       http2: false,
       preHandler(request, _reply, done) {
         const forwardedHost = request.headers['x-forwarded-host'];

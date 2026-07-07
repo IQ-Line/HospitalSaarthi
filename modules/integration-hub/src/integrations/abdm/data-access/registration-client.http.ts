@@ -86,6 +86,56 @@ export class HttpRegistrationClient implements RegistrationClient {
     iqTenantId: string;
     abhaAddress: string;
   }): Promise<string | null> {
+    const ids = await this.findAllPatientIdsByAbhaAddress(input);
+    if (ids.length > 0) return ids[0]!;
+    return this.resolveSinglePatientIdByAbha(input);
+  }
+
+  async findAllPatientIdsByAbhaAddress(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string[]> {
+    if (!this.baseUrl) return [];
+    const abhaAddress = input.abhaAddress.trim();
+    if (!abhaAddress) return [];
+    const base = stripTrailingSlashes(this.baseUrl);
+    const url = `${base}${REGISTRATION_API_PREFIX}/internal/patients/patient-ids-by-abha?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`;
+    try {
+      const res = await fetchWithTimeout(url, {
+        method: "GET",
+        headers: registrationInternalHeaders(input.iqTenantId),
+      });
+      if (res.status === 404) {
+        const single = await this.resolveSinglePatientIdByAbha(input);
+        return single ? [single] : [];
+      }
+      if (!res.ok) {
+        abdmWarn("abdm.registration.patient_ids_by_abha_failed", {
+          status: res.status,
+          abhaAddress,
+        });
+        const single = await this.resolveSinglePatientIdByAbha(input);
+        return single ? [single] : [];
+      }
+      const json = (await res.json()) as { patientIds?: string[] };
+      const ids = [...new Set((json.patientIds ?? []).map((id) => id.trim()).filter(Boolean))];
+      if (ids.length > 0) return ids;
+      const single = await this.resolveSinglePatientIdByAbha(input);
+      return single ? [single] : [];
+    } catch (e) {
+      abdmWarn("abdm.registration.patient_ids_by_abha_error", {
+        abhaAddress,
+        message: e instanceof Error ? e.message : String(e),
+      });
+      const single = await this.resolveSinglePatientIdByAbha(input);
+      return single ? [single] : [];
+    }
+  }
+
+  private async resolveSinglePatientIdByAbha(input: {
+    iqTenantId: string;
+    abhaAddress: string;
+  }): Promise<string | null> {
     if (!this.baseUrl) return null;
     const abhaAddress = input.abhaAddress.trim();
     if (!abhaAddress) return null;
@@ -124,5 +174,9 @@ export class NoOpRegistrationClient implements RegistrationClient {
 
   async findPatientIdByAbhaAddress(): Promise<null> {
     return null;
+  }
+
+  async findAllPatientIdsByAbhaAddress(): Promise<string[]> {
+    return [];
   }
 }

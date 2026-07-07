@@ -22,6 +22,18 @@ export class AbdmGatewayError extends Error {
   }
 }
 
+/** Duck-type guard — `instanceof` can fail across duplicate ESM class identities in dev. */
+export function isAbdmGatewayError(err: unknown): err is AbdmGatewayError {
+  if (err instanceof AbdmGatewayError) return true;
+  if (typeof err !== "object" || err === null) return false;
+  const o = err as { name?: unknown; statusCode?: unknown };
+  return o.name === "AbdmGatewayError" && typeof o.statusCode === "number";
+}
+
+export function asAbdmGatewayError(err: unknown): AbdmGatewayError | null {
+  return isAbdmGatewayError(err) ? err : null;
+}
+
 export function parseNhaErrorBody(body: unknown): {
   code?: string;
   message?: string;

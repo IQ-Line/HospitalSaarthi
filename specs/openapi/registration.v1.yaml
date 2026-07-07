@@ -530,6 +530,62 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /workflows/opd-registrations/complete:
+    post:
+      operationId: completeOpdRegistration
+      summary: Unified OPD registration (intake + billing + complete)
+      description: |
+        Partner / integration endpoint that orchestrates the full OPD desk flow in one call:
+
+        1. New-patient registration + visit (`POST /workflows/new-patient/registrations` equivalent)
+        2. Billing charges (registration fee and/or consultation fee from tariff item codes)
+        3. Optional invoice discount, bill finalize, and payment
+        4. Visit intake completion (`POST /visits/{visitId}/complete` equivalent)
+
+        The browser registration desk continues to use the individual endpoints; this route is
+        additive and does not replace them.
+
+        Requires `Idempotency-Key`. Billing sub-steps reuse suffixed keys (`:reg-fee`, `:consult`,
+        `:payment`) matching the desk flow.
+      tags: [NewPatientIntake]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpdRegistrationCompleteRequest"
+      responses:
+        "200":
+          description: Idempotent replay — registration completed with billing summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpdRegistrationCompleteResponse"
+        "201":
+          description: Full OPD registration completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpdRegistrationCompleteResponse"
+        "400":
+          description: Invalid body, missing Idempotency-Key, or billing validation error
+        "409":
+          description: Patient already exists in EMPI
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DuplicatePatientResponse"
+        "502":
+          description: Upstream EMPI error
+        "503":
+          description: EMPI or billing gateway unavailable
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -943,6 +999,56 @@ components:
         appointment_id: { type: string, format: uuid, nullable: true }
         intake_completion:
           $ref: "#/components/schemas/IntakeCompletion"
+
+    OpdRegistrationBillingFeeLine:
+      type: object
+      additionalProperties: false
+      properties:
+        item_code: { type: string, description: Tariff service code (e.g. Reg_01) }
+        line_discount_percentage: { type: number, minimum: 0, maximum: 100 }
+
+    OpdRegistrationBillingRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        registration_fee:
+          $ref: "#/components/schemas/OpdRegistrationBillingFeeLine"
+        consultation_fee:
+          $ref: "#/components/schemas/OpdRegistrationBillingFeeLine"
+        department_name:
+          type: string
+          description: Display department name for consultation charge line (optional)
+        invoice_discount: { type: number, minimum: 0 }
+        amount_paid: { type: number, minimum: 0 }
+        payment_method:
+          type: string
+          enum: [CASH, CARD, UPI, CHEQUE, BANK_TRANSFER]
+        payment_notes: { type: string }
+
+    OpdRegistrationCompleteRequest:
+      allOf:
+        - $ref: "#/components/schemas/NewPatientIntakeRequest"
+        - type: object
+          additionalProperties: false
+          properties:
+            billing:
+              $ref: "#/components/schemas/OpdRegistrationBillingRequest"
+            consultation_type:
+              type: string
+              enum: [new, followup, free-followup]
+
+    OpdRegistrationCompleteResponse:
+      allOf:
+        - $ref: "#/components/schemas/Registration"
+        - type: object
+          required: [bill_id]
+          additionalProperties: false
+          properties:
+            bill_id:
+              type: string
+              format: uuid
+              nullable: true
+              description: Billing bill id when charges were captured; null when no tariff lines sent
 
     Visit:
       type: object

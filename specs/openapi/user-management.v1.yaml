@@ -53,6 +53,94 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Sign in and return session, JWT, profile, and principal
+      description: >
+        Single interactive login for SPAs and integrators. Verifies email or username + password
+        via better-auth, issues access/refresh tokens, returns the platform user profile
+        (`/auth/me` shape), and the enriched authorization principal (`/auth/principal` shape).
+        Also returns `session_token` for better-auth session lifecycle. Browser clients may
+        receive `Set-Cookie` headers from the underlying auth session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identifier
+                - password
+              properties:
+                identifier:
+                  type: string
+                  description: Email (contains `@`) or username.
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Authenticated session bundle.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InteractiveLoginResponse"
+        "401":
+          description: Invalid credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "404":
+          description: Auth user is not linked to a platform user row.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "503":
+          description: >
+            Interactive login is not configured on this service instance
+            (`AUTH_LOGIN_UNAVAILABLE`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /auth/change-password-complete:
+    post:
+      tags:
+        - Auth
+      summary: Clear must_change_password after user sets a new password
+      description: >
+        Called by the SPA after a successful better-auth password change when the user was
+        flagged with `must_change_password` following an admin reset.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Updated user profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "404":
+          description: User not found for this tenant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/api-key/validate:
     get:
       tags: [Auth]
@@ -660,7 +748,7 @@ paths:
         Returns active users for the active tenant as a lightweight picklist
         (id, full_name, department, status) — used by the frontend to populate
         provider/doctor selectors. Tenant-scoped; optionally narrowed by
-        `department`.
+        `department` (name) or `department_id` (master-data uuid).
       security:
         - bearerAuth: []
       parameters:
@@ -670,7 +758,14 @@ paths:
           required: false
           schema:
             type: string
-          description: Narrow the list to providers in this department.
+          description: Narrow the list to providers in this department (department name).
+        - name: department_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Master-data department uuid — resolved to department name before filtering.
       responses:
         "200":
           description: Active providers for the tenant.
@@ -692,6 +787,12 @@ paths:
                       nullable: true
                     status:
                       type: string
+        "400":
+          description: Invalid department_id (not found in master-data catalog).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
         "401":
           description: Missing or invalid bearer token.
           content:
@@ -1389,8 +1490,9 @@ paths:
         - Users
       summary: Admin reset of a tenant-scoped user's password (recovery Flow A)
       description: >
-        Sets a new password for the target user's login account and revokes the user's existing
-        sessions (authn spec §3.5 Flow A). Uses Cerbos action `user.reset_password` — distinct from
+        Sets a new password for the target user's login account, revokes the user's existing
+        sessions (authn spec §3.5 Flow A), and flags `must_change_password` so the user must choose
+        a new password on next login. Uses Cerbos action `user.reset_password` — distinct from
         `user.update` so policies can separate account recovery from routine profile edits. The new
         password is delivered to the user out of band by the admin.
       parameters:
@@ -1774,6 +1876,25 @@ components:
         correlation_id:
           type: string
           description: Request correlation identifier.
+    Provider:
+      type: object
+      required:
+        - id
+        - full_name
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+        department:
+          type: string
+          nullable: true
+          description: Primary department name from user profile.
+        status:
+          type: string
+          enum: [active, inactive, suspended]
     User:
       type: object
       required:
@@ -1823,6 +1944,49 @@ components:
           type: string
           enum: [active, inactive, suspended]
           description: Platform user lifecycle state.
+        must_change_password:
+          type: boolean
+          description: When true, user must set a new password after next login.
+        recovery_tier:
+          type: string
+          enum: [standard, admin_only, delegated, phone_recovery, federated]
+          description: Password recovery routing tier (admin-only for MVP).
+    InteractiveLoginResponse:
+      type: object
+      required:
+        - access_token
+        - token_type
+        - expires_in
+        - refresh_token
+        - refresh_expires_in
+        - session_token
+        - tenant_id
+        - user
+        - principal
+      properties:
+        access_token:
+          type: string
+          description: Short-lived RS256 JWT for Authorization Bearer on HIMS APIs.
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+          description: access_token lifetime in seconds.
+        refresh_token:
+          type: string
+        refresh_expires_in:
+          type: integer
+        session_token:
+          type: string
+          description: better-auth opaque session token (sign-out / JWT refresh via /api/auth/token).
+        tenant_id:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/User"
+        principal:
+          $ref: "#/components/schemas/Principal"
     Principal:
       type: object
       description: >

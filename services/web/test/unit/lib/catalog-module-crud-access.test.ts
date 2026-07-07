@@ -39,6 +39,18 @@ describe('catalogModuleCrudAccess', () => {
     expect(registration.canDelete).toBe(true);
   });
 
+  it('grants registration list read when desk staff has create only', () => {
+    const createOnly = new Set([
+      'registration:registration:create',
+      'frontdesk:shell:access',
+    ]);
+    const registration = catalogModuleCrudAccess(createOnly, 'registration', {
+      productModuleSlug: 'frontdesk',
+    });
+    expect(registration.canRead).toBe(true);
+    expect(registration.canCreate).toBe(true);
+  });
+
   it('requires explicit create for add actions', () => {
     const keys = new Set(['allergens:allergens:update']);
     const access = catalogModuleCrudAccess(keys, 'allergens');
@@ -70,5 +82,28 @@ describe('catalogModuleCrudAccess', () => {
     expect(departments.canCreate).toBe(true);
     expect(departments.canUpdate).toBe(true);
     expect(departments.canDelete).toBe(true);
+  });
+
+  it('grants Item Master CRUD from any inventory L3 master create capability', () => {
+    const l3CreateOnly = new Set(['inventory-categories:inventory-categories:create']);
+    const itemMaster = catalogModuleCrudAccess(l3CreateOnly, 'inventory-master', {
+      productModuleSlug: 'inventory-master',
+    });
+    expect(itemMaster.canCreate).toBe(true);
+    expect(itemMaster.canMutate).toBe(true);
+    expect(itemMaster.canUpdate).toBe(false);
+    expect(itemMaster.canDelete).toBe(false);
+  });
+
+  it('does not grant Item Master create from L3 read-only capabilities', () => {
+    const l3ReadOnly = new Set([
+      'inventory-categories:inventory-categories:read',
+      'inventory-item-types:inventory-item-types:read',
+    ]);
+    const itemMaster = catalogModuleCrudAccess(l3ReadOnly, 'inventory-master', {
+      productModuleSlug: 'inventory-master',
+    });
+    expect(itemMaster.canCreate).toBe(false);
+    expect(itemMaster.canRead).toBe(true);
   });
 });

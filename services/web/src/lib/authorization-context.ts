@@ -137,6 +137,38 @@ function bootstrapModulesForTenant(queryClient: QueryClient, tenantId: string): 
   }
 }
 
+/**
+ * Seeds principal cache and shell permissions from `POST /auth/login` — avoids an extra
+ * `GET /auth/principal` round-trip on sign-in.
+ */
+export async function applyAuthorizationFromLogin(
+  queryClient: QueryClient,
+  principal: AuthPrincipalResponse,
+): Promise<void> {
+  const auth = useAuthStore.getState();
+  const tenant = useTenantStore.getState();
+
+  if (!auth.isAuthenticated || !auth.userId?.trim() || !tenant.tenantId?.trim()) {
+    return;
+  }
+
+  const scope: AuthPrincipalQueryScope = {
+    userId: auth.userId,
+    tenantId: tenant.tenantId,
+    activeBranch: tenant.activeBranch,
+  };
+
+  await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
+  queryClient.setQueryData(authPrincipalQueryKeys.detail(scope), principal);
+  await hydrateCapabilitiesFromPrincipal(principal);
+  lastHydratedPrincipalScope = scope;
+
+  const tenantId = tenant.tenantId;
+  invalidateModuleRegistration(queryClient, tenantId);
+  lastModulesBootstrappedTenantId = tenantId;
+  await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+}
+
 export async function refreshAuthorizationContext(
   queryClient: QueryClient,
   options?: RefreshAuthorizationContextOptions,

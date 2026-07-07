@@ -33,6 +33,10 @@ export interface RegistrationRepo {
     tenantId: string,
     abhaAddress: string,
   ): Promise<string | undefined>;
+  findAllPatientIdsByAbhaAddress(
+    tenantId: string,
+    abhaAddress: string,
+  ): Promise<string[]>;
   insert(
     tenantId: string,
     input: CreateRegistrationInput,
@@ -240,6 +244,56 @@ export interface BillingReadPort {
     billId: string,
     options?: { bearerToken?: string },
   ): Promise<BillingBillDetail | null>;
+}
+
+export type BillingVisitType = "OPD" | "IPD" | "ER" | "DAYCARE" | "WALK_IN";
+
+export type BillingPaymentMethod = "CASH" | "CARD" | "UPI" | "CHEQUE" | "BANK_TRANSFER";
+
+export interface BillingCaptureChargeInput {
+  patient_id: string;
+  visit_id?: string | null;
+  visit_type?: BillingVisitType;
+  source_module: string;
+  source_ref?: string | null;
+  item_code: string;
+  provider_id?: string | null;
+  department?: string | null;
+  line_discount_percentage?: number;
+}
+
+export interface BillingCaptureChargeResult {
+  bill_id: string;
+}
+
+export interface BillingRecordPaymentInput {
+  bill_id: string;
+  amount: number;
+  payment_method: BillingPaymentMethod;
+  notes?: string;
+}
+
+export interface BillingWritePort {
+  captureCharge(
+    tenantId: string,
+    input: BillingCaptureChargeInput,
+    idempotencyKey: string,
+    bearerToken?: string,
+  ): Promise<BillingCaptureChargeResult>;
+  applyBillDiscount(
+    tenantId: string,
+    billId: string,
+    discountAmount: number,
+    discountReason?: string,
+    bearerToken?: string,
+  ): Promise<void>;
+  finalizeBill(tenantId: string, billId: string, bearerToken?: string): Promise<void>;
+  recordPayment(
+    tenantId: string,
+    input: BillingRecordPaymentInput,
+    idempotencyKey: string,
+    bearerToken?: string,
+  ): Promise<void>;
 }
 
 export interface ApiKeyValidationResult {

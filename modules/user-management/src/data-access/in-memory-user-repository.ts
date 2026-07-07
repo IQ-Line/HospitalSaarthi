@@ -24,6 +24,7 @@ type StoredUser = {
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
+  must_change_password: boolean;
 };
 
 function rowKey(tenantId: string, userId: string): string {
@@ -52,6 +53,7 @@ export class InMemoryUserRepository implements UserRepository {
       department: row.department,
       clearance_tier_required: row.clearance_tier_required,
       status: row.status,
+      must_change_password: row.must_change_password,
     };
   }
 
@@ -81,6 +83,7 @@ export class InMemoryUserRepository implements UserRepository {
         input.clearance_tier_required !== undefined
           ? clampClearanceTierRequired(input.clearance_tier_required)
           : 0,
+      must_change_password: false,
     };
     this.users.set(key, row);
     return this.toUser(row);
@@ -105,6 +108,7 @@ export class InMemoryUserRepository implements UserRepository {
         input.clearance_tier_required !== undefined
           ? clampClearanceTierRequired(input.clearance_tier_required)
           : 0,
+      must_change_password: false,
     };
     this.users.set(key, row);
     return this.toUser(row);
@@ -118,6 +122,28 @@ export class InMemoryUserRepository implements UserRepository {
   async findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null> {
     for (const [key, row] of this.users) {
       if (row.id === identityUserId || row.auth_user_id === identityUserId) {
+        return { ...this.toUser(row), iq_tenant_id: tenantFromRowKey(key) };
+      }
+    }
+    return null;
+  }
+
+  async findUserByAuthUsername(username: string): Promise<UserWithTenant | null> {
+    const normalized = username.trim();
+    if (normalized === "") return null;
+    for (const [key, row] of this.users) {
+      if (row.username === normalized) {
+        return { ...this.toUser(row), iq_tenant_id: tenantFromRowKey(key) };
+      }
+    }
+    return null;
+  }
+
+  async findUserByEmail(email: string): Promise<UserWithTenant | null> {
+    const normalized = email.trim().toLowerCase();
+    if (normalized === "") return null;
+    for (const [key, row] of this.users) {
+      if (row.email?.trim().toLowerCase() === normalized) {
         return { ...this.toUser(row), iq_tenant_id: tenantFromRowKey(key) };
       }
     }
@@ -163,7 +189,8 @@ export class InMemoryUserRepository implements UserRepository {
       input.department === undefined &&
       input.clearance_tier_required === undefined &&
       input.status === undefined &&
-      input.auth_user_id === undefined
+      input.auth_user_id === undefined &&
+      input.must_change_password === undefined
     ) {
       return this.toUser(row);
     }
@@ -195,6 +222,9 @@ export class InMemoryUserRepository implements UserRepository {
     }
     if (input.auth_user_id !== undefined) {
       next.auth_user_id = input.auth_user_id;
+    }
+    if (input.must_change_password !== undefined) {
+      next.must_change_password = input.must_change_password;
     }
     this.users.set(key, next);
     return this.toUser(next);

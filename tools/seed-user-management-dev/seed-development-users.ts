@@ -119,6 +119,14 @@ async function ensureAuthUser(
     .limit(1);
 
   if (existing) {
+    await db
+      .update(authUser)
+      .set({
+        username: seedUser.username,
+        displayUsername: seedUser.username,
+        updatedAt: new Date(),
+      })
+      .where(eq(authUser.id, existing.id));
     return existing.id;
   }
 

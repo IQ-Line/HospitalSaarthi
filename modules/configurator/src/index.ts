@@ -27,6 +27,7 @@ export { createTenantModule } from "./use-cases/create-tenant-module.js";
 export { getTenantModuleByKey } from "./use-cases/get-tenant-module-by-key.js";
 export { updateTenantModule } from "./use-cases/update-tenant-module.js";
 export { deleteTenantModule } from "./use-cases/delete-tenant-module.js";
+export { listActiveAbdmIntegrationProfiles } from "./use-cases/list-active-abdm-integration-profiles.js";
 export { listTenantIntegrationProfiles } from "./use-cases/list-tenant-integration-profiles.js";
 export { createTenantIntegrationProfile } from "./use-cases/create-tenant-integration-profile.js";
 export { getTenantIntegrationProfileById } from "./use-cases/get-tenant-integration-profile-by-id.js";

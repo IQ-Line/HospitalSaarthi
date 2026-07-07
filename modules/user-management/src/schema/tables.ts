@@ -47,6 +47,8 @@ export const users = userManagementSchema.table(
      * backfillable afterwards, hence written now even though no reader exists this pass).
      */
     recovery_tier: text("recovery_tier").notNull().default("standard"),
+    /** When true, user must change password on next successful login (admin reset flow). */
+    must_change_password: boolean("must_change_password").notNull().default(false),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
     /** Department-scoped ABAC field. */

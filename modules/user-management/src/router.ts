@@ -8,6 +8,7 @@ import type {
   AuthAccountProvisioner,
   CapabilityRepository,
   MasterDataModuleCatalogPort,
+  DepartmentCatalogPort,
   PrincipalRoleProjectionRepository,
   RoleCapabilityRepository,
   RoleRepository,
@@ -79,6 +80,7 @@ export interface UserManagementPluginOptions {
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
+  departmentCatalogPort: DepartmentCatalogPort;
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   runtimeEntitlementIntersection?: boolean;
   /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). Also gates the BFF ban-cutoff route. */
@@ -89,6 +91,17 @@ export interface UserManagementPluginOptions {
   authSessionRevoker?: AuthSessionRevokerPort;
   /** better-auth credential reset for admin recovery Flow A; pairs with authSessionRevoker. */
   authPasswordResetter?: AuthPasswordResetterPort;
+  principalService?: import("./ports/index.js").PrincipalService;
+  interactiveSignIn?: {
+    signIn(input: {
+      identifier: string;
+      password: string;
+    }): Promise<{
+      authUserId: string;
+      sessionToken: string;
+      setCookieHeaders?: readonly string[];
+    }>;
+  };
   getTenantId?: (request: FastifyRequest) => string;
   getUserId?: (request: FastifyRequest) => string;
 }
@@ -110,12 +123,15 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    departmentCatalogPort,
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
     userActivationStatusReader,
     accessTokenIssuer,
   } = options;
+
+  const { principalService, interactiveSignIn } = options;
 
   const getTenantId = options.getTenantId ?? ((request) => resolveEffectiveTenantId(request));
   const getUserId = options.getUserId ?? defaultGetUserId;
@@ -140,6 +156,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   registerUserHandlers(fastify, {
     getTenantId,
     getActorId,
+    departmentCatalogPort,
     createUserDeps: {
       userRepository,
       userProvisioningRepository,
@@ -237,6 +254,17 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       userRepository,
       accessTokenIssuer,
     },
+    clearMustChangePasswordDeps: { userRepository, eventBus },
+    ...(principalService !== undefined && interactiveSignIn !== undefined
+      ? {
+          bootstrapInteractiveLoginDeps: {
+            interactiveSignIn,
+            userRepository,
+            accessTokenIssuer,
+            principalService,
+          },
+        }
+      : {}),
   });
 
   registerInternalDiagnosticsHandlers(fastify, {

@@ -210,16 +210,3 @@ export function useUpdateDepartment(iqTenantId?: string) {
     },
   });
 }
-
-export function useDeleteDepartment(iqTenantId?: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) =>
-      departmentClient<DepartmentSingleResponse>(iqTenantId, `${BASE}/${id}`, {
-        method: 'DELETE',
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: masterDataKeys.departmentsRoot() });
-    },
-  });
-}

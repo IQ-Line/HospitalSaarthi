@@ -20,6 +20,7 @@ const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
 const OPD_API_PREFIX = '/api/v1/opd/';
 const PHARMACY_API_PREFIX = '/api/pharmacy/v1/';
+const INVENTORY_API_PREFIX = '/api/inventory/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (
@@ -74,7 +75,8 @@ function pathRequiresTenantHeader(path: string): boolean {
     isRegistrationApiPath(path) ||
     path.startsWith(CONFIGURATOR_API_PREFIX) ||
     path.startsWith(OPD_API_PREFIX) ||
-    path.startsWith(PHARMACY_API_PREFIX)
+    path.startsWith(PHARMACY_API_PREFIX) ||
+    path.startsWith(INVENTORY_API_PREFIX)
   );
 }
 
@@ -111,6 +113,10 @@ function visitpadOmitsTenantHeaderForPath(path: string): boolean {
 function shouldOmitTenantHeadersForPath(path: string, context?: ApiClientContext): boolean {
   if (shouldOmitTenantHeaders(context)) {
     return true;
+  }
+  // Explicit tenant override wins over platform super-admin global catalog reads.
+  if (context?.tenantIdOverride != null && context.tenantIdOverride.trim() !== '') {
+    return false;
   }
   return visitpadOmitsTenantHeaderForPath(path);
 }

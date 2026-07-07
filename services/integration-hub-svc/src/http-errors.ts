@@ -1,8 +1,9 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from "fastify";
 import { EnvelopeValidationError } from "@hims/ts-sdk-events";
 import {
-  AbdmGatewayError,
   AbdmUseCaseError,
+  asAbdmGatewayError,
+  formatNhaUpstreamMessage,
   IntegrationProfileNotFoundError,
   IntegrationTenantRequiredError,
 } from "@hims/integration-hub";
@@ -84,20 +85,30 @@ const ERROR_MAPPINGS: ReadonlyArray<
     err instanceof IntegrationTenantRequiredError
       ? { status: 400, body: { error: "BadRequest", message: err.message } }
       : null,
-  (err) =>
-    err instanceof AbdmGatewayError
-      ? {
-          status:
-            err.statusCode >= 400 && err.statusCode < 600
-              ? err.statusCode
-              : 502,
-          body: {
-            error: "Upstream",
-            message: err.message,
-            code: err.abdmCode ?? null,
+  (err) => {
+    const gatewayErr = asAbdmGatewayError(err);
+    if (!gatewayErr) return null;
+    return {
+      status:
+        gatewayErr.statusCode >= 400 && gatewayErr.statusCode < 600
+          ? gatewayErr.statusCode
+          : 502,
+      body: {
+        error: "Upstream",
+        message: formatNhaUpstreamMessage(gatewayErr),
+        code: gatewayErr.abdmCode ?? null,
+      },
+      log: (request) =>
+        request.log.warn(
+          {
+            statusCode: gatewayErr.statusCode,
+            abdmCode: gatewayErr.abdmCode ?? null,
+            responseBody: gatewayErr.responseBody,
           },
-        }
-      : null,
+          "NHA gateway upstream error",
+        ),
+    };
+  },
   (err) =>
     err instanceof TypeError && err.message.includes("fetch failed")
       ? {
@@ -204,7 +215,6 @@ export function registerHttpErrorHandler(app: {
         return reply.status(matched.status).send(matched.body);
       }
     }
-
     request.log.error({ err }, "unhandled error");
     return reply.status(500).send({
       error: "Internal Server Error",

@@ -15,7 +15,10 @@ import {
   repairJwksForDevelopment,
 } from "./auth/create-hims-better-auth.js";
 import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
-import { registerBetterAuth } from "./auth/register-better-auth.js";
+import {
+  createBetterAuthInteractiveSignIn,
+  registerBetterAuth,
+} from "./auth/register-better-auth.js";
 import {
   runDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
@@ -47,6 +50,7 @@ import {
 import { tenantApiKeyAuthPlugin } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
+import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
 import { USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES } from "./auth/identity-skip-prefixes.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
@@ -185,6 +189,10 @@ async function createApp(): Promise<FastifyInstance> {
     baseUrl: masterDataUrl,
     log: (event, message) => app.log.info(event, message),
   });
+  const departmentCatalogPort = new HttpDepartmentCatalogAdapter({
+    baseUrl: masterDataUrl,
+    log: (event, message) => app.log.info(event, message),
+  });
 
   const { tenantEntitlementResolver, principalService } = createRuntimeEntitlementPrincipalWiring({
     userRepository,
@@ -268,6 +276,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     principalRoleProjectionRepository,
   });
+  const interactiveSignIn = createBetterAuthInteractiveSignIn(auth, authBaseUrl);
   const authSessionRevoker = new DrizzleAuthSessionRevoker(pgDb, userRepository);
   const authPasswordResetter = new BetterAuthPasswordResetter(auth, userRepository);
 
@@ -276,7 +285,12 @@ async function createApp(): Promise<FastifyInstance> {
 
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: [...USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES],
+    skipPathPrefixes: [
+      ...USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES,
+      // POST /auth/login is authMode:"public" (no access token yet) — the identity onRequest
+      // hook honours only skipPathPrefixes (not per-route authMode), so it must step aside here.
+      "/api/user-management/auth/login",
+    ],
   });
 
   await assertCerbosReachable(cerbosUrl);
@@ -313,12 +327,15 @@ async function createApp(): Promise<FastifyInstance> {
     authAccountProvisioner,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
+    departmentCatalogPort,
     tenantEntitlementResolver,
     internalEntitlementCacheApiKey: umInternalApiKey,
     userActivationStatusReader,
     accessTokenIssuer,
     authSessionRevoker,
     authPasswordResetter,
+    principalService,
+    interactiveSignIn,
   });
 
   return app;

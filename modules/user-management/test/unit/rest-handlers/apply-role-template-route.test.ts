@@ -14,6 +14,7 @@ import { InMemoryUserProvisioningRepository } from "../../../src/data-access/in-
 import type { Capability, Role } from "../../../src/ports/index.js";
 import { userManagementPlugin } from "../../../src/router.js";
 import { createMasterDataModuleCatalogPortStub } from "../../../src/test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "../../../src/test-support/department-catalog-port-stub.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -208,12 +209,17 @@ async function createTestApp(entitlement: {
             return { authUserId: input.platformUserId };
           },
         },
+        authPasswordAdmin: {
+          async setUserPassword() {},
+          async revokeUserSessions() {},
+        },
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue(entitlement.moduleIds ?? []),
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub({
           resolveModuleSlugsByIds: vi.fn().mockResolvedValue(entitlement.slugs ?? new Map()),
         }),
+        departmentCatalogPort: createDepartmentCatalogPortStub(),
       });
     },
     { prefix: "/api/user-management" },

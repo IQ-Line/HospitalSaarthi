@@ -7,6 +7,14 @@ export type UserStatus = "active" | "inactive" | "suspended";
 export type RoleStatus = "active" | "inactive";
 export type UserCapabilityGrantSource = "manual" | "role_template" | "delegated" | "system";
 
+/** Password recovery routing tier (Phase 1: standard + admin_only in use). */
+export type RecoveryTier =
+  | "standard"
+  | "admin_only"
+  | "delegated"
+  | "phone_recovery"
+  | "federated";
+
 /** Matches OpenAPI `User` / `components.schemas.User`; `email` / `phone` are persisted fields for projections/events. */
 export interface User {
   id: string;
@@ -16,7 +24,9 @@ export interface User {
   auth_user_id?: string | null;
   username?: string | null;
   /** Account-recovery tier (authn spec §3.2); MVP emits 'standard' | 'admin_only'. */
-  recovery_tier?: string;
+  recovery_tier?: RecoveryTier;
+  /** Forces password change on next login when set by admin reset. */
+  must_change_password?: boolean;
   org_id?: string | null;
   /** Department for ABAC; persisted profile field (JWT may also carry `department`). */
   department?: string | null;
@@ -94,6 +104,7 @@ export interface UpdateUserInput {
   clearance_tier_required?: number;
   status?: UserStatus;
   auth_user_id?: string | null;
+  must_change_password?: boolean;
 }
 
 export interface CreateRoleInput {

@@ -23,6 +23,12 @@ class MemUserRepo implements UserRepository {
   async findUserByGlobalId(): Promise<UserWithTenant | null> {
     return null;
   }
+  async findUserByAuthUsername(): Promise<UserWithTenant | null> {
+    return null;
+  }
+  async findUserByEmail(): Promise<UserWithTenant | null> {
+    return null;
+  }
   async findActiveUserByApiKeyPrefix(): Promise<UserApiKeyRecord | null> {
     return null;
   }

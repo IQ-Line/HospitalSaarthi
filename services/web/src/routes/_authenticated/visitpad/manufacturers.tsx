@@ -6,7 +6,6 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -16,7 +15,6 @@ import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-cat
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
-  useVisitpadDelete,
   useVisitpadManufacturers,
   useVisitpadManufacturersGlobalLibrary,
   useVisitpadPatch,
@@ -56,7 +54,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/manufacturers')({
 
 function VisitpadManufacturersPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-manufacturers');
-  const { canUpdate, canDelete } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -70,7 +68,6 @@ function VisitpadManufacturersPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadManufacturer | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadManufacturer | null>(null);
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
     setPageIndex(0);
@@ -85,7 +82,6 @@ function VisitpadManufacturersPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(MF_BASE);
-  const del = useVisitpadDelete(MF_BASE);
   const create = useVisitpadPost(MF_BASE);
   const platformImport = useVisitpadPlatformImport('/manufacturers/import-from-platform');
   const { data: tenantKeys, isLoading: tenantKeysLoading } = useVisitpadTenantImportKeys(
@@ -95,7 +91,7 @@ function VisitpadManufacturersPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantKeys ?? new Set<string>(), [tenantKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -164,13 +160,11 @@ function VisitpadManufacturersPage() {
       },
       visitpadActionsColumn<VisitpadManufacturer>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -280,27 +274,6 @@ function VisitpadManufacturersPage() {
           } catch (e) {
             toast.error(mutationErrorMessage(e));
           }
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete manufacturer"
-        description={`Remove “${deleting?.display_name ?? deleting?.code ?? ''}” from this catalog?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Manufacturer deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
         }}
       />
 

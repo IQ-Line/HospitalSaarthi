@@ -9,6 +9,7 @@ import {
   isVisitpadCatalogApiPath,
   isVisitpadTenantCatalogScope,
   isVisitpadTenantCatalogScopeForPrincipal,
+  resolveInventoryCatalogScopeKey,
   resolveVisitpadCatalogScopeKey,
   serviceIqTenantHeaderValue,
   visitpadCatalogOmitsIqTenantHeader,
@@ -54,9 +55,10 @@ describe('isVisitpadCatalogApiPath', () => {
 });
 
 describe('isMasterDataDualSchemaCatalogApiPath', () => {
-  it('includes visitpad and departments catalog paths', () => {
+  it('includes visitpad, departments, and inventory catalog paths', () => {
     expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/visitpad/units')).toBe(true);
     expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/departments')).toBe(true);
+    expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/inventory/uoms')).toBe(true);
     expect(isMasterDataDualSchemaCatalogApiPath('/api/v1/master-data/departments/import-from-platform')).toBe(
       true,
     );
@@ -101,6 +103,19 @@ describe('visitpad catalog scope by principal role', () => {
     expect(
       isVisitpadTenantCatalogScopeForPrincipal(DEV_TENANT_IQ_CATALOG_UUID, ['tenant-admin']),
     ).toBe(true);
+  });
+
+  it('does not omit iq_tenant_id for inventory catalog even when super-admin', () => {
+    const inventoryPath = '/api/v1/master-data/inventory/uoms';
+    expect(
+      visitpadCatalogOmitsIqTenantHeader({
+        path: inventoryPath,
+        authRoles: ['super-admin'],
+      }),
+    ).toBe(false);
+    expect(resolveInventoryCatalogScopeKey(DEV_TENANT_IQ_CATALOG_UUID)).toBe(
+      DEV_TENANT_IQ_CATALOG_UUID.toLowerCase(),
+    );
   });
 });
 

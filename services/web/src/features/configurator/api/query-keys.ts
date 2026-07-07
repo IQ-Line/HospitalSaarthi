@@ -20,4 +20,5 @@ export const configuratorKeys = {
     [...configuratorKeys.all, 'tenant-users', iqTenantId] as const,
   tenantApiKeys: (tenantId: string) =>
     [...configuratorKeys.all, 'tenant-api-keys', tenantId] as const,
+  bridgeLinkage: () => [...configuratorKeys.all, 'bridge-linkage'] as const,
 };

@@ -9,6 +9,10 @@ export type ValidationIssue =
   | "password_invalid_type"
   | "password_required"
   | "password_too_short"
+  | "username_invalid_type"
+  | "username_invalid_length"
+  | "username_invalid_format"
+  | "auth_user_not_linked"
   | "route_id_invalid"
   | "create_user_capability_ids_invalid"
   | "create_user_role_template_ids_invalid"
@@ -54,10 +58,6 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "EMAIL_REQUIRED",
     message: "email is required to create a login account.",
   },
-  username_required: {
-    code: "USERNAME_REQUIRED",
-    message: "username is required (username-primary login).",
-  },
   username_invalid: {
     code: "INVALID_INPUT",
     message:
@@ -74,6 +74,26 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   password_too_short: {
     code: "PASSWORD_TOO_SHORT",
     message: "password must be at least 8 characters long.",
+  },
+  username_invalid_type: {
+    code: "INVALID_INPUT",
+    message: "username must be a string.",
+  },
+  username_required: {
+    code: "USERNAME_REQUIRED",
+    message: "username is required to create a login account.",
+  },
+  username_invalid_length: {
+    code: "INVALID_INPUT",
+    message: "username must be between 3 and 64 characters.",
+  },
+  username_invalid_format: {
+    code: "INVALID_INPUT",
+    message: "username may only contain letters, numbers, underscores, and hyphens.",
+  },
+  auth_user_not_linked: {
+    code: "AUTH_USER_NOT_LINKED",
+    message: "User has no linked authentication account.",
   },
   route_id_invalid: {
     code: "INVALID_INPUT",
@@ -376,6 +396,12 @@ export class TenantMismatchError extends UserManagementError {
 export class ApiKeyInvalidError extends UserManagementError {
   constructor() {
     super("API_KEY_INVALID", "Invalid API key");
+  }
+}
+
+export class AuthInvalidCredentialsError extends UserManagementError {
+  constructor() {
+    super("AUTH_INVALID_CREDENTIALS", "Invalid email/username or password");
   }
 }
 

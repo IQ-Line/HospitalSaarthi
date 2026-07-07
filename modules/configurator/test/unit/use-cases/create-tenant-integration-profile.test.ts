@@ -23,6 +23,7 @@ function mockRepos(overrides?: {
     findById: vi.fn(),
     findActiveByTenantId: vi.fn(),
     findActiveByHipId: vi.fn(),
+    findAllActiveByKind: vi.fn(),
     create: vi.fn().mockResolvedValue({
       id: "profile-1",
       iq_tenant_id: tenantId,

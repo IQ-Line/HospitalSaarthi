@@ -44,16 +44,17 @@ function buildHiAckBody(
 }
 
 /**
- * §6.3.3 — POST the hiRequest ack to the gateway. The CM has already delivered
- * the inbound HI request, so an ack failure is logged but never aborts the
- * callback: we still encrypt/push the bundles.
+ * §6.3.3 — POST the hiRequest ack to the gateway. Returns whether the ack
+ * reached the CM: an ack failure is logged and gates the push — without an
+ * ACKNOWLEDGED ack the CM would reject the bundles with ABDM-1017, so the
+ * caller marks the session FAILED and skips the push. Dev-skip counts as acked.
  */
 async function postHiAck(
   ackBody: HipHealthInformationAckRequest,
   ctx: { consentId?: string; transactionId: string; inboundRequestId: string },
   deps: AbdmAdapterDeps,
-): Promise<void> {
-  if (skipOutboundGatewayInDev()) return;
+): Promise<boolean> {
+  if (skipOutboundGatewayInDev()) return true;
   try {
     await deps.gateway.post({
       path: M2_GATEWAY_PATHS.hipHiAck,
@@ -62,6 +63,7 @@ async function postHiAck(
       requestId: randomUUID(),
       xHipId: deps.xHipId,
     });
+    return true;
   } catch (e) {
     const gateway =
       e instanceof AbdmGatewayError
@@ -78,6 +80,7 @@ async function postHiAck(
       requestId: ctx.inboundRequestId,
       ...gateway,
     });
+    return false;
   }
 }
 
@@ -245,12 +248,37 @@ export async function handleHipHiRequestCallback(
       input.iqTenantId,
       parsed.consentId,
     ));
+  // CM hiRequest.transactionId is authoritative (ABDM-1017 if push uses a different id).
   const transactionId =
-    activeTransfer?.cmTransactionId ??
     parsed?.transactionId ??
+    activeTransfer?.cmTransactionId ??
     input.inboundRequestId;
+  if (
+    parsed?.transactionId &&
+    activeTransfer?.cmTransactionId &&
+    activeTransfer.cmTransactionId !== parsed.transactionId
+  ) {
+    abdmWarn("abdm.m3.hip_hi.transaction_id_mismatch", {
+      consentId: parsed.consentId,
+      inboundTransactionId: parsed.transactionId,
+      activeTransferTransactionId: activeTransfer.cmTransactionId,
+      usingTransactionId: transactionId,
+    });
+  }
+  if (
+    input.transactionId &&
+    input.hiRequest?.transactionId &&
+    input.transactionId !== input.hiRequest.transactionId
+  ) {
+    abdmWarn("abdm.m3.hip_hi.inbound_transaction_id_divergence", {
+      consentId: parsed?.consentId,
+      bodyTransactionId: input.transactionId,
+      hiRequestTransactionId: input.hiRequest.transactionId,
+      resolvedTransactionId: transactionId,
+    });
+  }
 
-  await postHiAck(
+  const ackSucceeded = await postHiAck(
     buildHiAckBody(parsed, transactionId, input.inboundRequestId),
     {
       consentId: parsed?.consentId,
@@ -259,6 +287,21 @@ export async function handleHipHiRequestCallback(
     },
     deps,
   );
+
+  if (!ackSucceeded) {
+    await deps.sessions.patch({
+      iqTenantId: input.iqTenantId,
+      sessionId: session.sessionId,
+      state: M3Hip.FAILED,
+      contextMerge: {
+        error: {
+          code: "HI_ACK_FAILED",
+          message: "HIP on-request ack to CM failed — push skipped (ABDM-1017)",
+        },
+      },
+    });
+    return;
+  }
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,
@@ -308,6 +351,7 @@ export async function handleHipHiRequestCallback(
             session: refreshed,
             parsed,
             patientId,
+            transactionId,
           },
           deps,
         ),

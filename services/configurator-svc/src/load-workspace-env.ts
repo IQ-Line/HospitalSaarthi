@@ -28,6 +28,9 @@ export function loadWorkspaceEnv(): void {
     ) {
       value = value.slice(1, -1);
     }
-    process.env[key] = value;
+    // Ambient environment wins; .env supplies defaults only (matches the seed tool's loader).
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
   }
 }

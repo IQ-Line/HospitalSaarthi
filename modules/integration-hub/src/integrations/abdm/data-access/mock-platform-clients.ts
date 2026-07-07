@@ -47,6 +47,10 @@ export class MockEmpiClient implements EmpiClient {
     return null;
   }
 
+  async findPatientByAbhaNumber(): Promise<null> {
+    return null;
+  }
+
   async findAbhaAddressByPatientId(input: {
     patientId: string;
   }): Promise<string | null> {

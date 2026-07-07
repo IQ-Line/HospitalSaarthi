@@ -14,6 +14,7 @@ export type UmUser = {
   department?: string | null;
   clearance_tier_required?: number;
   status: UserStatus;
+  must_change_password?: boolean;
   role_display_names?: string[];
 };
 
@@ -44,6 +45,10 @@ export type UpdateUserBody = {
   clearance_tier_required?: number;
   status?: UserStatus;
   auth_user_id?: string | null;
+};
+
+export type ResetUserPasswordBody = {
+  new_password: string;
 };
 
 export type Capability = {

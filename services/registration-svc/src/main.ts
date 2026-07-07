@@ -23,6 +23,7 @@ import {
   DrizzleRegistrationRepo,
   DrizzleVisitRepo,
   HttpBillingGateway,
+  HttpBillingWriteGateway,
   HttpEmpiGateway,
   HttpConfiguratorGateway,
   HttpOpdGateway,
@@ -127,6 +128,7 @@ async function main() {
   await eventBus.connect();
 
   const billingReadPort = new HttpBillingGateway(BILLING_URL);
+  const billingWritePort = new HttpBillingWriteGateway(BILLING_URL);
   const opdGateway = new HttpOpdGateway(OPD_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
@@ -155,6 +157,8 @@ async function main() {
     eventBus,
     opdGateway,
     picklistReadPort,
+    billingWritePort,
+    billingReadPort,
   };
 
   const documentDeps = {

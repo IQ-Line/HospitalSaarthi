@@ -14,12 +14,18 @@ import type { HimsBetterAuthEnv } from "./create-hims-better-auth.js";
 
 const JWT_EXPIRY_SECONDS = 300;
 
-async function loadSigningKey(
+type SigningMaterial = {
+  key: CryptoKey | Uint8Array;
+  /** Matches `kid` published in `/api/auth/.well-known/jwks.json` (auth.jwks.id). */
+  kid: string;
+};
+
+async function loadSigningMaterial(
   db: DbInstance,
   env: HimsBetterAuthEnv,
-): Promise<CryptoKey | Uint8Array> {
+): Promise<SigningMaterial> {
   const [row] = await db
-    .select({ privateKey: authJwks.privateKey })
+    .select({ id: authJwks.id, privateKey: authJwks.privateKey })
     .from(authJwks)
     .orderBy(desc(authJwks.createdAt))
     .limit(1);
@@ -34,9 +40,15 @@ async function loadSigningKey(
   }
 
   try {
-    return await importJWK(JSON.parse(raw), "RS256");
+    return {
+      key: await importJWK(JSON.parse(raw), "RS256"),
+      kid: row.id,
+    };
   } catch {
-    return importPKCS8(raw, "RS256");
+    return {
+      key: await importPKCS8(raw, "RS256"),
+      kid: row.id,
+    };
   }
 }
 
@@ -57,7 +69,7 @@ export function createAccessTokenIssuer(
         throw new Error(`Cannot issue token: identity claims missing for ${platformUserId}`);
       }
 
-      const signingKey = await loadSigningKey(db, env);
+      const { key: signingKey, kid } = await loadSigningMaterial(db, env);
       const payload: Record<string, unknown> = {
         iq_tenant_id: claims.iq_tenant_id,
         org_id: claims.org_id,
@@ -69,7 +81,7 @@ export function createAccessTokenIssuer(
       }
 
       const access_token = await new SignJWT(payload)
-        .setProtectedHeader({ alg: "RS256" })
+        .setProtectedHeader({ alg: "RS256", kid })
         .setSubject(platformUserId)
         .setIssuer(env.jwtIssuer)
         .setAudience(env.jwtAudience)

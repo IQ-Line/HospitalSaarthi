@@ -10,65 +10,33 @@ import { checksumForHipPushEntry } from "../../../lib/hip-push-checksum.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { isValidFideliusPublicKeyB64 } from "../../../lib/fidelius-public-key.js";
 import { M3Hip } from "../../../lib/m3-fsm-states.js";
+import { collectLocalBundlesForM3Consent } from "../../../lib/resolve-rf-bundles.js";
 
 async function collectRecordFoundationBundles(
   deps: AbdmAdapterDeps,
   input: {
     iqTenantId: string;
     careContextReferences: string[];
-    patientId: string;
     consentId: string;
+    patientId: string;
     patientAbhaAddress?: string | null;
   },
 ): Promise<HealthRecordBundleEntry[]> {
-  const triedRefs = new Set<string>();
-  const bundleEntries: HealthRecordBundleEntry[] = [];
-
-  const appendForRef = async (ref: string) => {
-    const key = ref.trim();
-    if (!key || triedRefs.has(key)) return;
-    triedRefs.add(key);
-    const bundles = await deps.recordFoundation.listBundles({
-      iqTenantId: input.iqTenantId,
-      careContextId: key,
-    });
-    bundleEntries.push(...bundles);
-  };
-
-  for (const ref of input.careContextReferences) {
-    await appendForRef(ref);
-  }
-
-  if (
-    bundleEntries.length === 0 &&
-    process.env["ABDM_M2_MOCK_PLATFORM"] !== "true"
-  ) {
-    let rfPatientId = input.patientId;
-    const abha = input.patientAbhaAddress?.trim();
-    if (abha) {
-      const empiMatch = await deps.empi.findPatientByAbhaAddress({
-        iqTenantId: input.iqTenantId,
-        abhaAddress: abha,
-      });
-      if (empiMatch?.patientId) rfPatientId = empiMatch.patientId;
-    }
-
-    const contexts = await deps.recordFoundation.listCareContexts({
-      iqTenantId: input.iqTenantId,
-      patientId: rfPatientId,
-    });
-    abdmWarn("abdm.m3.hip_push.rf_patient_context_fallback", {
+  const abha = input.patientAbhaAddress?.trim() ?? "";
+  if (!abha) {
+    abdmWarn("abdm.m3.hip_push.missing_abha_for_rf_lookup", {
       consentId: input.consentId,
-      consentRefs: input.careContextReferences,
-      rfPatientId,
-      rfContextRefs: contexts.map((c) => c.referenceNumber),
+      patientId: input.patientId,
     });
-    for (const ctx of contexts) {
-      await appendForRef(ctx.referenceNumber);
-    }
+    return [];
   }
 
-  return bundleEntries;
+  return collectLocalBundlesForM3Consent(deps, {
+    iqTenantId: input.iqTenantId,
+    patientAbhaAddress: abha,
+    careContextReferences: input.careContextReferences,
+    extraPatientIds: [input.patientId],
+  });
 }
 
 export async function pushHealthInformationForSession(
@@ -77,9 +45,12 @@ export async function pushHealthInformationForSession(
     session: AbdmSession<"abdm.m3.hip.v1">;
     parsed: ParsedHiRequest;
     patientId: string;
+    /** CM-issued txn — must match ack + notify (defaults to parsed.transactionId). */
+    transactionId?: string;
   },
   deps: AbdmAdapterDeps,
 ): Promise<string[]> {
+  const transactionId = input.transactionId ?? input.parsed.transactionId;
   assertFlowKind(input.session, "abdm.m3.hip.v1");
   if (!deps.dataPush) {
     throw new Error("HipDataPushClient not configured");
@@ -102,8 +73,8 @@ export async function pushHealthInformationForSession(
   const bundleEntries = await collectRecordFoundationBundles(deps, {
     iqTenantId: input.iqTenantId,
     careContextReferences,
-    patientId: input.patientId,
     consentId: input.parsed.consentId,
+    patientId: input.patientId,
     patientAbhaAddress: m3Artefact?.patientAbhaAddress ?? null,
   });
 
@@ -160,7 +131,7 @@ export async function pushHealthInformationForSession(
     state: M3Hip.BUNDLES_ENCRYPTED,
     contextMerge: {
       dataPushUrl,
-      transactionId: input.parsed.transactionId,
+      transactionId,
     },
   });
 
@@ -173,7 +144,7 @@ export async function pushHealthInformationForSession(
   const pushBody: HipDataPushRequest = {
     pageNumber: 0,
     pageCount: 1,
-    transactionId: input.parsed.transactionId,
+    transactionId,
     entries,
     keyMaterial,
   };
@@ -181,7 +152,7 @@ export async function pushHealthInformationForSession(
   await deps.dataPush.push({
     dataPushUrl,
     body: pushBody as unknown as Record<string, unknown>,
-    requestId: input.parsed.transactionId,
+    requestId: transactionId,
     iqTenantId: input.iqTenantId,
     xHipId: deps.xHipId,
     xCmId: deps.xCmId,

@@ -18,5 +18,12 @@ export const nurseModuleManifest: ModuleManifest = {
       route: '/nurse/patients',
       catalogModuleSlug: 'opd',
     },
+    {
+      id: 'nurse-abha-consent-list',
+      label: 'ABHA Consent List',
+      icon: 'shield-check',
+      route: '/abha-consent-list',
+      catalogModuleSlug: 'opd',
+    },
   ],
 };

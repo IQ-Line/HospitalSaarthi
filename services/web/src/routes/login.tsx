@@ -7,6 +7,14 @@ import { Button } from '@pulse/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@pulse/ui/dialog';
 import { authClient } from '@/lib/auth-client';
 import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
@@ -44,6 +52,7 @@ function LoginPage() {
   const setSession = useAuthStore((s) => s.setSession);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
@@ -57,7 +66,16 @@ function LoginPage() {
     const jwt = await fetchJwt();
     const authUser = user as { iq_tenant_id?: string };
 
-    setSession({ accessToken: jwt, sessionToken, userId: user.id, displayName: user.name });
+    // better-auth cookie sessions issue no refresh token; '' disables the silent-refresh
+    // path (all consumers guard with refreshToken?.trim()). FE cutover to POST /auth/login
+    // is a later wave.
+    setSession({
+      accessToken: jwt,
+      refreshToken: '',
+      sessionToken,
+      userId: user.id,
+      displayName: user.name,
+    });
 
     await applyTenantSessionFromAuth({
       accessToken: jwt,
@@ -65,6 +83,7 @@ function LoginPage() {
     });
 
     await refreshAuthorizationContext(queryClient);
+    // must_change_password is enforced by the _authenticated layout guard.
     navigate({ to: '/dashboard' });
   }
 
@@ -124,7 +143,31 @@ function LoginPage() {
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+                  <DialogTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      Forgot password?
+                    </button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle>Password reset</DialogTitle>
+                      <DialogDescription>
+                        Contact your hospital administrator to reset your password. Recovery is
+                        handled by your admin — not via email.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Button type="button" className="w-full" onClick={() => setForgotOpen(false)}>
+                      Back to login
+                    </Button>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <Input
                 id="password"
                 type="password"

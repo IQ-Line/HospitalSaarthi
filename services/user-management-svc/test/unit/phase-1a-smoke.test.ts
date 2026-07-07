@@ -22,6 +22,7 @@ import {
   userManagementPlugin,
 } from "../../../../modules/user-management/src/index.js";
 import { createMasterDataModuleCatalogPortStub } from "../../../../modules/user-management/src/test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "../../../../modules/user-management/src/test-support/department-catalog-port-stub.js";
 import type { CheckResult } from "@hims/ts-sdk-authz";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
@@ -185,6 +186,7 @@ describe("Phase 1A.12 smoke", () => {
             },
           },
           masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+          departmentCatalogPort: createDepartmentCatalogPortStub(),
           accessTokenIssuer: {
             async issueForPlatformUser() {
               return {
@@ -235,6 +237,7 @@ describe("Phase 1A.12 smoke", () => {
           full_name: "Smoke User",
           username: "smoke.user",
           email: "smoke.user@example.com",
+          username: "smokeuser",
           password: "password123",
         },
       });

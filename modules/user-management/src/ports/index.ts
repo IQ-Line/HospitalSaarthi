@@ -67,6 +67,7 @@ export type CreatePasswordAuthAccountInput = {
    */
   username: string;
   password: string;
+  username: string;
 };
 
 export type CreatePasswordAuthAccountResult = {
@@ -93,6 +94,10 @@ export interface UserRepository {
    * Prefer tenant-scoped {@link getUserById} when tenant and platform user id are both known.
    */
   findUserByGlobalId(identityUserId: string): Promise<UserWithTenant | null>;
+  /** Resolves a linked platform user from better-auth username (global). */
+  findUserByAuthUsername(username: string): Promise<UserWithTenant | null>;
+  /** Resolves a linked platform user from credential or profile email. */
+  findUserByEmail(email: string): Promise<UserWithTenant | null>;
   findActiveUserByApiKeyPrefix(prefix: string): Promise<UserApiKeyRecord | null>;
   listUsers(tenantId: string, options?: ListUsersOptions): Promise<User[]>;
   updateUser(tenantId: string, userId: string, input: UpdateUserInput): Promise<User | null>;
@@ -124,6 +129,8 @@ export type {
   CapabilitySourceCatalog,
 } from "../domain/module-slug.js";
 export type {
+  DepartmentCatalogPort,
+  DepartmentCatalogRequestContext,
   EntitlementRequestContext,
   MasterDataModuleCatalogPort,
   ModuleCatalogPort,

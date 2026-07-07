@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { Columns3 } from 'lucide-react';
 import {
   flexRender,
@@ -78,6 +78,12 @@ interface DataTableProps<TData> {
   /** Show TanStack column visibility menu (reference UI “Columns”). */
   showColumnMenu?: boolean;
   manualPagination?: ManualPagination;
+  /** When set, renders a full-width row immediately below the matching data row. */
+  renderSubRow?: (row: TData) => ReactNode;
+  /** Row id used with renderSubRow (e.g. sessionId). */
+  expandedRowId?: string | null;
+  getRowId?: (row: TData) => string;
+  getRowClassName?: (row: TData) => string | undefined;
 }
 
 function readColumnMeta(meta: unknown): DataTableColumnMeta {
@@ -188,46 +194,83 @@ function DataTableHead<TData>({ table }: { table: ReactTable<TData> }) {
 function DataTableRow<TData>({
   row,
   onRowClick,
+  rowClassName,
+  isExpanded,
+  renderSubRow,
 }: {
   row: ReturnType<ReactTable<TData>['getRowModel']>['rows'][number];
   onRowClick?: (row: TData) => void;
+  rowClassName?: string;
+  isExpanded?: boolean;
+  renderSubRow?: (row: TData) => ReactNode;
 }) {
+  const className =
+    [onRowClick ? 'cursor-pointer' : undefined, rowClassName].filter(Boolean).join(' ') ||
+    undefined;
   return (
-    <TableRow
-      className={onRowClick ? 'cursor-pointer' : undefined}
-      onClick={
-        onRowClick
-          ? (event) => {
-              if (isInteractiveTableRowTarget(event.target)) return;
-              onRowClick(row.original);
-            }
-          : undefined
-      }
-    >
-      {row.getVisibleCells().map((cell) => (
-        <TableCell
-          key={cell.id}
-          className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
-        >
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-        </TableCell>
-      ))}
-    </TableRow>
+    <Fragment>
+      <TableRow
+        className={className}
+        onClick={
+          onRowClick
+            ? (event) => {
+                if (isInteractiveTableRowTarget(event.target)) return;
+                onRowClick(row.original);
+              }
+            : undefined
+        }
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className={readColumnMeta(cell.column.columnDef.meta).cellClassName}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+      {isExpanded && renderSubRow ? (
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={row.getVisibleCells().length} className="p-0">
+            {renderSubRow(row.original)}
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </Fragment>
   );
 }
 
 function DataTableBody<TData>({
   table,
   onRowClick,
+  renderSubRow,
+  expandedRowId,
+  getRowId,
+  getRowClassName,
 }: {
   table: ReactTable<TData>;
   onRowClick?: (row: TData) => void;
+  renderSubRow?: (row: TData) => ReactNode;
+  expandedRowId?: string | null;
+  getRowId?: (row: TData) => string;
+  getRowClassName?: (row: TData) => string | undefined;
 }) {
   return (
     <TableBody>
-      {table.getRowModel().rows.map((row) => (
-        <DataTableRow<TData> key={row.id} row={row} onRowClick={onRowClick} />
-      ))}
+      {table.getRowModel().rows.map((row) => {
+        const rowKey = getRowId?.(row.original) ?? row.id;
+        const isExpanded = Boolean(renderSubRow && expandedRowId === rowKey);
+        return (
+          <DataTableRow<TData>
+            key={row.id}
+            row={row}
+            onRowClick={onRowClick}
+            rowClassName={getRowClassName?.(row.original)}
+            isExpanded={isExpanded}
+            renderSubRow={renderSubRow}
+          />
+        );
+      })}
     </TableBody>
   );
 }
@@ -299,6 +342,10 @@ export function DataTable<TData>({
   manualPagination,
   tableClassName,
   className,
+  renderSubRow,
+  expandedRowId,
+  getRowId,
+  getRowClassName,
 }: DataTableProps<TData>) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const paginationState: PaginationState | undefined = manualPagination
@@ -366,7 +413,14 @@ export function DataTable<TData>({
       {showColumnMenu ? <ColumnVisibilityMenu<TData> table={table} /> : null}
       <Table className={tableClassName}>
         <DataTableHead<TData> table={table} />
-        <DataTableBody<TData> table={table} onRowClick={onRowClick} />
+        <DataTableBody<TData>
+          table={table}
+          onRowClick={onRowClick}
+          renderSubRow={renderSubRow}
+          expandedRowId={expandedRowId}
+          getRowId={getRowId}
+          getRowClassName={getRowClassName}
+        />
       </Table>
       {manualPagination ? <PaginationFooter manualPagination={manualPagination} /> : null}
     </div>

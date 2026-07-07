@@ -16,6 +16,7 @@ import {
   Layers,
   LayoutGrid,
   Link2,
+  Package,
   PillBottle,
   Receipt,
   Ruler,
@@ -59,6 +60,7 @@ export const NAVIGATION_ICONS: Record<string, LucideIcon> = {
   'file-text': FileText,
   wallet: Wallet,
   history: History,
+  package: Package,
 };
 
 export function resolveNavigationIcon(iconKey?: string): LucideIcon | undefined {

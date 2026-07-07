@@ -90,9 +90,6 @@ export function allRegisteredManifestTenantGateSlugs(): ReadonlySet<string> {
     for (const slug of manifest.requiredModulesAny ?? []) {
       addCatalogSlugToSet(enabled, slug);
     }
-    for (const slug of manifest.requiredModules ?? []) {
-      addCatalogSlugToSet(enabled, slug);
-    }
   }
   return enabled;
 }
@@ -118,6 +115,32 @@ export function buildEnabledModuleSlugsFromCatalog(
 }
 
 
+
+/** Tenant-admin nav slugs: base catalog slugs plus admin shells and capability-implied products. */
+function buildTenantAdminModuleSlugs(
+  tenantCatalogSlugs: ReadonlySet<string>,
+  capabilityKeys: ReadonlySet<string>,
+  index: ModuleCatalogIndex,
+): ReadonlySet<string> {
+  const enriched = new Set(tenantCatalogSlugs);
+  addCatalogSlugToSet(enriched, 'configurator');
+  // Tenant-admin inventory masters / store config — not gated on delegated L3 capability keys.
+  addCatalogSlugToSet(enriched, 'inventory-master');
+  addCatalogSlugToSet(enriched, 'store-config');
+  if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
+    addCatalogSlugToSet(enriched, 'master-data');
+    addCatalogSlugToSet(enriched, 'inventory-master');
+  }
+  if (capabilityKeysGrantProductAccess(capabilityKeys, ['visitpad-master'], index)) {
+    addCatalogSlugToSet(enriched, 'visitpad-master');
+    addCatalogSlugToSet(enriched, 'master-data');
+  }
+  if (capabilityKeysGrantProductAccess(capabilityKeys, ['inventory-master'], index)) {
+    addCatalogSlugToSet(enriched, 'inventory-master');
+    addCatalogSlugToSet(enriched, 'master-data');
+  }
+  return buildEnabledModuleSlugsFromCatalog(enriched);
+}
 
 /**
  * Module slugs for navigation tenant gates.
@@ -186,16 +209,7 @@ export function useTenantModuleNavContext(): {
     );
 
     if (isTenantAdminRole) {
-      const enriched = new Set(tenantCatalogSlugs);
-      addCatalogSlugToSet(enriched, 'configurator');
-      if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
-        addCatalogSlugToSet(enriched, 'master-data');
-      }
-      if (capabilityKeysGrantProductAccess(capabilityKeys, ['visitpad-master'], index)) {
-        addCatalogSlugToSet(enriched, 'visitpad-master');
-        addCatalogSlugToSet(enriched, 'master-data');
-      }
-      return buildEnabledModuleSlugsFromCatalog(enriched);
+      return buildTenantAdminModuleSlugs(tenantCatalogSlugs, capabilityKeys, index);
     }
 
     return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);

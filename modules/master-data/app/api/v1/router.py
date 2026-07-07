@@ -3,6 +3,8 @@ from fastapi import APIRouter
 from app.api.v1.departments import router as departments_router
 from app.api.v1.health import router as health_router
 from app.api.v1.internal_modules import router as internal_modules_router
+from app.api.v1.inventory import inventory_router
+from app.api.v1.inventory.store_types import router as inventory_store_types_router
 from app.api.v1.meta import router as meta_router
 from app.api.v1.module_permissions import router as module_permissions_router
 from app.api.v1.modules import router as modules_router
@@ -25,6 +27,7 @@ api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(meta_router)
 api_router.include_router(departments_router)
+api_router.include_router(inventory_store_types_router)
 api_router.include_router(modules_router)
 api_router.include_router(internal_modules_router)
 api_router.include_router(permissions_router)
@@ -45,3 +48,4 @@ api_router.include_router(visitpad_chronic_illnesses_router)
 api_router.include_router(visitpad_vaccines_router)
 api_router.include_router(visitpad_manufacturers_router)
 api_router.include_router(visitpad_procedures_router)
+api_router.include_router(inventory_router)

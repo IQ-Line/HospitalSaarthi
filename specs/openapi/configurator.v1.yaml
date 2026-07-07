@@ -777,6 +777,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /integration-profiles/active-abdm:
+    get:
+      operationId: listActiveAbdmIntegrationProfiles
+      summary: List all active ABDM integration profiles (internal)
+      description: >
+        **Internal / service-to-service only.** Returns every active `abdm` integration profile
+        across all tenants. Used by integration-hub for mapped-facility-ids resolution.
+        Requires `x-configurator-internal-key` when `CONFIGURATOR_INTERNAL_API_KEY` is set.
+      tags:
+        - Integration Profiles
+      security:
+        - internalServiceKey: []
+      responses:
+        "200":
+          description: Active ABDM profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TenantIntegrationProfile"
+        "403":
+          description: Missing or invalid internal service key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /tenants/{tenantId}/integration-profiles:
     get:
       operationId: listTenantIntegrationProfiles

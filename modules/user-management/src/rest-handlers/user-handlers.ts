@@ -6,6 +6,7 @@ import { logRejectedNonEntitledCapabilityId } from "../http/log-rejected-non-ent
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type {
   CreateUserInput,
+  DepartmentCatalogPort,
   ReplaceUserCapabilitiesInput,
   UpdateUserInput,
 } from "../ports/index.js";
@@ -27,6 +28,8 @@ import { listUserRoles } from "../use-cases/list-user-roles.js";
 import type { ListUserRolesDeps } from "../use-cases/list-user-roles.js";
 import { deactivateUser } from "../use-cases/deactivate-user.js";
 import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
+import { resetUserPassword } from "../use-cases/reset-user-password.js";
+import type { ResetUserPasswordDeps } from "../use-cases/reset-user-password.js";
 import { activateUser } from "../use-cases/activate-user.js";
 import type { ActivateUserDeps } from "../use-cases/activate-user.js";
 import { resetUserPassword } from "../use-cases/reset-user-password.js";
@@ -40,6 +43,7 @@ export type UserHandlersDeps = {
   /** Tenant scope for persistence (typically JWT-derived via router). */
   getTenantId: (request: FastifyRequest) => string;
   getActorId: (request: FastifyRequest) => string;
+  departmentCatalogPort: DepartmentCatalogPort;
   createUserDeps: CreateUserDeps;
   applyRoleTemplateDeps: ApplyRoleTemplateDeps;
   detachRoleTemplateDeps: DetachRoleTemplateDeps;
@@ -260,13 +264,14 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.get<{ Querystring: { department?: string } }>(
+  fastify.get<{ Querystring: { department?: string; department_id?: string } }>(
     "/providers",
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const cid = request.correlationId ?? request.id;
-      const department = request.query.department?.trim() || undefined;
+      const departmentId = request.query.department_id?.trim() || undefined;
+      let department = request.query.department?.trim() || undefined;
       // try/catch so a repo failure returns the standard UM error envelope
       // instead of leaking a raw Fastify 500 (mirrors GET /users below).
       // NOTE (tracked): whether this provider picklist should additionally route
@@ -274,6 +279,26 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       // decision for the functional walk-through — a picklist may intentionally
       // list all active providers regardless of the caller's manage scope.
       try {
+        if (departmentId) {
+          const resolvedName = await deps.departmentCatalogPort.resolveDepartmentName(
+            departmentId,
+            {
+              iqTenantId: tenantId,
+              authorization:
+                typeof request.headers.authorization === "string"
+                  ? request.headers.authorization
+                  : undefined,
+            },
+          );
+          if (!resolvedName) {
+            return reply.status(400).send({
+              error: "invalid_department_id",
+              message: "No department found for the given department_id.",
+            });
+          }
+          department = resolvedName;
+        }
+
         const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
           tenantId,
           department ? { department } : undefined,

@@ -75,7 +75,6 @@ import {
 } from '@/features/billing/validation';
 import {
   useCreateDepartment,
-  useDeleteDepartment,
   useDepartments,
   useUpdateDepartment,
   DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
@@ -92,7 +91,11 @@ import {
   type DepartmentFormInput,
   type DepartmentFormValues,
 } from '@/features/master-data/validation';
-import { useCreateRole, useDeleteRole, useUpdateRole } from '@/features/user-management/api/mutations';
+import {
+  useCreateRole,
+  useDeleteRole,
+  useUpdateRole,
+} from '@/features/user-management/api/mutations';
 import {
   assignableCapabilityCatalogOptions,
   roleListOptions,
@@ -377,7 +380,7 @@ function DepartmentFormFields({
 }
 
 export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
-  const { canCreate, canUpdate, canDelete } = useCatalogModuleCrud('departments', {
+  const { canCreate, canUpdate } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
   const [tableSearch, setTableSearch] = useState('');
@@ -387,7 +390,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [viewingDepartment, setViewingDepartment] = useState<Department | null>(null);
-  const [deletingDepartment, setDeletingDepartment] = useState<Department | null>(null);
 
   const deptType = typeFilter === 'all' ? undefined : typeFilter;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
@@ -404,7 +406,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
 
   const createMutation = useCreateDepartment(iqTenantId);
   const updateMutation = useUpdateDepartment(iqTenantId);
-  const deleteMutation = useDeleteDepartment(iqTenantId);
 
   const createForm = useForm<DepartmentFormInput, unknown, DepartmentFormValues>({
     resolver: zodResolver(departmentFormSchema),
@@ -475,18 +476,13 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
                 is_active: row.original.is_active,
               });
             }}
-            onDelete={() => setDeletingDepartment(row.original)}
-            disabled={deleteMutation.isPending}
             canEdit={canUpdate}
-            canDelete={canDelete}
           />
         ),
       },
     ],
     [
-      canDelete,
       canUpdate,
-      deleteMutation.isPending,
       editForm,
       updateMutation.isPending,
       updateMutation.variables,
@@ -517,17 +513,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
       toast.error(mutationErrorMessage(err));
     }
   });
-
-  const onDeleteConfirm = async () => {
-    if (!deletingDepartment) return;
-    try {
-      await deleteMutation.mutateAsync(deletingDepartment.id);
-      toast.success('Department deleted');
-      setDeletingDepartment(null);
-    } catch (err) {
-      toast.error(mutationErrorMessage(err));
-    }
-  };
 
   return (
     <div className="space-y-3">
@@ -642,17 +627,6 @@ export function TenantDepartmentsPanel({ iqTenantId }: { iqTenantId: string }) {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Delete confirm */}
-      <ConfirmDialog
-        open={!!deletingDepartment}
-        onOpenChange={(open) => !open && setDeletingDepartment(null)}
-        title="Delete department"
-        description={`Soft-delete department "${deletingDepartment?.name ?? ''}"?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={onDeleteConfirm}
-      />
     </div>
   );
 }

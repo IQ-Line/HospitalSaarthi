@@ -29,6 +29,7 @@ function mockProfilesRepo(): TenantIntegrationProfilesRepo {
     findById: vi.fn(),
     findActiveByTenantId: vi.fn(async () => undefined),
     findActiveByHipId: vi.fn(async () => undefined),
+    findAllActiveByKind: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),

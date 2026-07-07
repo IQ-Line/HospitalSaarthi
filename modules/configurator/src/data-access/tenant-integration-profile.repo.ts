@@ -85,6 +85,20 @@ export class DrizzleTenantIntegrationProfilesRepo
     return rows[0] as TenantIntegrationProfile | undefined;
   }
 
+  async findAllActiveByKind(
+    integrationKind: IntegrationKind,
+  ): Promise<TenantIntegrationProfile[]> {
+    return this.db
+      .select()
+      .from(tenantIntegrationProfiles)
+      .where(
+        and(
+          eq(tenantIntegrationProfiles.integration_kind, integrationKind),
+          eq(tenantIntegrationProfiles.is_active, true),
+        ),
+      ) as unknown as TenantIntegrationProfile[];
+  }
+
   async create(
     data: CreateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile> {

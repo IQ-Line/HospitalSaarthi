@@ -45,7 +45,11 @@ describe('clinical role sidebar entries', () => {
     const roots = filterForRoles(['doctor'], opdCaps, enabled);
     const doctor = roots.find((n) => n.id === 'doctor');
     expect(doctor?.label).toBe('Doctor');
-    expect(doctor?.children?.map((c) => c.label)).toEqual(['Patients', 'Historical Records']);
+    expect(doctor?.children?.map((c) => c.label)).toEqual([
+      'Patients',
+      'Historical Records',
+      'ABHA Consent List',
+    ]);
     expect(doctor?.children?.[0]?.route).toBe('/patients');
     expect(roots.find((n) => n.id === 'nurse')).toBeUndefined();
   });

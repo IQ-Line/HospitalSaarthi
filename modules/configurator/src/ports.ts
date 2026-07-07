@@ -81,6 +81,7 @@ export interface TenantIntegrationProfilesRepo {
     hipId: string,
     integrationKind: IntegrationKind,
   ): Promise<TenantIntegrationProfile | undefined>;
+  findAllActiveByKind(integrationKind: IntegrationKind): Promise<TenantIntegrationProfile[]>;
   create(data: CreateTenantIntegrationProfileData): Promise<TenantIntegrationProfile>;
   update(
     id: string,
