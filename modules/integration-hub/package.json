@@ -10,6 +10,7 @@
     "@hims/ts-sdk-abha": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-fhir": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@noble/curves": "^1.9.0",
     "@noble/hashes": "^1.8.0",

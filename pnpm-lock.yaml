@@ -147,6 +147,9 @@ importers:
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
+      '@hims/ts-sdk-fhir':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-fhir
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
