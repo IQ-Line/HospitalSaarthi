@@ -58,7 +58,7 @@ export type InventoryStoreTypeApiRow = InventoryMasterAuditFields & {
   default_indent_target_store_id: string | null;
 };
 
-/** Operational item catalog (`GET/POST /api/v1/inventory/items`). */
+/** Operational item catalog (`GET/POST /api/inventory/v1/items`). */
 export type InventoryItemApiRow = {
   id: string;
   item_code: string;

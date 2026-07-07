@@ -266,15 +266,33 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
         cell: ({ getValue }) => getValue<string | null>() ?? '—',
       },
       {
-        accessorKey: 'receive_stock',
+        accessorKey: 'can_receive_stock',
         header: 'Receive Stock',
         meta: { label: 'Receive Stock' },
         cell: ({ getValue }) => <InventoryMasterYesBadge value={getValue<boolean>()} />,
       },
       {
-        accessorKey: 'dispense',
+        accessorKey: 'can_dispense',
         header: 'Dispense',
         meta: { label: 'Dispense' },
+        cell: ({ getValue }) => <InventoryMasterYesBadge value={getValue<boolean>()} />,
+      },
+      {
+        accessorKey: 'can_issue_to_ward',
+        header: 'Ward Issue',
+        meta: { label: 'Ward Issue' },
+        cell: ({ getValue }) => <InventoryMasterYesBadge value={getValue<boolean>()} />,
+      },
+      {
+        accessorKey: 'track_batch_expiry',
+        header: 'Batch/Expiry',
+        meta: { label: 'Batch/Expiry' },
+        cell: ({ getValue }) => <InventoryMasterYesBadge value={getValue<boolean>()} />,
+      },
+      {
+        accessorKey: 'indent_authority',
+        header: 'Indent',
+        meta: { label: 'Indent' },
         cell: ({ getValue }) => <InventoryMasterYesBadge value={getValue<boolean>()} />,
       },
       {

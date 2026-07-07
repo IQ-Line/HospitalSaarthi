@@ -16,6 +16,7 @@ import type {
 } from "../ports/index.js";
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
+import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,11 +99,17 @@ export async function applyRoleTemplate(
     { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
   );
 
+  const grantActorId = await resolveGrantActorIdForTenant(
+    deps.userRepository,
+    ctx.tenantId,
+    ctx.actorId,
+  );
+
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {
     userId: input.user_id,
     roleId: input.role_id,
     capabilityIds: capabilityIdsToApply,
-    actorId: ctx.actorId,
+    actorId: grantActorId,
   });
   deps.principalRoleProjectionRepository.clearCache();
   return applied;

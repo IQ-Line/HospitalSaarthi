@@ -20,6 +20,7 @@ import type {
 import type { ModuleEntitlementRequestContext } from "../ports/module-integration-ports.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { getUserCapabilities } from "./get-user-capabilities.js";
+import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -84,10 +85,16 @@ export async function replaceUserCapabilities(
     );
   }
 
+  const grantActorId = await resolveGrantActorIdForTenant(
+    deps.userRepository,
+    ctx.tenantId,
+    ctx.actorId,
+  );
+
   await deps.userAccessRepository.replaceManualCapabilityGrants(ctx.tenantId, {
     userId,
     capabilityIds,
-    actorId: ctx.actorId,
+    actorId: grantActorId,
   });
 
   return getUserCapabilities(

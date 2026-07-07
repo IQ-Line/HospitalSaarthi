@@ -100,6 +100,7 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
         is_short_expiry: body.is_short_expiry,
         loose_sale_allowed: body.loose_sale_allowed,
         hsn_gst_id: body.hsn_gst_id,
+        hsn_selections: body.hsn_selections,
         catalog_number: body.catalog_number,
         reorder_level: body.reorder_level,
         storage_condition_id: body.storage_condition_id,

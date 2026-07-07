@@ -166,6 +166,12 @@ importers:
 
   modules/inventory:
     dependencies:
+      '@azure/storage-blob':
+        specifier: ^12.32.0
+        version: 12.32.0
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -176,6 +182,9 @@ importers:
         specifier: ^3.25.7
         version: 3.25.76
     devDependencies:
+      '@fastify/multipart':
+        specifier: ^9.0.3
+        version: 9.4.0
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -862,18 +871,30 @@ importers:
 
   services/inventory-svc:
     dependencies:
+      '@fastify/multipart':
+        specifier: ^9.0.3
+        version: 9.4.0
       '@hims/inventory':
         specifier: workspace:*
         version: link:../../modules/inventory
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-identity':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-identity
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -2549,6 +2570,9 @@ packages:
 
   '@fastify/multipart@10.0.0':
     resolution: {integrity: sha512-pUx3Z1QStY7E7kwvDTIvB6P+rF5lzP+iqPgZyJyG3yBJVPvQaZxzDHYbQD89rbY0ciXrMOyGi8ezHDVexLvJDA==}
+
+  '@fastify/multipart@9.4.0':
+    resolution: {integrity: sha512-Z404bzZeLSXTBmp/trCBuoVFX28pM7rhv849Q5TsbTFZHuk1lc4QjQITTPK92DKVpXmNtJXeHSSc7GYvqFpxAQ==}
 
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
@@ -8268,6 +8292,14 @@ snapshots:
       dequal: 2.0.3
 
   '@fastify/multipart@10.0.0':
+    dependencies:
+      '@fastify/busboy': 3.2.0
+      '@fastify/deepmerge': 3.2.1
+      '@fastify/error': 4.2.0
+      fastify-plugin: 5.1.0
+      secure-json-parse: 4.1.0
+
+  '@fastify/multipart@9.4.0':
     dependencies:
       '@fastify/busboy': 3.2.0
       '@fastify/deepmerge': 3.2.1

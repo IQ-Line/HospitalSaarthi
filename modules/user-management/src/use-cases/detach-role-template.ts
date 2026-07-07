@@ -11,6 +11,7 @@ import type {
   UserAccessRepository,
   UserRepository,
 } from "../ports/index.js";
+import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,10 +51,16 @@ export async function detachRoleTemplate(
     throw new RoleNotFoundError(input.role_id);
   }
 
+  const grantActorId = await resolveGrantActorIdForTenant(
+    deps.userRepository,
+    ctx.tenantId,
+    ctx.actorId,
+  );
+
   const removed = await deps.userAccessRepository.detachRoleTemplate(ctx.tenantId, {
     userId: input.user_id,
     roleId: input.role_id,
-    actorId: ctx.actorId,
+    actorId: grantActorId,
   });
   if (removed === null) {
     throw new UserRoleTemplateNotFoundError();

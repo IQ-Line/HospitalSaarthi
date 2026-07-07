@@ -78,6 +78,13 @@ def get_department_repository(
     return DepartmentRepository(session, scope)
 
 
+def get_inventory_store_type_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> InventoryStoreTypeRepository:
+    return InventoryStoreTypeRepository(session, scope)
+
+
 def get_module_repository(
     session: Annotated[Session, Depends(get_session)],
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
@@ -237,10 +244,3 @@ def get_inventory_storage_condition_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> InventoryStorageConditionRepository:
     return InventoryStorageConditionRepository(session, scope)
-
-
-def get_inventory_store_type_repository(
-    session: Annotated[Session, Depends(get_session)],
-    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
-) -> InventoryStoreTypeRepository:
-    return InventoryStoreTypeRepository(session, scope)

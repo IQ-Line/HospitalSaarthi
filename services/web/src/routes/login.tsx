@@ -69,6 +69,32 @@ function LoginPage() {
     defaultValues: { identifier: '', password: '' },
   });
 
+  async function completeSignIn(
+    sessionToken: string,
+    user: { id: string; name: string; iq_tenant_id?: string },
+  ) {
+    const jwt = await fetchJwt();
+    const authUser = user as { iq_tenant_id?: string };
+
+    setSession({ accessToken: jwt, sessionToken, userId: user.id, displayName: user.name });
+
+    await applyTenantSessionFromAuth({
+      accessToken: jwt,
+      authUserIqTenantId: authUser.iq_tenant_id ?? null,
+    });
+
+    // Fresh entitlement after sign-in (avoids stale UM TTL cache when master-data just recovered).
+    await refreshAuthorizationContext(queryClient, { bypassEntitlementCache: true });
+
+    const profile = await fetchAuthMe();
+    if (profile.must_change_password === true) {
+      navigate({ to: '/change-password' });
+      return;
+    }
+
+    navigate({ to: '/dashboard' });
+  }
+
   async function handleSignIn(values: SignInValues) {
     setError(null);
     setLoading(true);

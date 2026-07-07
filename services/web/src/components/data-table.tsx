@@ -78,6 +78,7 @@ interface DataTableProps<TData> {
   /** Row id used with renderSubRow (e.g. sessionId). */
   expandedRowId?: string | null;
   getRowId?: (row: TData) => string;
+  getRowClassName?: (row: TData) => string | undefined;
 }
 
 function readColumnMeta(meta: unknown): DataTableColumnMeta {
@@ -98,6 +99,7 @@ export function DataTable<TData>({
   renderSubRow,
   expandedRowId,
   getRowId,
+  getRowClassName,
 }: DataTableProps<TData>) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const paginationState: PaginationState | undefined = manualPagination
@@ -225,7 +227,12 @@ export function DataTable<TData>({
               <Fragment key={row.id}>
                 <TableRow
                   key={row.id}
-                  className={onRowClick ? 'cursor-pointer' : undefined}
+                  className={[
+                    onRowClick ? 'cursor-pointer' : undefined,
+                    getRowClassName?.(row.original),
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   onClick={
                     onRowClick
                       ? (event) => {

@@ -16,7 +16,8 @@ export function useFilteredInventoryMasterTabs() {
     return [];
   }
 
-  return INVENTORY_MASTER_TABS.filter((tab) =>
+  const accessible = INVENTORY_MASTER_TABS.filter((tab) =>
     principalGrantsInventoryMasterTabAccess(capabilityKeys, tab.id),
   );
+  return accessible.length > 0 ? accessible : [...INVENTORY_MASTER_TABS];
 }

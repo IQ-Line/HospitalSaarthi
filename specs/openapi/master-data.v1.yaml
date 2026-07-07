@@ -1019,6 +1019,181 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /inventory/store-types:
+    get:
+      operationId: listInventoryStoreTypes
+      summary: List inventory store types
+      description: Returns active store type rows (`is_deleted = false`). Supports pagination, search, and active filter.
+      security: []
+      tags:
+        - Inventory — Store types
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: is_active
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Store type catalog rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStoreTypeListResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: createInventoryStoreType
+      summary: Create a store type
+      security: []
+      tags:
+        - Inventory — Store types
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryStoreTypeCreate'
+      responses:
+        '201':
+          description: Store type created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStoreTypeSingleResponse'
+        '400':
+          description: Invalid payload or constraint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Code or name conflict with another active store type.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /inventory/store-types/{storeTypeId}:
+    get:
+      operationId: getInventoryStoreTypeById
+      summary: Get one store type by id
+      security: []
+      tags:
+        - Inventory — Store types
+      parameters:
+        - name: storeTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Store type row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStoreTypeSingleResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: updateInventoryStoreType
+      summary: Update a store type
+      security: []
+      tags:
+        - Inventory — Store types
+      parameters:
+        - name: storeTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryStoreTypeUpdate'
+      responses:
+        '200':
+          description: Store type updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStoreTypeSingleResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Code or name conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      operationId: deleteInventoryStoreType
+      summary: Soft-delete a store type
+      security: []
+      tags:
+        - Inventory — Store types
+      parameters:
+        - name: storeTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Store type soft-deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStoreTypeSingleResponse'
+        '404':
+          description: Not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /modules:
     get:
       operationId: listModules
@@ -4485,6 +4660,156 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/Department'
+    InventoryStoreType:
+      type: object
+      required:
+        - id
+        - code
+        - name
+        - description
+        - can_receive_stock
+        - can_dispense
+        - can_issue_to_ward
+        - track_batch_expiry
+        - indent_authority
+        - is_active
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        iq_tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        can_receive_stock:
+          type: boolean
+        can_dispense:
+          type: boolean
+        can_issue_to_ward:
+          type: boolean
+        track_batch_expiry:
+          type: boolean
+        indent_authority:
+          type: boolean
+        default_indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+          default: false
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        updated_by:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    InventoryStoreTypeCreate:
+      type: object
+      required:
+        - code
+        - name
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+          default: ''
+        can_receive_stock:
+          type: boolean
+          default: false
+        can_dispense:
+          type: boolean
+          default: false
+        can_issue_to_ward:
+          type: boolean
+          default: false
+        track_batch_expiry:
+          type: boolean
+          default: true
+        indent_authority:
+          type: boolean
+          default: false
+        default_indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+          default: true
+    InventoryStoreTypeUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        code:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        can_receive_stock:
+          type: boolean
+        can_dispense:
+          type: boolean
+        can_issue_to_ward:
+          type: boolean
+        track_batch_expiry:
+          type: boolean
+        indent_authority:
+          type: boolean
+        default_indent_target_store_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_active:
+          type: boolean
+        is_deleted:
+          type: boolean
+    InventoryStoreTypeListResponse:
+      type: object
+      required:
+        - data
+        - total
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryStoreType'
+        total:
+          type: integer
+          minimum: 0
+    InventoryStoreTypeSingleResponse:
+      type: object
+      required:
+        - data
+      properties:
+        data:
+          $ref: '#/components/schemas/InventoryStoreType'
     SystemRoleCreate:
       type: object
       required:
