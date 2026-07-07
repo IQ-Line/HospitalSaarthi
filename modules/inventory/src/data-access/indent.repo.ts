@@ -262,6 +262,35 @@ export class DrizzleInventoryIndentRepository {
     return row ? mapIndentRow(row) : undefined;
   }
 
+  async findByNumber(tenantId: string, indentNumber: string): Promise<IndentRow | undefined> {
+    const normalized = indentNumber.trim();
+    if (!normalized) return undefined;
+
+    const [row] = await this.db
+      .select()
+      .from(inventoryIndents)
+      .where(
+        and(
+          eq(inventoryIndents.iq_tenant_id, tenantId),
+          eq(inventoryIndents.indent_number, normalized),
+        ),
+      )
+      .limit(1);
+    return row ? mapIndentRow(row) : undefined;
+  }
+
+  async linkGrn(tenantId: string, indentId: string, grnId: string): Promise<void> {
+    await this.db
+      .update(inventoryIndents)
+      .set({
+        inventory_grn_id: grnId,
+        updated_at: new Date(),
+      })
+      .where(
+        and(eq(inventoryIndents.iq_tenant_id, tenantId), eq(inventoryIndents.id, indentId)),
+      );
+  }
+
   async listLines(tenantId: string, indentId: string): Promise<IndentLineRow[]> {
     const rows = await this.db
       .select()
