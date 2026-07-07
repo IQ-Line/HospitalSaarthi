@@ -3,7 +3,8 @@ import type { UserAccessRepository } from "../../../src/ports/index.js";
 import { InMemoryPrincipalRoleProjectionRepository } from "../../../src/data-access/in-memory-principal-role-projection-repository.js";
 import { InMemoryRoleRepository } from "../../../src/data-access/in-memory-role-repository.js";
 import { projectPrincipalRoles } from "../../../src/use-cases/project-principal-roles.js";
-import { isPlatformSuperAdminRole } from "../../../src/http/resolve-effective-tenant-id.js";
+import { isReservedRoleCode } from "../../../src/domain/reserved-role-codes.js";
+import { normalizeRoleCode } from "../../../src/domain/normalize-role-code.js";
 
 /**
  * The projection looks the role up via the RoleRepository, not via this ref's `role`
@@ -40,15 +41,16 @@ class StubRoleTemplatesByUser implements Pick<UserAccessRepository, "listRoleTem
 /**
  * Proves WHY the reservation must cover role_type, not just code. The projection promotes
  * role_type into the principal's role codes, so a role with a benign `code` but
- * role_type="super-admin" injects "super-admin" into the principal — tripping the SAME
- * cross-tenant bypass (isPlatformSuperAdminRole) that the `code` reservation guards. This
- * is the threat that the create-role / update-role role_type reservation closes at source.
+ * role_type="super-admin" injects the reserved "super-admin" value into the principal. Platform
+ * authority no longer flows from that string (it flows from scope:platform), but the reservation
+ * still blocks a tenant from minting a confusingly-named platform role via EITHER axis — which is
+ * why create-role / update-role reserve role_type as well as code.
  *
  * Uses the real projection adapter (a faithful replica of the Drizzle one's code+role_type
- * promotion), the real projectPrincipalRoles use-case, and the real bypass matcher.
+ * promotion), the real projectPrincipalRoles use-case, and the real reservation guard.
  */
-describe("role_type is a cross-tenant bypass vector (justifies reserving role_type)", () => {
-  it("a role with role_type='super-admin' injects super-admin into the principal and trips the bypass", async () => {
+describe("role_type promotion justifies reserving role_type (not just code)", () => {
+  it("a role with role_type='super-admin' injects the reserved code into the principal", async () => {
     const roleRepository = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
@@ -77,7 +79,7 @@ describe("role_type is a cross-tenant bypass vector (justifies reserving role_ty
 
     // the smuggled role_type reaches the principal role set...
     expect(principalRoles).toContain("super-admin");
-    // ...and the cross-tenant bypass would treat this principal as a platform super-admin.
-    expect(principalRoles.some(isPlatformSuperAdminRole)).toBe(true);
+    // ...and it normalizes to the RESERVED code, so create/update-role must block it at source.
+    expect(principalRoles.some((r) => isReservedRoleCode(normalizeRoleCode(r)))).toBe(true);
   });
 });

@@ -393,6 +393,21 @@ export class TenantMismatchError extends UserManagementError {
   }
 }
 
+/**
+ * A tenant-less platform operator (scope:platform, JWT tenant "") invoked a tenant-scoped
+ * resource operation without supplying a target tenant (no `iq_tenant_id` header). The effective
+ * tenant resolved to empty; persisting under "" would create an orphan row or a confusing 500,
+ * so the operation is rejected up front. Operators must target a tenant explicitly.
+ */
+export class TenantTargetRequiredError extends UserManagementError {
+  constructor() {
+    super(
+      "TENANT_TARGET_REQUIRED",
+      "A target tenant is required: supply iq_tenant_id to scope this operation to a tenant.",
+    );
+  }
+}
+
 export class ApiKeyInvalidError extends UserManagementError {
   constructor() {
     super("API_KEY_INVALID", "Invalid API key");

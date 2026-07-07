@@ -70,3 +70,8 @@ resourcePolicy:
           expr: >-
             "master-data:department:delete" in request.principal.attr.capabilities ||
             "master-data:department:delete" in request.principal.attr.delegated_capabilities
+
+    # NOTE: No bounded platform-operator (scope:platform) rule here. Departments are TENANT
+    # CLINICAL-reference data (referenced by encounters), NOT platform catalog. Cross-tenant
+    # operator write is intentionally OUT OF BOUND — the omission of the scope rule IS the bound.
+    # (The genuine platform catalogs — module/permission/system_role/module_permission — carry it.)

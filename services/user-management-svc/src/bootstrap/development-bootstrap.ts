@@ -32,8 +32,8 @@ import {
   UM_USER_READ,
   UM_USER_UPDATE,
   users,
+  platform_admins,
   assertValidModuleSlug,
-  syncSuperAdminCapabilitySnapshots,
 } from "@hims/user-management";
 import { authUser } from "../auth/auth-schema.js";
 import { toSyntheticAuthEmail } from "../auth/synthetic-email.js";
@@ -608,14 +608,13 @@ export async function runDevelopmentBootstrap(
   const authUserId = await ensureBootstrapAuthUser(deps.db, deps.auth, platformUserId);
   await ensurePlatformUserAuthLink(deps.db, platformUserId, authUserId);
   await ensureBootstrapUserRoleTemplate(deps.db, platformUserId, roleId);
-  const synced = await syncSuperAdminCapabilitySnapshots(deps.db, {
-    tenantId: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    userId: platformUserId,
-    roleId,
-  });
-  if (synced.capabilityCount === 0) {
-    throw new Error("Bootstrap super-admin sync found no active capabilities in catalog.");
-  }
+  // Bounded operator: enroll in platform_admins (scope:platform) instead of granting every catalog
+  // capability. The verify step below exercises the operator through Cerbos, which now allows the
+  // platform-provisioning actions via scope (zero capabilities). Insert before verification.
+  await deps.db
+    .insert(platform_admins)
+    .values({ user_id: platformUserId, note: "dev bootstrap — bounded platform operator" })
+    .onConflictDoNothing({ target: [platform_admins.user_id] });
 
   const principal = await verifyBootstrapPrincipal(deps.principalService, platformUserId);
   const verifiedActions = await verifyBootstrapCerbos(deps.cerbosUrl, principal, platformUserId);

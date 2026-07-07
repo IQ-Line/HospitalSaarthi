@@ -24,8 +24,8 @@ const SEEDED_ROLE_ID = "22222222-2222-4222-8222-222222222222";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
-/** Stubs the identity plugin: attaches a verified principal with the given roles. */
-function identityStub(roles: string[]) {
+/** Stubs the identity plugin: attaches a verified principal with the given roles + platform scopes. */
+function identityStub(roles: string[], scopes: string[]) {
   return fp(
     async (fastify) => {
       fastify.decorateRequest(
@@ -35,6 +35,7 @@ function identityStub(roles: string[]) {
           tenantId: string;
           orgId: string;
           roles: string[];
+          scopes: string[];
           sessionId: string;
           iat: number;
           exp: number;
@@ -48,6 +49,7 @@ function identityStub(roles: string[]) {
           tenantId: "tenant-a",
           orgId: "f47ac10b-58cc-4372-a567-0e02b2c3d581",
           roles,
+          scopes,
           sessionId: "session-1",
           iat: 1,
           exp: 9999999999,
@@ -72,7 +74,7 @@ afterEach(async () => {
   apps.length = 0;
 });
 
-async function createApp(roles: string[]) {
+async function createApp(roles: string[], scopes: string[] = []) {
   const app = Fastify();
   apps.push(app);
 
@@ -101,7 +103,7 @@ async function createApp(roles: string[]) {
   );
   const principalAuthorizationRepository = new InMemoryPrincipalAuthorizationRepository();
 
-  await app.register(identityStub(roles));
+  await app.register(identityStub(roles, scopes));
   await app.register(
     async (instance) => {
       await instance.register(userManagementPlugin, {
@@ -148,8 +150,8 @@ async function createApp(roles: string[]) {
 }
 
 describe("/roles is_system gate (end-to-end via the real router)", () => {
-  it("honors is_system=true for a platform super-admin (tenant onboarding)", async () => {
-    const { app } = await createApp(["super-admin"]);
+  it("honors is_system=true for a bounded platform operator (scope:platform, tenant onboarding)", async () => {
+    const { app } = await createApp(["super-admin"], ["platform"]);
     const res = await app.inject({
       method: "POST",
       url: "/api/user-management/roles",

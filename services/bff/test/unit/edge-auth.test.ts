@@ -56,6 +56,7 @@ async function mintToken(
     expOffsetSeconds?: number;
     omitTenant?: boolean;
     roles?: string[];
+    scopes?: string[];
   } = {},
 ): Promise<string> {
   const nowSeconds = Math.floor(Date.now() / 1000);
@@ -63,6 +64,9 @@ async function mintToken(
     jti: randomUUID(),
     roles: opts.roles ?? ['doctor'],
   };
+  if (opts.scopes !== undefined) {
+    payload['scopes'] = opts.scopes;
+  }
   if (!opts.omitTenant) {
     payload['iq_tenant_id'] = TENANT_A;
   }
@@ -302,9 +306,9 @@ describe('BFF edge auth (ENABLE_AUTH=true)', () => {
     expect(echoed['x-tenant-id']).toBe(TENANT_A); // stray TENANT_B neutralized
   });
 
-  it('lets a platform super-admin scope cross-tenant — 200, both headers collapsed to the chosen tenant', async () => {
+  it('lets a bounded platform operator (scope:platform) scope cross-tenant — 200, both headers collapsed to the chosen tenant', async () => {
     app = await buildApp();
-    const token = await mintToken({ roles: ['super-admin'] });
+    const token = await mintToken({ scopes: ['platform'] });
     const res = await app.inject({
       method: 'GET',
       url: '/api/v1/opd/prescriptions',

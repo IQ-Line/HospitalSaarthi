@@ -111,7 +111,7 @@ export type AuthHandlersDeps = {
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
   fastify.get(
     "/auth/me",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const userId = deps.getUserId(request);
@@ -126,7 +126,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
 
   fastify.post(
     "/auth/change-password-complete",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const userId = deps.getUserId(request);
@@ -146,7 +146,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
 
   fastify.get(
     "/auth/principal",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       const snapshot = request.cerbosPrincipal;

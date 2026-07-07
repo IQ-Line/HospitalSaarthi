@@ -70,12 +70,18 @@ export function createAccessTokenIssuer(
       }
 
       const { key: signingKey, kid } = await loadSigningMaterial(db, env);
+      // BET4: tenant-less operator token — omit `iq_tenant_id` when platform-scoped (see
+      // create-hims-better-auth.ts / verify.ts). Non-operator tokens keep the hard tenant claim.
+      const isPlatformScoped = claims.scopes.includes("platform");
       const payload: Record<string, unknown> = {
-        iq_tenant_id: claims.iq_tenant_id,
         org_id: claims.org_id,
         roles: claims.roles,
+        scopes: claims.scopes,
         jti: randomUUID(),
       };
+      if (!isPlatformScoped) {
+        payload.iq_tenant_id = claims.iq_tenant_id;
+      }
       if (claims.department) {
         payload.department = claims.department;
       }

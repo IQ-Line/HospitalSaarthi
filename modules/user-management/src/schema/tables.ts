@@ -371,3 +371,28 @@ export const user_clearances = userManagementSchema.table(
     index("idx_user_clearances_tenant_user").on(t.iq_tenant_id, t.user_id),
   ],
 );
+
+/**
+ * Platform operators — the bounded `scope:platform` membership table.
+ *
+ * Tenant-LESS by design: membership is a platform fact keyed by the operator's GLOBAL platform
+ * user id (`users.id`), not scoped to any tenant. A row here is the ONLY source of the JWT
+ * `scopes:["platform"]` claim (issuance) and the Cerbos `principal.attr.scopes` enrichment. It
+ * carries no capabilities — authority is expressed purely as an additive PDP scope allow on the
+ * platform-provisioning surfaces (configurator + master_data global catalog); clinical resources
+ * remain out of reach. Replaces the former god-mode super-admin (a seed granting every catalog
+ * capability). No FK to `users` — `users` is Citus-distributed by `iq_tenant_id`, so a tenant-less
+ * table cannot reference it; membership integrity is enforced by the seed/admin write path.
+ *
+ * Citus: a reference table (replicated to all nodes), matching `capabilities`. It is a small,
+ * globally-read, tenant-less lookup — the canonical Citus shape for this — and is never joined to
+ * distributed tables in a shard-local way.
+ */
+export const platform_admins = userManagementSchema.table("platform_admins", {
+  /** Global platform user id (`user_management.users.id`). Tenant-less. */
+  user_id: uuid("user_id").primaryKey(),
+  granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Global platform user id of the granting operator, when known. */
+  granted_by: uuid("granted_by"),
+  note: text("note"),
+});

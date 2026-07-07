@@ -9,11 +9,19 @@ import {
 function mockRequest(user: {
   tenantId: string;
   roles?: string[];
+  scopes?: string[];
 }): FastifyRequest {
   return {
     user,
     headers: {},
   } as unknown as FastifyRequest;
+}
+
+function withCerbosScopes(request: FastifyRequest, scopes: string[]): FastifyRequest {
+  (request as { cerbosPrincipal?: { attributes: { scopes: string[] } } }).cerbosPrincipal = {
+    attributes: { scopes },
+  };
+  return request;
 }
 
 describe("resolveEffectiveTenantId", () => {
@@ -24,32 +32,32 @@ describe("resolveEffectiveTenantId", () => {
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(false);
   });
 
-  it("allows super-admin to scope via iq_tenant_id header", () => {
-    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
+  it("allows a platform operator (JWT scope:platform) to scope via iq_tenant_id header", () => {
+    const request = mockRequest({ tenantId: "tenant-home", scopes: ["platform"] });
     request.headers["iq_tenant_id"] = "tenant-other";
     expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
-  it("allows cross-tenant header when super-admin role is only on cerbosPrincipal", () => {
-    const request = mockRequest({ tenantId: "tenant-home", roles: [] });
-    (request as { cerbosPrincipal?: { roles: string[] } }).cerbosPrincipal = {
-      roles: ["super-admin"],
-    };
+  it("allows cross-tenant header when platform scope is only on cerbosPrincipal.attributes.scopes", () => {
+    const request = withCerbosScopes(
+      mockRequest({ tenantId: "tenant-home", roles: [] }),
+      ["platform"],
+    );
     request.headers["iq_tenant_id"] = "tenant-other";
     expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
   it("reads iq_tenant_id when the header value is a string array (proxy/ingress)", () => {
-    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
+    const request = mockRequest({ tenantId: "tenant-home", scopes: ["platform"] });
     request.headers["iq_tenant_id"] = ["tenant-other"];
     expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
   it("falls back to x-tenant-id when iq_tenant_id is absent", () => {
-    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
+    const request = mockRequest({ tenantId: "tenant-home", scopes: ["platform"] });
     request.headers["x-tenant-id"] = "tenant-other";
     expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
@@ -65,26 +73,18 @@ describe("resolveEffectiveTenantId", () => {
     expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
   });
 
-  it("allows cross-tenant header when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
-    const request = mockRequest({ tenantId: "tenant-home", roles: [] });
-    (
-      request as {
-        cerbosPrincipal?: { roles: string[]; attributes: { role_codes: string[] } };
-      }
-    ).cerbosPrincipal = {
-      roles: ["__hims_authenticated__"],
-      attributes: { role_codes: ["super-admin"] },
-    };
+  it("DENIES cross-tenant for a tenant user who merely holds a role named 'super-admin' (string is dead)", () => {
+    const request = mockRequest({ tenantId: "tenant-home", roles: ["super-admin"] });
     request.headers["iq_tenant_id"] = "tenant-other";
-    expect(resolveEffectiveTenantId(request)).toBe("tenant-other");
-    expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(true);
+    expect(resolveEffectiveTenantId(request)).toBe("tenant-home");
+    expect(assertTenantHeaderAllowedForPrincipal(request).ok).toBe(false);
   });
 });
 
 describe("isPlatformSuperAdminRequest", () => {
-  it("is true for a super-admin JWT role", () => {
+  it("is true for a JWT scope:platform claim", () => {
     expect(
-      isPlatformSuperAdminRequest(mockRequest({ tenantId: "t", roles: ["super-admin"] })),
+      isPlatformSuperAdminRequest(mockRequest({ tenantId: "t", scopes: ["platform"] })),
     ).toBe(true);
   });
 
@@ -94,15 +94,15 @@ describe("isPlatformSuperAdminRequest", () => {
     ).toBe(false);
   });
 
-  it("is true when super-admin is only in cerbosPrincipal.attributes.role_codes", () => {
-    const request = mockRequest({ tenantId: "t", roles: [] });
-    (
-      request as { cerbosPrincipal?: { roles: string[]; attributes: { role_codes: string[] } } }
-    ).cerbosPrincipal = {
-      roles: ["__hims_authenticated__"],
-      attributes: { role_codes: ["super-admin"] },
-    };
+  it("is true when platform scope is only in cerbosPrincipal.attributes.scopes", () => {
+    const request = withCerbosScopes(mockRequest({ tenantId: "t", roles: [] }), ["platform"]);
     expect(isPlatformSuperAdminRequest(request)).toBe(true);
+  });
+
+  it("is FALSE for a role named 'super-admin' without the platform scope (string is dead)", () => {
+    expect(
+      isPlatformSuperAdminRequest(mockRequest({ tenantId: "t", roles: ["super-admin"] })),
+    ).toBe(false);
   });
 
   it("is false when there is no principal at all", () => {

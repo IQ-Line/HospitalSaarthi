@@ -15,11 +15,10 @@ import {
 // never runs in production. Gate: cleanup follow-up "dev-seed module→service composition".
 // eslint-disable-next-line @nx/enforce-module-boundaries -- see comment above (dev-only, gated)
 import { authUser } from "../../../../services/user-management-svc/src/auth/auth-schema.js";
-import { capabilities, roles, user_roles, users } from "../schema/tables.js";
+import { capabilities, platform_admins, roles, user_roles, users } from "../schema/tables.js";
 import { resolveMasterDataModuleCatalog } from "./resolve-master-data-module-catalog.js";
 import { seedDevConfigurator } from "./seed-dev-configurator.js";
 import { syncCapabilitiesFromMasterDataCatalog } from "./sync-capabilities-from-master-data-catalog.js";
-import { syncSuperAdminCapabilitySnapshots } from "./sync-super-admin-capability-snapshots.js";
 
 const DEV_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;
 const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
@@ -35,7 +34,8 @@ export type PlatformDataBootstrapResult = {
   catalog_modules: number;
   tenant_modules: number;
   capabilities_synced: number;
-  super_admin_capabilities: number;
+  /** 1 when the platform operator is enrolled in `platform_admins` (bounded scope:platform). */
+  platform_admins: number;
 };
 
 type BetterAuthServerApi = {
@@ -223,15 +223,15 @@ export async function applyPlatformDataBootstrap(input: {
       target: [user_roles.iq_tenant_id, user_roles.user_id, user_roles.role_id],
     });
 
-  const { capabilityCount } = await syncSuperAdminCapabilitySnapshots(db, {
-    tenantId: DEV_TENANT_ID,
-    userId: platformUserId,
-    roleId,
-  });
-
-  if (capabilityCount === 0) {
-    throw new Error("No active capabilities for super-admin after catalog sync");
-  }
+  // Bounded operator model: the platform operator's authority is a `scope:platform` membership row,
+  // NOT a grant of every catalog capability. `platform_admins` is tenant-less (keyed by the global
+  // platform user id); the enricher/JWT issuance read it to emit `scopes:["platform"]`, which the
+  // PDP additively allows on platform-provisioning surfaces only. The "super-admin" display role
+  // above is retained for UX labels but carries no authority.
+  await db
+    .insert(platform_admins)
+    .values({ user_id: platformUserId, note: "dev seed — bounded platform operator" })
+    .onConflictDoNothing({ target: [platform_admins.user_id] });
 
   if (input.auth) {
     // The dev-seed CLI scripts under `tools/` run via tsx (TS-extension imports, deps resolved from
@@ -252,11 +252,15 @@ export async function applyPlatformDataBootstrap(input: {
     const { DrizzlePrincipalRoleProjectionRepository } = await import(
       "../data-access/drizzle-principal-role-projection-repository.js"
     );
+    const { DrizzlePlatformAdminRepository } = await import(
+      "../data-access/drizzle-platform-admin-repository.js"
+    );
 
     await repairJwksForDevSeed(db, input.auth.secret);
     const auth = createDevSeedAuth(db, input.auth, {
       userRepository: new DrizzleUserRepository(db),
       principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(db),
+      platformAdminRepository: new DrizzlePlatformAdminRepository(db),
     }) as unknown as BetterAuthSignUpApi;
 
     const authUserId = await ensureSuperAdminAuthUser(db, auth, platformUserId);
@@ -288,6 +292,6 @@ export async function applyPlatformDataBootstrap(input: {
     catalog_modules: catalog.moduleIdsBySlug.size,
     tenant_modules: cfg.tenant_modules,
     capabilities_synced: sync.inserted + sync.updated,
-    super_admin_capabilities: capabilityCount,
+    platform_admins: 1,
   };
 }

@@ -59,3 +59,8 @@ resourcePolicy:
               "visitpad-master:visitpad:view" in request.principal.attr.delegated_capabilities ||
               "visitpad-templates:visitpad:view" in request.principal.attr.delegated_capabilities
             )
+
+    # NOTE: No bounded platform-operator (scope:platform) rule here. Visitpads are TENANT
+    # CLINICAL-reference data (visit templates used in encounters), NOT platform catalog.
+    # Cross-tenant operator write is intentionally OUT OF BOUND — the omission of the scope
+    # rule IS the bound. (The genuine platform catalogs carry it; these clinical ones do not.)

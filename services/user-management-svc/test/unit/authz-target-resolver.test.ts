@@ -150,7 +150,7 @@ describe("createUserManagementAuthzTargetResolver", () => {
     });
   });
 
-  it("maps POST /users resource tenant from iq_tenant_id header for super-admin", async () => {
+  it("maps POST /users resource tenant from iq_tenant_id header for a platform operator (scope:platform)", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
 
@@ -163,6 +163,7 @@ describe("createUserManagementAuthzTargetResolver", () => {
         userId: "user-1",
         tenantId: "tenant-home",
         roles: ["super-admin"],
+        scopes: ["platform"],
         department: null,
       },
     } as never);

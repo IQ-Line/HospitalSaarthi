@@ -43,6 +43,13 @@
       "when": 1783433956351,
       "tag": "0005_must_change_password",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783448809959,
+      "tag": "0006_platform_admins",
+      "breakpoints": true
     }
   ]
 }

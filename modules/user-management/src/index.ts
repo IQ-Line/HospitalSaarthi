@@ -41,6 +41,7 @@ export type {
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
   ListUsersOptions,
+  PlatformAdminRepository,
   PrincipalRoleProjectionRepository,
   PrincipalAuthorizationRepository,
   RoleCapabilityRepository,
@@ -111,8 +112,7 @@ export {
 } from "./http/map-user-management-error.js";
 export {
   assertTenantHeaderAllowedForPrincipal,
-  isPlatformSuperAdminPrincipal,
-  isPlatformSuperAdminRole,
+  isPlatformSuperAdminRequest,
   resolveEffectiveTenantId,
   resolveJwtTenantIdFromRequest,
 } from "./http/resolve-effective-tenant-id.js";
@@ -121,10 +121,6 @@ export {
   RESERVED_ROLE_CODES,
   isReservedRoleCode,
 } from "./domain/reserved-role-codes.js";
-export {
-  syncSuperAdminCapabilitySnapshots,
-  type SyncSuperAdminCapabilitySnapshotsInput,
-} from "./dev/sync-super-admin-capability-snapshots.js";
 export type {
   ResolvedUserManagementHttpError,
   UserManagementErrorBody,
@@ -134,6 +130,7 @@ export { DrizzleCapabilityRepository } from "./data-access/capability-repository
 export { DrizzleRoleCapabilityRepository } from "./data-access/role-capability-repository.js";
 export { DrizzleUserAccessRepository } from "./data-access/user-access-repository.js";
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
+export { DrizzlePlatformAdminRepository } from "./data-access/drizzle-platform-admin-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
 export { DrizzleUserActivationStatusReader } from "./data-access/user-activation-status-reader.js";
@@ -185,6 +182,7 @@ export { registerTenantEntitlementCacheEventConsumers } from "./events/consumers
 export {
   capabilities,
   delegated_capability_grants,
+  platform_admins,
   role_capabilities,
   roles,
   user_capabilities,

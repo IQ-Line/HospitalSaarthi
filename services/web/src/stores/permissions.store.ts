@@ -7,11 +7,17 @@ export type CapabilityKey = string;
 
 export interface PermissionsState {
   capabilityKeys: ReadonlySet<CapabilityKey>;
-  /** Cerbos role codes from `GET /auth/principal` (e.g. `super-admin`). */
+  /** Cerbos role codes from `GET /auth/principal` (e.g. `super-admin`, a display label only). */
   roles: readonly string[];
+  /** Bounded platform authority scopes from `GET /auth/principal.attributes.scopes` (e.g. `platform`). */
+  scopes: readonly string[];
   isLoaded: boolean;
 
-  setCapabilityKeys: (keys: readonly CapabilityKey[], roles?: readonly string[]) => void;
+  setCapabilityKeys: (
+    keys: readonly CapabilityKey[],
+    roles?: readonly string[],
+    scopes?: readonly string[],
+  ) => void;
   clearPermissions: () => void;
   hasCapability: (capabilityKey: CapabilityKey) => boolean;
   hasAnyCapability: (capabilityKeys: readonly CapabilityKey[]) => boolean;
@@ -26,13 +32,15 @@ const permissionsSlice: StateCreator<PermissionsState, [['zustand/devtools', nev
 ) => ({
   capabilityKeys: emptyKeys(),
   roles: [],
+  scopes: [],
   isLoaded: false,
 
-  setCapabilityKeys: (keys, roles = []) =>
+  setCapabilityKeys: (keys, roles = [], scopes = []) =>
     set(
       {
         capabilityKeys: new Set(keys.map((k) => normalizeCapabilityKey(k))),
         roles: [...roles],
+        scopes: [...scopes],
         isLoaded: true,
       },
       false,
@@ -40,7 +48,11 @@ const permissionsSlice: StateCreator<PermissionsState, [['zustand/devtools', nev
     ),
 
   clearPermissions: () => {
-    set({ capabilityKeys: emptyKeys(), roles: [], isLoaded: false }, false, 'clearPermissions');
+    set(
+      { capabilityKeys: emptyKeys(), roles: [], scopes: [], isLoaded: false },
+      false,
+      'clearPermissions',
+    );
   },
 
   hasCapability: (capabilityKey) => {

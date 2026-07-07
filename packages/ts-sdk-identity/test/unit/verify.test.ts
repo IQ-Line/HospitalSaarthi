@@ -276,4 +276,65 @@ describe("verifyToken", () => {
     });
     await expect(verifyToken(rejected, options)).rejects.toThrow();
   });
+
+  // BET4 — the security-critical, scope-gated tenant relaxation. The tenant requirement is dropped
+  // ONLY for a signed token carrying scopes:["platform"]; every other token still hard-requires a
+  // non-empty tenant. `scopes` is signed by the IdP and cannot be self-asserted by a tenant user.
+  describe("tenant-less platform-operator token (BET4)", () => {
+    it("accepts a platform-scoped token with NO tenant claim → tenantId '' and scopes carried", async () => {
+      const { options, signToken } = await buildFixture();
+      const token = await signToken({
+        omitOrgId: true,
+        claims: { iq_tenant_id: undefined, scopes: ["platform"] },
+      });
+
+      await expect(verifyToken(token, options)).resolves.toMatchObject({
+        userId: "user-1",
+        tenantId: "",
+        scopes: ["platform"],
+      });
+    });
+
+    it("REJECTS a NON-operator token that omits the tenant (relaxation is scope-gated)", async () => {
+      const { options, signToken } = await buildFixture();
+      // scopes present but WITHOUT "platform" — must NOT relax the tenant requirement.
+      const token = await signToken({ claims: { iq_tenant_id: undefined, scopes: ["reporting"] } });
+
+      await expect(verifyToken(token, options)).rejects.toBeInstanceOf(IdentityVerificationError);
+    });
+
+    it("REJECTS a token with NO scopes and NO tenant (default hard-require stays)", async () => {
+      const { options, signToken } = await buildFixture();
+      const token = await signToken({ claims: { iq_tenant_id: undefined } });
+
+      await expect(verifyToken(token, options)).rejects.toBeInstanceOf(IdentityVerificationError);
+    });
+
+    it("populates scopes: [] for an ordinary tenant token (no scopes claim)", async () => {
+      const { options, signToken } = await buildFixture();
+      const token = await signToken();
+
+      await expect(verifyToken(token, options)).resolves.toMatchObject({
+        tenantId: "tenant-1",
+        scopes: [],
+      });
+    });
+
+    it("keeps the tenant when a platform-scoped token DOES carry one (relaxation is permissive, not stripping)", async () => {
+      const { options, signToken } = await buildFixture();
+      const token = await signToken({ claims: { scopes: ["platform"] } });
+
+      await expect(verifyToken(token, options)).resolves.toMatchObject({
+        tenantId: "tenant-1",
+        scopes: ["platform"],
+      });
+    });
+
+    it("ignores a non-array scopes claim (defensive) → scopes [] and tenant still required", async () => {
+      const { options, signToken } = await buildFixture();
+      const token = await signToken({ claims: { iq_tenant_id: undefined, scopes: "platform" } });
+
+      await expect(verifyToken(token, options)).rejects.toBeInstanceOf(IdentityVerificationError);
+    });
+  });
 });

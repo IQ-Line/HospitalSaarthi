@@ -25,6 +25,9 @@ const { DrizzlePrincipalRoleProjectionRepository } = await import(
 const { DrizzlePrincipalAuthorizationRepository } = await import(
   "../../modules/user-management/src/data-access/principal-authorization-repository.ts"
 );
+const { DrizzlePlatformAdminRepository } = await import(
+  "../../modules/user-management/src/data-access/drizzle-platform-admin-repository.ts"
+);
 const { createDefaultPrincipalService } = await import(
   "../../modules/user-management/src/services/default-principal-service.ts"
 );
@@ -55,6 +58,9 @@ const principalService = createDefaultPrincipalService({
   userRepository: new DrizzleUserRepository(db),
   principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(db),
   principalAuthorizationRepository: new DrizzlePrincipalAuthorizationRepository(db),
+  // The Cerbos smoke check exercises the operator, whose authority is now scope:platform (zero
+  // capabilities). Without this repo the principal would emit scopes:[] and the check would 403.
+  platformAdminRepository: new DrizzlePlatformAdminRepository(db),
 });
 
 const cerbos = await validateCerbosForBootstrapUser(cerbosUrl, principalService);

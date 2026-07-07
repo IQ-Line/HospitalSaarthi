@@ -198,6 +198,12 @@ export interface PrincipalAttributes {
    * (not Cerbos `principal.roles`, which may be `__hims_authenticated__` only).
    */
   role_codes: string[];
+  /**
+   * Bounded platform authority scopes (e.g. `["platform"]`); `[]` for ordinary tenant users.
+   * Derived from `platform_admins` membership. PDP rules ADDITIVELY allow platform-provisioning
+   * actions when this contains `"platform"` — clinical resources are intentionally never scoped.
+   */
+  scopes: string[];
   capabilities: string[];
   delegated_capabilities: string[];
   clearances: Record<string, string>;

@@ -33,6 +33,27 @@ function asNonEmptyString(value: unknown, field: string): string {
   return value.trim();
 }
 
+/**
+ * Normalizes the optional `scopes` claim into a clean lowercase set. Non-arrays and non-string
+ * members are dropped (never throws) — an absent/garbage `scopes` yields `[]`, i.e. a NON-operator
+ * principal that still hard-requires a tenant. Only an explicit, signed `"platform"` member relaxes
+ * the tenant requirement.
+ */
+function sanitizeScopes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const normalized = raw
+    .map((scope) => (typeof scope === "string" ? scope.trim().toLowerCase() : ""))
+    .filter((scope) => scope.length > 0);
+  return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+/** True only for a bounded platform-operator token. Central so every relaxation shares one gate. */
+function isPlatformScoped(scopes: readonly string[]): boolean {
+  return scopes.includes("platform");
+}
+
 function normalizeAllowlist(
   value: string | string[],
   field: "issuer" | "audience",
@@ -131,7 +152,17 @@ function resolveOrgIdForPrincipal(tenantId: string, raw: unknown): string {
 
 function toPrincipal(payload: HimsJwtPayload): Principal {
   const userId = asNonEmptyString(payload.sub, "sub");
-  const tenantId = asNonEmptyString(payload.iq_tenant_id, "iq_tenant_id");
+  const scopes = sanitizeScopes(payload.scopes);
+  // BET4 (security-critical): a bounded platform operator's token is tenant-LESS. Tolerate an
+  // absent/empty `iq_tenant_id` ONLY when the signed token carries `scopes:["platform"]`; every
+  // other token keeps the hard requirement. `scopes` is only issued from `platform_admins`
+  // membership on an RS256-signed JWT (see identity-jwt-claims / create-hims-better-auth), so a
+  // tenant user cannot forge this relaxation. When tenant-less, `tenantId` is "" (no sentinel).
+  const tenantId = isPlatformScoped(scopes)
+    ? typeof payload.iq_tenant_id === "string"
+      ? payload.iq_tenant_id.trim()
+      : ""
+    : asNonEmptyString(payload.iq_tenant_id, "iq_tenant_id");
   const orgId = resolveOrgIdForPrincipal(tenantId, payload.org_id);
   const iss = asNonEmptyString(payload.iss, "iss");
   if (typeof payload.iat !== "number") {
@@ -151,6 +182,7 @@ function toPrincipal(payload: HimsJwtPayload): Principal {
     tenantId,
     orgId,
     roles: sanitizeRoles(payload.roles),
+    scopes,
     sessionId,
     department: payload.department,
     iat: payload.iat,
@@ -183,7 +215,11 @@ export async function verifyToken(
   // - Resource services validate *identity* (sub, tenant, roles) — not auth-provider session
   //   lifecycle. Coupling to session_id would make every service a session-state consumer.
   // - If session-binding is needed later, it should be enforced at the auth gateway, not here.
-  verifyOpts.requiredClaims = ["sub", "iq_tenant_id", "roles", "jti", "exp", "iat"];
+  // `iq_tenant_id` is intentionally NOT jose-required: bounded platform-operator tokens are
+  // tenant-less (BET4). The tenant requirement is enforced in `toPrincipal`, which hard-requires a
+  // non-empty tenant for every token EXCEPT `scopes:["platform"]`. A non-operator token missing
+  // `iq_tenant_id` therefore still fails (in toPrincipal), just with a clearer error than jose's.
+  verifyOpts.requiredClaims = ["sub", "roles", "jti", "exp", "iat"];
   verifyOpts.maxTokenAge = `${maxTokenAgeSeconds}s`;
   verifyOpts.clockTolerance = `${clockSkewSeconds}s`;
 

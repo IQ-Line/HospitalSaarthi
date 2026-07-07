@@ -212,6 +212,17 @@ export interface PrincipalRoleProjectionRepository {
 }
 
 /**
+ * Platform-operator membership lookup — the bounded `scope:platform` source of truth.
+ * Tenant-less: keyed by the GLOBAL platform user id (`users.id`). Backs both JWT `scopes`
+ * issuance and the Cerbos `principal.attr.scopes` enrichment. Membership carries no
+ * capabilities; it grants only the additive platform-provisioning scope.
+ */
+export interface PlatformAdminRepository {
+  /** True when the global platform user is a bounded platform operator (`scope:platform`). */
+  isPlatformAdmin(globalUserId: string): Promise<boolean>;
+}
+
+/**
  * Wraps better-auth / JWT verification. Resolves `sub` and `iq_tenant_id` from the active request.
  */
 export interface AuthProvider {

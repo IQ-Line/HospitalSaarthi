@@ -1,6 +1,7 @@
 import type {
   CapabilityRepository,
   MasterDataModuleCatalogPort,
+  PlatformAdminRepository,
   PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
   TenantModuleEntitlementPort,
@@ -19,6 +20,8 @@ export type CreateRuntimeEntitlementPrincipalWiringInput = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
+  /** Optional bounded `scope:platform` membership source; when omitted the principal emits `scopes: []`. */
+  platformAdminRepository?: PlatformAdminRepository;
   capabilityRepository: CapabilityRepository;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort & {
     invalidateTenantModuleCache?(tenantId?: string): void;
@@ -58,6 +61,7 @@ export function createRuntimeEntitlementPrincipalWiring(
     userRepository: input.userRepository,
     principalRoleProjectionRepository: input.principalRoleProjectionRepository,
     principalAuthorizationRepository: input.principalAuthorizationRepository,
+    platformAdminRepository: input.platformAdminRepository,
     tenantEntitlementResolver,
     runtimeEntitlementIntersection: intersectionEnabled,
     logEntitlementIntersection: input.log,

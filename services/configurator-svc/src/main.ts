@@ -10,6 +10,7 @@ import {
   DrizzlePrincipalRoleProjectionRepository,
   DrizzlePrincipalAuthorizationRepository,
   DrizzleCapabilityRepository,
+  DrizzlePlatformAdminRepository,
   createPepRuntimeAuthFromUrls,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
@@ -204,6 +205,9 @@ async function main() {
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
   const capabilityRepository = new DrizzleCapabilityRepository(db);
+  // Bounded platform scope: the same shared operational DB carries user_management.platform_admins,
+  // so the enricher decides `scope:platform` for cross-tenant provisioning off this connection.
+  const platformAdminRepository = new DrizzlePlatformAdminRepository(db);
 
   const { principalService } = createPepRuntimeAuthFromUrls({
     configuratorUrl: configuratorSelfUrl,
@@ -211,6 +215,7 @@ async function main() {
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    platformAdminRepository,
     capabilityRepository,
     // Platform service: a super-admin's capabilities must NOT be intersected with their home
     // tenant's entitled modules (a platform operator's tenant need not entitle `configurator`,

@@ -2,6 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { DevelopmentSeedUser } from "../../packages/dev-bootstrap/src/development-seed-users.ts";
 import {
   capabilities,
+  platform_admins,
   role_capabilities,
   roles,
   user_capabilities,
@@ -12,7 +13,6 @@ import type { DbInstance } from "../../packages/ts-sdk-db/src/index.ts";
 import { authUser } from "../../services/user-management-svc/src/auth/auth-schema.ts";
 import { toSyntheticAuthEmail } from "../../services/user-management-svc/src/auth/synthetic-email.ts";
 import { DEV_ORG_ID, DEV_TENANT_ID, filterCapabilityKeysForPersona } from "./constants.ts";
-import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
 
 export type TenantSeedContext = {
@@ -176,15 +176,12 @@ export async function seedTenantUser(
 
   let grantedCount: number;
   if (seedUser.persona === "platformOperator") {
-    const synced = await syncSuperAdminCapabilitySnapshots(db, {
-      tenantId: context.tenantId,
-      userId: platformUserId,
-      roleId,
-    });
-    grantedCount = synced.capabilityCount;
-    if (grantedCount === 0) {
-      throw new Error("No active capabilities in catalog for platform super-admin.");
-    }
+    // Bounded operator: enroll in platform_admins (scope:platform) — NO capability grants.
+    await db
+      .insert(platform_admins)
+      .values({ user_id: platformUserId, note: "dev seed — bounded platform operator" })
+      .onConflictDoNothing({ target: [platform_admins.user_id] });
+    grantedCount = 0;
   } else {
     const keys = filterCapabilityKeysForPersona(
       seedUser.persona,

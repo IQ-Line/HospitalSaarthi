@@ -5,6 +5,7 @@ import type {
 } from "../ports/module-integration-ports.js";
 import type {
   AuthContext,
+  PlatformAdminRepository,
   Principal,
   PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
@@ -24,6 +25,12 @@ export type DefaultPrincipalServiceDeps = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
+  /**
+   * Bounded `scope:platform` membership source. Optional: services that don't provision platforms
+   * (clinical PEPs) omit it, and the principal emits `scopes: []`. Present in UM-svc and
+   * configurator-svc, where the platform scope additively allows provisioning actions.
+   */
+  platformAdminRepository?: PlatformAdminRepository;
   /** When set with `runtimeEntitlementIntersection`, intersects stored grants with tenant entitlement. */
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   /** When false, principal emits stored grants only (rollback / tests). Default true when resolver is set. */
@@ -161,7 +168,7 @@ export class DefaultPrincipalService {
       context.userId,
     );
 
-    const [storedDirectKeys, clearances, storedDelegatedKeys] = await Promise.all([
+    const [storedDirectKeys, clearances, storedDelegatedKeys, isPlatformAdmin] = await Promise.all([
       this.deps.principalAuthorizationRepository.listEffectiveCapabilityKeys(
         context.tenantId,
         context.userId,
@@ -174,6 +181,10 @@ export class DefaultPrincipalService {
         context.tenantId,
         context.userId,
       ),
+      // DB is the source of truth for platform scope (not the JWT), closing the ~5-min stale-token
+      // window: a de-listed operator loses the PDP scope on the next enrichment. Keyed by the
+      // resolved GLOBAL platform user id (tenant-less membership).
+      this.deps.platformAdminRepository?.isPlatformAdmin(context.userId) ?? Promise.resolve(false),
     ]);
 
     const department = resolveAbacAttribute({
@@ -204,6 +215,7 @@ export class DefaultPrincipalService {
         department,
         org_id: orgIdAttr,
         role_codes: roles,
+        scopes: isPlatformAdmin ? ["platform"] : [],
         capabilities,
         delegated_capabilities: delegatedCapabilities,
         clearances,

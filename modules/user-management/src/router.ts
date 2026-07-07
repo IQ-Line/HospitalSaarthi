@@ -23,7 +23,7 @@ import type {
 import type { CachedTenantEntitlementResolver } from "./services/cached-tenant-entitlement-resolver.js";
 import { registerInternalEntitlementCacheHandlers } from "./rest-handlers/internal-entitlement-cache-handlers.js";
 import { registerInternalUserStatusHandlers } from "./rest-handlers/internal-user-status-handlers.js";
-import { TenantMismatchError } from "./domain/errors.js";
+import { TenantMismatchError, TenantTargetRequiredError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
 import {
   assertTenantHeaderAllowedForPrincipal,
@@ -138,8 +138,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
-    const authMode = (request.routeOptions?.config as { authMode?: string } | undefined)?.authMode;
-    if (authMode === "public") {
+    const routeConfig = request.routeOptions?.config as
+      | { authMode?: string; identityScoped?: boolean }
+      | undefined;
+    if (routeConfig?.authMode === "public") {
       return;
     }
 
@@ -148,6 +150,25 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       return replyWithUserManagementError(
         reply,
         new TenantMismatchError(),
+        request.correlationId ?? request.id,
+      );
+    }
+
+    // Identity/self routes (`/auth/me`, `/auth/principal`, …) operate on the CALLER, not a
+    // tenant-scoped resource — a tenant-less platform operator legitimately has no tenant there.
+    if (routeConfig?.identityScoped === true) {
+      return;
+    }
+
+    // Invariant: a tenant-scoped resource operation requires a NON-empty effective tenant. The
+    // only principal that can resolve to "" here is a tenant-less operator (scope:platform) that
+    // supplied no target (no `iq_tenant_id` header) — normal users always carry a JWT tenant and
+    // the api-key path always sets a real tenantId. Reject before it flows into persistence
+    // (`tenantId=""` → orphan row / confusing 500).
+    if (resolveEffectiveTenantId(request).length === 0) {
+      return replyWithUserManagementError(
+        reply,
+        new TenantTargetRequiredError(),
         request.correlationId ?? request.id,
       );
     }

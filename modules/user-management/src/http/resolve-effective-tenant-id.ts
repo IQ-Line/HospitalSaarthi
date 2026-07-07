@@ -1,63 +1,29 @@
 import type { FastifyRequest } from "fastify";
-import { PLATFORM_SUPER_ADMIN_ROLE } from "../domain/reserved-role-codes.js";
-
-function pickNonEmptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
 
 function resolveJwtTenantId(user: unknown): string {
   return (user as { tenantId: string }).tenantId;
 }
 
-function resolveJwtRoles(user: unknown): string[] {
-  if (user == null || typeof user !== "object") {
-    return [];
-  }
-  const roles = (user as { roles?: unknown }).roles;
-  if (!Array.isArray(roles)) {
-    return [];
-  }
-  return roles.filter((r): r is string => typeof r === "string");
-}
+/** The bounded platform scope. Its presence is what grants cross-tenant / platform authority. */
+const PLATFORM_SCOPE = "platform";
 
-export function isPlatformSuperAdminRole(role: string): boolean {
-  return role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE;
-}
-
-type CerbosPrincipalRolesSource = {
-  roles?: string[];
-  attributes?: { role_codes?: string[] };
+type CerbosPrincipalScopesSource = {
+  attributes?: { scopes?: string[] };
 };
 
-function roleCodesFromCerbosPrincipal(
-  cerbosPrincipal?: CerbosPrincipalRolesSource,
-): string[] {
-  const attrCodes = cerbosPrincipal?.attributes?.role_codes;
-  if (Array.isArray(attrCodes)) {
-    return attrCodes.filter((r): r is string => typeof r === "string");
-  }
-  const persistedRoles = cerbosPrincipal?.roles;
-  if (!Array.isArray(persistedRoles)) {
-    return [];
-  }
-  return persistedRoles.filter((r): r is string => typeof r === "string");
+function filterStrings(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((s): s is string => typeof s === "string") : [];
 }
 
-export function isPlatformSuperAdminPrincipal(
-  user: unknown,
-  cerbosPrincipal?: CerbosPrincipalRolesSource,
-): boolean {
-  if (resolveJwtRoles(user).some(isPlatformSuperAdminRole)) {
-    return true;
-  }
-  if (roleCodesFromCerbosPrincipal(cerbosPrincipal).some(isPlatformSuperAdminRole)) {
-    return true;
-  }
-  const persistedRoles = cerbosPrincipal?.roles;
-  if (!Array.isArray(persistedRoles)) {
-    return false;
-  }
-  return persistedRoles.some(isPlatformSuperAdminRole);
+/** Bounded platform scopes from the enriched Cerbos snapshot (`request.cerbosPrincipal`). */
+function scopesFromCerbosPrincipal(cerbosPrincipal?: CerbosPrincipalScopesSource): string[] {
+  return filterStrings(cerbosPrincipal?.attributes?.scopes);
+}
+
+/** Bounded platform scopes from the verified JWT identity (`request.user.scopes`). */
+function scopesFromRequestUser(user: unknown): string[] {
+  if (user == null || typeof user !== "object") return [];
+  return filterStrings((user as { scopes?: unknown }).scopes);
 }
 
 type RawHeaderValue = string | string[] | undefined;
@@ -89,22 +55,28 @@ export function resolveJwtTenantIdFromRequest(request: FastifyRequest): string {
 
 /**
  * Effective tenant for UM persistence and Cerbos resource attributes.
- * Platform super-admins may scope requests with `iq_tenant_id` header to another tenant.
+ * Bounded platform operators may scope requests with `iq_tenant_id` header to another tenant.
  */
-function cerbosPrincipalFromRequest(request: FastifyRequest): CerbosPrincipalRolesSource | undefined {
-  const raw = (request as FastifyRequest & { cerbosPrincipal?: CerbosPrincipalRolesSource }).cerbosPrincipal;
-  return raw;
+function cerbosPrincipalFromRequest(
+  request: FastifyRequest,
+): CerbosPrincipalScopesSource | undefined {
+  return (request as FastifyRequest & { cerbosPrincipal?: CerbosPrincipalScopesSource })
+    .cerbosPrincipal;
 }
 
 /**
- * Whether the request's verified principal is the platform super-admin (operator).
- * Reads the same JWT-role + cerbosPrincipal sources as the tenant-scope checks below,
- * so "who may scope cross-tenant" and "who may set platform-controlled flags (e.g. a
- * role's `is_system`)" stay in lockstep off one definition of super-admin.
+ * Whether the request's verified principal is a bounded platform operator (scope:platform).
+ * Authority to scope cross-tenant (`iq_tenant_id` header) AND to set platform-controlled flags
+ * (a role's `is_system`) flows from the additive platform SCOPE — never the dead "super-admin"
+ * role string. Reads the enriched Cerbos snapshot scopes, falling back to the JWT identity
+ * scopes so the header gate holds even for callers evaluated before enrichment.
  */
 export function isPlatformSuperAdminRequest(request: FastifyRequest): boolean {
+  if (scopesFromCerbosPrincipal(cerbosPrincipalFromRequest(request)).includes(PLATFORM_SCOPE)) {
+    return true;
+  }
   const requestUser = (request as FastifyRequest & { user?: unknown }).user;
-  return isPlatformSuperAdminPrincipal(requestUser, cerbosPrincipalFromRequest(request));
+  return scopesFromRequestUser(requestUser).includes(PLATFORM_SCOPE);
 }
 
 function isApiKeyAuthenticatedRequest(request: FastifyRequest): boolean {

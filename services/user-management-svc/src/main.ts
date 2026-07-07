@@ -23,7 +23,6 @@ import {
   runDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
-import { repairPlatformSuperAdminCapabilitySnapshots } from "./bootstrap/repair-platform-super-admin.js";
 import {
   DrizzleCapabilityRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -34,6 +33,7 @@ import {
   DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
   DrizzleUserActivationStatusReader,
+  DrizzlePlatformAdminRepository,
   createRuntimeEntitlementPrincipalWiring,
   formatRuntimeAuthorizationStartupFailure,
   registerTenantEntitlementCacheEventConsumers,
@@ -156,6 +156,7 @@ async function createApp(): Promise<FastifyInstance> {
   const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
+  const platformAdminRepository = new DrizzlePlatformAdminRepository(pgDb);
 
   const legacyCleanup = await deactivateSupersededLegacyCapabilities(pgDb);
   if (legacyCleanup.deactivated > 0) {
@@ -198,6 +199,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    platformAdminRepository,
     capabilityRepository,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
@@ -231,18 +233,9 @@ async function createApp(): Promise<FastifyInstance> {
   const auth = createHimsBetterAuth(pgDb, authEnv, {
     userRepository,
     principalRoleProjectionRepository,
+    platformAdminRepository,
   });
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
-
-  if (process.env.NODE_ENV !== "production") {
-    const repair = await repairPlatformSuperAdminCapabilitySnapshots(pgDb);
-    if (repair.repaired) {
-      app.log.info(
-        { capabilityCount: repair.capabilityCount },
-        "Platform super-admin capability snapshots refreshed",
-      );
-    }
-  }
 
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
@@ -275,6 +268,7 @@ async function createApp(): Promise<FastifyInstance> {
   const accessTokenIssuer = createAccessTokenIssuer(pgDb, authEnv, {
     userRepository,
     principalRoleProjectionRepository,
+    platformAdminRepository,
   });
   const interactiveSignIn = createBetterAuthInteractiveSignIn(auth, authBaseUrl);
   const authSessionRevoker = new DrizzleAuthSessionRevoker(pgDb, userRepository);

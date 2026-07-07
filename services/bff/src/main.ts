@@ -97,32 +97,21 @@ const EDGE_AUTH_SKIP_PREFIXES = [
   '/api/user-management/auth/api-key',
 ];
 
-const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
+const PLATFORM_SCOPE = 'platform';
 
 /**
- * Platform super-admins legitimately act ACROSS tenants (e.g. provisioning a new
- * tenant's catalog). Same predicate as the canonical in-house definitions in
- * modules/user-management/src/http/resolve-effective-tenant-id.ts
- * (`isPlatformSuperAdminRole`) and services/web/src/lib/platform-admin.ts. The role
- * string is duplicated in both; no shared home is adopted yet — the natural one is
- * `@hims/ts-sdk-identity` (already a BFF dependency), deferred to keep this slice
- * edge-only. At the edge only the verified JWT `roles` claim exists (the Cerbos
- * `role_codes` enrichment is downstream-only), which is exactly the input this needs.
- * The `.trim().toLowerCase()` mirrors the SDK's own role normalization (verify.ts)
- * and the two precedent copies — self-contained, so the check doesn't silently depend
- * on an undocumented upstream invariant. Exported for direct unit testing.
+ * Bounded platform operators legitimately act ACROSS tenants (e.g. provisioning a new tenant's
+ * catalog). Authority is the additive `scope:platform` claim — issued only from `platform_admins`
+ * membership on an RS256-signed token (see ts-sdk-identity verify.ts / user-management
+ * identity-jwt-claims). This REPLACES the former `super-admin` role-string match, which a tenant
+ * could in principle mint; a scope claim cannot be self-asserted by a tenant user.
  *
- * GATE (load-bearing, NOT enforced today — see follow-up): this whole cross-tenant
- * exception assumes `super-admin` is a platform-reserved role code a tenant CANNOT
- * self-assign. UM has no such reservation yet; a tenant minting a role that normalizes
- * to `super-admin` would gain cross-tenant bypass platform-wide (here, in UM, and in
- * configurator — all use this same string match). Must be enforced before multi-tenant
- * go-live.
+ * At the edge only the verified JWT exists (the Cerbos enrichment is downstream-only), and the
+ * verified `Principal.scopes` is exactly that JWT claim, sanitized by the SDK. Exported for direct
+ * unit testing.
  */
-export function isPlatformSuperAdmin(roles: readonly string[]): boolean {
-  return roles.some(
-    (role) => role.trim().toLowerCase() === PLATFORM_SUPER_ADMIN_ROLE,
-  );
+export function isPlatformSuperAdmin(scopes: readonly string[] | undefined): boolean {
+  return scopes?.includes(PLATFORM_SCOPE) ?? false;
 }
 
 /** A Fastify header value: proxies may send `string[]`, and it may be absent. */
@@ -171,7 +160,7 @@ function checkTenantScope(request: FastifyRequest): boolean {
   if (headerTenant === undefined || headerTenant === principal.tenantId) {
     return true;
   }
-  return isPlatformSuperAdmin(principal.roles);
+  return isPlatformSuperAdmin(principal.scopes);
 }
 
 /**

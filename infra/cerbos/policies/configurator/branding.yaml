@@ -14,3 +14,19 @@ resourcePolicy:
           expr: >-
             "configurator:branding:create" in request.principal.attr.capabilities ||
             "configurator:branding:create" in request.principal.attr.delegated_capabilities
+
+    # --- Bounded platform operator (scope:platform) — additive allow ---
+    # Replaces the former god-mode super-admin: authority is the platform scope issued from
+    # platform_admins membership (JWT `scopes` -> principal.attr.scopes), NOT a capability nor
+    # the "super-admin" role string. No tenant equality — the operator is inherently
+    # cross-tenant. Clinical policies (opd/pharmacy/registration/empi/inventory/billing)
+    # intentionally omit this rule; that omission is the bound. Capability rules above are
+    # untouched (delegated tenant-admins keep working).
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            has(request.principal.attr.scopes) &&
+            "platform" in request.principal.attr.scopes

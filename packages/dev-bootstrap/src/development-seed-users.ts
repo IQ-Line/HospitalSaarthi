@@ -23,7 +23,11 @@ export const DEVELOPMENT_SEED_TENANT_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d480"
 export const DEMO_TENANT_ID = "94478596-14d1-4e7e-b8d2-2995c61c3c90";
 export const DEMO_TENANT_ORG_ID = "ea654e9f-1339-4195-b6bc-ee2f26ed07d4";
 
-/** Platform super-admin — full catalog from Master Data sync on db-migrate. */
+/**
+ * Bounded platform operator — enrolled in `platform_admins` (scope:platform) by the seed. Authority
+ * is the additive platform scope (tenant provisioning + global catalog), NOT a grant of every
+ * catalog capability. `roleCode` stays "super-admin" as a display label only; it bears no authority.
+ */
 export const DEVELOPMENT_PLATFORM_OPERATOR: DevelopmentSeedUser = {
   persona: "platformOperator",
   userId: "f47ac10b-58cc-4372-a567-0e02b2c3d482",
@@ -33,7 +37,7 @@ export const DEVELOPMENT_PLATFORM_OPERATOR: DevelopmentSeedUser = {
   password: "password",
   name: "Platform Operator",
   username: "platform",
-  description: "Full runtime capabilities (platform super-admin).",
+  description: "Bounded platform operator (scope:platform) — tenant provisioning + global catalog.",
 };
 
 /** Pharmacy counter staff — dispense queue and walk-in billing only. */

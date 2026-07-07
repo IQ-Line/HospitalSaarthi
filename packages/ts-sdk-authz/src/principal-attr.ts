@@ -27,6 +27,9 @@ export function principalAttrsForCerbos(principal: Principal): Record<string, Va
     org_id: orgTrim.length > 0 ? orgTrim : null,
     department: deptTrim.length > 0 ? deptTrim : null,
     role_codes: roleCodes,
+    // Bounded platform authority. Always present (default `[]`) so PDP rules can reference
+    // `request.principal.attr.scopes` without a `has()` guard, exactly like `capabilities`.
+    scopes: principal.scopes ?? [],
     capabilities: principal.capabilities ?? [],
     delegated_capabilities: principal.delegatedCapabilities ?? [],
     clearances: principal.clearances ?? {},

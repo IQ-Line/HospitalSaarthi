@@ -207,6 +207,7 @@ export function createHimsBetterAuth(
                 iq_tenant_id: authUser.iq_tenant_id ?? null,
                 org_id: null,
                 roles: [],
+                scopes: [],
                 jti: randomUUID(),
               } as never;
             }
@@ -215,13 +216,20 @@ export function createHimsBetterAuth(
               claims.org_id === null || claims.org_id === undefined
                 ? null
                 : String(claims.org_id).trim();
+            // BET4: the operator token is tenant-LESS — its authority is the platform scope, not a
+            // tenant. Omit `iq_tenant_id` when `scopes` includes "platform"; the SDK relaxes its
+            // tenant requirement ONLY for scoped tokens (verify.ts). Non-operator tokens keep it.
+            const isPlatformScoped = claims.scopes.includes("platform");
             const payload: Record<string, unknown> = {
               sub: user.id,
-              iq_tenant_id: claims.iq_tenant_id,
               org_id: org === "" ? null : org,
               roles: claims.roles,
+              scopes: claims.scopes,
               jti: randomUUID(),
             };
+            if (!isPlatformScoped) {
+              payload.iq_tenant_id = claims.iq_tenant_id;
+            }
             const dept = claims.department;
             if (dept !== null && dept !== undefined && String(dept).trim() !== "") {
               payload.department = String(dept).trim();

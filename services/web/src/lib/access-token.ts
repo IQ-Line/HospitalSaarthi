@@ -3,6 +3,8 @@ export type AccessTokenPayload = {
   roles?: string[];
   /** Legacy/single-role claim when `roles` is absent. */
   user_role?: string;
+  /** Bounded platform authority scopes (e.g. `["platform"]`); absent for ordinary tenant users. */
+  scopes?: string[];
   iq_tenant_id?: string;
   org_id?: string | null;
   sub?: string;
@@ -52,6 +54,22 @@ export function getRolesFromAccessToken(accessToken: string | null | undefined):
   return [];
 }
 
+/** Bounded platform scopes from the access JWT (`scopes` claim). Empty when not a JWT or absent. */
+export function getScopesFromAccessToken(accessToken: string | null | undefined): string[] {
+  const payload = decodeAccessTokenPayload(accessToken);
+  if (!payload || !Array.isArray(payload.scopes)) {
+    return [];
+  }
+  return payload.scopes.filter(
+    (scope): scope is string => typeof scope === 'string' && scope.length > 0,
+  );
+}
+
+/**
+ * @deprecated UX-only role check retained as a fallback signal. Platform authority is now the
+ * bounded `scope:platform` claim (see {@link getScopesFromAccessToken}); the operator merely also
+ * keeps a "super-admin" display role. Backend Cerbos PDP is authoritative — this never gates data.
+ */
 export function isSuperAdminRole(roles: readonly string[]): boolean {
   return roles.includes('super-admin');
 }
