@@ -105,6 +105,19 @@ class ModuleSingleResponse(BaseModel):
     data: ModuleResponse
 
 
+class ModuleCatalogEntry(BaseModel):
+    """One global-catalog module: id + soft-delete flag (internal S2S entitlement dump)."""
+
+    id: UUID
+    is_deleted: bool
+
+
+class ModuleCatalogResponse(BaseModel):
+    """Whole global module-id catalog in one response (internal S2S; no pagination)."""
+
+    data: list[ModuleCatalogEntry]
+
+
 class ModuleCreate(BaseModel):
     """Create body for the module registry."""
 

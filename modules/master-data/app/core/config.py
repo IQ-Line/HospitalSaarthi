@@ -78,6 +78,14 @@ class Settings(BaseSettings):
         default="/docs,/redoc,/openapi.json,/favicon.ico",
         description="Comma-separated path prefixes excluded from request logging.",
     )
+    internal_api_key: str = Field(
+        default="",
+        description=(
+            "Shared secret for internal service-to-service routes (sent in the "
+            "`x-master-data-internal-key` header). Empty ⇒ internal routes are disabled and "
+            "fail closed (503), never open. Set MASTER_DATA_INTERNAL_API_KEY in every env."
+        ),
+    )
     # Authorization is enforced in-process by the hims_authz PEP (identity gate + per-route
     # Cerbos guards, wired in app.main / app.core.authz). There are NO HS256 / bypass / dev-token
     # escape hatches — see AuthEnvSettings below for the JWKS/issuer/audience/Cerbos/UM config.

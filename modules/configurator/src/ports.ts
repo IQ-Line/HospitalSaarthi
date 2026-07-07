@@ -151,6 +151,18 @@ export interface InfrastructureModuleCatalogPort {
 }
 
 /**
+ * Cross-module port for the platform module catalog owned by Master Data (`master_global.modules`).
+ * Returns the set of VALID (non-deleted) module ids — the Configurator uses it to drop orphaned /
+ * soft-deleted `tenant_modules` from entitlement hydration WITHOUT querying `master_data.*` directly
+ * (the reach-in its own LLD forbids). Implemented at the service layer as a hand-written HTTP
+ * adapter (decision D3). The result is always AUTHORITATIVE — the adapter does not cache (see the
+ * adapter for why; the destructive deactivation it feeds must not run off stale data).
+ */
+export interface PlatformModuleCatalogPort {
+  listValidModuleIds(): Promise<Set<string>>;
+}
+
+/**
  * Cross-module port for provisioning the admin role, user, and auth account.
  * Implemented at the service layer where user-management + better-auth are available.
  */

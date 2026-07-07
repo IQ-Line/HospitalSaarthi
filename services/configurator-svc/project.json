@@ -12,6 +12,12 @@
       "outputs": ["{projectRoot}/dist"],
       "cache": true
     },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "services/configurator-svc"
+      }
+    },
     "serve": {
       "executor": "nx:run-commands",
       "dependsOn": ["configurator:db-migrate"],

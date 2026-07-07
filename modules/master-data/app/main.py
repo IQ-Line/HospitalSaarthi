@@ -78,7 +78,15 @@ def create_app(deps: dict[str, Any] | None = None) -> FastAPI:
     app.add_middleware(
         IdentityGateMiddleware,
         verifier=authz.verifier,
-        public_path_prefixes=(f"{settings.api_prefix}/health",),
+        # `/health` is public; `/internal/modules` is a service-to-service route that carries no
+        # end-user JWT — it is skipped here and self-gates on a shared secret in
+        # `app.api.internal_auth`. NOTE: the gate matches by PREFIX (path == p or
+        # startswith(p + '/')), so this also whitelists any future `/internal/modules/<sub>` route
+        # — keep such sub-routes self-gated. Do NOT broaden to a blanket `/internal/` prefix.
+        public_path_prefixes=(
+            f"{settings.api_prefix}/health",
+            f"{settings.api_prefix}/internal/modules",
+        ),
     )
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(RequestContextMiddleware)

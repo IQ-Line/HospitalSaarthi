@@ -65,6 +65,8 @@ async function buildConfiguratorAuthTestApp() {
       });
       registerInternalTenantEntitlementHandler(api, {
         db: {} as never,
+        // Auth-only test: the use-case is vi.mock'd above, so the catalog is never consulted.
+        platformModuleCatalog: { listValidModuleIds: async () => new Set<string>() },
       });
     },
     { prefix: "/api/configurator/v1" },

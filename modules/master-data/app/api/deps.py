@@ -100,6 +100,13 @@ def get_module_repository(
     return ModuleRepository(session, scope)
 
 
+def get_global_module_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleRepository:
+    """Module repo pinned to the GLOBAL catalog (no tenant header) for internal S2S routes."""
+    return ModuleRepository(session, CatalogScope(iq_tenant_id=None))
+
+
 def get_permission_repository(
     session: Annotated[Session, Depends(get_session)],
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],

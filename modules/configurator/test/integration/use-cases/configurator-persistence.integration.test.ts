@@ -17,7 +17,11 @@ import {
   TENANT_ONBOARDING_COMPLETED_EVENT,
 } from "../../../src/use-cases/provision-tenant.js";
 import { listEntitlementEnabledModuleIds } from "../../../src/use-cases/list-entitlement-enabled-module-ids.js";
-import type { RunConfiguratorTransaction, TenantAdminProvisioningPort } from "../../../src/ports.js";
+import type {
+  PlatformModuleCatalogPort,
+  RunConfiguratorTransaction,
+  TenantAdminProvisioningPort,
+} from "../../../src/ports.js";
 import type { ProvisionTenantInput } from "../../../src/domain/onboarding.types.js";
 
 // ---------------------------------------------------------------------------
@@ -33,9 +37,12 @@ import type { ProvisionTenantInput } from "../../../src/domain/onboarding.types.
 //      event published) and (b) the documented compensation gap: when the
 //      post-commit HTTP step fails, the tenant stays COMMITTED in 'provisioning'
 //      (recoverable), not rolled back and not promoted.
-//   2. listEntitlementEnabledModuleIds — raw cross-schema SQL. Proves the
-//      orphan-deactivation side effect and the returned shape against reality
-//      (a fake repo cannot verify raw SQL / Citus join behavior).
+//   2. listEntitlementEnabledModuleIds — the tenant_modules SELECT + orphan-deactivate
+//      UPDATE against real Citus, with the Master Data catalog injected as a stubbed
+//      PlatformModuleCatalogPort (the cross-schema JOIN it used to run is gone — closed by
+//      the #52 HTTP-first reach-in fix). Proves the orphan side effect, the returned shape,
+//      and the two fail-closed floors (catalog fetch-failure throws; authoritatively-empty
+//      catalog throws) never mass-deactivate — a fake repo cannot verify the real SQL / UPDATE.
 // ---------------------------------------------------------------------------
 
 const TEST_DATABASE_URL = process.env["TEST_DATABASE_URL"];
@@ -57,6 +64,12 @@ class CapturingEventBus implements EventBus {
   }
 }
 
+/** In-memory PlatformModuleCatalogPort stub: returns a fixed valid-id set (ignores `fresh`). */
+function stubCatalog(validModuleIds: string[]): PlatformModuleCatalogPort {
+  const ids = new Set(validModuleIds);
+  return { listValidModuleIds: async () => ids };
+}
+
 const ACTOR_ID = "00000000-0000-4000-8000-0000000000a0";
 const CORRELATION_ID = "00000000-0000-4000-8000-0000000000c0";
 const INFRA_MODULE_ID = "10000000-0000-4000-8000-000000000001";
@@ -69,7 +82,6 @@ const TRUNCATE_TARGETS = [
   "configurator.sequence_configuration",
   "configurator.tenants",
   "configurator.organizations",
-  "master_global.modules",
 ];
 
 describeDb("configurator persistence (real DB)", () => {
@@ -82,21 +94,13 @@ describeDb("configurator persistence (real DB)", () => {
     pool = createPool(url);
     // Clean slate so migrations re-run deterministically against any prior state.
     await pool.query("DROP SCHEMA IF EXISTS configurator CASCADE");
-    await pool.query("DROP SCHEMA IF EXISTS master_global CASCADE");
     await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
 
     await applyConfiguratorSchemaMigration(url);
 
-    // Minimal stand-in for Master Data's global module catalog. A Citus REFERENCE
-    // table so it joins against the distributed configurator.tenant_modules — the
-    // same shape the real cross-schema query depends on. (This reach-in is removed
-    // in Step 3 / ports+adapters; here we test the current behavior faithfully.)
-    await pool.query("CREATE SCHEMA master_global");
-    await pool.query(
-      "CREATE TABLE master_global.modules (id uuid PRIMARY KEY, is_deleted boolean NOT NULL DEFAULT false)",
-    );
-    await pool.query("SELECT create_reference_table('master_global.modules')");
-
+    // Master Data's global module catalog is no longer a cross-schema table here: the entitlement
+    // use-case reads it over HTTP via PlatformModuleCatalogPort (D3), which the tests below inject
+    // as a stub. Nothing to create.
     db = createDb(url);
     runConfiguratorTransaction = (fn) =>
       db.transaction(async (tx) =>
@@ -116,7 +120,6 @@ describeDb("configurator persistence (real DB)", () => {
 
   afterAll(async () => {
     await pool.query("DROP SCHEMA IF EXISTS configurator CASCADE");
-    await pool.query("DROP SCHEMA IF EXISTS master_global CASCADE");
     await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await pool.end();
   });
@@ -340,10 +343,9 @@ describeDb("configurator persistence (real DB)", () => {
     const ORPHAN = "30000000-0000-4000-8000-0000000000ff";
     const DELETED_CAT = "30000000-0000-4000-8000-0000000000de";
 
-    await pool.query(
-      "INSERT INTO master_global.modules (id, is_deleted) VALUES ($1,false),($2,false),($3,true)",
-      [VALID_1, VALID_2, DELETED_CAT],
-    );
+    // The Master Data catalog now arrives via the HTTP port (D3), not a cross-schema JOIN. Its
+    // VALID (non-deleted) set excludes ORPHAN (absent) and DELETED_CAT (soft-deleted).
+    const catalog = stubCatalog([VALID_1, VALID_2]);
 
     // VALID_2 and ORPHAN are seeded as core-overrides to prove the orphan path
     // clears is_core_override while leaving the valid core module untouched.
@@ -360,7 +362,7 @@ describeDb("configurator persistence (real DB)", () => {
       );
     }
 
-    const enabled = await listEntitlementEnabledModuleIds(db, TENANT_E);
+    const enabled = await listEntitlementEnabledModuleIds(db, catalog, TENANT_E);
     expect(enabled.map((r) => r.module_id).sort()).toEqual([VALID_1, VALID_2].sort());
     expect(enabled.every((r) => r.is_active)).toBe(true);
 
@@ -381,5 +383,79 @@ describeDb("configurator persistence (real DB)", () => {
     expect(byId.get(ORPHAN)?.is_core_override).toBe(false);
     expect(byId.get(DELETED_CAT)?.is_active).toBe(false);
     expect(byId.get(DELETED_CAT)?.is_core_override).toBe(false);
+  });
+
+  // ---- empty tenant: returns [] WITHOUT consulting the catalog ----
+
+  it("returns [] without consulting the catalog when the tenant has no active modules", async () => {
+    const TENANT_I = "20000000-0000-4000-8000-0000000000b0";
+    let calls = 0;
+    const catalog: PlatformModuleCatalogPort = {
+      listValidModuleIds: async () => {
+        calls += 1;
+        return new Set<string>();
+      },
+    };
+    const enabled = await listEntitlementEnabledModuleIds(db, catalog, TENANT_I);
+    expect(enabled).toEqual([]);
+    // No active modules → the catalog is never fetched (and no spurious throw if it were down).
+    expect(calls).toBe(0);
+  });
+
+  // ---- trap #2a: a catalog FETCH FAILURE fails LOUD, never mass-deactivates ----
+
+  it("propagates a catalog fetch failure WITHOUT deactivating anything (fail-loud, not closed)", async () => {
+    const TENANT_F = "20000000-0000-4000-8000-0000000000f0";
+    const MOD = "30000000-0000-4000-8000-0000000000a1";
+    await pool.query(
+      "INSERT INTO configurator.tenant_modules (iq_tenant_id, module_id, is_active, is_core_override) VALUES ($1,$2,true,true)",
+      [TENANT_F, MOD],
+    );
+
+    const failing: PlatformModuleCatalogPort = {
+      listValidModuleIds: async () => {
+        throw new Error("Master Data internal modules fetch failed: HTTP 503");
+      },
+    };
+
+    await expect(
+      listEntitlementEnabledModuleIds(db, failing, TENANT_F),
+    ).rejects.toThrow(/fetch failed/);
+
+    // A transient catalog outage must not mass-deactivate: the module is untouched.
+    const after = await pool.query<{ is_active: boolean }>(
+      "SELECT is_active FROM configurator.tenant_modules WHERE iq_tenant_id = $1 AND module_id = $2",
+      [TENANT_F, MOD],
+    );
+    expect(after.rows[0]?.is_active).toBe(true);
+  });
+
+  // ---- trap #2b: an authoritatively EMPTY catalog fails CLOSED, never mass-deactivates ----
+
+  it("throws on an empty catalog while the tenant has active modules (no mass-deactivation)", async () => {
+    const TENANT_H = "20000000-0000-4000-8000-0000000000c0";
+    const MOD_1 = "30000000-0000-4000-8000-0000000000b1";
+    const MOD_2 = "30000000-0000-4000-8000-0000000000b2";
+    for (const moduleId of [MOD_1, MOD_2]) {
+      await pool.query(
+        "INSERT INTO configurator.tenant_modules (iq_tenant_id, module_id, is_active, is_core_override) VALUES ($1,$2,true,true)",
+        [TENANT_H, moduleId],
+      );
+    }
+
+    // A healthy platform catalog is never empty — an authoritative empty set here means corrupt /
+    // misconfigured master-data (wrong/unseeded DB, env drift). It must fail loud, NOT deactivate
+    // every module of the tenant (which, being sticky, would be permanent).
+    const empty = stubCatalog([]);
+    await expect(
+      listEntitlementEnabledModuleIds(db, empty, TENANT_H),
+    ).rejects.toThrow(/empty/i);
+
+    const after = await pool.query<{ module_id: string; is_active: boolean }>(
+      "SELECT module_id, is_active FROM configurator.tenant_modules WHERE iq_tenant_id = $1",
+      [TENANT_H],
+    );
+    expect(after.rows.every((r) => r.is_active)).toBe(true); // nothing deactivated
+    expect(after.rows).toHaveLength(2);
   });
 });

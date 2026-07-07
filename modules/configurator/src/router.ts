@@ -12,6 +12,7 @@ import type {
   RunConfiguratorTransaction,
   InfrastructureModuleCatalogPort,
   ModuleCapabilityResolverPort,
+  PlatformModuleCatalogPort,
   TenantAdminProvisioningPort,
 } from "./ports.js";
 import { ConfiguratorError } from "./errors.js";
@@ -27,6 +28,8 @@ import { registerTenantApiKeysHandler } from "./rest-handlers/tenant-api-keys.ha
 
 export interface ConfiguratorRouterOptions {
   db: DbInstance;
+  /** Master Data global module catalog (HTTP adapter) for the internal entitlement route. */
+  platformModuleCatalog: PlatformModuleCatalogPort;
   organizationRepo: OrganizationRepo;
   tenantRepo: TenantRepo;
   tenantModuleRepo: TenantModuleRepo;
@@ -90,6 +93,7 @@ async function configuratorRouter(
   });
   registerInternalTenantEntitlementHandler(app, {
     db: options.db,
+    platformModuleCatalog: options.platformModuleCatalog,
   });
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,

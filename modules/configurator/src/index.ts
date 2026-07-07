@@ -94,6 +94,7 @@ export type {
   RunConfiguratorTransaction,
   ModuleCapabilityResolverPort,
   InfrastructureModuleCatalogPort,
+  PlatformModuleCatalogPort,
   TenantAdminProvisioningPort,
 } from "./ports.js";
 

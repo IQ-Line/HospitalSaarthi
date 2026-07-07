@@ -29,6 +29,7 @@ import {
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
 import { HttpModuleCapabilityResolverAdapter } from "./adapters/http-module-capability-resolver-adapter.js";
+import { HttpPlatformModuleCatalogClient } from "./adapters/http-platform-module-catalog-client.js";
 import { HttpTenantAdminProvisioningAdapter } from "./adapters/http-tenant-admin-provisioning-adapter.js";
 import { HttpUserManagementEntitlementCacheInvalidator } from "./adapters/http-user-management-entitlement-cache-invalidator.js";
 
@@ -140,9 +141,27 @@ async function main() {
     "http://localhost:8010",
   );
   const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";
+  const masterDataInternalApiKey =
+    process.env["MASTER_DATA_INTERNAL_API_KEY"]?.trim() ?? "";
 
   const logFn = (event: Record<string, unknown>, message: string) =>
     app.log.info(event, message);
+
+  // Singleton (static internal key, TTL cache): the internal entitlement route always needs the
+  // Master Data catalog to drop orphaned tenant modules, so it is built unconditionally — a missing
+  // key just means the S2S call is rejected (fail-closed) until it is set to Master Data's value.
+  const platformModuleCatalog = new HttpPlatformModuleCatalogClient({
+    baseUrl: masterDataBaseUrl,
+    internalApiKey: masterDataInternalApiKey,
+    log: logFn,
+  });
+  if (masterDataInternalApiKey.length === 0) {
+    app.log.warn(
+      "MASTER_DATA_INTERNAL_API_KEY unset — configurator cannot authenticate to Master Data " +
+        "/internal/modules; tenant entitlement hydration will fail until it is set (same value " +
+        "as master-data).",
+    );
+  }
 
   const entitlementCacheInvalidator =
     umInternalApiKey.length > 0
@@ -181,6 +200,7 @@ async function main() {
     await api.register(
       createRouter({
         db,
+        platformModuleCatalog,
         organizationRepo,
         tenantRepo,
         tenantModuleRepo,

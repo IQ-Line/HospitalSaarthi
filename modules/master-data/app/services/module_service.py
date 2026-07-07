@@ -75,6 +75,11 @@ def list_modules_for_nav(
     return repository.list_modules_for_nav(visibility=visibility)
 
 
+def list_module_catalog_ids(repository: ModuleRepository) -> list[tuple[UUID, bool]]:
+    """Global module-id catalog (``id`` + ``is_deleted``) for the internal S2S entitlement dump."""
+    return repository.list_catalog_ids()
+
+
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:
     """Return **all** active rows directly under ``parent_id`` (full list; no pagination).
 
