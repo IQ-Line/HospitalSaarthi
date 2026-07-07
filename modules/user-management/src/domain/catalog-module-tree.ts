@@ -8,7 +8,7 @@ export type CatalogModuleRef = {
   readonly level?: number;
 };
 
-/** Active L1 product module in `global_master.modules` (matches seed `level = 1`). */
+/** Active L1 product module in `master_global.modules` (matches seed `level = 1`). */
 export function isCatalogL1Module(module: Pick<CatalogModuleRef, "level" | "parent_id">): boolean {
   return module.level === 1 && module.parent_id === null;
 }

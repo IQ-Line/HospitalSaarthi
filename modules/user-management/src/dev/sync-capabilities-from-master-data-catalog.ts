@@ -47,9 +47,9 @@ export async function loadMasterDataModulePermissions(
       p.slug AS permission_slug,
       p.action AS permission_action,
       p.name AS permission_name
-    FROM global_master.module_permissions mp
-    INNER JOIN global_master.modules m ON m.id = mp.module_id
-    INNER JOIN global_master.permissions p ON p.id = mp.permission_id
+    FROM master_global.module_permissions mp
+    INNER JOIN master_global.modules m ON m.id = mp.module_id
+    INNER JOIN master_global.permissions p ON p.id = mp.permission_id
     WHERE NOT mp.is_deleted
       AND NOT m.is_deleted
       AND NOT p.is_deleted

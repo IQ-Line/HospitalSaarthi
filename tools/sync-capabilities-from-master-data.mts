@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync User Management `capabilities` from Master Data `global_master.module_permissions`.
+ * Sync User Management `capabilities` from Master Data `master_global.module_permissions`.
  */
 import { createDb } from "../packages/ts-sdk-db/src/index.ts";
 import { remapLegacyCapabilityGrants } from "../modules/user-management/src/dev/remap-legacy-capability-grants.ts";

@@ -1,6 +1,6 @@
 """drop the legacy prescriptions.form_data JSONB column
 
-Revision ID: 0006_drop_prescriptions_form_data
+Revision ID: 0006_drop_rx_form_data
 Revises: 0005_rx_when_diet
 Create Date: 2026-06-29
 
@@ -30,7 +30,7 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision: str = "0006_drop_prescriptions_form_data"
+revision: str = "0006_drop_rx_form_data"
 down_revision: str | Sequence[str] | None = "0005_rx_when_diet"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

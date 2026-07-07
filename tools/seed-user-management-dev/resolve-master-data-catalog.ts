@@ -2,7 +2,7 @@ import { createDb, sql } from "../../packages/ts-sdk-db/src/index.ts";
 import { seedLog } from "./log.ts";
 import { normalizePostgresUrl } from "./load-env.ts";
 
-const GLOBAL_MASTER = "global_master";
+const MASTER_GLOBAL = "master_global";
 
 function readPgRows(result: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(result)) {
@@ -19,7 +19,7 @@ export type ResolvedMasterDataCatalog = {
 };
 
 /**
- * Resolves active L1 module UUIDs from `global_master.modules` (Master Data catalog).
+ * Resolves active L1 module UUIDs from `master_global.modules` (Master Data catalog).
  * Used for Configurator `tenant_modules` seeding — no hardcoded slug list.
  */
 export async function resolveMasterDataModuleCatalog(
@@ -30,7 +30,7 @@ export async function resolveMasterDataModuleCatalog(
 
   const result = await db.execute(sql.raw(`
     SELECT slug, id::text AS id
-    FROM ${GLOBAL_MASTER}.modules
+    FROM ${MASTER_GLOBAL}.modules
     WHERE NOT is_deleted
       AND is_active
       AND level = 1
@@ -47,11 +47,11 @@ export async function resolveMasterDataModuleCatalog(
 
   if (moduleIdsBySlug.size === 0) {
     throw new Error(
-      `No active L1 modules in ${GLOBAL_MASTER}.modules — run \`make db-migrate\` (master-data Alembic) first`,
+      `No active L1 modules in ${MASTER_GLOBAL}.modules — run \`make db-migrate\` (master-data Alembic) first`,
     );
   }
 
-  seedLog("master-data", "resolved catalog module ids from global_master", {
+  seedLog("master-data", "resolved catalog module ids from master_global", {
     modules: moduleIdsBySlug.size,
     slugs: [...moduleIdsBySlug.keys()],
   });

@@ -179,8 +179,8 @@ export async function applyPlatformDataBootstrap(input: {
 }): Promise<PlatformDataBootstrapResult> {
   const db = createDb(normalizePostgresUrl(input.databaseUrl));
 
-  if (!(await schemaExists(db, "global_master"))) {
-    throw new Error('Schema "global_master" not found — run master-data migrations first');
+  if (!(await schemaExists(db, "master_global"))) {
+    throw new Error('Schema "master_global" not found — run master-data migrations first');
   }
   if (!(await schemaExists(db, "configurator"))) {
     throw new Error('Schema "configurator" not found — run configurator migrations first');

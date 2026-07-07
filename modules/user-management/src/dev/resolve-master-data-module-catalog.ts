@@ -1,6 +1,6 @@
 import { createDb, sql } from "@hims/ts-sdk-db";
 
-const GLOBAL_MASTER = "global_master";
+const MASTER_GLOBAL = "master_global";
 
 function readPgRows(result: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(result)) {
@@ -20,7 +20,7 @@ export type ResolvedMasterDataCatalog = {
   moduleIdsBySlug: Map<string, string>;
 };
 
-/** Active L1 module UUIDs from `global_master.modules` (for Configurator `tenant_modules`). */
+/** Active L1 module UUIDs from `master_global.modules` (for Configurator `tenant_modules`). */
 export async function resolveMasterDataModuleCatalog(
   masterDataDatabaseUrl: string,
 ): Promise<ResolvedMasterDataCatalog> {
@@ -29,7 +29,7 @@ export async function resolveMasterDataModuleCatalog(
 
   const result = await db.execute(sql.raw(`
     SELECT slug, id::text AS id
-    FROM ${GLOBAL_MASTER}.modules
+    FROM ${MASTER_GLOBAL}.modules
     WHERE NOT is_deleted
       AND is_active
       AND level = 1
@@ -46,7 +46,7 @@ export async function resolveMasterDataModuleCatalog(
 
   if (moduleIdsBySlug.size === 0) {
     throw new Error(
-      `No active L1 modules in ${GLOBAL_MASTER}.modules — run master-data migrations first`,
+      `No active L1 modules in ${MASTER_GLOBAL}.modules — run master-data migrations first`,
     );
   }
 
