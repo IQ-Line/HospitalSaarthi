@@ -1,22 +1,18 @@
 # Cleanup initiative — resume state / handoff (snapshot 2026-07-07)
 
-> **RESUME POINT (Fable /goal run, mid-W3):** Committed+pushed: **W0** `d526cf14`, **W1** `0b0955f6`,
-> **W1.5 absorption** `fa3b1e3e` (backup tag `backup/pre-absorption-20260707`), **W2 PEP fleet** `2b206f8c`.
-> **W3 is STAGED but NOT committed** (git index on disk — survives a session reset; agents/context do not):
-> the bounded operator model (platform_admins table, JWT `scope:platform`, tenant-less operator token,
-> `ts-sdk-identity` scope-gated tenant relaxation, additive scope allow-rules with clinical policies
-> UNSCOPED = the bound, god-mode seed deleted) + ADRs **0034** (polyglot freeze) and **0035** (Phase-4
-> authz). Before committing W3: (1) finish the M1/M2 security fix — M1 = reject **400 tenant_target_required**
-> when a `scope:platform` (tenant-less) principal does a tenant-scoped UM write with no `iq_tenant_id`
-> header (else it persists tenant `""`); M2 = remove the operator scope term from
-> `master_data/department.yaml` + `master_data_visitpad.yaml` ONLY (clinical-reference data — keep it on
-> module/permission/system_role/module_permission); (2) run the affected auth battery (user-management,
-> user-management-svc, bff, ts-sdk-identity, configurator-svc + `cerbos compile --tests`) green; (3) commit
-> operator model + both ADRs together, push. Then **W4** (alembic squash-to-one-baseline absorbing seeds
-> 047/048/049 + fixing their hardcoded-PK downgrade round-trip; `make verify-local`; OM batch; D5 split),
-> **W5** functional hardening, wrap-up. Full live detail in machine-local memory `project_fable_run_progress.md`.
-> ADR-0035 already records the correct facts: the Python PEPs (#51 Half B) ARE built; D11 global-unique is
-> correct-by-layering (auth.user non-distributed = global; distributed users = per-tenant per Citus), not drift.
+> **STATUS (Fable /goal run) — W0–W5 COMPLETE, wrap-up in progress.** All waves committed + pushed to
+> `origin/dev--improved-v1`: **W0** `d526cf14` · **W1** `0b0955f6` · **W1.5 absorption** `fa3b1e3e`
+> (backup tag `backup/pre-absorption-20260707`) · **W2 PEP fleet** `2b206f8c` · **W3 operator model + ADRs
+> 0034/0035** `f9be418c` · **W4** `b88b2762` (verify-local + ts-sdk-india) + `c1f68ced` (alembic squash to
+> one baseline) · **W5 functional hardening** `88011afa` (opd Citus, scan-share refactor,
+> must_change_password server gate, M2 seam, consent-pull polish). Second recon: `origin/dev` unchanged
+> since absorption (`0386cf54`) — nothing new to reconcile; branch is ~150 ahead and contains dev
+> (merges back cleanly). Wrap-up artifacts in this dir: `PR-narrative-dev-improved-v1.md`,
+> `docs-purge-candidates.md`, `closing-evidence-2026-07-07.md`, `gh-triage-2026-07-07.md`.
+> **Remaining (post-goal):** the deferred **D5 master-data (and opd) module/service split** — the module
+> shouldn't BE the service (user-clarified: master-data may keep its own service for now); a dedicated
+> verified refactor. Plus the ADR-0035 follow-ups (operator-action audit, clinical-must-hit-PDP test,
+> ts-sdk-tenant unify, hub Cerbos PEP). Live detail: machine-local memory `project_fable_run_progress.md`.
 
 Working branch **`dev--improved-v1`** (off `dev`). This doc is the quick operational pointer for
 picking the work back up (e.g. on a new machine). The full detail lives in:
