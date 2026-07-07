@@ -8,6 +8,33 @@ picking the work back up (e.g. on a new machine). The full detail lives in:
 - `docs/architecture/cleanup/event-bridge-52-build-plan.md` — the #52 recon + scope decision.
 - `docs/architecture/cleanup/authz-assessment-2026-06-21.md` — §Resolution (authz status).
 
+## Fable takeover (2026-07-07) — the ACTIVE execution plan
+Fable (claude-fable-5) took over execution in session "Refactor-Fable"; the clean-house plan **v3 is
+ratified** (all open questions answered by the user). Waves, running autonomously on `dev--improved-v1`:
+- **W0** commit these stranded docs (this edit). **W1** seed fix (`global_master`→`master_global`,
+  prove `make seed` on a fresh migrate). **W1.5 ABSORB `origin/dev`** (+74 commits/+51k lines) —
+  merge-tree rehearsal in a recon worktree, backup tag, then merge with reconciliation rules
+  (visitpad=ours + re-apply their delete→deactivate terminology; user-management=ours per ADR-0003,
+  harvest only their login bootstrap + `must_change_password`; port their legacy SQL migrations
+  UM-`0007`/IH-`0005`/inventory-`0000–0004` to drizzle journals; alembic merge-revision until the W4
+  squash). **W2** PEP fleet: configurator (per the audited plan below — now building, the
+  "talk it through first" gate in §Where-things-stand is satisfied), **empi** (unlogged hole: no
+  authzPlugin, identity `ENABLE_AUTH`-opt-in), **inventory** (absorbed from dev: authz theater,
+  client-trusted tenant), integration-hub identity hardening. **W3** bounded `scope:platform` operator
+  model + strip god-mode seed + Phase-4 authz ADR + polyglot freeze ADR. **W4** hygiene: alembic
+  squash-to-one-baseline (absorbs both sides' chains incl. the `026_*`/`044–047` collisions),
+  `make verify-local` standing gate, opportunity-menu batch, D5 master-data module/svc split.
+  **W5** functional hardening: consent-pull polish (FE+BE exist on dev — port, don't build),
+  scan-share refactor, login bootstrap port, M2 loud-failure + marked outbox seam, opd Citus
+  distribution. **Wrap-up**: second recon vs dev, GH triage REPORT (user fires closes), docs-purge
+  candidate list, merge-ready evidence run + PR narrative (target: PR `dev--improved-v1` → `dev`).
+
+**Ledger corrections verified 2026-07-07** (stale claims below are struck by this):
+username-primary flip DONE on this branch (`e52f71f3`, synthetic-email anchor, recovery Flow A);
+`services/web` CI lint+typecheck gate DONE (`0d74ef13`, lint=0/typecheck=0); OPD JSONB
+prescription-family retirement + `form_data` DROP DONE (`c2baa80c`, migration `0006`); D18
+branch/worktree cleanup DONE. Session log §11 of the master map carries the takeover entry.
+
 ## Operational constraints (MUST hold)
 - **Never commit/push to `dev`.** All cleanup work is on `dev--improved-v1` (branched off
   `dev@12963b72`; origin/dev has since moved on — on a fresh clone local `dev` just tracks origin,
@@ -23,8 +50,8 @@ picking the work back up (e.g. on a new machine). The full detail lives in:
   `docs/architecture/lld/record-foundation/{02-adversarial-review,build-plan,implementation-checkoff}.md`,
   `docs/sprint-demo-plan.md`, `infra/db/{create-module-databases.sql,pg-init-trust.sh}`.
   These are untracked so they won't push; they will simply be absent on a fresh clone — that's fine.
-- **Stage by explicit path** (never `git add -A`). Commit trailer:
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.
+- **Stage by explicit path** (never `git add -A`). Commit trailer (since the Fable takeover):
+  `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`.
 - Cleanup is **on-the-side**: read/review existing GitHub PRs/issues, never mutate them.
 - WSL2/zsh; `uv` for the Python modules; `nx`/`pnpm` for TS. `tsc -b` is OK now (swap increased);
   avoid long-lived watch-mode.
@@ -64,11 +91,23 @@ Full detail: `docs/architecture/cleanup/reachin-1-implementation-plan.md`.
 **Deferred to Phase 5 (unchanged):** reach-in #2 (opd → `registration` schema — clinical hot path, meets
 the 4 projection criteria → needs the event bridge), the async event-bridge facade, and the broker adapter.
 
-## Next actions on resume
-1. **configurator Cerbos PEP** (chosen next, 2026-07-07) — the remaining Phase-4 cleanup authz item:
-   the TS-side analogue of the #51 Python PEP (opd/master-data). Scope it recon-first → plan → confirm
-   → code, the same way #52 reach-in #1 went. See `authz-assessment-2026-06-21.md` §Resolution for the
-   current authz status.
+## Where things stand (orientation — the user decides the next move, don't run ahead)
+1. **Current in-flight task: the configurator Cerbos PEP** — the last Phase-4 authz cleanup item
+   (the TS-side analogue of the #51 Python PEP on opd/master-data). **Status:** recon done; a full
+   plan is written (`configurator-cerbos-pep-plan.md`) and has been adversarially audited; the
+   *approach* is approved (Option A — full Cerbos PEP, over the alternative of hardening role gates).
+   **Nothing is built yet.** What that plan settles, so you can infer the shape: it wires the existing
+   `ts-sdk-authz` + `ts-sdk-identity` + UM enricher stack into configurator-svc (≈90% reuse, mirroring
+   billing/pharmacy/registration); authors a `configurator` Cerbos policy set (8 capability-gated
+   resource kinds — reads capability-gated too, since configurator exposes cross-tenant platform-admin
+   data) + a capability seed; and removes the role-string `assertPlatformSuperAdmin` + the unsigned-JWT
+   dev fallback. The audit surfaced three things any build must honor (a required post-seed re-sync; a
+   `make seed` stale-schema bug `global_master`→`master_global` from migration 044; enricher+authz must
+   register before the router). Super-admin here is capability-gated, i.e. *bounded-compatible* with the
+   ratified operator model, not god-mode. Read the plan + the memories it links
+   (`project_configurator_cerbos_pep`, `feedback_cleanup_philosophy`, `project_super_admin_operator_model`)
+   to get the full picture, **then talk it through with the user before doing anything** — they want to
+   plan and decide together, not have it executed unprompted.
 2. Then / alternatively: functional ABDM/ABHA (M1/M2, consent-pull FE gap) or the clinical OPD flow.
 3. Housekeeping: `event-bridge-52-build-plan.md` still frames a **TTL cache** for reach-in #1 — that is
    SUPERSEDED by the no-cache decision above (the file is kept as history; do not re-introduce the cache
@@ -78,3 +117,63 @@ the 4 projection criteria → needs the event bridge), the async event-bridge fa
 > (`~/.claude/projects/<slug-of-repo-path>/memory/`; currently `-home-xylar-projects-draft-The-HIMS`).
 > Back that dir up separately to carry the full session memory to a new machine (it is intentionally
 > NOT committed here).
+
+---
+
+## Cleanup philosophy — sharpened by the user 2026-07-07 (read before any cleanup work)
+The initiative's TRUE intent, stated explicitly: a **fully hygienic repo with zero tech-debt artifacts
+or "forced stuff."** Remove misunderstood / poorly-informed decisions and other devs' "just get it to
+work" hacks. A clean repo beats a confusing one; **the app is NOT in production**, so:
+- **Migrations are DISPOSABLE** — fine to discard/rebuild any/all. The master-data **alembic chain
+  (52 files, incl. a 4-way `026_*` numbering collision + the not-ours `026_user_management_catalog_seed.py`)
+  is a squash candidate**; TS drizzle-kit was already rebuilt fresh in Phase 1.
+- **Fully locally runnable end-to-end** (`make infra` + `make seed` + `make dev`) is a north-star.
+  Known crack: **`make seed` reads the stale schema `global_master`** (renamed → `master_global` in
+  migration 044) in `sync-capabilities-from-master-data-catalog.ts` + `platform-data-bootstrap.ts` →
+  likely throws. Fix such local-run breakages when found.
+- **Prefer REMOVING a misunderstood artifact over working around it.**
+
+**Junk register (examples flagged; expand as found):**
+- `modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts` — grants super-admin ALL
+  catalog caps = interim GOD-MODE (`@deprecated`; also a `repair-platform-super-admin` bootstrap).
+  Removal GATED on the bounded `scope:platform` operator model (Phase-4 authz; `project_super_admin_operator_model` memory).
+- `make seed` stale-schema breakage (above).
+- master-data alembic `026_*` numbering collision (4 files).
+
+## The full directive + remaining-work snapshot (2026-07-07)
+The initiative is the WHOLE clean-house effort — **fix / clean / refactor / re-architect / de-sloppify**
+the monorepo into a fully-hygienic, fully-locally-runnable state, then complete the functional goal.
+`00-cleanup-master-map.md` (Phases 0–6 roadmap + §11 session log) is the durable plan; a lot is DONE
+(Phase 0 hygiene, Phase 1 DB/migration rebuild on real Citus, the TS lint gate, ruff, cognitive-complexity
+refactor + rule-flip, the 10-module deep-vet + remediations, #51 Python PEP, #52 reach-in #1, D13 BFF
+edge-auth). Reconstruct exact done-state from the §11 session log. **What REMAINS, grouped:**
+
+- **Authorization (Phase 4):** the configurator Cerbos PEP (current slice — item 1 above); the **bounded
+  `scope:platform` operator model** (build `platform_admins` + no-tenant JWT + PDP-evaluated scope,
+  repoint the 4 role-string resolvers, **strip the god-mode all-caps seed**) + the Phase-4 authz ADR;
+  close the abandoned authz stack #135–149; D16 frontend-authz docs.
+- ~~**OPD consolidation tail**~~ — **DONE** (`c2baa80c`, 2026-06-29): JSONB prescription family retired
+  + `form_data` dropped (migration `0006`); gates honored. (Stale here; corrected 2026-07-07.)
+- **Cleanup streams:** ~~`services/web` has NO CI lint AND no typecheck~~ — **DONE** (`0d74ef13`:
+  lint+typecheck nx targets wired into CI, both at 0 errors); event-bridge facade (D8, Phase 5) + reach-in #2 (opd→registration) +
+  broker adapter; area slices P (observability) / R (error-handling) / S (docker-infra) / Q (seeding) /
+  N (ci-cd tail) / O+D19 (deps); smart-report-v2 (D15); branch/worktree deletion (D18); issue triage
+  (close realized #11/#33/#34/#129/#143 + the abandoned stack); the master-data alembic squash (52 files,
+  `026_*` collision) per the migrations-disposable steer.
+- **Open decisions (register §5):** D11 username uniqueness — **RESOLVED 2026-07-07 (Q-C): stays
+  global-unique**, to be recorded in the Phase-4 authz ADR; D12 email anchor, D16 frontend-authz docs,
+  D19 deps policy, D21 branch/integration strategy.
+- **Functional completion (the real end goal):** ABHA M1 (enrol) + consent-pull FRONTEND (known gap; M2
+  wire done); clinical/OPD polish; admin/granular-perms (delivered by the authz cluster); integration-first
+  USP hardening.
+- **Cross-cutting (the anti-sloppy mandate):** whenever you touch an area, REMOVE the misunderstood /
+  "get-it-to-work" artifacts you find (junk register above), don't work around them.
+
+## Where the durable state lives (for a fresh session / for Fable to pick up)
+- **In-repo (portable, checked in):** `docs/architecture/cleanup/` — this handoff, `00-cleanup-master-map.md`
+  (20 areas + roadmap + session log), `configurator-cerbos-pep-plan.md` (current task + audit appendix),
+  `reachin-1-implementation-plan.md`, `01-module-vet-2026-06-22.md`, `authz-assessment-2026-06-21.md`.
+- **Machine-local memory (NOT committed):** `~/.claude/projects/-home-xylar-projects-draft-The-HIMS/memory/`
+  — `MEMORY.md` index + per-fact files (`project_configurator_cerbos_pep`, `feedback_cleanup_philosophy`,
+  `project_super_admin_operator_model`, `project_cleanup_initiative`, …).
+- **Fable (claude-fable-5) will assist** — point it at both locations above.
