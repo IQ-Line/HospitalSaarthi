@@ -14,6 +14,13 @@
         ]
       }
     },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "modules/inventory"
+      }
+    },
     "db-generate": {
       "executor": "nx:run-commands",
       "options": {

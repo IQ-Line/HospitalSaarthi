@@ -1,8 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import {
-  assertPlatformSuperAdmin,
-  getRequestAuthContext,
-} from "../http/request-auth-context.js";
+import { getRequestActorId } from "../http/request-actor.js";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { TenantModuleRepo, TenantRepo } from "../ports.js";
 import type {
@@ -58,7 +55,7 @@ async function notifyTenantModuleLifecycle(
       "string"
         ? (request as FastifyRequest & { correlationId?: string }).correlationId
         : undefined;
-    const actorId = getRequestAuthContext(request).userId ?? undefined;
+    const actorId = getRequestActorId(request) ?? undefined;
     publishTenantModuleLifecycleEvent(deps.eventBus, {
       eventType,
       iqTenantId: row.iq_tenant_id,
@@ -124,12 +121,9 @@ export function registerTenantModulesHandler(
         },
         body: postTenantModuleBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      // Role-consistent with PATCH/DELETE: enabling a module is a platform-admin op.
-      // Auth inside the handler body (not a sync preHandler): a sync preHandler + body
-      // schema can stall Fastify 5 (see PATCH below).
-      assertPlatformSuperAdmin(request);
       const created = await createTenantModule(tenantModuleRepo, tenantRepo, {
         iq_tenant_id: request.params.tenantId,
         ...request.body,
@@ -145,6 +139,7 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const row = await getTenantModuleByKey(tenantModuleRepo, {
@@ -168,10 +163,9 @@ export function registerTenantModulesHandler(
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      // Auth after schema validation: sync preHandler + PATCH body schema can stall Fastify 5.
-      assertPlatformSuperAdmin(request);
       const key = {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,
@@ -196,9 +190,9 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       const key = {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,

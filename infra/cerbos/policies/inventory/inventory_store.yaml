@@ -1,12 +1,14 @@
 ---
-# Inventory operational stores — tenant administrators configure store locations.
+# Inventory — operational stores (locations that receive/dispense/issue stock).
+# Capabilities: inventory:store:{read,create,update}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
 apiVersion: api.cerbos.dev/v1
 resourcePolicy:
   resource: "inventory_store"
   version: default
   rules:
     - actions:
-        - "inventory.store.read"
+        - "store.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
@@ -14,19 +16,24 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "tenant-admin" in request.principal.attr.role_codes ||
-              "master-data:shell:access" in request.principal.attr.capabilities ||
-              "master-data:shell:access" in request.principal.attr.delegated_capabilities
+              "inventory:store:read" in request.principal.attr.capabilities ||
+              "inventory:store:read" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
-        - "inventory.store.read"
+        - "store.read"
       roles: ["super-admin"]
       effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:store:read" in request.principal.attr.capabilities ||
+              "inventory:store:read" in request.principal.attr.delegated_capabilities
+            )
 
     - actions:
-        - "inventory.store.create"
-        - "inventory.store.update"
+        - "store.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
       condition:
@@ -34,13 +41,43 @@ resourcePolicy:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
             (
-              "tenant-admin" in request.principal.attr.role_codes ||
-              "master-data:shell:access" in request.principal.attr.capabilities ||
-              "master-data:shell:access" in request.principal.attr.delegated_capabilities
+              "inventory:store:create" in request.principal.attr.capabilities ||
+              "inventory:store:create" in request.principal.attr.delegated_capabilities
             )
 
     - actions:
-        - "inventory.store.create"
-        - "inventory.store.update"
+        - "store.create"
       roles: ["super-admin"]
       effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:store:create" in request.principal.attr.capabilities ||
+              "inventory:store:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "store.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:store:update" in request.principal.attr.capabilities ||
+              "inventory:store:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "store.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:store:update" in request.principal.attr.capabilities ||
+              "inventory:store:update" in request.principal.attr.delegated_capabilities
+            )

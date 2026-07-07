@@ -1,0 +1,26 @@
+---
+# Configurator sequence_configuration — platform provisioning surface (configurator schema).
+# Capability-gated with NO tenant equality (capabilities are platform-operator scoped).
+# Reads are authorization decisions here: configurator serves cross-tenant platform-admin data.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:sequence_configuration"
+  version: default
+  rules:
+    - actions: ["read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:sequence-configuration:read" in request.principal.attr.capabilities ||
+            "configurator:sequence-configuration:read" in request.principal.attr.delegated_capabilities
+
+    - actions: ["update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:sequence-configuration:update" in request.principal.attr.capabilities ||
+            "configurator:sequence-configuration:update" in request.principal.attr.delegated_capabilities

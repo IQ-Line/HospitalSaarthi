@@ -45,7 +45,7 @@ import {
   resolveDatabaseUrlFromEnv,
   serviceRoot,
 } from "./load-env.js";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerHttpErrorHandler } from "./http-errors.js";
 
 normalizeIntegrationHubEnvAliases();
@@ -56,7 +56,6 @@ const PORT = Number(
   process.env["INTEGRATION_HUB_SVC_PORT"] ?? process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007,
 );
 const DATABASE_URL = resolveDatabaseUrlFromEnv();
-const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const GATEWAY_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL"] ??
@@ -102,20 +101,6 @@ function assertDatabaseUrl(databaseUrl: string): asserts databaseUrl is string {
   }
 }
 
-function warnIfAuthDisabled(app: FastifyApp): void {
-  if (ENABLE_AUTH) return;
-  const env = process.env["NODE_ENV"] ?? "development";
-  if (env === "production" || env === "staging") {
-    app.log.error(
-      "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
-    );
-  } else {
-    app.log.warn(
-      "ENABLE_AUTH is false — local dev only. M1 enrol/profile APIs trust x-tenant-id alone.",
-    );
-  }
-}
-
 async function verifyDbConnection(app: FastifyApp, db: ReturnType<typeof createDb>): Promise<void> {
   try {
     await db.execute(sql`select 1`);
@@ -131,7 +116,7 @@ async function verifyDbConnection(app: FastifyApp, db: ReturnType<typeof createD
 
 function warnIfConfiguratorKeyMissing(app: FastifyApp): void {
   const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
-  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
+  if (!configuratorInternalApiKey && process.env["NODE_ENV"] === "production") {
     app.log.warn(
       "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
     );
@@ -156,8 +141,6 @@ async function main() {
 
   const app = Fastify({ logger: true, ajv: fastifyAjv });
   registerHttpErrorHandler(app);
-
-  warnIfAuthDisabled(app);
 
   await registerOpenApiDocs(app, {
     serviceId: "integration-hub",
@@ -263,20 +246,24 @@ async function main() {
 
   const abdmRouter = createRouter(sharedInfra);
 
-  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+  // Identity is ALWAYS on. validateAuthConfig() throws if JWKS_URL/JWT_ISSUER/JWT_AUDIENCE
+  // are unset — a service terminating ABHA (M1) and consent (M3) APIs must never boot
+  // without JWT verification. There is no opt-out flag.
+  const identityAuth = validateAuthConfig();
 
   await app.register(async (api) => {
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {
-      if (identityAuth) {
-        const { identityPlugin } = await import("@hims/ts-sdk-identity");
-        // Platform JWT only on /api/abdm/v1 — never on /api/v3 NHA callbacks (gateway Bearer JWS).
-        await scopedApp.register(identityPlugin, {
-          ...identityAuth,
-          skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
-        });
-      }
+      // Platform JWT gate on /api/abdm/v1. NHA gateway callbacks live on the /api/v3
+      // scope (registered above, OUTSIDE this plugin) and authenticate via gateway
+      // signatures/session semantics, not our JWT. skipPathPrefixes exempts only health +
+      // docs; every platform-facing route (M1/M2/M3/scan-share/bridge discovery) requires
+      // a verified token.
+      await scopedApp.register(identityPlugin, {
+        ...identityAuth,
+        skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+      });
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });

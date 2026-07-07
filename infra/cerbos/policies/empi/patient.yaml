@@ -1,0 +1,111 @@
+---
+# EMPI — golden-record patient identity (search, register, demographics, identifiers, addresses).
+# Capabilities: empi:patient:{read,create,update,delete}.
+# `patient.update` covers demographic edits, status transitions, identifier links and address
+# writes; `patient.delete` gates identifier removal (severing an identifier from the record).
+# Policies authorize by tenant + capability keys; roles are context, not grants. Same-tenant for
+# everyone; cross-tenant only for super-admin holding the capability.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "empi_patient"
+  version: default
+  rules:
+    - actions:
+        - "patient.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "empi:patient:read" in request.principal.attr.capabilities ||
+              "empi:patient:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "empi:patient:read" in request.principal.attr.capabilities ||
+              "empi:patient:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "empi:patient:create" in request.principal.attr.capabilities ||
+              "empi:patient:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "empi:patient:create" in request.principal.attr.capabilities ||
+              "empi:patient:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "empi:patient:update" in request.principal.attr.capabilities ||
+              "empi:patient:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "empi:patient:update" in request.principal.attr.capabilities ||
+              "empi:patient:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.delete"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "empi:patient:delete" in request.principal.attr.capabilities ||
+              "empi:patient:delete" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "patient.delete"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "empi:patient:delete" in request.principal.attr.capabilities ||
+              "empi:patient:delete" in request.principal.attr.delegated_capabilities
+            )

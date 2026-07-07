@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { getRequestAuthContext } from "../http/request-auth-context.js";
+import { getRequestActorId } from "../http/request-actor.js";
 import type { SequenceConfigurationRepo, TenantRepo } from "../ports.js";
 import type {
   SequenceConfigurationFilters,
@@ -39,6 +39,7 @@ export function registerSequenceConfigurationHandler(
     "/sequence-configurations",
     {
       schema: { querystring: sequenceConfigurationListQuerySchema },
+      config: { authMode: "protected" },
     },
     async (request) => {
       const { org_id, provisioning_status, status, q } = request.query;
@@ -57,6 +58,7 @@ export function registerSequenceConfigurationHandler(
     "/tenants/:tenantId/sequence-configuration",
     {
       schema: { params: tenantIdParamSchema },
+      config: { authMode: "protected" },
     },
     async (request) => {
       return getSequenceConfiguration(
@@ -77,9 +79,10 @@ export function registerSequenceConfigurationHandler(
         params: tenantIdentifierParamsSchema,
         body: sequenceIdentifierUpsertBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      const { userId } = getRequestAuthContext(request);
+      const userId = getRequestActorId(request);
       return upsertSequenceIdentifier(
         tenantRepo,
         sequenceConfigurationRepo,

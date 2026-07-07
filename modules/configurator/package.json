@@ -15,6 +15,7 @@
     "@azure/storage-blob": "^12.32.0",
     "@fastify/multipart": "^10.0.0",
     "@hims/ts-sdk-api-key": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",

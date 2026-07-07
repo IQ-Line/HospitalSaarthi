@@ -74,6 +74,7 @@ export function registerTenantsHandler(
       schema: {
         body: postTenantBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const created = await createTenant(tenantRepo, organizationRepo, request.body);
@@ -104,6 +105,7 @@ export function registerTenantsHandler(
         params: uuidParamSchema,
         body: patchTenantBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const updated = await updateTenant(

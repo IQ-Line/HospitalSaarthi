@@ -1,0 +1,16 @@
+---
+# Configurator branding — logo upload surface (organization + tenant scope).
+# Capability-gated with NO tenant equality (capabilities are platform-operator scoped).
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:branding"
+  version: default
+  rules:
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:branding:create" in request.principal.attr.capabilities ||
+            "configurator:branding:create" in request.principal.attr.delegated_capabilities

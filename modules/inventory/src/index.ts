@@ -8,6 +8,7 @@ export { listItems } from "./use-cases/list-items.js";
 export { createItem } from "./use-cases/create-item.js";
 
 export { createInventoryAuthzTargetResolver } from "./authz/inventory-authz-target-resolver.js";
+export { enforcePrincipalTenant } from "./authz/principal-tenant-hook.js";
 export { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
 
 export type { StoreRow, CreateStoreInput, UpdateStoreInput } from "./domain/store.types.js";

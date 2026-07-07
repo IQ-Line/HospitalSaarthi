@@ -1,0 +1,83 @@
+---
+# Inventory — Goods Receipt Notes (receipt lines, submit, documents). Submit / line-replace / document-upload are update-class transitions and reuse grn.update.
+# Capabilities: inventory:grn:{read,create,update}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_grn"
+  version: default
+  rules:
+    - actions:
+        - "grn.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:grn:read" in request.principal.attr.capabilities ||
+              "inventory:grn:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "grn.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:grn:read" in request.principal.attr.capabilities ||
+              "inventory:grn:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "grn.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:grn:create" in request.principal.attr.capabilities ||
+              "inventory:grn:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "grn.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:grn:create" in request.principal.attr.capabilities ||
+              "inventory:grn:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "grn.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:grn:update" in request.principal.attr.capabilities ||
+              "inventory:grn:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "grn.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:grn:update" in request.principal.attr.capabilities ||
+              "inventory:grn:update" in request.principal.attr.delegated_capabilities
+            )

@@ -1,0 +1,26 @@
+---
+# Configurator tenant — platform provisioning surface (configurator schema).
+# Capability-gated with NO tenant equality (capabilities are platform-operator scoped).
+# Tenant catalog READS are public (BFF/web consume without a bearer) and are NOT gated here.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:tenant"
+  version: default
+  rules:
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant:create" in request.principal.attr.capabilities ||
+            "configurator:tenant:create" in request.principal.attr.delegated_capabilities
+
+    - actions: ["update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant:update" in request.principal.attr.capabilities ||
+            "configurator:tenant:update" in request.principal.attr.delegated_capabilities

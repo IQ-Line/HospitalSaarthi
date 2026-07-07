@@ -3,7 +3,16 @@ import Fastify, { type FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
 
 loadWorkspaceEnv();
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
   assertConfiguratorDatabaseIsolation,
@@ -16,6 +25,7 @@ import { createRouter } from "@hims/configurator/router";
 import {
   CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES,
   configuratorPublicTenantReadAuthPlugin,
+  createConfiguratorAuthzTargetResolver,
   DrizzleOrganizationRepo,
   DrizzleTenantRepo,
   DrizzleTenantModuleRepo,
@@ -38,6 +48,7 @@ const PORT = Number(
     process.env["CONFIGURATOR_SVC_PORT"] ??
     3001,
 );
+const CERBOS_URL = process.env["CERBOS_URL"];
 
 function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
   const raw = process.env[envKey]?.trim();
@@ -46,6 +57,13 @@ function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
 }
 
 async function main() {
+  if (!CERBOS_URL) {
+    throw new Error("CERBOS_URL environment variable is required");
+  }
+  // Capture the narrowed (string) value: the module-level const's narrowing does not propagate
+  // into the nested `registerConfiguratorApi` closure where authzPlugin is registered.
+  const cerbosUrl: string = CERBOS_URL;
+
   const app = Fastify({
     logger: true,
     ajv: {
@@ -125,12 +143,10 @@ async function main() {
     await eventBus.disconnect();
   });
 
-  const isProduction = process.env["NODE_ENV"] === "production";
-  const enableAuth = process.env["ENABLE_AUTH"] === "true";
-  if (isProduction && !enableAuth) {
-    throw new Error("ENABLE_AUTH=true is required when NODE_ENV=production");
-  }
-  const identityAuth = enableAuth ? validateAuthConfig() : undefined;
+  // Identity + Cerbos PEP are UNCONDITIONAL (no ENABLE_AUTH escape hatch): configurator exposes
+  // cross-tenant platform-admin data, so protected routes always require a verified principal and
+  // a PDP decision. Parity with billing/registration/user-management.
+  const identityAuth = validateAuthConfig();
 
   const userManagementBaseUrl = requireUpstreamBaseUrl(
     "USER_MANAGEMENT_URL",
@@ -139,6 +155,10 @@ async function main() {
   const masterDataBaseUrl = requireUpstreamBaseUrl(
     "MASTER_DATA_URL",
     "http://localhost:8010",
+  );
+  const configuratorSelfUrl = requireUpstreamBaseUrl(
+    "CONFIGURATOR_URL",
+    `http://localhost:${PORT}`,
   );
   const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";
   const masterDataInternalApiKey =
@@ -178,16 +198,36 @@ async function main() {
     );
   }
 
+  // Cerbos PEP wiring: the UM principal enricher reads the SAME shared operational DB (configurator
+  // + user_management are schemas on hims_dev), so it wires off the same `db` connection.
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl: configuratorSelfUrl,
+    masterDataUrl: masterDataBaseUrl,
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+    capabilityRepository,
+    // Platform service: a super-admin's capabilities must NOT be intersected with their home
+    // tenant's entitled modules (a platform operator's tenant need not entitle `configurator`,
+    // which would otherwise strip `configurator:*` → 403). See plan "Top integration risk".
+    runtimeEntitlementIntersection: false,
+    log: logFn,
+  });
+
+  await assertCerbosReachable(cerbosUrl);
+
   await app.register(configuratorPublicTenantReadAuthPlugin);
 
-  if (identityAuth) {
-    const { identityPlugin } = await import("@hims/ts-sdk-identity");
-    // Register at app root so skipPathPrefixes match full request URLs (integration-hub S2S).
-    await app.register(identityPlugin, {
-      ...identityAuth,
-      skipPathPrefixes: [...CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
-    });
-  }
+  // Identity at app root so skipPathPrefixes match full request URLs (integration-hub S2S).
+  await app.register(identityPlugin, {
+    ...identityAuth,
+    skipPathPrefixes: [...CONFIGURATOR_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+  });
 
   async function registerConfiguratorApi(api: FastifyInstance): Promise<void> {
     await api.register(multipart, {
@@ -195,6 +235,18 @@ async function main() {
         fileSize: 2 * 1024 * 1024,
         files: 1,
       },
+    });
+
+    // Enricher + authz MUST register BEFORE the router: authzPlugin's onRoute hook only sees routes
+    // added after it in this scope. Registering after the router would leave every route ungated
+    // (silent fail-open). Order mirrors billing-svc: identity(root) → enricher → authz → router.
+    await api.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await api.register(authzPlugin, {
+      cerbosUrl,
+      resolveTarget: createConfiguratorAuthzTargetResolver(),
     });
 
     await api.register(

@@ -9,6 +9,7 @@ export {
   configuratorPublicTenantReadAuthPlugin,
   isConfiguratorPublicTenantRead,
 } from "./http/configurator-public-tenant-read-auth-plugin.js";
+export { createConfiguratorAuthzTargetResolver } from "./authz/configurator-authz-target-resolver.js";
 
 export { createOrganization } from "./use-cases/create-organization.js";
 export { createOrganizationWithDefaultTenant } from "./use-cases/create-organization-with-default-tenant.js";

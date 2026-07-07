@@ -95,6 +95,43 @@ describe("mapMasterDataPermissionToRuntimeCapability", () => {
     expect(mapped.capability_key).toBe("user-roles:role:assign");
   });
 
+  it("maps configurator provisioning catalog slugs to the platform capability keys the Cerbos policies gate on", () => {
+    // Locks the 047_configurator_authorization_catalog seed slugs to the runtime keys in
+    // infra/cerbos/policies/configurator/*.yaml — prevents #138-style capability-key drift.
+    const cases: Array<[string, string]> = [
+      ["configurator.organization.create", "configurator:organization:create"],
+      ["configurator.organization.read", "configurator:organization:read"],
+      ["configurator.organization.update", "configurator:organization:update"],
+      ["configurator.tenant.create", "configurator:tenant:create"],
+      ["configurator.tenant.update", "configurator:tenant:update"],
+      ["configurator.tenant.module.create", "configurator:tenant-module:create"],
+      ["configurator.tenant.module.read", "configurator:tenant-module:read"],
+      ["configurator.tenant.module.delete", "configurator:tenant-module:delete"],
+      [
+        "configurator.tenant.integration.profile.create",
+        "configurator:tenant-integration-profile:create",
+      ],
+      [
+        "configurator.tenant.integration.profile.delete",
+        "configurator:tenant-integration-profile:delete",
+      ],
+      ["configurator.sequence.configuration.read", "configurator:sequence-configuration:read"],
+      ["configurator.sequence.configuration.update", "configurator:sequence-configuration:update"],
+      ["configurator.tenant.api.key.create", "configurator:tenant-api-key:create"],
+      ["configurator.tenant.api.key.read", "configurator:tenant-api-key:read"],
+      ["configurator.branding.create", "configurator:branding:create"],
+      ["configurator.tenant.onboarding.create", "configurator:tenant-onboarding:create"],
+    ];
+    for (const [permissionSlug, expected] of cases) {
+      expect(
+        mapMasterDataPermissionToRuntimeCapability({
+          moduleSlug: "configurator",
+          permissionSlug,
+        }).capability_key,
+      ).toBe(expected);
+    }
+  });
+
   it("suggests MD permission slug from runtime key", () => {
     expect(suggestMasterDataPermissionSlug("users:users:read")).toBe("users.read");
     expect(suggestMasterDataPermissionSlug("user-roles:role:assign")).toBe(

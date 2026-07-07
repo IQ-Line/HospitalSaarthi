@@ -1,0 +1,58 @@
+---
+# Inventory — catalog items (medicines + consumables).
+# Capabilities: inventory:item:{read,create}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_item"
+  version: default
+  rules:
+    - actions:
+        - "item.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:item:read" in request.principal.attr.capabilities ||
+              "inventory:item:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "item.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:item:read" in request.principal.attr.capabilities ||
+              "inventory:item:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "item.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:item:create" in request.principal.attr.capabilities ||
+              "inventory:item:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "item.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:item:create" in request.principal.attr.capabilities ||
+              "inventory:item:create" in request.principal.attr.delegated_capabilities
+            )

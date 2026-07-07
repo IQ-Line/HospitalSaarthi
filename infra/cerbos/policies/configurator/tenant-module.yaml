@@ -1,0 +1,44 @@
+---
+# Configurator tenant_module — platform provisioning surface (configurator schema).
+# Capability-gated with NO tenant equality (capabilities are platform-operator scoped).
+# Reads are authorization decisions here: configurator serves cross-tenant platform-admin data.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:tenant_module"
+  version: default
+  rules:
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-module:create" in request.principal.attr.capabilities ||
+            "configurator:tenant-module:create" in request.principal.attr.delegated_capabilities
+
+    - actions: ["read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-module:read" in request.principal.attr.capabilities ||
+            "configurator:tenant-module:read" in request.principal.attr.delegated_capabilities
+
+    - actions: ["update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-module:update" in request.principal.attr.capabilities ||
+            "configurator:tenant-module:update" in request.principal.attr.delegated_capabilities
+
+    - actions: ["delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-module:delete" in request.principal.attr.capabilities ||
+            "configurator:tenant-module:delete" in request.principal.attr.delegated_capabilities

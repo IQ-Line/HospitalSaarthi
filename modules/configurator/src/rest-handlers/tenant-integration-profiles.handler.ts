@@ -1,7 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { ConfiguratorError } from "../errors.js";
 import { assertConfiguratorInternalAccess } from "../http/assert-configurator-internal-access.js";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import type { TenantIntegrationProfilesRepo, TenantRepo } from "../ports.js";
 import type {
   CreateTenantIntegrationProfileData,
@@ -128,9 +127,9 @@ export function registerTenantIntegrationProfilesHandler(
           properties: { tenantId: uuidParamSchema.properties.id },
         },
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      assertPlatformSuperAdmin(request);
       const profiles = await listTenantIntegrationProfiles(
         tenantIntegrationProfilesRepo,
         {
@@ -157,9 +156,9 @@ export function registerTenantIntegrationProfilesHandler(
         },
         body: postTenantIntegrationProfileBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       const created = await createTenantIntegrationProfile(
         tenantIntegrationProfilesRepo,
         tenantRepo,
@@ -176,9 +175,9 @@ export function registerTenantIntegrationProfilesHandler(
     "/tenants/:tenantId/integration-profiles/:profileId",
     {
       schema: { params: tenantIntegrationProfileParamsSchema },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      assertPlatformSuperAdmin(request);
       return redactProfileSecret(
         await getTenantIntegrationProfileById(
           tenantIntegrationProfilesRepo,
@@ -199,9 +198,9 @@ export function registerTenantIntegrationProfilesHandler(
         params: tenantIntegrationProfileParamsSchema,
         body: patchTenantIntegrationProfileBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      assertPlatformSuperAdmin(request);
       return redactProfileSecret(
         await updateTenantIntegrationProfile(
           tenantIntegrationProfilesRepo,
@@ -217,9 +216,9 @@ export function registerTenantIntegrationProfilesHandler(
     "/tenants/:tenantId/integration-profiles/:profileId",
     {
       schema: { params: tenantIntegrationProfileParamsSchema },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       await deleteTenantIntegrationProfile(
         tenantIntegrationProfilesRepo,
         request.params.profileId,

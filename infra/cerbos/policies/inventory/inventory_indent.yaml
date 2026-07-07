@@ -1,0 +1,83 @@
+---
+# Inventory — store indents / fulfillment requests. Submit / approve / reject / cancel / fulfill are update-class transitions and reuse indent.update.
+# Capabilities: inventory:indent:{read,create,update}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_indent"
+  version: default
+  rules:
+    - actions:
+        - "indent.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:indent:read" in request.principal.attr.capabilities ||
+              "inventory:indent:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "indent.read"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:indent:read" in request.principal.attr.capabilities ||
+              "inventory:indent:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "indent.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:indent:create" in request.principal.attr.capabilities ||
+              "inventory:indent:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "indent.create"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:indent:create" in request.principal.attr.capabilities ||
+              "inventory:indent:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "indent.update"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:indent:update" in request.principal.attr.capabilities ||
+              "inventory:indent:update" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "indent.update"
+      roles: ["super-admin"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            (
+              "inventory:indent:update" in request.principal.attr.capabilities ||
+              "inventory:indent:update" in request.principal.attr.delegated_capabilities
+            )

@@ -1,7 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import type { IntegrationHubSharedInfra } from "../../../../lib/build-abdm-deps.js";
+import {
+  buildDeploymentGatewayClient,
+  type IntegrationHubSharedInfra,
+} from "../../../../lib/build-abdm-deps.js";
 import { IntegrationProfileNotFoundError } from "../../../../lib/integration-hub-errors.js";
-import { resolveGatewayForRequest } from "../../../../lib/resolve-gateway-for-request.js";
 import { AbdmGatewayError } from "../../lib/gateway-errors.js";
 import { findBridgeServices } from "../../use-cases/m0/find-bridge-services.js";
 import { getMappedFacilityIds } from "../../use-cases/m0/get-mapped-facility-ids.js";
@@ -36,16 +38,20 @@ function mapDiscoveryError(err: unknown, reply: { status: (code: number) => { se
 }
 
 /**
- * Bridge discovery routes — optional `x-tenant-id` (deployment credentials when omitted).
+ * Bridge discovery routes. Deployment-scoped by definition: they enumerate the NHA
+ * bridge's registered services under the DEPLOYMENT's gateway credentials, never a
+ * tenant's. The gateway is built from env config only — a client-supplied
+ * `x-tenant-id` header must NOT select which credentials are used (that was the
+ * header-trust hole). Identity is enforced upstream; the FE calls these authenticated.
  * Registered outside `integrationContextResolver`.
  */
 export async function registerM0DiscoveryRoutes(
   app: FastifyInstance,
   sharedInfra: IntegrationHubSharedInfra,
 ): Promise<void> {
-  app.get("/m0/bridge-services", async (req, reply) => {
+  app.get("/m0/bridge-services", async (_req, reply) => {
     try {
-      const gateway = await resolveGatewayForRequest(req, sharedInfra);
+      const gateway = buildDeploymentGatewayClient(sharedInfra);
       const result = await findBridgeServices({ gateway });
       return reply.send(result);
     } catch (err) {
@@ -53,9 +59,9 @@ export async function registerM0DiscoveryRoutes(
     }
   });
 
-  app.get("/tenant/mapped-facility-ids", async (req, reply) => {
+  app.get("/tenant/mapped-facility-ids", async (_req, reply) => {
     try {
-      const gateway = await resolveGatewayForRequest(req, sharedInfra);
+      const gateway = buildDeploymentGatewayClient(sharedInfra);
       const data = await getMappedFacilityIds({
         gateway,
         profiles: sharedInfra.profiles,

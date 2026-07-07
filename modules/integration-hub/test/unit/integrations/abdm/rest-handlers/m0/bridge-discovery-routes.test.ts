@@ -1,10 +1,10 @@
 import Fastify from "fastify";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { registerM0DiscoveryRoutes } from "./bridge-discovery-routes.js";
-import type { IntegrationHubSharedInfra } from "../../../../lib/build-abdm-deps.js";
-import * as resolveGatewayModule from "../../../../lib/resolve-gateway-for-request.js";
-import * as findBridgeModule from "../../use-cases/m0/find-bridge-services.js";
-import * as mappedIdsModule from "../../use-cases/m0/get-mapped-facility-ids.js";
+import { registerM0DiscoveryRoutes } from "../../../../../../src/integrations/abdm/rest-handlers/m0/bridge-discovery-routes.js";
+import type { IntegrationHubSharedInfra } from "../../../../../../src/lib/build-abdm-deps.js";
+import * as buildDepsModule from "../../../../../../src/lib/build-abdm-deps.js";
+import * as findBridgeModule from "../../../../../../src/integrations/abdm/use-cases/m0/find-bridge-services.js";
+import * as mappedIdsModule from "../../../../../../src/integrations/abdm/use-cases/m0/get-mapped-facility-ids.js";
 
 function minimalSharedInfra(): IntegrationHubSharedInfra {
   return {
@@ -34,22 +34,25 @@ function minimalSharedInfra(): IntegrationHubSharedInfra {
   };
 }
 
+const DEPLOYMENT_GATEWAY = { deployment: true } as never;
+
 describe("registerM0DiscoveryRoutes", () => {
   beforeEach(() => {
-    vi.spyOn(resolveGatewayModule, "resolveGatewayForRequest").mockResolvedValue({
-      get: vi.fn(),
-    } as never);
+    vi.spyOn(buildDepsModule, "buildDeploymentGatewayClient").mockReturnValue(DEPLOYMENT_GATEWAY);
+    // If the tenant-scoped gateway were ever consulted, this spy would record it.
+    vi.spyOn(buildDepsModule, "buildAbdmDepsForTenant").mockRejectedValue(
+      new Error("buildAbdmDepsForTenant must not be called from bridge discovery"),
+    );
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("GET /m0/bridge-services returns NHA bridge payload", async () => {
-    vi.spyOn(findBridgeModule, "findBridgeServices").mockResolvedValue({
-      bridge: { id: "SBX" },
-      services: [],
-    });
+  it("GET /m0/bridge-services uses the deployment gateway and returns NHA payload", async () => {
+    const findSpy = vi
+      .spyOn(findBridgeModule, "findBridgeServices")
+      .mockResolvedValue({ bridge: { id: "SBX" }, services: [] });
 
     const app = Fastify();
     await registerM0DiscoveryRoutes(app, minimalSharedInfra());
@@ -58,21 +61,29 @@ describe("registerM0DiscoveryRoutes", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ bridge: { id: "SBX" }, services: [] });
+    expect(buildDepsModule.buildDeploymentGatewayClient).toHaveBeenCalledTimes(1);
+    expect(buildDepsModule.buildAbdmDepsForTenant).not.toHaveBeenCalled();
+    expect(findSpy).toHaveBeenCalledWith({ gateway: DEPLOYMENT_GATEWAY });
     await app.close();
   });
 
-  it("GET /tenant/mapped-facility-ids returns success wrapper", async () => {
-    vi.spyOn(mappedIdsModule, "getMappedFacilityIds").mockResolvedValue([
-      "IN3610001625",
-    ]);
+  it("ignores a client-supplied x-tenant-id header (no per-tenant gateway selection)", async () => {
+    vi.spyOn(mappedIdsModule, "getMappedFacilityIds").mockResolvedValue(["IN3610001625"]);
 
     const app = Fastify();
     await registerM0DiscoveryRoutes(app, minimalSharedInfra());
 
-    const res = await app.inject({ method: "GET", url: "/tenant/mapped-facility-ids" });
+    const res = await app.inject({
+      method: "GET",
+      url: "/tenant/mapped-facility-ids",
+      headers: { "x-tenant-id": "22222222-2222-4222-8222-222222222222" },
+    });
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ success: true, data: ["IN3610001625"] });
+    // Header ignored: deployment gateway used, tenant-scoped builder never touched.
+    expect(buildDepsModule.buildDeploymentGatewayClient).toHaveBeenCalledTimes(1);
+    expect(buildDepsModule.buildAbdmDepsForTenant).not.toHaveBeenCalled();
     await app.close();
   });
 });
