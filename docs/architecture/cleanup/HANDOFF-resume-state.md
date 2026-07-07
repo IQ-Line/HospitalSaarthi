@@ -1,4 +1,4 @@
-# Cleanup initiative — resume state / handoff (snapshot 2026-07-02)
+# Cleanup initiative — resume state / handoff (snapshot 2026-07-07)
 
 Working branch **`dev--improved-v1`** (off `dev`). This doc is the quick operational pointer for
 picking the work back up (e.g. on a new machine). The full detail lives in:
@@ -9,8 +9,9 @@ picking the work back up (e.g. on a new machine). The full detail lives in:
 - `docs/architecture/cleanup/authz-assessment-2026-06-21.md` — §Resolution (authz status).
 
 ## Operational constraints (MUST hold)
-- **`dev` MUST stay `12963b72`** (local dev is pinned there; origin/dev is ahead at `0cf7988b`).
-  Never commit/push to `dev`. All cleanup work is on `dev--improved-v1`.
+- **Never commit/push to `dev`.** All cleanup work is on `dev--improved-v1` (branched off
+  `dev@12963b72`; origin/dev has since moved on — on a fresh clone local `dev` just tracks origin,
+  which is fine, the branch base is fixed in history).
 - **Never commit the "not-ours" untracked files** (teammates' uncommitted WIP living in the tree):
   `modules/master-data/alembic/versions/026_user_management_catalog_seed.py`,
   `services/web/src/features/user-management/lib/um-permissions.test.ts`,
@@ -44,30 +45,36 @@ Commits `12963b72..HEAD` (13, incl. docs). Half B built the Python Cerbos PEP en
 Verification standard held throughout: ruff + pytest + `cerbos compile` + a **live real-Cerbos
 round-trip** + an adversarial-review pass per phase. `#51` is closed.
 
-## IN PROGRESS — #52 event-bridge / D3 ports+adapters (RECON DONE, no code yet)
-Read `event-bridge-52-build-plan.md`. Key finding: the async event-bridge facade
-(`/internal/events` + merge `py-sdk-events` PR #31 + #30 catalog) is the **Phase-5** slice that
-**decision D8 defers** — do NOT build it now. Actionable = close the 2 cross-schema reach-ins
-HTTP-first (D3 ports + hand-written adapters).
+## DONE — #52 reach-in #1 (configurator → master-data, HTTP-first), COMPLETE
+Commit `223d7818` on `dev--improved-v1`. Closed the configurator → `master_global.modules` cross-schema
+JOIN (`list-entitlement-enabled-module-ids.ts`) HTTP-first (D3/D8):
+- master-data: internal S2S route `GET /api/v1/master-data/internal/modules` (whole global catalog
+  `{data:[{id,is_deleted}]}`, self-gated by `x-master-data-internal-key` / `MASTER_DATA_INTERNAL_API_KEY`,
+  added narrowly to the identity-gate public prefixes).
+- configurator: `PlatformModuleCatalogPort` + hand-written `HttpPlatformModuleCatalogClient` (fetch,
+  fail-loud throw); use-case rewritten to filter orphans in-memory (Citus SELECT-then-UPDATE preserved).
+- **Adversarial review changed the design:** NO adapter cache (it was redundant behind UM's per-tenant
+  `CachedTenantEntitlementResolver` AND it created a sticky-deactivation hazard; the event-bust cache is
+  deferred to Phase 5 with the bridge), plus a fail-closed FLOOR (empty catalog + active tenant modules
+  → throw, never mass-deactivate).
+- Verified: master-data 259 pytest + ruff; configurator-svc 6 adapter; configurator 59 unit + 30
+  integration (real Citus); lint 0; svc `tsc` clean; live uvicorn S2S smoke; 4-lens adversarial review.
+Full detail: `docs/architecture/cleanup/reachin-1-implementation-plan.md`.
 
-**Decided scope (my recommendation; user was mid-system-migration — CONFIRM on resume):** do
-**reach-in #1 only** — configurator → `master_global.modules` JOIN
-(`modules/configurator/src/use-cases/list-entitlement-enabled-module-ids.ts:35,64`), which the
-configurator LLD itself forbids. Fix = (a) a **narrow internal S2S route** on master-data
-(`GET /internal/modules`, internal-key-gated, added narrowly to the `IdentityGateMiddleware` public
-prefixes — Phase-4b made `/modules` JWT-gated), (b) a configurator `PlatformModuleCatalogPort` +
-hand-written HTTP adapter + TTL cache (D3; ref = integration-hub `ConfiguratorHttpIntegrationProfileRepo`),
-(c) rewrite the JOIN → in-memory filter on the cached catalog, preserving the orphan-drop
-fail-closed behavior. **Defer to Phase 5:** reach-in #2 (opd → `registration` schema — clinical hot
-path, meets the 4 projection criteria → needs the bridge), the async bridge, and the broker adapter.
+**Deferred to Phase 5 (unchanged):** reach-in #2 (opd → `registration` schema — clinical hot path, meets
+the 4 projection criteria → needs the event bridge), the async event-bridge facade, and the broker adapter.
 
 ## Next actions on resume
-1. Confirm the #52 scope (reach-in #1 only) or redirect.
-2. Implement per `event-bridge-52-build-plan.md`; verify end-to-end across both services; adversarial
-   review; commit.
-3. Then: configurator Cerbos PEP (separate Phase-4 authz item) and/or functional ABDM/ABHA work.
+1. **configurator Cerbos PEP** (chosen next, 2026-07-07) — the remaining Phase-4 cleanup authz item:
+   the TS-side analogue of the #51 Python PEP (opd/master-data). Scope it recon-first → plan → confirm
+   → code, the same way #52 reach-in #1 went. See `authz-assessment-2026-06-21.md` §Resolution for the
+   current authz status.
+2. Then / alternatively: functional ABDM/ABHA (M1/M2, consent-pull FE gap) or the clinical OPD flow.
+3. Housekeeping: `event-bridge-52-build-plan.md` still frames a **TTL cache** for reach-in #1 — that is
+   SUPERSEDED by the no-cache decision above (the file is kept as history; do not re-introduce the cache
+   without the event-bust bridge).
 
-> Note: my working memory lives OUTSIDE the repo at
-> `~/.claude/projects/-home-ayushiqline-projects-draft-The-HIMS/memory/` — back that dir up
-> separately to carry the full session memory to a new machine (it is intentionally NOT committed
-> here).
+> Note: my working memory lives OUTSIDE the repo, under the machine-local Claude projects dir
+> (`~/.claude/projects/<slug-of-repo-path>/memory/`; currently `-home-xylar-projects-draft-The-HIMS`).
+> Back that dir up separately to carry the full session memory to a new machine (it is intentionally
+> NOT committed here).
