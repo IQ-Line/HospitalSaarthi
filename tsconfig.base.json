@@ -32,6 +32,7 @@
       "@hims/ts-sdk-fhir": ["./packages/ts-sdk-fhir/src/index.ts"],
       "@hims/ts-sdk-abha": ["./packages/ts-sdk-abha/src/index.ts"],
       "@hims/ts-sdk-sequence": ["./packages/ts-sdk-sequence/src/index.ts"],
+      "@hims/ts-sdk-india": ["./packages/ts-sdk-india/src/index.ts"],
       "@hims/openapi-clients": ["./packages/openapi-clients/src/index.ts"],
       "@hims/eslint-config": ["./packages/eslint-config/index.js"],
       "@hims/user-management": ["./modules/user-management/src/index.ts"],

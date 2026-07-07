@@ -11,6 +11,7 @@
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-http": "workspace:*",
+    "@hims/ts-sdk-india": "workspace:*",
     "@hims/ts-sdk-sequence": "workspace:*"
   },
   "peerDependencies": {

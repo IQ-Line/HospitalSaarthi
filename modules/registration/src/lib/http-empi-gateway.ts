@@ -1,3 +1,4 @@
+import { normalizeIndianMobile } from "@hims/ts-sdk-india";
 import type { EmpiHttpPort, EmpiRegisterPatientResult } from "../ports.js";
 import type { PatientDemographicsSnapshot } from "../domain/registration.types.js";
 import type { EmpiPatientWire } from "./registration-helpers.js";
@@ -7,13 +8,6 @@ function joinUrl(base: string, path: string): string {
   const b = base.replace(/\/$/, "");
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${b}${p}`;
-}
-
-/** Align with EMPI desk registration (`+91` + 10 digits). */
-function normalizeIndianPhoneForEmpi(raw: string | undefined | null): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  return `+91${digits.slice(-10)}`;
 }
 
 function firstNonEmptyString(...values: unknown[]): string | null {
@@ -216,7 +210,7 @@ function finiteAgeField(key: string, value: number | undefined): Record<string, 
 function buildDedupBody(query: ResolvePatientIdQuery): Record<string, unknown> | null {
   const firstName = query.first_name?.trim() ?? "";
   const gender = query.gender?.trim().toLowerCase() ?? "";
-  const empiPhone = normalizeIndianPhoneForEmpi(query.phone_number ?? "");
+  const empiPhone = normalizeIndianMobile(query.phone_number ?? "");
 
   const hasMinimumSignal =
     empiPhone != null &&

@@ -125,6 +125,28 @@ db-reset: ## Drop volumes, recreate infra, migrate, seed
 db-studio: ## Open Drizzle Studio
 	$(NX) run-many -t db:studio
 
+# --- Local-runnable proof ----------------------------------------------------
+
+.PHONY: verify-local
+verify-local: ## Full local-runnable proof: infra+migrate+seed+cerbos+boot smoke
+	@echo "==> [1/5] Infra up + healthy..."
+	@$(MAKE) infra
+	@$(MAKE) _wait-healthy
+	@echo "==> [2/5] Migrations (all modules)..."
+	@$(MAKE) db-migrate
+	@echo "==> [3/5] Seed..."
+	@$(MAKE) seed
+	@echo "==> [4/5] Cerbos policy compile + test suite..."
+	@docker exec hims-cerbos /cerbos compile /policies
+	@docker cp infra/cerbos/tests hims-cerbos:/tmp/vl-tests >/dev/null
+	@docker exec hims-cerbos /cerbos compile --tests=/tmp/vl-tests /policies
+	@echo "==> [5/5] Backend boot smoke..."
+	@bash scripts/verify-local-smoke.sh
+	@echo ""
+	@echo "=================================================================="
+	@echo " verify-local: PASS — repo is fully locally runnable end-to-end"
+	@echo "=================================================================="
+
 # --- Testing -----------------------------------------------------------------
 
 .PHONY: test
