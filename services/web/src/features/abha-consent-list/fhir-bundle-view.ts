@@ -1,14 +1,5 @@
+import { resolveNrcesBundleType, firstProfileUrl } from '@hims/ts-sdk-fhir';
 import type { ConsentListDataPushedEntry } from './api';
-
-const PROFILE_BUNDLE_TYPE: Record<string, string> = {
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord': 'OPConsultRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/PrescriptionRecord': 'PrescriptionRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/DiagnosticReportRecord': 'DiagnosticReportRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/DischargeSummaryRecord': 'DischargeSummaryRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord': 'ImmunizationRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/HealthDocumentRecord': 'HealthDocumentRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/WellnessRecord': 'WellnessRecord',
-};
 
 export const BUNDLE_TYPE_LABELS: Record<string, string> = {
   OPConsultRecord: 'Consultation Notes',
@@ -34,12 +25,6 @@ export interface TransformedBundleView {
   DiagnosticReportInfo?: Array<Record<string, unknown>>;
   ImmunizationInfo?: Array<Record<string, unknown>>;
   AttachmentRefs?: ConsentListDataPushedEntry['AttachmentRefs'];
-}
-
-function profileToBundleType(profile?: string): string | undefined {
-  if (!profile) return undefined;
-  const base = profile.split('|')[0] ?? profile;
-  return PROFILE_BUNDLE_TYPE[base];
 }
 
 function humanName(name?: unknown): string {
@@ -215,11 +200,6 @@ function processResource(resource: FhirResource, fullUrl?: string): { type: stri
   return { type: builder.type, data: builder.build(resource, fullUrl) };
 }
 
-function firstProfile(node: FhirResource | undefined): string | undefined {
-  const meta = node?.meta as FhirResource | undefined;
-  return Array.isArray(meta?.profile) ? (meta.profile as string[])[0] : undefined;
-}
-
 function findCompositionResource(bundle: FhirResource): FhirResource | undefined {
   if (!Array.isArray(bundle.entry)) return undefined;
   const match = bundle.entry.find(
@@ -284,8 +264,8 @@ export function transformFhirBundleForView(
 
   const composition = findCompositionResource(bundle);
   result.bundleType =
-    profileToBundleType(firstProfile(composition)) ??
-    profileToBundleType(firstProfile(bundle)) ??
+    resolveNrcesBundleType(firstProfileUrl(composition)) ??
+    resolveNrcesBundleType(firstProfileUrl(bundle)) ??
     (typeof bundle.type === 'string' ? bundle.type : 'HealthRecord');
 
   if (result.CompositionInfo?.[0]) {

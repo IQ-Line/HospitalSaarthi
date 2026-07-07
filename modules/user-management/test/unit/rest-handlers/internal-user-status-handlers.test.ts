@@ -101,7 +101,7 @@ describe("registerInternalUserStatusHandlers", () => {
       headers: { "x-um-internal-key": KEY },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ active: true });
+    expect(res.json()).toEqual({ active: true, must_change_password: false });
     expect(calls).toEqual([{ tenantId: TENANT, userId: USER }]);
   });
 
@@ -112,7 +112,7 @@ describe("registerInternalUserStatusHandlers", () => {
       url: path(),
       headers: { "x-um-internal-key": KEY },
     });
-    expect(res.json()).toEqual({ active: false });
+    expect(res.json()).toEqual({ active: false, must_change_password: false });
   });
 
   it("returns active:false for a permanently banned (but status-active) user", async () => {
@@ -122,7 +122,7 @@ describe("registerInternalUserStatusHandlers", () => {
       url: path(),
       headers: { "x-um-internal-key": KEY },
     });
-    expect(res.json()).toEqual({ active: false });
+    expect(res.json()).toEqual({ active: false, must_change_password: false });
   });
 
   it("returns active:true when a ban expiry is in the past (lapsed)", async () => {
@@ -132,7 +132,24 @@ describe("registerInternalUserStatusHandlers", () => {
       url: path(),
       headers: { "x-um-internal-key": KEY },
     });
-    expect(res.json()).toEqual({ active: true });
+    expect(res.json()).toEqual({ active: true, must_change_password: false });
+  });
+
+  it("surfaces must_change_password:true (still active) for a flagged user", async () => {
+    const { port } = stubReader({
+      status: "active",
+      banned: false,
+      banExpires: null,
+      mustChangePassword: true,
+    });
+    const res = await buildApp(port).inject({
+      method: "GET",
+      url: path(),
+      headers: { "x-um-internal-key": KEY },
+    });
+    // A must-change user is still active (session valid) — only the flag flips true so the
+    // BFF edge can force the password change.
+    expect(res.json()).toEqual({ active: true, must_change_password: true });
   });
 
   it("reports active:false for an unknown user", async () => {
@@ -143,6 +160,6 @@ describe("registerInternalUserStatusHandlers", () => {
       headers: { "x-um-internal-key": KEY },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ active: false });
+    expect(res.json()).toEqual({ active: false, must_change_password: false });
   });
 });

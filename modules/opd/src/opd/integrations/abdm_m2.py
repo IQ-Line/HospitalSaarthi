@@ -10,6 +10,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from typing import Any, TypedDict
 from uuid import UUID
 
@@ -82,6 +83,40 @@ class M2CareContext(TypedDict):
     referenceNumber: str
     display: str
     hiType: str
+
+
+class M2ShareStatus(StrEnum):
+    """Observable outcome of the opd->integration-hub M2 publish.
+
+    SKIPPED  -> the publish was never attempted (M2 disabled, nothing to share,
+                or the hub URL is not configured).
+    SUCCEEDED-> the hub accepted the M2 orchestration POST (HTTP < 400).
+    FAILED   -> the publish was attempted and the hub rejected it or was
+                unreachable. This is the "botched share" an operator must see.
+    """
+
+    SKIPPED = "skipped"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class M2ShareResult:
+    """Honest, caller-visible share outcome (returned, not a fire-and-forget void).
+
+    ``persist_visit_abdm_bundles`` already returns the care contexts it minted; this
+    surfaces whether those contexts actually reached the integration hub so a caller
+    (or a test) can distinguish "share succeeded" from "share attempted + failed"
+    from "share skipped" without scraping stdout.
+    """
+
+    status: M2ShareStatus
+    care_context_count: int
+    reason: str | None = None
+
+    @property
+    def attempted(self) -> bool:
+        return self.status in (M2ShareStatus.SUCCEEDED, M2ShareStatus.FAILED)
 
 
 @dataclass(frozen=True)
@@ -933,38 +968,57 @@ def persist_op_consult_to_record_foundation(
     )
 
 
-def trigger_m2_after_end_consultation(
+def _log_m2_share_failure(
     *,
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
+    contexts: list[M2CareContext],
+    reason: str,
+    exc: BaseException | None = None,
 ) -> None:
+    """LOUD failure: a botched M2 share must reach an operator, not a black hole.
+
+    Emitted at ERROR (not the stdout ``_log_abdm_m2`` trace) with the full context an
+    operator needs to reconcile the missed share: tenant, patient, visit, the exact
+    care-context refs/hiTypes that failed to publish, the failing step, and the
+    upstream status/exception.
     """
-    Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
-    Non-blocking best-effort — failures are logged only.
-    """
-    _log_abdm_m2("visit %s end-consultation trigger started", visit_id)
-    contexts = persist_visit_abdm_bundles(
-        tenant_id=tenant_id,
-        patient_id=patient_id,
-        visit_id=visit_id,
+    logger.error(
+        "%s M2 share FAILED step=m2-orchestrate-publish tenant=%s patient=%s visit=%s "
+        "reason=%s careContexts=%s",
+        ABDM_M2_LOG_PREFIX,
+        tenant_id,
+        patient_id,
+        visit_id,
+        reason,
+        [{"hiType": c["hiType"], "ref": c["referenceNumber"]} for c in contexts],
+        exc_info=exc,
     )
 
-    settings = get_settings()
-    if not settings.abdm_m2_enabled or not contexts:
-        _log_abdm_m2(
-            "visit %s M2 orchestration skipped enabled=%s context_count=%s",
-            visit_id,
-            settings.abdm_m2_enabled,
-            len(contexts),
-        )
-        return
 
-    base = _integration_hub_base_url()
-    if not base:
-        _log_abdm_m2("visit %s M2 orchestration skipped — integration hub URL missing", visit_id)
-        return
+def _publish_m2_to_hub(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    base: str,
+    contexts: list[M2CareContext],
+) -> M2ShareResult:
+    """Publish the minted care contexts to the integration hub's M2 orchestration.
 
+    OUTBOX SEAM: this function is the single opd->integration-hub M2 publish boundary.
+
+    Under the ratified HTTP-first orchestration model (ADR orchestration-decision-phase-1)
+    the publish is a direct, in-request fire-and-forget POST to the hub, done here inline.
+    Under the documented durable-execution target (Temporal), THIS function body is what
+    gets replaced: instead of ``urllib.request.urlopen``-ing the hub inline, it enqueues a
+    durable outbox row / workflow signal keyed by (tenant_id, patient_id, visit_id,
+    careContexts) that a worker drains with at-least-once retry. Per the Phase-1
+    portability rules the enqueue must be the ONLY thing that changes here — the caller
+    contract (careContexts computed upstream in, ``M2ShareResult`` out) stays identical, so
+    the transform is mechanical. Grep for ``OUTBOX SEAM`` to find every such boundary.
+    """
     _log_abdm_m2(
         "visit %s M2 orchestration POST careContexts=%s",
         visit_id,
@@ -986,28 +1040,116 @@ def trigger_m2_after_end_consultation(
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
             if res.status >= 400:
-                _log_abdm_m2(
-                    "visit %s M2 orchestration returned HTTP %s",
-                    visit_id,
-                    res.status,
+                reason = f"hub returned HTTP {res.status}"
+                _log_m2_share_failure(
+                    tenant_id=tenant_id,
+                    patient_id=patient_id,
+                    visit_id=visit_id,
+                    contexts=contexts,
+                    reason=reason,
                 )
-            else:
-                _log_abdm_m2("visit %s M2 orchestration HTTP %s ok", visit_id, res.status)
+                return M2ShareResult(
+                    status=M2ShareStatus.FAILED,
+                    care_context_count=len(contexts),
+                    reason=reason,
+                )
+            _log_abdm_m2("visit %s M2 orchestration HTTP %s ok", visit_id, res.status)
+            return M2ShareResult(
+                status=M2ShareStatus.SUCCEEDED,
+                care_context_count=len(contexts),
+            )
     except urllib.error.HTTPError as exc:
-        _log_abdm_m2(
-            "visit %s M2 orchestration HTTP error status=%s reason=%s",
-            visit_id,
-            exc.code,
-            exc.reason,
+        reason = f"hub HTTP error status={exc.code} reason={exc.reason}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
         )
     except urllib.error.URLError as exc:
-        _log_abdm_m2(
-            "visit %s M2 orchestration unreachable reason=%s",
-            visit_id,
-            exc.reason,
+        reason = f"hub unreachable reason={exc.reason}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
         )
     except OSError as exc:
-        _log_abdm_m2("visit %s M2 orchestration failed error=%s", visit_id, exc)
+        reason = f"transport error {exc}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
+        )
+    return M2ShareResult(
+        status=M2ShareStatus.FAILED,
+        care_context_count=len(contexts),
+        reason=reason,
+    )
+
+
+def trigger_m2_after_end_consultation(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+) -> M2ShareResult:
+    """
+    Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
+
+    Runs as a FastAPI background task AFTER the clinical write has committed, so it can never
+    fail the OPD encounter. Its share OUTCOME is nonetheless made observable: it returns an
+    ``M2ShareResult`` (skipped / succeeded / failed+reason) and, on failure, logs LOUDLY at
+    ERROR — a botched share is surfaced, not silently swallowed.
+    """
+    _log_abdm_m2("visit %s end-consultation trigger started", visit_id)
+    contexts = persist_visit_abdm_bundles(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+    )
+
+    settings = get_settings()
+    if not settings.abdm_m2_enabled or not contexts:
+        reason = (
+            f"M2 disabled or nothing to share "
+            f"(enabled={settings.abdm_m2_enabled}, contexts={len(contexts)})"
+        )
+        _log_abdm_m2(
+            "visit %s M2 orchestration skipped enabled=%s context_count=%s",
+            visit_id,
+            settings.abdm_m2_enabled,
+            len(contexts),
+        )
+        return M2ShareResult(
+            status=M2ShareStatus.SKIPPED,
+            care_context_count=len(contexts),
+            reason=reason,
+        )
+
+    base = _integration_hub_base_url()
+    if not base:
+        _log_abdm_m2("visit %s M2 orchestration skipped — integration hub URL missing", visit_id)
+        return M2ShareResult(
+            status=M2ShareStatus.SKIPPED,
+            care_context_count=len(contexts),
+            reason="integration hub URL not configured",
+        )
+
+    return _publish_m2_to_hub(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        base=base,
+        contexts=contexts,
+    )
 
 
 # Re-export for tests that import clinical summary helpers from this module.

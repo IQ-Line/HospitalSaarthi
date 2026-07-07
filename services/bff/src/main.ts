@@ -99,6 +99,18 @@ const EDGE_AUTH_SKIP_PREFIXES = [
 
 const PLATFORM_SCOPE = 'platform';
 
+// Self-service routes a must-change-password principal may still reach to DRIVE the change:
+// `/auth/me` + `/auth/principal` (render the screen) and `/auth/change-password-complete`
+// (clear the flag). All else is blocked. Better-auth's own change-password endpoint is under
+// `/api/auth` (an EDGE_AUTH_SKIP_PREFIXES entry), so it never reaches this gate.
+const PASSWORD_CHANGE_ALLOWED_PREFIXES = ['/api/user-management/auth/'];
+
+/** True for the self-service routes exempt from the forced-password-change gate. */
+export function isPasswordChangeSelfServicePath(url: string): boolean {
+  const path = url.split('?', 1)[0];
+  return PASSWORD_CHANGE_ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
+
 /**
  * Bounded platform operators legitimately act ACROSS tenants (e.g. provisioning a new tenant's
  * catalog). Authority is the additive `scope:platform` claim — issued only from `platform_admins`
@@ -300,12 +312,11 @@ export async function buildApp(): Promise<FastifyInstance> {
       ...auth,
       skipPathPrefixes: EDGE_AUTH_SKIP_PREFIXES,
     });
-    // Ban/revocation cutoff (D13): a per-request, cached check against UM that catches
-    // users deactivated or banned AFTER their token was issued. Gated on the S2S secret
-    // — without it the check cannot authenticate to UM, so we skip it (and warn) rather
-    // than fail-open on every request. UM_INTERNAL_API_KEY comes from the workspace .env.
+    // Status cutoff (D13): per-request cached UM check catching users deactivated/banned AFTER
+    // token issue AND admin-flagged forced password changes (both ride the same authoritative
+    // read — the JWT predates a later reset, so its claims are stale). Gated on the S2S secret.
     const umInternalApiKey = process.env['UM_INTERNAL_API_KEY']?.trim();
-    const checkActive =
+    const checkStatus =
       umInternalApiKey !== undefined && umInternalApiKey.length > 0
         ? createActiveStatusChecker({
             userManagementUrl:
@@ -314,9 +325,9 @@ export async function buildApp(): Promise<FastifyInstance> {
             log: app.log,
           })
         : undefined;
-    if (checkActive === undefined) {
+    if (checkStatus === undefined) {
       app.log.warn(
-        'UM_INTERNAL_API_KEY unset — edge ban/revocation cutoff DISABLED (stale tokens valid until expiry).',
+        'UM_INTERNAL_API_KEY unset — edge ban/revocation cutoff AND forced-password-change gate DISABLED (stale tokens valid until expiry).',
       );
     }
     // Runs after the identity plugin's onRequest hook (registration order), so
@@ -335,22 +346,36 @@ export async function buildApp(): Promise<FastifyInstance> {
       }
       canonicalizeTenantHeaders(request);
       normalizeIdentityHeaders(request);
-      // Ban/revocation cutoff: only for authenticated requests (public/skipped routes
-      // carry no principal). Fails open inside the checker, so a UM outage degrades to
-      // the status-quo token-TTL window rather than blocking traffic.
+      // Status cutoff: only for authenticated requests (public/skipped routes carry no
+      // principal). Fails open inside the checker, so a UM outage degrades to the
+      // status-quo token-TTL window rather than blocking traffic.
       const principal = request.user as Principal | undefined;
-      if (checkActive !== undefined && principal && !(await checkActive(principal))) {
-        return unauthorized(
-          reply,
-          request,
-          'USER_INACTIVE',
-          'User account is inactive, suspended, or banned.',
-        );
+      if (checkStatus !== undefined && principal) {
+        const verdict = await checkStatus(principal);
+        if (!verdict.active) {
+          return unauthorized(
+            reply,
+            request,
+            'USER_INACTIVE',
+            'User account is inactive, suspended, or banned.',
+          );
+        }
+        // Forced password change: an admin reset this principal's password. Refuse every
+        // normal operation until it changes (the SPA gate is UX only — this is authoritative);
+        // only the self-service routes are exempt.
+        if (verdict.mustChangePassword && !isPasswordChangeSelfServicePath(request.url)) {
+          return forbidden(
+            reply,
+            request,
+            'PASSWORD_CHANGE_REQUIRED',
+            'A password change is required before continuing. Complete the password change to proceed.',
+          );
+        }
       }
     });
     app.log.info(
       'Edge auth ENABLED — JWT validation + authoritative x-user-id + tenant-scope assertion' +
-        (checkActive !== undefined ? ' + ban cutoff.' : ' (ban cutoff disabled).'),
+        (checkStatus !== undefined ? ' + ban cutoff + password-change gate.' : ' (cutoffs disabled).'),
     );
   } else {
     warnEdgeAuthDisabled(app, isProduction);

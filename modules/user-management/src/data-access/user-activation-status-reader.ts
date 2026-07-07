@@ -6,6 +6,7 @@ type ActivationRow = {
   status: string;
   banned: boolean;
   ban_expires: Date | string | null;
+  must_change_password: boolean;
 };
 
 /** node-postgres returns `{ rows }`; tolerate a bare array for forward-compat. */
@@ -43,7 +44,8 @@ export class DrizzleUserActivationStatusReader implements UserActivationStatusRe
     const result = await this.db.execute(sql`
       SELECT u.status AS status,
              COALESCE(au.banned, false) AS banned,
-             au."banExpires" AS ban_expires
+             au."banExpires" AS ban_expires,
+             u.must_change_password AS must_change_password
       FROM user_management.users AS u
       LEFT JOIN auth."user" AS au ON au.id = u.auth_user_id::text
       WHERE u.iq_tenant_id = ${tenantId} AND u.id = ${userId}
@@ -57,6 +59,7 @@ export class DrizzleUserActivationStatusReader implements UserActivationStatusRe
       status: row.status,
       banned: row.banned === true,
       banExpires: toDateOrNull(row.ban_expires),
+      mustChangePassword: row.must_change_password === true,
     };
   }
 }

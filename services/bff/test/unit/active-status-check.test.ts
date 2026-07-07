@@ -34,9 +34,9 @@ const ok = (body: unknown): Response =>
 describe('createActiveStatusChecker', () => {
   it('calls the UM active endpoint with the key + tenant query and returns active:true', async () => {
     const { fetchImpl, calls } = recorder(() => ok({ active: true }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
 
-    expect(await isActive(SUBJECT)).toBe(true);
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.key).toBe(KEY);
     expect(calls[0]?.url).toBe(
@@ -46,47 +46,86 @@ describe('createActiveStatusChecker', () => {
 
   it('returns active:false for a banned/inactive user', async () => {
     const { fetchImpl } = recorder(() => ok({ active: false }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
-    expect(await isActive(SUBJECT)).toBe(false);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: false, mustChangePassword: false });
   });
 
-  it('caches a verdict within the TTL (one fetch for repeated calls)', async () => {
+  it('surfaces mustChangePassword:true from the body (active user, flag set)', async () => {
+    const { fetchImpl } = recorder(() => ok({ active: true, must_change_password: true }));
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: true });
+  });
+
+  it('degrades a missing/non-boolean must_change_password to false (backward-compatible)', async () => {
+    // n===0: field absent. n===1: field present but non-boolean (a number) -> both false.
+    const { fetchImpl } = recorder((n) =>
+      n === 0 ? ok({ active: true }) : ok({ active: true, must_change_password: 1 }),
+    );
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(await check({ ...SUBJECT, userId: 'other' })).toEqual({
+      active: true,
+      mustChangePassword: false,
+    });
+  });
+
+  it('does NOT cache a mustChangePassword:true verdict — re-checks every call (immediate unblock)', async () => {
     let t = 1_000;
-    const { fetchImpl, calls } = recorder(() => ok({ active: false }));
-    const isActive = createActiveStatusChecker({
+    // First read: flagged. Second read (same TTL window): flag cleared. A cached `true`
+    // would keep blocking; proving a re-fetch pins that the flagged verdict is uncached.
+    const { fetchImpl, calls } = recorder((n) =>
+      ok({ active: true, must_change_password: n === 0 }),
+    );
+    const check = createActiveStatusChecker({
       userManagementUrl: UM,
       internalApiKey: KEY,
       ttlMs: 30_000,
       now: () => t,
       fetchImpl,
     });
-    expect(await isActive(SUBJECT)).toBe(false);
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: true });
+    t = 5_000; // well within the TTL
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(calls).toHaveLength(2); // flagged verdict was not cached -> re-fetched
+  });
+
+  it('caches an UNFLAGGED verdict within the TTL (one fetch for repeated calls)', async () => {
+    let t = 1_000;
+    const { fetchImpl, calls } = recorder(() => ok({ active: false }));
+    const check = createActiveStatusChecker({
+      userManagementUrl: UM,
+      internalApiKey: KEY,
+      ttlMs: 30_000,
+      now: () => t,
+      fetchImpl,
+    });
+    expect(await check(SUBJECT)).toEqual({ active: false, mustChangePassword: false });
     t = 20_000; // still within TTL
-    expect(await isActive(SUBJECT)).toBe(false);
+    expect(await check(SUBJECT)).toEqual({ active: false, mustChangePassword: false });
     expect(calls).toHaveLength(1);
   });
 
   it('re-fetches once the TTL has elapsed', async () => {
     let t = 1_000;
     const { fetchImpl, calls } = recorder(() => ok({ active: true }));
-    const isActive = createActiveStatusChecker({
+    const check = createActiveStatusChecker({
       userManagementUrl: UM,
       internalApiKey: KEY,
       ttlMs: 30_000,
       now: () => t,
       fetchImpl,
     });
-    expect(await isActive(SUBJECT)).toBe(true);
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     t = 40_000; // past TTL
-    expect(await isActive(SUBJECT)).toBe(true);
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(2);
   });
 
   it('FAILS OPEN on a non-200 and does NOT cache it (retries next call)', async () => {
     const { fetchImpl, calls } = recorder(() => new Response('nope', { status: 503 }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
-    expect(await isActive(SUBJECT)).toBe(true);
-    expect(await isActive(SUBJECT)).toBe(true);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(2); // not cached -> fetched again
   });
 
@@ -94,25 +133,25 @@ describe('createActiveStatusChecker', () => {
     const { fetchImpl, calls } = recorder(() => {
       throw new Error('ECONNREFUSED');
     });
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
-    expect(await isActive(SUBJECT)).toBe(true);
-    expect(await isActive(SUBJECT)).toBe(true);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(2); // not cached -> fetched again
   });
 
   it('FAILS OPEN on a 200 body missing a boolean `active`, and does NOT cache it', async () => {
     const { fetchImpl, calls } = recorder(() => ok({ status: 'weird' }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
-    expect(await isActive(SUBJECT)).toBe(true);
-    expect(await isActive(SUBJECT)).toBe(true);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(2); // not cached
   });
 
   it('FAILS OPEN on a 200 with non-JSON body, and does NOT cache it', async () => {
     const { fetchImpl, calls } = recorder(() => new Response('<html>oops</html>', { status: 200 }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
-    expect(await isActive(SUBJECT)).toBe(true);
-    expect(await isActive(SUBJECT)).toBe(true);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(calls).toHaveLength(2); // not cached
   });
 
@@ -125,21 +164,21 @@ describe('createActiveStatusChecker', () => {
         started += 1;
         init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
       });
-    const isActive = createActiveStatusChecker({
+    const check = createActiveStatusChecker({
       userManagementUrl: UM,
       internalApiKey: KEY,
       timeoutMs: 20,
       fetchImpl,
     });
-    expect(await isActive(SUBJECT)).toBe(true);
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(started).toBe(1);
   });
 
   it('logs at ERROR (not warn) when UM rejects the S2S key — a silent-misconfig guard', async () => {
     const log = { warn: vi.fn(), error: vi.fn() };
     const { fetchImpl } = recorder(() => new Response('forbidden', { status: 401 }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl, log });
-    expect(await isActive(SUBJECT)).toBe(true); // still fails open
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl, log });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false }); // still fails open
     expect(log.error).toHaveBeenCalledTimes(1);
     expect(log.warn).not.toHaveBeenCalled();
   });
@@ -147,8 +186,8 @@ describe('createActiveStatusChecker', () => {
   it('logs at WARN (not error) on a transient non-200 (e.g. 503)', async () => {
     const log = { warn: vi.fn(), error: vi.fn() };
     const { fetchImpl } = recorder(() => new Response('down', { status: 503 }));
-    const isActive = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl, log });
-    expect(await isActive(SUBJECT)).toBe(true);
+    const check = createActiveStatusChecker({ userManagementUrl: UM, internalApiKey: KEY, fetchImpl, log });
+    expect(await check(SUBJECT)).toEqual({ active: true, mustChangePassword: false });
     expect(log.warn).toHaveBeenCalledTimes(1);
     expect(log.error).not.toHaveBeenCalled();
   });
@@ -156,7 +195,7 @@ describe('createActiveStatusChecker', () => {
   it('bounds the cache: evicts under the cap (oldest entry re-fetches)', async () => {
     const t = 1_000;
     const { fetchImpl, calls } = recorder(() => ok({ active: true }));
-    const isActive = createActiveStatusChecker({
+    const check = createActiveStatusChecker({
       userManagementUrl: UM,
       internalApiKey: KEY,
       maxEntries: 2,
@@ -165,15 +204,15 @@ describe('createActiveStatusChecker', () => {
     });
     const sub = (id: string): ActiveStatusSubject => ({ userId: id, tenantId: SUBJECT.tenantId });
 
-    await isActive(sub('a')); // cache: a
-    await isActive(sub('b')); // cache: a,b (at cap)
-    await isActive(sub('c')); // cap hit -> evict oldest (a) -> cache: b,c
+    await check(sub('a')); // cache: a
+    await check(sub('b')); // cache: a,b (at cap)
+    await check(sub('c')); // cap hit -> evict oldest (a) -> cache: b,c
     expect(calls).toHaveLength(3);
 
-    await isActive(sub('b')); // still cached -> no fetch
+    await check(sub('b')); // still cached -> no fetch
     expect(calls).toHaveLength(3);
 
-    await isActive(sub('a')); // was evicted -> re-fetch
+    await check(sub('a')); // was evicted -> re-fetch
     expect(calls).toHaveLength(4);
   });
 });

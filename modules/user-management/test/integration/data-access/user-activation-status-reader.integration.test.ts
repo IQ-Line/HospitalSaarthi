@@ -64,11 +64,12 @@ describeDb("DrizzleUserActivationStatusReader (real DB)", () => {
     status: string,
     authUserId: string | null,
     tenantId = TENANT_1,
+    mustChangePassword = false,
   ): Promise<void> {
     await pool.query(
-      `INSERT INTO user_management.users (iq_tenant_id, id, full_name, status, auth_user_id)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [tenantId, id, "Test User", status, authUserId],
+      `INSERT INTO user_management.users (iq_tenant_id, id, full_name, status, auth_user_id, must_change_password)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [tenantId, id, "Test User", status, authUserId, mustChangePassword],
     );
   }
 
@@ -91,6 +92,7 @@ describeDb("DrizzleUserActivationStatusReader (real DB)", () => {
       status: "active",
       banned: false,
       banExpires: null,
+      mustChangePassword: false,
     });
   });
 
@@ -101,6 +103,18 @@ describeDb("DrizzleUserActivationStatusReader (real DB)", () => {
       status: "active",
       banned: false,
       banExpires: null,
+      mustChangePassword: false,
+    });
+  });
+
+  it("reads must_change_password from the users row (active + flagged)", async () => {
+    await seedUser(U_ACTIVE_UNBANNED, "active", U_ACTIVE_UNBANNED, TENANT_1, true);
+    await seedAuthUser(U_ACTIVE_UNBANNED, false, null);
+    expect(await reader.getActivationFacts(TENANT_1, U_ACTIVE_UNBANNED)).toEqual({
+      status: "active",
+      banned: false,
+      banExpires: null,
+      mustChangePassword: true,
     });
   });
 
@@ -111,6 +125,7 @@ describeDb("DrizzleUserActivationStatusReader (real DB)", () => {
       status: "active",
       banned: true,
       banExpires: null,
+      mustChangePassword: false,
     });
   });
 
@@ -129,6 +144,7 @@ describeDb("DrizzleUserActivationStatusReader (real DB)", () => {
       status: "inactive",
       banned: false,
       banExpires: null,
+      mustChangePassword: false,
     });
   });
 

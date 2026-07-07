@@ -3,7 +3,7 @@ import {
   generateRecordCaption,
   recordDisplayType,
   transformFhirBundleForView,
-} from './fhir-bundle-view';
+} from '../../../../src/features/abha-consent-list/fhir-bundle-view';
 
 const sampleBundle = JSON.stringify({
   resourceType: 'Bundle',

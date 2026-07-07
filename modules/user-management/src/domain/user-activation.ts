@@ -14,6 +14,16 @@ export type UserActivationFacts = {
   banned: boolean;
   /** Ban expiry: null = permanent ban; a time in the past = ban already lapsed. */
   banExpires: Date | null;
+  /**
+   * `user_management.users.must_change_password` — set true by an admin password reset,
+   * cleared by `POST /auth/change-password-complete`. Carried alongside the ban/status
+   * facts because the SAME users row read supplies it; the internal status endpoint
+   * surfaces it so the BFF edge can force the password change server-side (mirroring the
+   * D13 ban cutoff). {@link computeUserActive} does NOT consume it — a must-change user is
+   * still "active" (their session is valid); they are merely restricted to the
+   * password-change path. Optional so the pure ban/status callers need not supply it.
+   */
+  mustChangePassword?: boolean;
 };
 
 /**

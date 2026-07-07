@@ -27,6 +27,11 @@ function isAuthorizedInternalRequest(
  * An unknown user id resolves to `active: false`: a deleted or foreign id must never
  * pass the cutoff. Transient DB failures throw → 5xx, which the BFF treats as fail-open
  * (degraded to the status-quo token-TTL window), NOT as "inactive".
+ *
+ * The response also carries `must_change_password` from the same users-row read, so the
+ * BFF edge can enforce a forced password change server-side (a must-change user is still
+ * `active` — session valid — but the edge restricts them to the password-change path).
+ * An unknown user resolves to `must_change_password: false` (nothing to enforce).
  */
 export function registerInternalUserStatusHandlers(
   fastify: FastifyInstance,
@@ -54,10 +59,13 @@ export function registerInternalUserStatusHandlers(
 
       const facts = await deps.userActivationStatusReader.getActivationFacts(tenantId, userId);
       if (facts === null) {
-        return reply.send({ active: false });
+        return reply.send({ active: false, must_change_password: false });
       }
 
-      return reply.send({ active: computeUserActive(facts, new Date()) });
+      return reply.send({
+        active: computeUserActive(facts, new Date()),
+        must_change_password: facts.mustChangePassword === true,
+      });
     },
   );
 }

@@ -26,10 +26,23 @@ export interface ActiveStatusCheckerOptions {
   log?: Logger;
 }
 
-/** Resolves whether the verified principal may currently operate. */
-export type ActiveStatusChecker = (subject: ActiveStatusSubject) => Promise<boolean>;
+/**
+ * The edge verdict for a verified principal, from a single cached UM read:
+ *  - `active`             — false ⇒ banned/deactivated after token issue (401 USER_INACTIVE).
+ *  - `mustChangePassword` — true  ⇒ an admin reset the password; the edge restricts the
+ *                           principal to the password-change path (403 PASSWORD_CHANGE_REQUIRED).
+ */
+export type PrincipalStatusVerdict = { active: boolean; mustChangePassword: boolean };
 
-type CacheEntry = { active: boolean; expiresAt: number };
+/** Resolves the current operational verdict for the verified principal. */
+export type PrincipalStatusChecker = (
+  subject: ActiveStatusSubject,
+) => Promise<PrincipalStatusVerdict>;
+
+type CacheEntry = PrincipalStatusVerdict & { expiresAt: number };
+
+/** Fail-open / default verdict: allow, and do not force a password change. Never cached. */
+const ALLOW: PrincipalStatusVerdict = { active: true, mustChangePassword: false };
 
 /** Strip trailing slashes without a backtracking-prone regex (sonarjs/slow-regex). */
 function stripTrailingSlashes(s: string): string {
@@ -39,22 +52,35 @@ function stripTrailingSlashes(s: string): string {
 }
 
 /**
- * Edge ban/revocation cutoff (D13, consumer half). Calls the UM internal active-status
- * endpoint (`GET /api/user-management/internal/users/:id/active?tenant_id=`) to catch
- * users deactivated or banned AFTER their access token was issued, within the token's
- * remaining TTL — bounded further to `ttlMs` by the per-user cache.
+ * Edge status cutoff (D13, consumer half). Calls the UM internal status endpoint
+ * (`GET /api/user-management/internal/users/:id/active?tenant_id=`) to resolve, from a
+ * single cached read, whether a verified principal (a) was deactivated/banned AFTER its
+ * access token was issued and (b) must change its password (an admin reset sets the flag
+ * AND revokes sessions, but the self-contained access JWT stays valid until expiry — so
+ * the flag can only be read authoritatively from UM, never from the stale token claim).
+ * Both signals are caught within the token's remaining TTL, bounded further to `ttlMs`.
  *
  * Fails OPEN by design: any UM error (non-200, unreachable, timeout, malformed body)
- * ALLOWS the request. The degraded mode is exactly the status quo — stale access bounded
- * to the token's own lifetime — and a banned user still cannot obtain a FRESH token
- * (login rejects banned accounts). Failing closed would instead make UM a hard
+ * returns {@link ALLOW}. The degraded mode is exactly the status quo — stale access
+ * bounded to the token's own lifetime — and a banned user still cannot obtain a FRESH
+ * token (login rejects banned accounts). Failing closed would instead make UM a hard
  * per-request dependency for ALL authenticated traffic: a worse, newly-introduced
- * availability hole. Only a well-formed `{ active: false }` denies. Fail-open verdicts
- * are NOT cached, so recovery is immediate once UM is healthy again.
+ * availability hole. Only a well-formed `{ active: false }` denies.
+ *
+ * Caching: a verdict is cached ONLY when `mustChangePassword === false`. A must-change
+ * verdict is deliberately NOT cached — the principal is expected to clear the flag
+ * imminently (via the password-change path), and caching `true` would keep blocking them
+ * for up to `ttlMs` AFTER they succeed. Re-reading each request for the (rare) flagged
+ * principal costs nothing meaningful — they cannot do anything else until it clears — and
+ * makes the unblock immediate. Fail-open verdicts are likewise never cached.
+ *
+ * A missing/non-boolean `must_change_password` in the body degrades to `false` (no forced
+ * change) — backward-compatible with a UM that predates the field, and safe (fail-open for
+ * the new gate). Only `active` must be a boolean, else the whole verdict fails open.
  */
 export function createActiveStatusChecker(
   opts: ActiveStatusCheckerOptions,
-): ActiveStatusChecker {
+): PrincipalStatusChecker {
   const ttlMs = opts.ttlMs ?? 30_000;
   const timeoutMs = opts.timeoutMs ?? 2_000;
   const maxEntries = opts.maxEntries ?? 10_000;
@@ -63,7 +89,10 @@ export function createActiveStatusChecker(
   const base = stripTrailingSlashes(opts.userManagementUrl);
   const cache = new Map<string, CacheEntry>();
 
-  function remember(userId: string, active: boolean, t: number): void {
+  function remember(userId: string, verdict: PrincipalStatusVerdict, t: number): void {
+    // Only cache a settled, unflagged verdict. A must-change verdict is left uncached so
+    // the principal unblocks immediately once they clear the flag (see the doc above).
+    if (verdict.mustChangePassword) return;
     // Bound memory: on a NEW key at the cap, evict the oldest-inserted (FIFO). No
     // expiry sweep — stale entries are never served (the TTL check on read handles
     // that) and are bounded by `maxEntries`, so eviction stays O(1).
@@ -71,15 +100,15 @@ export function createActiveStatusChecker(
       const oldest = cache.keys().next().value;
       if (oldest !== undefined) cache.delete(oldest);
     }
-    cache.set(userId, { active, expiresAt: t + ttlMs });
+    cache.set(userId, { ...verdict, expiresAt: t + ttlMs });
   }
 
-  return async function isActive(subject: ActiveStatusSubject): Promise<boolean> {
+  return async function check(subject: ActiveStatusSubject): Promise<PrincipalStatusVerdict> {
     const userId = subject.userId;
     const t = now();
     const cached = cache.get(userId);
     if (cached !== undefined && cached.expiresAt > t) {
-      return cached.active;
+      return { active: cached.active, mustChangePassword: cached.mustChangePassword };
     }
 
     const url =
@@ -98,32 +127,37 @@ export function createActiveStatusChecker(
           // loud (startup logged the cutoff as ENABLED — only the key's presence is checked).
           opts.log?.error(
             detail,
-            'edge ban-check: user-management REJECTED the S2S key (cutoff INEFFECTIVE — check UM_INTERNAL_API_KEY); failing open',
+            'edge status-check: user-management REJECTED the S2S key (cutoff INEFFECTIVE — check UM_INTERNAL_API_KEY); failing open',
           );
         } else {
           opts.log?.warn(
             detail,
-            'edge ban-check: user-management returned non-200; failing open',
+            'edge status-check: user-management returned non-200; failing open',
           );
         }
-        return true; // fail open, do not cache
+        return ALLOW; // fail open, do not cache
       }
-      const body = (await res.json()) as { active?: unknown };
+      const body = (await res.json()) as { active?: unknown; must_change_password?: unknown };
       if (typeof body.active !== 'boolean') {
         opts.log?.warn(
           { userId },
-          'edge ban-check: unexpected active-status body shape; failing open',
+          'edge status-check: unexpected status body shape; failing open',
         );
-        return true; // fail open, do not cache
+        return ALLOW; // fail open, do not cache
       }
-      remember(userId, body.active, t);
-      return body.active;
+      // A missing/non-boolean flag degrades to false (backward-compatible + safe).
+      const verdict: PrincipalStatusVerdict = {
+        active: body.active,
+        mustChangePassword: body.must_change_password === true,
+      };
+      remember(userId, verdict, t);
+      return verdict;
     } catch (err) {
       opts.log?.warn(
         { err, userId },
-        'edge ban-check: user-management unreachable/timed out; failing open',
+        'edge status-check: user-management unreachable/timed out; failing open',
       );
-      return true; // fail open, do not cache
+      return ALLOW; // fail open, do not cache
     }
   };
 }

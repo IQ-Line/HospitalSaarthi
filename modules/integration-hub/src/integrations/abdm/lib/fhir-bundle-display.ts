@@ -1,3 +1,5 @@
+import { resolveNrcesBundleType, firstProfileUrl } from "@hims/ts-sdk-fhir";
+
 export interface FhirAttachmentRef {
   title?: string;
   refId: string;
@@ -13,26 +15,6 @@ export interface FhirDisplayEntry {
   title?: string;
   CompositionInfo?: Array<{ title?: string }>;
   AttachmentRefs?: FhirAttachmentRef[];
-}
-
-const PROFILE_BUNDLE_TYPE: Record<string, string> = {
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord": "OPConsultRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/PrescriptionRecord": "PrescriptionRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DiagnosticReportRecord":
-    "DiagnosticReportRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/DischargeSummaryRecord":
-    "DischargeSummaryRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord": "ImmunizationRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/HealthDocumentRecord":
-    "HealthDocumentRecord",
-  "https://nrces.in/ndhm/fhir/r4/StructureDefinition/WellnessRecord": "WellnessRecord",
-};
-
-/** NRCeS profiles are often versioned (`.../OPConsultRecord|6.5.0`). */
-export function resolveNrcesProfileBundleType(profileUrl: string | undefined): string | undefined {
-  if (!profileUrl?.trim()) return undefined;
-  const base = profileUrl.trim().split("|")[0] ?? profileUrl.trim();
-  return PROFILE_BUNDLE_TYPE[base];
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -52,13 +34,6 @@ function parseJsonRecord(json: string): Record<string, unknown> | undefined {
   } catch {
     return undefined;
   }
-}
-
-/** `resource`/`bundle` `.meta.profile[0]`, matching the original `Array.isArray(meta && meta.profile)` guard. */
-function firstProfileUrl(container: Record<string, unknown>): string | undefined {
-  const meta = asRecord(container["meta"]);
-  const profile = meta ? meta["profile"] : undefined;
-  return Array.isArray(profile) ? (profile as string[])[0] : undefined;
 }
 
 function resourceOfEntry(entry: unknown): Record<string, unknown> | undefined {
@@ -153,7 +128,7 @@ function collectBundleEntries(
     if (!res) continue;
 
     if (res["resourceType"] === "Composition") {
-      const mapped = resolveNrcesProfileBundleType(firstProfileUrl(res));
+      const mapped = resolveNrcesBundleType(firstProfileUrl(res));
       if (mapped) bundleType = mapped;
       const compositionTitle = readString(res, "title");
       if (compositionTitle !== undefined) title = compositionTitle;
@@ -187,7 +162,7 @@ export function parseFhirBundleForDisplay(
 
   let bundleType = entryBundleType;
   if (!bundleType) {
-    const mapped = resolveNrcesProfileBundleType(firstProfileUrl(bundle));
+    const mapped = resolveNrcesBundleType(firstProfileUrl(bundle));
     if (mapped) bundleType = mapped;
   }
   if (!bundleType && typeof bundle["type"] === "string") {

@@ -129,6 +129,23 @@ async function hydratePrincipalForScope(
   lastHydratedPrincipalScope = scope;
 }
 
+/**
+ * Prefetch the platform module catalog for the shell's nav / permission trees. NON-FATAL:
+ * a must-change-password principal is 403'd on this read by the authoritative BFF gate
+ * (they may reach only the password-change + self-identity routes), and a transient
+ * master-data blip should not crash the entire authenticated bootstrap and strand the user
+ * on the login page — components that truly need the catalog refetch it lazily and surface
+ * their own errors. Essential authorization (principal + capability hydration via
+ * `/auth/principal`, which the gate allows) stays fatal; only this prefetch is swallowed.
+ */
+async function prefetchGlobalModulesCatalog(queryClient: QueryClient): Promise<void> {
+  try {
+    await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+  } catch (err) {
+    console.warn('Global module catalog prefetch failed (non-fatal):', err);
+  }
+}
+
 /** Busts the tenant-scoped module registration cache once per tenant change. */
 function bootstrapModulesForTenant(queryClient: QueryClient, tenantId: string): void {
   if (lastModulesBootstrappedTenantId !== tenantId) {
@@ -166,7 +183,7 @@ export async function applyAuthorizationFromLogin(
   const tenantId = tenant.tenantId;
   invalidateModuleRegistration(queryClient, tenantId);
   lastModulesBootstrappedTenantId = tenantId;
-  await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+  await prefetchGlobalModulesCatalog(queryClient);
 }
 
 export async function refreshAuthorizationContext(
@@ -198,6 +215,6 @@ export async function refreshAuthorizationContext(
   bootstrapModulesForTenant(queryClient, tenant.tenantId);
 
   if (options?.light !== true) {
-    await queryClient.ensureQueryData(globalModulesCatalogQueryOptions());
+    await prefetchGlobalModulesCatalog(queryClient);
   }
 }
