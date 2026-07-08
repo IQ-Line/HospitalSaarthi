@@ -9,5 +9,7 @@ set -euo pipefail
 URL="${MASTER_DATA_TEST_DATABASE_URL:-postgresql+psycopg://hims:hims@127.0.0.1:5432/hims_test_master_data}"
 
 # Alembic reads MASTER_DATA_DATABASE_URL; the tests read TEST_DATABASE_URL. Same DB.
+# The app under test also gets MASTER_DATA_DATABASE_URL so its lifespan connectivity
+# probe hits the test DB instead of whatever .env resolves to.
 MASTER_DATA_DATABASE_URL="$URL" uv run alembic upgrade heads
-TEST_DATABASE_URL="$URL" uv run pytest tests/integration "$@"
+MASTER_DATA_DATABASE_URL="$URL" TEST_DATABASE_URL="$URL" uv run pytest tests/integration "$@"

@@ -33,18 +33,24 @@ _TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
 
 
 _MODEL_SCHEMAS = tuple(sorted({t.schema for t in Base.metadata.sorted_tables if t.schema}))
+# Every mapped table must live in a module schema — a schema-less model would silently
+# escape the per-test TRUNCATE below and leak state across tests.
+assert _MODEL_SCHEMAS == ("master_global", "master_tenant"), _MODEL_SCHEMAS
 
 
 def _truncate_all(connection) -> None:
     """Empty every real table in the module schemas within the current transaction.
 
     Reads the live catalog rather than ``Base.metadata`` so it stays correct despite any
-    ORM-vs-migration drift (some mapped tables aren't created by the current migrations),
-    and never touches ``public.alembic_version``.
+    ORM-vs-migration drift (some mapped tables aren't created by the current migrations).
+    ``alembic_version`` lives in ``master_global`` (see ``alembic/env.py``) and is excluded:
+    the TRUNCATE is unwound by the fixture's rollback today, but this helper must stay safe
+    if ever invoked outside that transaction.
     """
     rows = connection.execute(
         text(
-            "SELECT schemaname, tablename FROM pg_tables WHERE schemaname = ANY(:schemas)"
+            "SELECT schemaname, tablename FROM pg_tables"
+            " WHERE schemaname = ANY(:schemas) AND tablename <> 'alembic_version'"
         ),
         {"schemas": list(_MODEL_SCHEMAS)},
     ).all()

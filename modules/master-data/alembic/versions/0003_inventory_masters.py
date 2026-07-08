@@ -1,4 +1,4 @@
-"""Create the inventory master catalog tables (global_master + tenant_master).
+"""Create the inventory master catalog tables (master_global + master_tenant).
 
 The inventory-master feature (store types, UOMs, item types, categories, HSN/GST,
 storage conditions) shipped with SQLAlchemy models, repositories, and mounted API
@@ -8,9 +8,10 @@ fabricated the schema via ``Base.metadata.create_all``; the real-Postgres integr
 tests exposed the gap. This migration closes it.
 
 DDL is frozen (generated once from the models) so this revision is an immutable
-snapshot, matching the 0001 baseline's convention. Like every other Master Data
-catalog table, each table is registered as a Citus **reference** table when running
-on Citus (a no-op on plain Postgres) — this module distributes nothing.
+snapshot, matching the 0001 baseline's convention. All 12 tables are registered as
+Citus **reference** tables when running on Citus (a no-op on plain Postgres). 0001
+registers only a subset of its tables, but this module distributes nothing, so full
+registration is the right shape for new catalog tables.
 """
 
 from __future__ import annotations
