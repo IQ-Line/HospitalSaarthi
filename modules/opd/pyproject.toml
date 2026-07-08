@@ -44,6 +44,12 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.ruff.lint.per-file-ignores]
+# The squash baseline (and any migration) embeds authoritative DDL as SQL string
+# literals; line-length is noise there and wrapping would chop the SQL. All other
+# rules (unused imports, bugbear, pyupgrade, ...) still apply to migration files.
+"alembic/versions/*.py" = ["E501"]
+
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's dependency-injection idiom puts Depends()/Query()/etc. in argument
 # defaults; these are not the mutable-default footgun B008 targets. Whitelisting
