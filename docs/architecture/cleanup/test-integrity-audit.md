@@ -122,3 +122,26 @@ them). SQLite's `create_all` implicitly fabricated them; the isolated `hims_test
 registration module, so the integration conftest now materializes just those external tables
 (as Citus reference tables, to compose with opd's `iq_tenant_id`-distributed tables in one
 transaction). This is explicit external-dependency scaffolding, not opd claiming ownership.
+
+## Lint coverage for service projects, 2026-07-08
+
+9 `*-svc` projects shipped with **no `lint` target** (only `bff` had one) — never statically
+analyzed. Added `@nx/eslint:lint` to the 3 that are already clean: **billing-svc, empi-svc,
+inventory-svc** (green via `nx run-many -t lint`).
+
+The other **6 are gated on real violations** that surface the moment they're linted (~78 total) —
+NOT added yet, because making lint pass would mean either fixing genuine architectural issues or
+weakening rules (the latter is forbidden). What linting reveals:
+- `@nx/enforce-module-boundaries` ×25 — incl. a **service↔module circular dependency**
+  (`services/user-management-svc/src/adapters/*` ↔ `modules/user-management/src/dev/platform-data-bootstrap.ts`)
+  and a **lazy-load boundary** error (`record-foundation-svc` statically imports the lazy-loaded
+  `ts-sdk-identity`). These need an architectural decision (how to break the cycle) — owner: user.
+- `security/detect-object-injection` ×18 — noise-prone; each needs a real-vs-false-positive check.
+- `sonarjs/slow-regex` ×12 — potential ReDoS; each regex needs review.
+- `@typescript-eslint/no-unused-vars` ×5, `sonarjs/no-nested-conditional` ×2, misc ×few — trivial.
+
+**Gate to add lint to the remaining 6:** resolve the above (fix, don't suppress). Tracked as a
+follow-up; the circular-dep + lazy-load ones in particular are the user's architectural call.
+
+*(Minor, noted separately: root `package.json` has no `"type": "module"` but `eslint.config.js`
+is ESM → a MODULE_TYPELESS reparse warning on every lint. Cosmetic.)*

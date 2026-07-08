@@ -30,6 +30,15 @@
         "command": "vitest run",
         "cwd": "services/empi-svc"
       }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/empi-svc/src/**/*.ts",
+          "services/empi-svc/test/**/*.ts"
+        ]
+      }
     }
   }
 }

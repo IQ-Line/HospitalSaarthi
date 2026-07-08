@@ -25,6 +25,12 @@
         "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["inventory:db-migrate"]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["services/inventory-svc/src/**/*.ts"]
+      }
     }
   }
 }

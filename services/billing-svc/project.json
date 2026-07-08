@@ -31,6 +31,15 @@
         "command": "vitest run",
         "cwd": "services/billing-svc"
       }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/billing-svc/src/**/*.ts",
+          "services/billing-svc/test/**/*.ts"
+        ]
+      }
     }
   }
 }
