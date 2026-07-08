@@ -50,8 +50,7 @@ function resolvePathParam(
 }
 
 function tenantAttr(request: FastifyRequest): AuthzTarget["attr"] {
-  const tenantId = (request as unknown as { tenantId?: string }).tenantId ?? "";
-  return { iq_tenant_id: tenantId };
+  return { iq_tenant_id: request.tenantId };
 }
 
 /**

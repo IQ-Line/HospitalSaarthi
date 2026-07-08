@@ -27,7 +27,7 @@ function resolvePathParam(
 }
 
 function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
-  return { iq_tenant_id: (request as { tenantId?: string }).tenantId ?? "" };
+  return { iq_tenant_id: request.tenantId };
 }
 
 type AuthzRequest = Parameters<AuthzTargetResolver>[0];
