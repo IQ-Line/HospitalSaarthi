@@ -141,6 +141,9 @@ importers:
       '@hims/ts-sdk-abha':
         specifier: workspace:*
         version: file:packages/ts-sdk-abha(typescript@6.0.3)(zod@4.4.3)
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -961,6 +964,9 @@ importers:
       '@hims/integration-hub':
         specifier: workspace:*
         version: link:../../modules/integration-hub
+      '@hims/ts-sdk-authz':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-authz
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
@@ -982,6 +988,9 @@ importers:
       '@hims/ts-sdk-tenant':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
+      '@hims/user-management':
+        specifier: workspace:*
+        version: link:../../modules/user-management
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
