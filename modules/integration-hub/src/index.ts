@@ -41,7 +41,9 @@ export {
 export {
   createRouter,
   type AbdmAdapterRouterOptions,
+  type PlatformCapabilityGuardInstaller,
 } from "./integrations/abdm/router.js";
+export { createIntegrationHubAuthzTargetResolver } from "./authz/integration-hub-authz-target-resolver.js";
 
 export { ABDM_ADAPTER_MODULE_KEY } from "./integrations/abdm/domain/abdm-adapter.types.js";
 export { ABDM_ADAPTER_SOURCE_MODULE } from "./integrations/abdm/lib/abdm-adapter-constants.js";

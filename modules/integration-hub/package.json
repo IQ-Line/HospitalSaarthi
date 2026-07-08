@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@hims/ts-sdk-abha": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-fhir": "workspace:*",

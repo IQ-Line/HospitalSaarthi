@@ -1,0 +1,185 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: abdm_permissions_test
+description: >-
+  ABDM user-facing platform authorization: capability-gated, tenant-isolated. Each action gates on
+  its own abdm:{care-context,consent,health-data}:{create,read} capability (no cross-action grant);
+  delegated capabilities grant; cross-tenant is allowed only for super-admin holding the capability.
+
+principals:
+  cc_creator:
+    id: abdm-cc-create
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["abdm:care-context:create"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  cc_reader:
+    id: abdm-cc-read
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["abdm:care-context:read"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  consent_creator:
+    id: abdm-consent-create
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["abdm:consent:create"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  hd_reader:
+    id: abdm-hd-read
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["abdm:health-data:read"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  hd_reader_delegated:
+    id: abdm-hd-read-delegated
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: ["abdm:health-data:read"]
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  no_caps:
+    id: abdm-nocaps
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  super_admin_hd:
+    id: abdm-super-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["abdm:health-data:read"]
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  abdm_a:
+    id: abdm-tenant-a
+    kind: abdm
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  abdm_b:
+    id: abdm-tenant-b
+    kind: abdm
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: care-context.create allowed with capability; read cap does NOT grant create
+    input:
+      principals: [cc_creator, cc_reader]
+      resources: [abdm_a]
+      actions: [care-context.create]
+    expected:
+      - principal: cc_creator
+        resource: abdm_a
+        actions: { care-context.create: EFFECT_ALLOW }
+      - principal: cc_reader
+        resource: abdm_a
+        actions: { care-context.create: EFFECT_DENY }
+
+  - name: care-context.read allowed with capability
+    input:
+      principals: [cc_reader]
+      resources: [abdm_a]
+      actions: [care-context.read]
+    expected:
+      - principal: cc_reader
+        resource: abdm_a
+        actions: { care-context.read: EFFECT_ALLOW }
+
+  - name: no-capability principal is denied every action
+    input:
+      principals: [no_caps]
+      resources: [abdm_a]
+      actions: [care-context.create, care-context.read, consent.create, consent.read, health-data.create, health-data.read]
+    expected:
+      - principal: no_caps
+        resource: abdm_a
+        actions:
+          care-context.create: EFFECT_DENY
+          care-context.read: EFFECT_DENY
+          consent.create: EFFECT_DENY
+          consent.read: EFFECT_DENY
+          health-data.create: EFFECT_DENY
+          health-data.read: EFFECT_DENY
+
+  - name: consent.create allowed with capability; does NOT grant health-data.create
+    input:
+      principals: [consent_creator]
+      resources: [abdm_a]
+      actions: [consent.create, health-data.create]
+    expected:
+      - principal: consent_creator
+        resource: abdm_a
+        actions:
+          consent.create: EFFECT_ALLOW
+          health-data.create: EFFECT_DENY
+
+  - name: health-data.read (PHI) allowed via delegated capability
+    input:
+      principals: [hd_reader_delegated]
+      resources: [abdm_a]
+      actions: [health-data.read]
+    expected:
+      - principal: hd_reader_delegated
+        resource: abdm_a
+        actions: { health-data.read: EFFECT_ALLOW }
+
+  # POLICY-LEVEL cross-tenant assertion: the runtime resolver attaches request.tenantId
+  # (== principal tenant) as the resource tenant, so this mismatch cannot occur live; this
+  # guards the tenant-eq expression itself.
+  - name: health-data.read denied cross-tenant for non super-admin
+    input:
+      principals: [hd_reader]
+      resources: [abdm_a, abdm_b]
+      actions: [health-data.read]
+    expected:
+      - principal: hd_reader
+        resource: abdm_a
+        actions: { health-data.read: EFFECT_ALLOW }
+      - principal: hd_reader
+        resource: abdm_b
+        actions: { health-data.read: EFFECT_DENY }
+
+  - name: super-admin reads PHI cross-tenant with capability
+    input:
+      principals: [super_admin_hd]
+      resources: [abdm_b]
+      actions: [health-data.read]
+    expected:
+      - principal: super_admin_hd
+        resource: abdm_b
+        actions: { health-data.read: EFFECT_ALLOW }

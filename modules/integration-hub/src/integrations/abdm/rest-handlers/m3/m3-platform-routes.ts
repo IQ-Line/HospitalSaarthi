@@ -47,7 +47,7 @@ function sendGatewayError(reply: FastifyReply, err: AbdmGatewayError): unknown {
 export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<void> {
   app.get(
     "/m3/hiu/consent/requests",
-    { schema: { querystring: searchConsentRequestsQuerySchema } },
+    { config: { authMode: "protected" as const }, schema: { querystring: searchConsentRequestsQuerySchema } },
     async (req, reply) => {
       const iqTenantId = req.tenantId?.trim() ?? "";
       if (!iqTenantId) {
@@ -61,7 +61,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m3/hiu/consent/request",
-    { schema: { body: startConsentRequestBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: startConsentRequestBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -92,7 +92,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m3/hiu/consent/request/:sessionId",
-    { schema: { params: m3SessionIdParamSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: m3SessionIdParamSchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -119,6 +119,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
   app.get(
     "/m3/hiu/consent/request/:sessionId/records",
     {
+      config: { authMode: "protected" as const },
       schema: {
         params: m3SessionIdParamSchema,
         querystring: consentArtefactRecordsQuerySchema,
@@ -144,7 +145,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m3/hiu/data-request",
-    { schema: { body: startDataRequestBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: startDataRequestBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -167,7 +168,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m3/hiu/transfers/:transferId",
-    { schema: { params: m3TransferIdParamSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: m3TransferIdParamSchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -196,7 +197,7 @@ export async function registerM3PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m3/hiu/attachment/:sessionId/:bundleId/:num",
-    { schema: { params: m3AttachmentParamsSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: m3AttachmentParamsSchema } },
     async (req, reply) => {
       const iqTenantId = req.tenantId?.trim() ?? "";
       if (!iqTenantId) {

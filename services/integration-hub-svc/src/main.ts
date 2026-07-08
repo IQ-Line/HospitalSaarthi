@@ -1,6 +1,6 @@
 import "./load-env.js";
 import path from "node:path";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb, sql } from "@hims/ts-sdk-db";
@@ -38,7 +38,9 @@ import {
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
   INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES,
+  createIntegrationHubAuthzTargetResolver,
   type IntegrationHubSharedInfra,
+  type PlatformCapabilityGuardInstaller,
 } from "@hims/integration-hub";
 import {
   normalizeIntegrationHubEnvAliases,
@@ -46,6 +48,18 @@ import {
   serviceRoot,
 } from "./load-env.js";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerHttpErrorHandler } from "./http-errors.js";
 
 normalizeIntegrationHubEnvAliases();
@@ -137,10 +151,27 @@ function createRecordFoundationClient(): IntegrationHubSharedInfra["recordFounda
 }
 
 async function main() {
-  assertDatabaseUrl(DATABASE_URL);
-
   const app = Fastify({ logger: true, ajv: fastifyAjv });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start integration-hub-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route — including the /api/v3 ABDM gateway
+  // callbacks and health — gets an id bound to request.log and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // Base RFC 7807 wiring: supplies the problem+json not-found handler and a correlation-aware
+  // fallback. registerHttpErrorHandler below then OVERRIDES setErrorHandler to preserve the
+  // ABDM-specific mappings (NHA gateway upstream, integration-profile, envelope, PG hints).
+  // Layered deliberately — the ABDM error shapes are consumed by ABDM flows and must not change.
+  registerProblemErrorHandler(app);
   registerHttpErrorHandler(app);
+
+  assertDatabaseUrl(DATABASE_URL);
 
   await registerOpenApiDocs(app, {
     serviceId: "integration-hub",
@@ -244,7 +275,46 @@ async function main() {
     await registerScanShareCallbackRoutes(v3, sharedInfra);
   }, { prefix: "/api/v3" });
 
-  const abdmRouter = createRouter(sharedInfra);
+  // Capability PEP for the user-facing M2/M3 platform routes (care-context linking +
+  // HIU consent/health-data). Built here (service owns the auth deps) and installed only
+  // onto the gated child scope inside the router; M0/M1/scan-share stay identity-only and
+  // the /api/v3 gateway callbacks are never wrapped by this PEP.
+  if (!process.env["CERBOS_URL"] || process.env["CERBOS_URL"].trim() === "") {
+    throw new Error("CERBOS_URL is required for integration-hub-svc capability authorization");
+  }
+  const cerbosUrl = process.env["CERBOS_URL"].trim();
+  await assertCerbosReachable(cerbosUrl);
+
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
+  });
+
+  const installPlatformCapabilityGuards: PlatformCapabilityGuardInstaller = async (gated) => {
+    await gated.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await gated.register(authzPlugin, {
+      cerbosUrl,
+      resolveTarget: createIntegrationHubAuthzTargetResolver(),
+    });
+  };
+
+  const abdmRouter = createRouter(sharedInfra, installPlatformCapabilityGuards);
 
   // Identity is ALWAYS on. validateAuthConfig() throws if JWKS_URL/JWT_ISSUER/JWT_AUDIENCE
   // are unset — a service terminating ABHA (M1) and consent (M3) APIs must never boot
@@ -286,6 +356,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start integration-hub-svc:", err);
   process.exit(1);
 });
