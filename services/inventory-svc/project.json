@@ -13,7 +13,7 @@
       "cache": true
     },
     "serve": {
-      "command": "tsx watch --include '../../modules/inventory/src' src/main.ts",
+      "command": "tsx --env-file=../../.env src/main.ts",
       "options": {
         "cwd": "services/inventory-svc",
         "envFile": "{workspaceRoot}/.env"
