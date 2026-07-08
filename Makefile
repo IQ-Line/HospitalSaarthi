@@ -16,6 +16,8 @@ setup: ## Full bootstrap: env, deps, infra, migrate, seed
 	@command -v node >/dev/null 2>&1 || { echo "node is required"; exit 1; }
 	@command -v pnpm >/dev/null 2>&1 || { echo "pnpm is required"; exit 1; }
 	@command -v docker >/dev/null 2>&1 || { echo "docker is required"; exit 1; }
+	@echo "==> Fetching git submodules (external/pdf-platform)..."
+	@git submodule update --init --recursive
 	@$(MAKE) env-init
 	@echo "==> Installing dependencies..."
 	@pnpm install
