@@ -20,6 +20,6 @@
   },
   "devDependencies": {
     "fastify": "^5.0.0",
-    "vitest": "^4.1.6"
+    "vitest": "catalog:"
   }
 }

@@ -145,3 +145,24 @@ follow-up; the circular-dep + lazy-load ones in particular are the user's archit
 
 *(Minor, noted separately: root `package.json` has no `"type": "module"` but `eslint.config.js`
 is ESM → a MODULE_TYPELESS reparse warning on every lint. Cosmetic.)*
+
+## Dependency version drift → pnpm catalog (started), 2026-07-08
+
+Introduced a pnpm `catalog:` (single-version policy) in `pnpm-workspace.yaml`. First entry:
+**vitest**, which was genuinely split across **v3 and v4** (13 projects on `^3.1.3`, 12 on
+`^4.1.x`, with both majors installed). All 25 direct dependents now reference `vitest: catalog:`
+→ `^4.1.6`; the peer range in `ts-sdk-testing` (`>=3.0.0`) stays broad. Validated: `pnpm install`
+clean + `nx run-many -t test` (24 projects green). One test runner now.
+
+**Gated (documented, not forced) — the other multi-major splits need real migration + owner sign-off:**
+- **typescript `^5` vs `^6`** — the v5 holdouts are the **vendored `@pulse/*` UI packages**
+  (`pulse-ui/utils/constants/blocks/layouts/patterns`, `~5.9.3`/`^5`); root + apps are on `^6.0.3`.
+  `pnpm install` already warns `unmet peer typescript@^5: found 6.0.3`. Forcing the pulse packages
+  to TS 6 risks the vendored code — a call for the user (and per repo policy we don't restructure
+  vendored pulse internals). NOT cataloged.
+- **@cerbos/core `0.21.1` vs `^0.30.0`** — the authz stack (`user-management` module + svc,
+  `ts-sdk-authz`) pins **0.21.1**; only `services/web` is on **0.30.0**. Different client majors;
+  reconciling touches the live Cerbos PEP integration → owner decision. NOT cataloged.
+- **zod** — direct deps are all v3 (`^3.25.7`); the v4 install is transitive only. No action.
+- Benign single-installed-version range drift (`tsx`, `fastify`, `react`, `eslint`, `drizzle-orm`,
+  `@types/*`, `@tanstack/*`, `@fastify/*`) can join the catalog incrementally; low risk, low urgency.
