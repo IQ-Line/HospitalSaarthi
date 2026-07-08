@@ -39,7 +39,7 @@ function resolvePathParam(
 ): string | null {
   const params = request.params;
   if (params == null || typeof params !== "object") return null;
-  const id = (params as Record<string, unknown>)[name];
+  const id = new Map(Object.entries(params)).get(name);
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 

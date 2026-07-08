@@ -13,6 +13,8 @@ config({ path: path.join(serviceRoot, ".env"), override: true });
 export { serviceRoot };
 
 /** Copy env between legacy `ABDM_*` and `INTEGRATION_HUB_*` names (bidirectional). */
+/* eslint-disable security/detect-object-injection -- keys are the fixed legacy/new alias
+   constants passed by normalizeIntegrationHubEnvAliases below, never user input */
 function syncEnvPair(oldKey: string, newKey: string): void {
   if (!process.env[newKey]?.trim() && process.env[oldKey]?.trim()) {
     process.env[newKey] = process.env[oldKey];
@@ -21,6 +23,7 @@ function syncEnvPair(oldKey: string, newKey: string): void {
     process.env[oldKey] = process.env[newKey];
   }
 }
+/* eslint-enable security/detect-object-injection */
 
 /**
  * Map informal Postman-style keys and align legacy/new integration-hub env names.

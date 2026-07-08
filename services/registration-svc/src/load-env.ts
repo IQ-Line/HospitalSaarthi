@@ -16,6 +16,7 @@ const serviceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 function findRepoRoot(start: string): string | null {
   let dir = start;
   for (let i = 0; i < 8; i++) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- walks up from this module's own location
     if (existsSync(path.join(dir, "pnpm-workspace.yaml"))) {
       return dir;
     }
@@ -27,6 +28,7 @@ function findRepoRoot(start: string): string | null {
 }
 
 function loadEnvFile(filePath: string, override: boolean): void {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- callers pass repo-derived paths, not user input
   if (!existsSync(filePath)) return;
   config({ path: filePath, override });
 }
@@ -34,6 +36,7 @@ function loadEnvFile(filePath: string, override: boolean): void {
 function snapshotEnvKeys(keys: readonly string[]): Map<string, string> {
   const snapshot = new Map<string, string>();
   for (const key of keys) {
+    // eslint-disable-next-line security/detect-object-injection -- key comes from the fixed ROOT_ONLY_ENV_KEYS list
     const value = process.env[key];
     if (value !== undefined) {
       snapshot.set(key, value);
@@ -45,8 +48,10 @@ function snapshotEnvKeys(keys: readonly string[]): Map<string, string> {
 function restoreEnvKeys(snapshot: Map<string, string>): void {
   for (const key of ROOT_ONLY_ENV_KEYS) {
     if (snapshot.has(key)) {
+      // eslint-disable-next-line security/detect-object-injection -- key comes from the fixed ROOT_ONLY_ENV_KEYS list
       process.env[key] = snapshot.get(key);
     } else {
+      // eslint-disable-next-line security/detect-object-injection -- key comes from the fixed ROOT_ONLY_ENV_KEYS list
       delete process.env[key];
     }
   }

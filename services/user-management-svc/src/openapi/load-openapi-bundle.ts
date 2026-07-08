@@ -35,5 +35,6 @@ export function userManagementOpenApiSpecPath(): string {
 }
 
 export async function readUserManagementOpenApiYaml(): Promise<string> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- path derived from module location, not user input
   return readFile(resolveSpecPath(), "utf8");
 }

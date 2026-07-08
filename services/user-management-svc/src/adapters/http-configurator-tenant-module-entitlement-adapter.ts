@@ -9,6 +9,7 @@ import {
   isBypassCache,
   type ClassifiedUpstreamError,
 } from "./http-resilience.js";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -34,10 +35,6 @@ export type HttpConfiguratorTenantModuleEntitlementAdapterOptions = {
   log?: (event: Record<string, unknown>, message: string) => void;
 };
 
-function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
-}
-
 function tenantCacheKey(tenantId: string): string {
   return `${TENANT_MODULE_IDS_CACHE_PREFIX}${tenantId}`;
 }
@@ -50,7 +47,7 @@ export class HttpConfiguratorTenantModuleEntitlementAdapter implements TenantMod
   private readonly log?: HttpConfiguratorTenantModuleEntitlementAdapterOptions["log"];
 
   constructor(options: HttpConfiguratorTenantModuleEntitlementAdapterOptions) {
-    this.baseUrl = trimTrailingSlash(options.baseUrl);
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     this.tenantModuleIdsCache = new BoundedTtlCache<string[]>({

@@ -141,12 +141,12 @@ async function boot(app: FastifyInstance): Promise<void> {
         return;
       }
 
-      const headerTenant =
-        typeof request.headers["iq_tenant_id"] === "string"
-          ? request.headers["iq_tenant_id"].trim()
-          : typeof request.headers["x-tenant-id"] === "string"
-            ? request.headers["x-tenant-id"].trim()
-            : "";
+      let headerTenant = "";
+      if (typeof request.headers["iq_tenant_id"] === "string") {
+        headerTenant = request.headers["iq_tenant_id"].trim();
+      } else if (typeof request.headers["x-tenant-id"] === "string") {
+        headerTenant = request.headers["x-tenant-id"].trim();
+      }
       if (headerTenant.length > 0) {
         request.headers["iq_tenant_id"] = headerTenant;
         request.headers["x-tenant-id"] = headerTenant;

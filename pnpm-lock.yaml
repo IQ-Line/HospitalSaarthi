@@ -885,6 +885,9 @@ importers:
       '@hims/user-management':
         specifier: workspace:*
         version: link:../../modules/user-management
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       fastify:
         specifier: ^5.3.3
         version: 5.8.5

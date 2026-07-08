@@ -1,4 +1,5 @@
 import type { TenantAdminProvisioningPort } from "@hims/configurator";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -19,7 +20,7 @@ export class HttpTenantAdminProvisioningAdapter
   private _deferredPassword?: string;
 
   constructor(options: HttpTenantAdminProvisioningAdapterOptions) {
-    this.umBaseUrl = options.userManagementBaseUrl.replace(/\/+$/, "");
+    this.umBaseUrl = stripTrailingSlashes(options.userManagementBaseUrl);
     this.authorization = options.authorization;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = options.log;

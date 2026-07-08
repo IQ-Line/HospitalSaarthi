@@ -6,7 +6,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "test": "vitest run",
-    "openapi:codegen": "openapi-typescript ../../specs/openapi/user-management.v1.yaml -o src/generated/user-management.v1.ts",
+    "openapi:codegen": "openapi-typescript ../../specs/openapi/user-management.v1.yaml -o src/generated/user-management.v1.gen.ts",
     "validate-spec": "tsx scripts/validate-user-management-openapi.mts"
   },
   "dependencies": {

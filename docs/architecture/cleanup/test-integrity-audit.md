@@ -157,6 +157,20 @@ weakening rules (the latter is forbidden). What linting reveals:
 **Gate to add lint to the remaining 6:** resolve the above (fix, don't suppress). Tracked as a
 follow-up; the circular-dep + lazy-load ones in particular are the user's architectural call.
 
+**RESOLVED (Fable continuation, same day):** all 6 services now lint green and carry
+`@nx/eslint:lint` targets — 41 projects lint. How each class was fixed: the module→service
+cycle by relocating the dev-seed glue (see the dedicated commit); the lazy-load boundary by
+making record-foundation-svc import identityPlugin statically like every sibling (the dynamic
+import was pointless — the same package was statically imported two lines up); the `/\/+$/`
+trailing-slash regexes (polynomial backtracking) by a shared per-service `stripTrailingSlashes`
+loop helper; env-key `process.env[k]` indirections by passing values instead of key names;
+configurator's hand-rolled .env parser by dotenv (like its siblings); noop event-bus fakes by a
+`createRecordingEventBus` test helper with real bodies; the generated OpenAPI types file by
+renaming to `*.gen.ts` (the existing lint-ignore convention); dead types/functions deleted;
+`development-bootstrap.ts` split at the verify seam (632→460 lines). Documented
+`eslint-disable-next-line` with reasons ONLY for true false-positives (fixed compile-time env-key
+lists, repo-derived fs paths, a throwaway test password). No rule was weakened or scoped down.
+
 *(Minor, noted separately: root `package.json` has no `"type": "module"` but `eslint.config.js`
 is ESM → a MODULE_TYPELESS reparse warning on every lint. Cosmetic.)*
 

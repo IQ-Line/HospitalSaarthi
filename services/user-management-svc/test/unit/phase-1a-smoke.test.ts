@@ -5,7 +5,6 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
 import sensible from "@fastify/sensible";
 import { forbidden } from "@hims/ts-sdk-http";
-import type { EventBus } from "@hims/ts-sdk-events";
 import { identityPlugin } from "@hims/ts-sdk-identity";
 import {
   InMemoryCapabilityRepository,
@@ -30,6 +29,7 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { createRemoteJWKSet, exportJWK, generateKeyPair, jwtVerify, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
+import { createRecordingEventBus } from "./helpers/recording-event-bus.js";
 
 const SMOKE_JWKS_PATH = "/__smoke/jwks.json";
 const SMOKE_KID = "smoke-rs256-1";
@@ -51,13 +51,11 @@ function reservePort(): Promise<number> {
 const authzSmokeStub = fp(
   async (fastify: FastifyInstance) => {
     fastify.addHook("onRequest", async (request: FastifyRequest) => {
-      const principal = request.user;
       request.checkResource = async (kind: string, id: string, action: string) =>
         ({
           isAllowed: (a: string) => a === action && kind === "user" && id === "new",
         }) as CheckResult;
       request.planResources = async () => ({}) as never;
-      void principal;
     });
 
     fastify.addHook("preHandler", async (request, reply) => {
@@ -114,17 +112,7 @@ describe("Phase 1A.12 smoke", () => {
     const actorId = "f47ac10b-58cc-4372-a567-0e02b2c3d482";
 
     const app = Fastify();
-    const published: Array<{ correlation_id: string; event_type: string }> = [];
-    const eventBus: EventBus = {
-      async connect() {},
-      async disconnect() {},
-      async publish(event) {
-        published.push({ correlation_id: event.correlation_id, event_type: event.event_type });
-      },
-      async subscribe() {
-        return { async unsubscribe() {} };
-      },
-    };
+    const { bus: eventBus, published } = createRecordingEventBus();
 
     await app.register(sensible);
     app.get(SMOKE_JWKS_PATH, async (_request, reply) => {
@@ -239,6 +227,7 @@ describe("Phase 1A.12 smoke", () => {
           full_name: "Smoke User",
           username: "smoke.user",
           email: "smoke.user@example.com",
+          // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- throwaway test fixture, not a credential
           password: "password123",
         },
       });

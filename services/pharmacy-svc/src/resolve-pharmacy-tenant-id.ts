@@ -1,10 +1,7 @@
 import type { IncomingHttpHeaders } from "node:http";
 
-const TENANT_HEADER_KEYS = ["iq_tenant_id", "x-tenant-id"] as const;
-
 function pickHeaderTenant(headers: IncomingHttpHeaders): string | undefined {
-  for (const key of TENANT_HEADER_KEYS) {
-    const raw = headers[key];
+  for (const raw of [headers.iq_tenant_id, headers["x-tenant-id"]]) {
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (typeof value === "string" && value.trim().length > 0) {
       return value.trim();

@@ -1,4 +1,5 @@
 import type { PlatformModuleCatalogPort } from "@hims/configurator";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const INTERNAL_KEY_HEADER = "x-master-data-internal-key";
@@ -35,7 +36,7 @@ export class HttpPlatformModuleCatalogClient implements PlatformModuleCatalogPor
   private readonly log?: HttpPlatformModuleCatalogClientOptions["log"];
 
   constructor(options: HttpPlatformModuleCatalogClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.internalApiKey = options.internalApiKey;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = options.log;

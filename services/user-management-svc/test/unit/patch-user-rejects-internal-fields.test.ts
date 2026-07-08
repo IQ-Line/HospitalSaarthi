@@ -17,6 +17,7 @@ import {
   createMasterDataModuleCatalogPortStub,
 } from "@hims/user-management/test-support";
 import { registerUserManagementApi } from "../../src/openapi/register-user-management-api.js";
+import { createRecordingEventBus } from "./helpers/recording-event-bus.js";
 
 const TENANT = "tenant-a";
 const USER_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d590";
@@ -58,14 +59,7 @@ const identityStubPlugin = fp(
   { name: "@hims/ts-sdk-identity-stub" },
 );
 
-const noopEventBus = {
-  async connect() {},
-  async disconnect() {},
-  async publish() {},
-  async subscribe() {
-    return { async unsubscribe() {} };
-  },
-};
+const noopEventBus = createRecordingEventBus().bus;
 
 afterEach(async () => {
   await Promise.all(

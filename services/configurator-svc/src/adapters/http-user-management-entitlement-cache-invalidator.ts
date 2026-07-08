@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
+
 const DEFAULT_TIMEOUT_MS = 2_000;
 
 export type HttpUserManagementEntitlementCacheInvalidatorOptions = {
@@ -6,10 +8,6 @@ export type HttpUserManagementEntitlementCacheInvalidatorOptions = {
   timeoutMs?: number;
   log?: (event: Record<string, unknown>, message: string) => void;
 };
-
-function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
-}
 
 /**
  * Calls UM internal endpoint to bust tenant entitlement caches after Configurator module mutations.
@@ -21,7 +19,7 @@ export class HttpUserManagementEntitlementCacheInvalidator {
   private readonly log?: HttpUserManagementEntitlementCacheInvalidatorOptions["log"];
 
   constructor(options: HttpUserManagementEntitlementCacheInvalidatorOptions) {
-    this.baseUrl = trimTrailingSlash(options.baseUrl);
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.internalApiKey = options.internalApiKey;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = options.log;

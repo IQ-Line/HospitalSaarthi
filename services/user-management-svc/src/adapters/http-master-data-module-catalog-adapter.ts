@@ -14,6 +14,7 @@ import {
   fetchJsonWithResilience,
   type ClassifiedUpstreamError,
 } from "./http-resilience.js";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -44,21 +45,11 @@ type PermissionRow = {
   slug: string;
 };
 
-type PermissionListResponse = {
-  data?: PermissionRow[];
-  total?: number;
-};
-
 type ModulePermissionRow = {
   module_id: string;
   permission_id: string;
   is_active?: boolean;
   is_deleted?: boolean;
-};
-
-type ModulePermissionListResponse = {
-  data?: ModulePermissionRow[];
-  total?: number;
 };
 
 export type HttpMasterDataModuleCatalogAdapterOptions = {
@@ -69,10 +60,6 @@ export type HttpMasterDataModuleCatalogAdapterOptions = {
   maxCacheEntries?: number;
   log?: (event: Record<string, unknown>, message: string) => void;
 };
-
-function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
-}
 
 export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatalogPort {
   private readonly baseUrl: string;
@@ -86,7 +73,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
   private readonly log?: HttpMasterDataModuleCatalogAdapterOptions["log"];
 
   constructor(options: HttpMasterDataModuleCatalogAdapterOptions) {
-    this.baseUrl = trimTrailingSlash(options.baseUrl);
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     const cacheOpts = {

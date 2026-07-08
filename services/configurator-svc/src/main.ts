@@ -1,4 +1,5 @@
 import { loadWorkspaceEnv } from "./load-workspace-env.js";
+import { stripTrailingSlashes } from "./lib/strip-trailing-slashes.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
 
@@ -53,9 +54,9 @@ const PORT = Number(
 );
 const CERBOS_URL = process.env["CERBOS_URL"];
 
-function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
-  const raw = process.env[envKey]?.trim();
-  if (raw && raw.length > 0) return raw.replace(/\/+$/, "");
+function upstreamBaseUrl(raw: string | undefined, fallback: string): string {
+  const trimmed = raw?.trim();
+  if (trimmed && trimmed.length > 0) return stripTrailingSlashes(trimmed);
   return fallback;
 }
 
@@ -165,16 +166,16 @@ async function boot(app: FastifyInstance): Promise<void> {
   // a PDP decision. Parity with billing/registration/user-management.
   const identityAuth = validateAuthConfig();
 
-  const userManagementBaseUrl = requireUpstreamBaseUrl(
-    "USER_MANAGEMENT_URL",
+  const userManagementBaseUrl = upstreamBaseUrl(
+    process.env["USER_MANAGEMENT_URL"],
     "http://localhost:3005",
   );
-  const masterDataBaseUrl = requireUpstreamBaseUrl(
-    "MASTER_DATA_URL",
+  const masterDataBaseUrl = upstreamBaseUrl(
+    process.env["MASTER_DATA_URL"],
     "http://localhost:8010",
   );
-  const configuratorSelfUrl = requireUpstreamBaseUrl(
-    "CONFIGURATOR_URL",
+  const configuratorSelfUrl = upstreamBaseUrl(
+    process.env["CONFIGURATOR_URL"],
     `http://localhost:${PORT}`,
   );
   const umInternalApiKey = process.env["UM_INTERNAL_API_KEY"]?.trim() ?? "";

@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { Ajv, type Schema, type ValidateFunction } from "ajv";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 /**
  * ajv-formats is a CJS package whose callable default export trips NodeNext's ESM↔CJS interop
@@ -27,8 +28,7 @@ const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
 /** OpenAPI `servers[0].url` (trailing slashes stripped) — matches the Fastify mount prefix. */
 function getPathPrefix(bundle: Record<string, unknown>): string {
   const servers = bundle.servers as Array<{ url?: string }> | undefined;
-  // eslint-disable-next-line sonarjs/slow-regex -- linear: single `/+` anchored at end (trailing-slash strip on a config servers[].url), not ReDoS
-  return (servers?.[0]?.url ?? "").replace(/\/+$/, "");
+  return stripTrailingSlashes(servers?.[0]?.url ?? "");
 }
 
 type Operation = {
@@ -51,8 +51,9 @@ function* iterateOperations(bundle: Record<string, unknown>): Generator<Operatio
 
   for (const [openPath, pathItem] of Object.entries(paths)) {
     const routeUrl = `${pathPrefix}${openapiPathToFastify(openPath)}`;
-    for (const method of HTTP_METHODS) {
-      const opRaw = pathItem[method];
+    for (const [rawMethod, opRaw] of Object.entries(pathItem)) {
+      if (!(HTTP_METHODS as readonly string[]).includes(rawMethod)) continue;
+      const method = rawMethod as (typeof HTTP_METHODS)[number];
       if (opRaw === null || opRaw === undefined || typeof opRaw !== "object") continue;
       yield { openPath, routeUrl, method, methodU: method.toUpperCase(), op: opRaw as Record<string, unknown> };
     }

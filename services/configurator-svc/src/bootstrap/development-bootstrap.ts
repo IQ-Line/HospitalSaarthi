@@ -93,7 +93,7 @@ async function ensureBootstrapTenant(db: DbInstance): Promise<void> {
   });
 }
 
-async function ensureBootstrapTenantModules(_db: DbInstance): Promise<string[]> {
+async function ensureBootstrapTenantModules(): Promise<string[]> {
   // Tenant module enablement is owned by `make seed` (Configurator seed), not service bootstrap.
   return [];
 }
@@ -103,7 +103,7 @@ export async function runConfiguratorDevelopmentBootstrap(
 ): Promise<ConfiguratorDevelopmentBootstrapResult> {
   await ensureBootstrapOrganization(db);
   await ensureBootstrapTenant(db);
-  const tenantModuleIds = await ensureBootstrapTenantModules(db);
+  const tenantModuleIds = await ensureBootstrapTenantModules();
 
   return {
     orgId: DEVELOPMENT_BOOTSTRAP_ORG_ID,

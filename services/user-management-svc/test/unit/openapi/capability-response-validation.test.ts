@@ -7,7 +7,7 @@ describe("Capability list response validation", () => {
     const bundle = await loadUserManagementOpenApiBundle();
     const validators = createResponseValidatorTable(bundle);
     const validate = validators.get("GET:/api/user-management/capabilities")?.get(200);
-    expect(validate).toBeDefined();
+    if (!validate) throw new Error("no validator registered for GET /capabilities 200");
 
     const payload = [
       {
@@ -25,22 +25,22 @@ describe("Capability list response validation", () => {
       },
     ];
 
-    expect(validate!(payload)).toBe(true);
-    expect(validate!.errors).toBeNull();
+    expect(validate(payload)).toBe(true);
+    expect(validate.errors).toBeNull();
   });
 
   it("rejects a payload missing required capability fields", async () => {
     const bundle = await loadUserManagementOpenApiBundle();
     const validators = createResponseValidatorTable(bundle);
     const validate = validators.get("GET:/api/user-management/capabilities")?.get(200);
-    expect(validate).toBeDefined();
+    if (!validate) throw new Error("no validator registered for GET /capabilities 200");
 
     // Regression guard: a validator degraded to always-accept would pass the happy-path
     // test above. A payload missing required fields (capability_key, module, action, …)
     // must be REJECTED with errors — proving the validator actually validates.
     const invalid = [{ id: "f47ac10b-58cc-4372-a567-0e02b2c3d611" }];
 
-    expect(validate!(invalid)).toBe(false);
-    expect(validate!.errors).not.toBeNull();
+    expect(validate(invalid)).toBe(false);
+    expect(validate.errors).not.toBeNull();
   });
 });

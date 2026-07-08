@@ -14,13 +14,9 @@ import {
   shouldRunPlatformDevelopmentBootstrap,
 } from "@hims/dev-bootstrap";
 import { inArray } from "drizzle-orm";
-import { getCerbosClient } from "@hims/ts-sdk-authz";
 import {
-  buildCerbosUserMgmtResourceAttr,
   capabilities,
-  role_capabilities,
   roles,
-  user_capabilities,
   user_roles,
   UM_CAPABILITY_READ,
   UM_ROLE_ASSIGN,
@@ -38,6 +34,11 @@ import {
 import { authUser } from "../auth/auth-schema.js";
 import { toSyntheticAuthEmail } from "../auth/synthetic-email.js";
 import type { HimsBetterAuthInstance } from "../auth/create-hims-better-auth.js";
+import {
+  type BootstrapPrincipalService,
+  verifyBootstrapPrincipal,
+  verifyBootstrapCerbos,
+} from "./verify-development-bootstrap.js";
 
 type FoundationCapabilitySeed = {
   capability_key: string;
@@ -46,26 +47,6 @@ type FoundationCapabilitySeed = {
   action: string;
   display_name: string;
   description: string;
-};
-
-type BootstrapPrincipalService = {
-  getPrincipal(context: {
-    requestUser?: unknown;
-    tenantId: string;
-    userId: string;
-  }): Promise<{
-    attributes: {
-      capabilities: string[];
-      department: string | null;
-      iq_tenant_id: string;
-      org_id: string | null;
-      delegated_capabilities: string[];
-      clearances: Record<string, string>;
-      um_clearance_effective_tier: number;
-    };
-    id: string;
-    roles: string[];
-  }>;
 };
 
 type BootstrapDeps = {
@@ -403,30 +384,6 @@ async function ensurePlatformUserAuthLink(
     );
 }
 
-async function ensureBootstrapRoleCapabilities(
-  db: DbInstance,
-  roleId: string,
-  capabilityIds: readonly string[],
-): Promise<void> {
-  if (capabilityIds.length === 0) return;
-  await db
-    .insert(role_capabilities)
-    .values(
-      capabilityIds.map((capabilityId) => ({
-        iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-        role_id: roleId,
-        capability_id: capabilityId,
-      })),
-    )
-    .onConflictDoNothing({
-      target: [
-        role_capabilities.iq_tenant_id,
-        role_capabilities.role_id,
-        role_capabilities.capability_id,
-      ],
-    });
-}
-
 async function ensureBootstrapUserRoleTemplate(
   db: DbInstance,
   userId: string,
@@ -448,46 +405,6 @@ async function ensureBootstrapUserRoleTemplate(
     });
 }
 
-async function ensureBootstrapUserCapabilities(
-  db: DbInstance,
-  userId: string,
-  roleId: string,
-  capabilityIds: readonly string[],
-): Promise<void> {
-  if (capabilityIds.length === 0) return;
-  const grantedAt = new Date();
-  await db
-    .insert(user_capabilities)
-    .values(
-      capabilityIds.map((capabilityId) => ({
-        iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-        user_id: userId,
-        capability_id: capabilityId,
-        grant_source: "role_template" as const,
-        source_role_id: roleId,
-        granted_by_user_id: null,
-        granted_at: grantedAt,
-        revoked_at: null,
-        revoked_by_user_id: null,
-      })),
-    )
-    .onConflictDoUpdate({
-      target: [
-        user_capabilities.iq_tenant_id,
-        user_capabilities.user_id,
-        user_capabilities.capability_id,
-      ],
-      set: {
-        grant_source: "role_template",
-        source_role_id: roleId,
-        granted_by_user_id: null,
-        granted_at: grantedAt,
-        revoked_at: null,
-        revoked_by_user_id: null,
-      },
-    });
-}
-
 function assertBootstrapIdentityConsistency(
   authRow: Awaited<ReturnType<typeof readAuthUserByEmail>>,
   platformRow: Awaited<ReturnType<typeof readPlatformUserByEmail>>,
@@ -497,99 +414,6 @@ function assertBootstrapIdentityConsistency(
       `Bootstrap auth/platform user mismatch: auth user id ${authRow.id}, platform user id ${platformRow.id}.`,
     );
   }
-}
-
-async function verifyBootstrapPrincipal(
-  principalService: BootstrapPrincipalService,
-  userId: string,
-): Promise<Awaited<ReturnType<BootstrapPrincipalService["getPrincipal"]>>> {
-  const principal = await principalService.getPrincipal({
-    tenantId: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    userId,
-  });
-
-  const requiredKeys = [
-    UM_USER_CREATE,
-    UM_USER_READ,
-    UM_ROLE_CREATE,
-    UM_ROLE_ASSIGN,
-    UM_CAPABILITY_READ,
-  ] as const;
-  for (const capability of requiredKeys) {
-    if (!principal.attributes.capabilities.includes(capability)) {
-      throw new Error(`Bootstrap principal missing capability ${capability}.`);
-    }
-  }
-
-  if (!principal.roles.includes(DEVELOPMENT_BOOTSTRAP_ROLE_CODE)) {
-    throw new Error("Bootstrap principal missing the super-admin role code.");
-  }
-
-  return principal;
-}
-
-async function verifyBootstrapCerbos(
-  cerbosUrl: string,
-  principal: Awaited<ReturnType<BootstrapPrincipalService["getPrincipal"]>>,
-  userId: string,
-): Promise<string[]> {
-  const cerbos = getCerbosClient({ cerbosUrl });
-  const tenantOnlyAttr = buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    department: null,
-    required_clearance: 0,
-  });
-  const selfAttr = buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: DEVELOPMENT_BOOTSTRAP_TENANT_ID,
-    department: null,
-    required_clearance: 0,
-    org_id: DEVELOPMENT_BOOTSTRAP_ORG_ID,
-  });
-
-  const crossTenantAttr = buildCerbosUserMgmtResourceAttr({
-    iq_tenant_id: "00000000-0000-4000-8000-000000000001",
-    department: null,
-    required_clearance: 0,
-  });
-
-  const checks = [
-    { kind: "user", id: "new", action: "user.create", attr: tenantOnlyAttr },
-    { kind: "user", id: "new", action: "user.create", attr: crossTenantAttr },
-    { kind: "user", id: userId, action: "user.read", attr: selfAttr },
-    { kind: "user", id: userId, action: "user.update", attr: selfAttr },
-    { kind: "user", id: userId, action: "user.deactivate", attr: selfAttr },
-    { kind: "role", id: "new", action: "role.create", attr: tenantOnlyAttr },
-    { kind: "role", id: "new", action: "role.create", attr: crossTenantAttr },
-    { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.read", attr: tenantOnlyAttr },
-    { kind: "role", id: DEVELOPMENT_BOOTSTRAP_ROLE_CODE, action: "role.update", attr: tenantOnlyAttr },
-    { kind: "user_role_template", id: "new", action: "role.assign", attr: tenantOnlyAttr },
-    { kind: "user_role_template", id: "new", action: "role.assign", attr: crossTenantAttr },
-    { kind: "capability", id: "list", action: "capability.read", attr: tenantOnlyAttr },
-  ] as const;
-
-  const allowed: string[] = [];
-  for (const check of checks) {
-    const result = await cerbos.checkResource({
-      principal: {
-        id: principal.id,
-        roles: principal.roles,
-        attr: principal.attributes,
-      },
-      resource: {
-        kind: check.kind,
-        id: check.id,
-        attr: check.attr,
-      },
-      actions: [check.action],
-    });
-
-    if (!result.isAllowed(check.action)) {
-      throw new Error(`Bootstrap Cerbos verification failed for ${check.action}.`);
-    }
-    allowed.push(check.action);
-  }
-
-  return allowed;
 }
 
 export async function runDevelopmentBootstrap(

@@ -46,6 +46,7 @@ import {
   tenantApiKeyAuthPlugin,
 } from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+import { stripTrailingSlashes } from "./lib/strip-trailing-slashes.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
@@ -53,14 +54,14 @@ import { USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES } from "./auth/identity-skip-pre
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
 import { BetterAuthPasswordResetter } from "./auth/reset-auth-password.js";
 
-function requireUpstreamBaseUrl(envKey: string): string {
-  const raw = process.env[envKey]?.trim();
-  if (!raw || raw.length === 0) {
+function requireUpstreamBaseUrl(envKey: string, raw: string | undefined): string {
+  const trimmed = raw?.trim();
+  if (!trimmed || trimmed.length === 0) {
     throw new Error(
       `${envKey} is required for tenant module entitlements and Master Data module catalog integration`,
     );
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(trimmed);
 }
 
 function readAuthBaseUrl(): string {
@@ -70,7 +71,7 @@ function readAuthBaseUrl(): string {
       "AUTH_BASE_URL is required (backend API origin; equals JWT_ISSUER and JWKS_URL prefix)",
     );
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
 }
 
 function readWebPublicOrigin(): string | undefined {
@@ -78,7 +79,7 @@ function readWebPublicOrigin(): string | undefined {
   if (!raw || raw.length === 0) {
     return undefined;
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
 }
 
 function readBetterAuthSecret(): string {
@@ -145,8 +146,8 @@ async function createApp(app: FastifyInstance): Promise<FastifyInstance> {
     connectionString: databaseUrl,
   });
 
-  const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
-  const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
+  const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL", process.env.CONFIGURATOR_URL);
+  const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL", process.env.MASTER_DATA_URL);
 
   const userRepository = new DrizzleUserRepository(pgDb);
   const userActivationStatusReader = new DrizzleUserActivationStatusReader(pgDb);

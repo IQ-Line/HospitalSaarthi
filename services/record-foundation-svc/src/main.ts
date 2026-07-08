@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
 import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
@@ -81,7 +81,6 @@ async function boot(app: FastifyInstance): Promise<void> {
 
   await app.register(async (api) => {
     if (ENABLE_AUTH) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
       await api.register(identityPlugin, validateAuthConfig());
     }
     await api.register(tenantPlugin);
