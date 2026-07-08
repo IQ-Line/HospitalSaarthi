@@ -104,7 +104,15 @@ is no Python equivalent of the TS drizzle drift-gate to catch this. **Fixed:** a
 registered as Citus reference tables — 0001 only registers a subset of its own, but this module
 distributes nothing, so full registration is the right shape). The 3 inventory integration tests now pass
 legitimately against real Citus. *Follow-up worth filing: add an alembic autogenerate drift-gate to
-CI (mirror the drizzle one) so model-vs-migration drift can't recur silently.*
+CI (mirror the drizzle one) so model-vs-migration drift can't recur silently.* **DONE (Fable
+continuation, same day):** `alembic check` now runs in both Python modules'
+run-integration-tests.sh (CI invokes these via `test:integration`). Making the check meaningful
+required configuring autogenerate (schema scoping, functional-index reflection-noise pruning, enum
+compare) and paying down the REAL drift it exposed: master-data 0004 (tenant `*_active_key` index
+renames, picklist unique-index→constraint, stale support-index drops) + models fixed to JSONB and
+SmallInteger where migrations were already right; opd 0002 (consumerless visits index dropped,
+comment aligned). Known narrowing (documented in env.py): a same-name in-place index definition
+edit is invisible to the gate — rename indexes when changing them.
 
 ## SQLite removal → real Postgres (opd), 2026-07-08
 

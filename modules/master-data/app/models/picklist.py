@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, Text, UniqueConstraint, Uuid, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, UniqueConstraint, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA
@@ -23,7 +24,6 @@ class PicklistModel(TimestampMixin, AuditActorMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -55,7 +55,7 @@ class PicklistValueModel(TimestampMixin, Base):
     value: Mapped[str] = mapped_column(Text(), nullable=False)
     label: Mapped[str] = mapped_column(Text(), nullable=False)
     description: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     is_global: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)

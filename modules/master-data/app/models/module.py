@@ -44,14 +44,12 @@ class ModulePublicModel(TimestampMixin, Base):
             "name",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "modules_slug_active_key",
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -106,7 +104,6 @@ class ModuleTenantModel(TimestampMixin, Base):
             "name",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_modules_slug_active_key",
@@ -114,7 +111,6 @@ class ModuleTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

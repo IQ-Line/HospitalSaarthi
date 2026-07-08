@@ -21,7 +21,6 @@ class ModulePermissionPublicModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "module_permissions_module_permission_active_key",
@@ -29,7 +28,6 @@ class ModulePermissionPublicModel(TimestampMixin, Base):
             "permission_id",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -64,7 +62,6 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_module_permissions_module_permission_active_key",
@@ -73,7 +70,6 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
             "permission_id",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

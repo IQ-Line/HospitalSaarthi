@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Uuid
+from sqlalchemy import SmallInteger, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -31,4 +31,4 @@ class TenantPrimaryKeyMixin:
 
 
 class LineItemMixin(TenantPrimaryKeyMixin):
-    line_no: Mapped[int] = mapped_column(nullable=False)
+    line_no: Mapped[int] = mapped_column(SmallInteger, nullable=False)

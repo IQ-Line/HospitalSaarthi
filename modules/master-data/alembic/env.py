@@ -19,6 +19,51 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+_MODULE_SCHEMAS = {GLOBAL_SCHEMA, TENANT_SCHEMA}
+
+
+def _include_name(name, type_, parent_names) -> bool:
+    """Autogenerate scope: only this module's schemas (skips Citus internals, public, etc.)."""
+    if type_ == "schema":
+        return name in _MODULE_SCHEMAS
+    if type_ == "table":
+        return name != "alembic_version"
+    return True
+
+
+def _prune_index_reflection_noise(context_, revision, directives) -> None:
+    """Drop same-name drop+create index pairs from autogenerate output.
+
+    The catalog's ``*_active_key`` indexes are functional partial indexes
+    (``lower(trim(col)) ... WHERE NOT is_deleted``). Postgres reflects the expression
+    as ``lower(TRIM(BOTH FROM col))``, which alembic cannot equate with the model's
+    text, so autogenerate emits a drop+create of the *identical* index on every run.
+    Pruning pairs that share (schema, table, name, unique) keeps ``alembic check``
+    usable as a CI drift-gate. Narrowing: an in-place definition EDIT that keeps the
+    same index name is invisible to the gate — rename the index when changing one.
+    """
+    from alembic.operations import ops as alembic_ops
+
+    for directive in directives:
+        op_roots = [directive.upgrade_ops, getattr(directive, "downgrade_ops", None)]
+        for upgrade_ops in [root for root in op_roots if root is not None]:
+            containers = [upgrade_ops] + [
+                op for op in upgrade_ops.ops if isinstance(op, alembic_ops.ModifyTableOps)
+            ]
+            dropped: dict[tuple, list] = {}
+            created: dict[tuple, list] = {}
+            for container in containers:
+                for op in container.ops:
+                    if isinstance(op, alembic_ops.DropIndexOp):
+                        key = (op.schema, op.table_name, op.index_name)
+                        dropped.setdefault(key, []).append((container, op))
+                    elif isinstance(op, alembic_ops.CreateIndexOp):
+                        key = (op.schema, op.table_name, op.index_name)
+                        created.setdefault(key, []).append((container, op))
+            for key in set(dropped) & set(created):
+                for container, op in dropped[key] + created[key]:
+                    container.ops.remove(op)
+
 
 def get_url() -> str:
     return get_settings().database_url
@@ -62,6 +107,8 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            include_name=_include_name,
+            process_revision_directives=_prune_index_reflection_noise,
             version_table_schema=GLOBAL_SCHEMA,
         )
 

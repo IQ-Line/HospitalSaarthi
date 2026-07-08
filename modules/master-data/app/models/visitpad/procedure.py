@@ -19,7 +19,6 @@ class VisitpadProcedurePublicModel(TimestampMixin, AuditActorMixin, Base):
             "cpt_code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -49,7 +48,6 @@ class VisitpadProcedureTenantModel(TimestampMixin, AuditActorMixin, Base):
             "cpt_code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

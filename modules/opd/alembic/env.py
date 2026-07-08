@@ -21,6 +21,71 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _include_name(name, type_, parent_names) -> bool:
+    """Reflection scope: only the ``opd`` schema this module owns (skips Citus
+    internals, ``public``, and other modules' schemas)."""
+    if type_ == "schema":
+        return name == SCHEMA
+    if type_ == "table":
+        return name != VERSION_TABLE
+    return True
+
+
+def _include_object(obj, name, type_, reflected, compare_to) -> bool:
+    """Metadata scope: exclude the read-model mirrors of other modules' tables
+    (``registration.*`` — externally owned test/query mirrors, never migrated here)."""
+    if type_ == "table":
+        return getattr(obj, "schema", None) in (None, SCHEMA)
+    return True
+
+
+def _compare_type(context_, inspected_column, metadata_column, inspected_type, metadata_type):
+    """Enum reflected via search_path loses its schema qualifier; compare by
+    name + values instead so identical enums don't flag forever. ``None`` defers
+    every other type to alembic's default comparison."""
+    import sqlalchemy as sa
+
+    if isinstance(metadata_type, sa.Enum) and isinstance(inspected_type, sa.Enum):
+        return (
+            metadata_type.name != inspected_type.name
+            or list(metadata_type.enums) != list(inspected_type.enums)
+        )
+    return None
+
+
+def _prune_index_reflection_noise(context_, revision, directives) -> None:
+    """Drop same-name drop+create index pairs from autogenerate output.
+
+    Functional-expression indexes reflect with normalized SQL text that alembic
+    cannot equate with the model's expression, producing an eternal drop+create
+    of the identical index. Pruning pairs that share (schema, table, name) keeps
+    ``alembic check`` usable as a CI drift gate. Narrowing: an in-place definition
+    EDIT that keeps the index name is invisible — rename when changing one.
+    (Same helper as modules/master-data/alembic/env.py.)
+    """
+    from alembic.operations import ops as alembic_ops
+
+    for directive in directives:
+        op_roots = [directive.upgrade_ops, getattr(directive, "downgrade_ops", None)]
+        for upgrade_ops in [root for root in op_roots if root is not None]:
+            containers = [upgrade_ops] + [
+                op for op in upgrade_ops.ops if isinstance(op, alembic_ops.ModifyTableOps)
+            ]
+            dropped: dict[tuple, list] = {}
+            created: dict[tuple, list] = {}
+            for container in containers:
+                for op in container.ops:
+                    if isinstance(op, alembic_ops.DropIndexOp):
+                        key = (op.schema, op.table_name, op.index_name)
+                        dropped.setdefault(key, []).append((container, op))
+                    elif isinstance(op, alembic_ops.CreateIndexOp):
+                        key = (op.schema, op.table_name, op.index_name)
+                        created.setdefault(key, []).append((container, op))
+            for key in set(dropped) & set(created):
+                for container, op in dropped[key] + created[key]:
+                    container.ops.remove(op)
+
+
 def get_url() -> str:
     return get_settings().database_url
 
@@ -37,7 +102,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
-        version_table=SCHEMA,
+        version_table=VERSION_TABLE,
         version_table_schema=SCHEMA,
     )
 
@@ -61,6 +126,10 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            include_name=_include_name,
+            include_object=_include_object,
+            compare_type=_compare_type,
+            process_revision_directives=_prune_index_reflection_noise,
             version_table=VERSION_TABLE,
             version_table_schema=SCHEMA,
         )

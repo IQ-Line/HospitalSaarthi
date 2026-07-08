@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import JSON, Boolean, Float, Index, Integer, String, Uuid, text
+from sqlalchemy import Boolean, Float, Index, Integer, String, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -19,7 +20,6 @@ class VisitpadMedicinePublicModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -29,11 +29,11 @@ class VisitpadMedicinePublicModel(TimestampMixin, AuditActorMixin, Base):
     display_name: Mapped[str] = mapped_column(String(512), nullable=False)
     generic_name: Mapped[str] = mapped_column(String(512), nullable=False)
     short_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    brand_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    brand_names: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     drug_class: Mapped[str] = mapped_column(String(256), nullable=False)
     drug_subclass: Mapped[str | None] = mapped_column(String(256), nullable=True)
     dosage_form: Mapped[str] = mapped_column(String(128), nullable=False)
-    route_of_admin: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    route_of_admin: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     strength_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     strength_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     strength_display: Mapped[str] = mapped_column(String(256), nullable=False, default="")
@@ -53,9 +53,9 @@ class VisitpadMedicinePublicModel(TimestampMixin, AuditActorMixin, Base):
     is_narcotic: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     requires_prescription: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     is_restricted_antibiotic: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
-    allergen_classes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    contraindications: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    search_tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    allergen_classes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    contraindications: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    search_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     atc_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     rxnorm_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     snomed_substance_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -90,7 +90,6 @@ class VisitpadMedicineTenantModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )
@@ -101,11 +100,11 @@ class VisitpadMedicineTenantModel(TimestampMixin, AuditActorMixin, Base):
     display_name: Mapped[str] = mapped_column(String(512), nullable=False)
     generic_name: Mapped[str] = mapped_column(String(512), nullable=False)
     short_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    brand_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    brand_names: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     drug_class: Mapped[str] = mapped_column(String(256), nullable=False)
     drug_subclass: Mapped[str | None] = mapped_column(String(256), nullable=True)
     dosage_form: Mapped[str] = mapped_column(String(128), nullable=False)
-    route_of_admin: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    route_of_admin: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     strength_value: Mapped[float | None] = mapped_column(Float, nullable=True)
     strength_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
     strength_display: Mapped[str] = mapped_column(String(256), nullable=False, default="")
@@ -125,9 +124,9 @@ class VisitpadMedicineTenantModel(TimestampMixin, AuditActorMixin, Base):
     is_narcotic: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     requires_prescription: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     is_restricted_antibiotic: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
-    allergen_classes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    contraindications: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    search_tags: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    allergen_classes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    contraindications: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    search_tags: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     atc_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     rxnorm_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
     snomed_substance_code: Mapped[str | None] = mapped_column(String(64), nullable=True)

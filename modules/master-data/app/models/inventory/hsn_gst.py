@@ -22,7 +22,6 @@ class InventoryHsnGstPublicModel(TimestampMixin, AuditActorMixin, Base):
             "effective_from",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         # PG-only regex CHECK; skipped on the sqlite test engine (format still enforced in PG).
         CheckConstraint(
@@ -62,7 +61,6 @@ class InventoryHsnGstTenantModel(TimestampMixin, AuditActorMixin, Base):
             "effective_from",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         # PG-only regex CHECK; skipped on the sqlite test engine (format still enforced in PG).
         CheckConstraint(

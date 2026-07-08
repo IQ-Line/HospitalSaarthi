@@ -10,4 +10,7 @@ URL="${OPD_TEST_DATABASE_URL:-postgresql+psycopg://hims:hims@127.0.0.1:5432/hims
 
 # Alembic reads OPD_DATABASE_URL; the tests read TEST_DATABASE_URL. Same DB.
 OPD_DATABASE_URL="$URL" uv run alembic upgrade heads
+# Drift gate: models vs migrations must be identical on a fully-migrated DB (env.py scopes
+# the comparison to the opd schema and excludes the externally-owned read-model mirrors).
+OPD_DATABASE_URL="$URL" uv run alembic check
 TEST_DATABASE_URL="$URL" uv run pytest tests/integration "$@"
