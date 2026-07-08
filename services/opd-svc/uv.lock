@@ -571,6 +571,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "datamodel-code-generator" },
     { name = "httpx" },
     { name = "pyright" },
     { name = "pytest" },
