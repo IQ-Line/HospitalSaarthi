@@ -37,3 +37,38 @@ Suite broadly strong (most files assert values, mapped shapes, arg payloads, gua
 | 1.4 | `modules/integration-hub/test/unit/integrations/abdm/lib/abdm-signature-verifier.test.ts:23` | Security-critical: only the reject path (missing issuer/audience in prod → false) tested; the signature-valid → `true` path never asserted, so an always-false (or always-true off-prod) verifier passes. Possibly covered by integration — confirm. | low | ⬜ |
 
 **Clean:** user-management domain/use-cases, empi dedup/register, registration intake saga, pharmacy lib/use-cases, m1 request-builders, event-publish/envelope tests — all meaningful. Pure one-line delegations excluded per trivial-passthrough rule.
+
+---
+
+## Cluster 3 — Python (master-data + opd) integrity + real-DB coverage
+
+| # | Location | Defect | Sev | Status |
+|---|----------|--------|-----|--------|
+| 3.1 | `modules/master-data/tests/test_api/test_departments.py:80,101` | **Departments router has ZERO persistence coverage** — both tests inject `FakeDepartmentRepository` (in-memory list) via dependency_overrides; `create_department` manually re-implements the real repo's flush ("*Mirror what the real repo's flush does*"). Green even if `DepartmentRepository` is fully broken. Departments is the LONE catalog using a fake — all 5 siblings use real `sqlite_session`. Untested: dup-code 409, tenant scope, get/patch/delete 404, entire `POST /import-from-platform`. | high | ⬜ |
+| 3.2 | `modules/master-data/app/services/visitpad/platform_bulk_import.py:229` (via `test_visitpad_units_integration.py:213`) | **Prod Postgres `ON CONFLICT DO NOTHING` import path never executed.** `import_*_from_platform` branches `if session_is_postgresql(session)` → `pg_import_*` (`on_conflict_do_nothing(index_where=...)`); SQLite tests always take the `else` row-by-row fallback. The idempotency test exercises the WRONG path; prod partial-unique (global `code` vs tenant `(iq_tenant_id,code)`), RETURNING→id map, per-catalog index_elements uncovered. | high | ⬜ |
+| 3.3 | `modules/opd/tests/test_prescription_api_authz.py:30` | Status-code-only (`== 201`, no body/DB). Low: body+status_history+persistence fully asserted in `test_prescription_api.py:64`, cross-tenant in `test_prescription_api_tenant_security.py`. | low | ⬜ |
+| 3.4 | `modules/master-data/tests/test_services/test_module_service.py:66,79` | Tautology over fake repo — service fns are literal one-line passthroughs; test proves only the passthrough. Acceptable (trivial SUT); noted as thin. | low | ⬜ |
+
+**INFO (not a defect):** allow-all `_StubAuthzClient` across CRUD suites proves handler+persistence, not authz — but authz IS covered: `test_catalog_api_authz.py` drives the denying stub + records `resource_attr` across 5 admin + 13 visitpad routes (401/403/scope), and cerbos `{master_data_permissions,master_data_visitpad,opd_permissions}_test.yaml` exist. **Verified genuine parity (NOT masking):** every model carries `sqlite_where=` alongside `postgresql_where=`, so partial-unique 409s (modules slug/name, prescription (tenant,visit), visitpad code incl. case-insensitive) DO fire on SQLite; prescription tenant isolation is real `WHERE tenant_id=`.
+
+### Real-DB coverage map → targets for the new real-Citus `test/integration` layer
+**master-data:** `/departments` = **none** (fake repo) → dup-code 409, tenant isolation, import FK precheck. `/visitpad/*` (13) = sqlite-only → **ON CONFLICT idempotency on partial-unique index_where** (the untested prod path) + tenant isolation. `/modules` = sqlite-only → `parent_id` FK ondelete RESTRICT + name/slug partial-unique tenant-vs-global. `/permissions`,`/system-roles`,`/module-permissions`,`/inventory/*`,`/picklists` = sqlite-only → tenant scope + unique enforcement (+ module_permissions composite FK precheck).
+**opd:** `/prescriptions/*` = sqlite (strong: body/FSM/409/cross-tenant) → prove `tenant_id` as **Citus distribution column** isolation + `prescriptions_tenant_visit_active_uq` partial-unique + child line FK/unique under real PG. `POST/GET /health-documents` = **none at HTTP** (only mocked-hub unit) → tenant-scoped persistence + idempotency. `GET /{visit}/documents/*.pdf|html` (6 routes) = **none** (only mappers unit-tested) → tenant-scoped fetch + cross-tenant 404.
+
+---
+
+## Cluster 4 — TS integration + Cerbos
+
+The 8 *running* real-DB persistence suites are genuinely strong (persisted rows, two-tenant isolation, unique/idempotency incl. NULL holes + 23505 retries, FK-precheck 404-not-500, COUNT/pagination, RFC7807). **No running real-DB test is 2xx-only.** Defects are dead-in-CI wiring, not weak assertions.
+
+| # | Location | Defect | Sev | Status |
+|---|----------|--------|-----|--------|
+| 4.1 | `modules/inventory/test/integration/store-persistence.integration.test.ts:21` | **DEAD in CI yet is the SOLE control for inventory tenant isolation.** Gated on `TEST_DATABASE_URL`, but inventory has **no `test:integration` target** and CI's per-module DB loop (`ci.yml:121`) omits `inventory` → `describe.skip`, never runs with a DB. File header: "without this test nothing proves cross-tenant reads are actually denied." So inventory cross-tenant denial is asserted by **nothing** in CI. | high | ⬜ |
+| 4.2 | `modules/integration-hub/test/integration/integrations/abdm/rest-handlers/scan-share-routes.integration.test.ts:47` | DEAD — `skipIf(!DB_URL)` on `SCAN_SHARE_TEST_DB_URL`, never provisioned in CI. Only coverage of scan-share token redemption / used-token 404 / active-queue SQL. | med | ⬜ |
+| 4.3 | `modules/integration-hub/.../abdm/use-cases/{m1,m2,m3}/*.sandbox.integration.test.ts` (7) | DOUBLE-DEAD (vitest `exclude` + `RUN_ABDM_SANDBOX_TESTS` + live NHA creds). Acceptable manual-only, but M1/M2 chains + M3 HIU/HIP flows have no automated CI coverage beyond one mock loop — should be DOCUMENTED as manual-gated, not counted. | med | ⬜ |
+| 4.4 | `modules/configurator/.../http/configurator-authz-pep.integration.test.ts:113` | Misnamed: does NOT test the Cerbos PEP (mock repos; only asserts client_secret redaction, which it does correctly). Real PEP round-trip is in the svc test. Name overpromises. | low | ⬜ |
+
+**Cerbos (20 suites):** all principals match the exact runtime PEP wire shape (`principal-attr.ts`: iq_tenant_id, org_id, department, role_codes, scopes, capabilities, delegated_capabilities, clearances, um_clearance_effective_tier) — no stale attrs. 18/20 test ALLOW+DENY. **2 allow-only (DENY=0):** `role_cross_tenant_provision_test.yaml`, `user_cross_tenant_platform_operator_test.yaml` — assert operator CAN cross tenants but not the complementary deny. **LOW** — not a corpus blind spot: `platform_operator_scope_test.yaml` (DENY=12) proves the dead-string/no-scope case + bounds, and tenant_isolation/user_crud carry negatives; an allow-all regression WOULD be caught elsewhere. Optional: add one deny case to each.
+
+**DEAD-in-CI integration files (silent no-run):** inventory store-persistence, integration-hub scan-share-routes, + 7 abdm `*.sandbox.integration.test.ts`. All others RUN (8 real-DB + several in-memory/no-DB).
+
