@@ -140,8 +140,12 @@ jobs:
             psql -h 127.0.0.1 -U hims -d hims_test -c "CREATE DATABASE hims_test_$db;"
             psql -h 127.0.0.1 -U hims -d "hims_test_$db" -c "CREATE EXTENSION IF NOT EXISTS citus;"
           done
+      # --parallel=1: per-module DBs isolate data but NOT the Citus coordinator —
+      # its distributed-transaction bookkeeping and deadlock detector are
+      # cluster-wide, and concurrent create_reference_table/DDL across databases
+      # gets aborted with 40P01 "distributed deadlock". Serial is deterministic.
       - name: Integration tests
-        run: npx nx affected -t test:integration --parallel=2
+        run: npx nx affected -t test:integration --parallel=1
 
       # Stage 6: E2E tests (when applicable)
       # - name: E2E tests
