@@ -13,11 +13,11 @@
     "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-observability": "workspace:*",
-    "fastify": "^5.3.3"
+    "fastify": "catalog:"
   },
   "devDependencies": {
     "jose": "^6.2.3",
-    "tsx": "^4.19.4",
+    "tsx": "catalog:",
     "vitest": "catalog:"
   }
 }

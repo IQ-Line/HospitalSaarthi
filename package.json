@@ -33,14 +33,14 @@
     "@hims/eslint-config": "workspace:*",
     "@nx/eslint": "^22.7.1",
     "@nx/js": "^22.7.1",
-    "eslint": "^10.3.0",
+    "eslint": "catalog:",
     "json-schema-to-typescript": "^15.0.4",
     "nx": "^22.7.1",
     "openapi-typescript": "7.10.1",
     "prettier": "^3.8.3",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
     "typescript-eslint": "^8.59.2"
   }
 }

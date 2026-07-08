@@ -190,6 +190,23 @@ Introduced a pnpm `catalog:` (single-version policy) in `pnpm-workspace.yaml`. F
 → `^4.1.6`; the peer range in `ts-sdk-testing` (`>=3.0.0`) stays broad. Validated: `pnpm install`
 clean + `nx run-many -t test` (24 projects green). One test runner now.
 
+**RESOLVED (Fable continuation, same day)** — the splits below were reconciled:
+- **@cerbos/core unified on the current line** via the catalog (`core ^0.31.0`, `grpc ^0.27.1`,
+  `http ^0.28.1`, `react ^0.3.6`) — backend authz stack came up from 0.21.1, web from 0.30. The
+  type surface compiled unchanged (36-project typecheck), all suites green, and the new SDK was
+  driven against the LIVE Cerbos 0.53 PDP: capability allow, capability deny, cross-tenant deny,
+  and a KIND_CONDITIONAL planResources all correct.
+- **typescript**: root/services cataloged at `^6.0.3`; the vendored `@pulse/*` keep their pinned
+  `~5.9.3` devDependencies (inert toolchain metadata — no nx targets use them) but their `^5`
+  peerDependencies were widened to `>=5 <7`, which is simply true (the workspace typechecks them
+  under 6.0.3 daily). Vendored pulse INTERNALS remain untouched per policy.
+- **Benign single-version deps folded into the catalog** (33 package.json files): tsx, fastify,
+  fastify-plugin, dotenv, drizzle-orm, eslint, react, react-dom, zod, @types/node. Lockfile
+  resolves one version of each.
+- **zod**: no action (v4 remains transitive-only), as decided.
+
+*Original gate analysis kept below for history:*
+
 **Gated (documented, not forced) — the other multi-major splits need real migration + owner sign-off:**
 - **typescript `^5` vs `^6`** — the v5 holdouts are the **vendored `@pulse/*` UI packages**
   (`pulse-ui/utils/constants/blocks/layouts/patterns`, `~5.9.3`/`^5`); root + apps are on `^6.0.3`.

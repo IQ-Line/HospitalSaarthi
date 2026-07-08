@@ -14,13 +14,13 @@
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/user-management": "workspace:*",
-    "dotenv": "^16.6.1",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
+    "dotenv": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
     "jose": "^6.2.3"
   },
   "devDependencies": {
-    "tsx": "^4.20.5",
+    "tsx": "catalog:",
     "vitest": "catalog:"
   }
 }

@@ -25,8 +25,8 @@
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/user-management": "workspace:*",
     "better-auth": "^1.6.10",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.0.0",
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
     "jose": "^6.2.3",
     "pg": "^8.20.0",
     "@apidevtools/swagger-parser": "^12.1.0",
@@ -34,12 +34,12 @@
     "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
-    "@cerbos/core": "0.21.1",
+    "@cerbos/core": "catalog:",
     "@hims/ts-sdk-http": "workspace:*",
-    "@types/node": "^22.19.18",
-    "fastify-plugin": "^5.1.0",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
+    "@types/node": "catalog:",
+    "fastify-plugin": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
     "vitest": "catalog:",
     "openapi-typescript": "^7.10.1"
   }

@@ -22,11 +22,11 @@
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/user-management": "workspace:*",
-    "dotenv": "^16.6.1",
-    "fastify": "^5.3.3"
+    "dotenv": "catalog:",
+    "fastify": "catalog:"
   },
   "devDependencies": {
-    "tsx": "^4.19.4",
+    "tsx": "catalog:",
     "vitest": "catalog:"
   }
 }

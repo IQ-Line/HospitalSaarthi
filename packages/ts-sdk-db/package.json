@@ -14,7 +14,7 @@
   },
   "scripts": {},
   "dependencies": {
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "catalog:",
     "pg": "^8.20.0"
   },
   "peerDependencies": {

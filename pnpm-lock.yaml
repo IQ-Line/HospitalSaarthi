@@ -7,9 +7,54 @@ settings:
 
 catalogs:
   default:
+    '@cerbos/core':
+      specifier: ^0.31.0
+      version: 0.31.0
+    '@cerbos/grpc':
+      specifier: ^0.27.1
+      version: 0.27.1
+    '@cerbos/http':
+      specifier: ^0.28.1
+      version: 0.28.1
+    '@cerbos/react':
+      specifier: ^0.3.6
+      version: 0.3.6
+    '@types/node':
+      specifier: ^22.19.18
+      version: 22.19.18
+    dotenv:
+      specifier: ^16.6.1
+      version: 16.6.1
+    drizzle-orm:
+      specifier: ^0.45.2
+      version: 0.45.2
+    eslint:
+      specifier: ^10.3.0
+      version: 10.3.0
+    fastify:
+      specifier: ^5.3.3
+      version: 5.8.5
+    fastify-plugin:
+      specifier: ^5.1.0
+      version: 5.1.0
+    react:
+      specifier: ^19.1.0
+      version: 19.2.5
+    react-dom:
+      specifier: ^19.1.0
+      version: 19.2.5
+    tsx:
+      specifier: ^4.21.0
+      version: 4.21.0
+    typescript:
+      specifier: ^6.0.3
+      version: 6.0.3
     vitest:
       specifier: ^4.1.6
       version: 4.1.6
+    zod:
+      specifier: ^3.25.7
+      version: 3.25.76
 
 importers:
 
@@ -28,7 +73,7 @@ importers:
         specifier: ^22.7.1
         version: 22.7.1(@babel/traverse@7.29.0)(nx@22.7.1)
       eslint:
-        specifier: ^10.3.0
+        specifier: 'catalog:'
         version: 10.3.0(jiti@2.7.0)
       json-schema-to-typescript:
         specifier: ^15.0.4
@@ -46,10 +91,10 @@ importers:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.13)(tsx@4.21.0)(typescript@6.0.3)(yaml@2.8.4)
       tsx:
-        specifier: ^4.21.0
+        specifier: 'catalog:'
         version: 4.21.0
       typescript:
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       typescript-eslint:
         specifier: ^8.59.2
@@ -71,10 +116,10 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -104,10 +149,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       drizzle-kit:
@@ -136,10 +181,10 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -182,10 +227,10 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -203,10 +248,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       zod:
-        specifier: ^3.25.7
+        specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
       '@fastify/multipart':
@@ -216,10 +261,10 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -234,17 +279,17 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
     devDependencies:
       drizzle-kit:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -263,10 +308,10 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       vitest:
         specifier: 'catalog:'
@@ -303,16 +348,16 @@ importers:
         specifier: ^0.31.4
         version: 0.31.10
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -321,8 +366,8 @@ importers:
   modules/user-management:
     dependencies:
       '@cerbos/core':
-        specifier: 0.21.1
-        version: 0.21.1
+        specifier: 'catalog:'
+        version: 0.31.0(@bufbuild/protobuf@2.12.0)
       '@hims/dev-bootstrap':
         specifier: workspace:*
         version: link:../../packages/dev-bootstrap
@@ -342,13 +387,13 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-http
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       '@fastify/sensible':
@@ -387,7 +432,7 @@ importers:
   packages/pdf-client:
     devDependencies:
       '@types/node':
-        specifier: ^22.0.0
+        specifier: 'catalog:'
         version: 22.19.18
       vitest:
         specifier: 'catalog:'
@@ -442,7 +487,7 @@ importers:
   packages/pulse-constants:
     dependencies:
       typescript:
-        specifier: ^5
+        specifier: '>=5 <7'
         version: 5.9.3
 
   packages/pulse-layouts:
@@ -577,7 +622,7 @@ importers:
         specifier: ^3.4.0
         version: 3.5.0
       typescript:
-        specifier: ^5
+        specifier: '>=5 <7'
         version: 5.9.3
 
   packages/ts-sdk-abha:
@@ -595,7 +640,7 @@ importers:
   packages/ts-sdk-api-key:
     devDependencies:
       '@types/node':
-        specifier: ^22.0.0
+        specifier: 'catalog:'
         version: 22.19.18
       vitest:
         specifier: 'catalog:'
@@ -604,11 +649,11 @@ importers:
   packages/ts-sdk-authz:
     dependencies:
       '@cerbos/core':
-        specifier: ^0.21.1
-        version: 0.21.1
+        specifier: 'catalog:'
+        version: 0.31.0(@bufbuild/protobuf@2.12.0)
       '@cerbos/grpc':
-        specifier: ^0.21.0
-        version: 0.21.0
+        specifier: 'catalog:'
+        version: 0.27.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)
       '@hims/ts-sdk-http':
         specifier: workspace:*
         version: link:../ts-sdk-http
@@ -616,11 +661,11 @@ importers:
         specifier: workspace:*
         version: link:../ts-sdk-identity
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       vitest:
         specifier: 'catalog:'
@@ -629,7 +674,7 @@ importers:
   packages/ts-sdk-db:
     dependencies:
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       pg:
         specifier: ^8.20.0
@@ -642,7 +687,7 @@ importers:
   packages/ts-sdk-errors:
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       vitest:
         specifier: 'catalog:'
@@ -651,7 +696,7 @@ importers:
   packages/ts-sdk-events:
     devDependencies:
       '@types/node':
-        specifier: ^22.0.0
+        specifier: 'catalog:'
         version: 22.19.18
 
   packages/ts-sdk-fhir:
@@ -667,7 +712,7 @@ importers:
   packages/ts-sdk-http:
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
 
   packages/ts-sdk-identity:
@@ -676,14 +721,14 @@ importers:
         specifier: workspace:*
         version: link:../ts-sdk-http
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
       jose:
         specifier: ^6.2.3
         version: 6.2.3
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       vitest:
         specifier: 'catalog:'
@@ -698,11 +743,11 @@ importers:
   packages/ts-sdk-observability:
     dependencies:
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       vitest:
         specifier: 'catalog:'
@@ -718,7 +763,7 @@ importers:
         version: 5.2.6
     devDependencies:
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
 
   packages/ts-sdk-sequence:
@@ -737,11 +782,11 @@ importers:
   packages/ts-sdk-tenant:
     dependencies:
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
 
   packages/ts-sdk-testing:
@@ -779,14 +824,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-observability
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
     devDependencies:
       jose:
         specifier: ^6.2.3
         version: 6.2.3
       tsx:
-        specifier: ^4.19.4
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -825,14 +870,14 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -886,14 +931,14 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       dotenv:
-        specifier: ^16.6.1
+        specifier: 'catalog:'
         version: 16.6.1
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
     devDependencies:
       tsx:
-        specifier: ^4.19.4
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -935,14 +980,14 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -981,20 +1026,20 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       dotenv:
-        specifier: ^16.6.1
+        specifier: 'catalog:'
         version: 16.6.1
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
       jose:
         specifier: ^6.2.3
         version: 6.2.3
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
       vitest:
         specifier: 'catalog:'
@@ -1033,14 +1078,14 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
 
   services/pharmacy-svc:
@@ -1073,14 +1118,14 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
 
   services/record-foundation-svc:
@@ -1110,14 +1155,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ts-sdk-tenant
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
 
   services/registration-svc:
@@ -1165,17 +1210,17 @@ importers:
         specifier: workspace:*
         version: link:../../modules/user-management
       dotenv:
-        specifier: ^16.6.1
+        specifier: 'catalog:'
         version: 16.6.1
       fastify:
-        specifier: ^5.3.3
+        specifier: 'catalog:'
         version: 5.8.5
       fastify-plugin:
-        specifier: ^5.0.1
+        specifier: 'catalog:'
         version: 5.1.0
     devDependencies:
       tsx:
-        specifier: ^4.20.5
+        specifier: 'catalog:'
         version: 4.21.0
 
   services/user-management-svc:
@@ -1235,10 +1280,10 @@ importers:
         specifier: ^1.6.10
         version: 1.6.10(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9))(pg@8.20.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.6(@types/node@22.19.18)(jsdom@26.1.0)(vite@7.3.2(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4)))
       drizzle-orm:
-        specifier: ^0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.20.0)(kysely@0.28.17)(pg@8.20.0)(postgres@3.4.9)
       fastify:
-        specifier: ^5.0.0
+        specifier: 'catalog:'
         version: 5.8.5
       jose:
         specifier: ^6.2.3
@@ -1248,25 +1293,25 @@ importers:
         version: 8.20.0
     devDependencies:
       '@cerbos/core':
-        specifier: 0.21.1
-        version: 0.21.1
+        specifier: 'catalog:'
+        version: 0.31.0(@bufbuild/protobuf@2.12.0)
       '@hims/ts-sdk-http':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-http
       '@types/node':
-        specifier: ^22.19.18
+        specifier: 'catalog:'
         version: 22.19.18
       fastify-plugin:
-        specifier: ^5.1.0
+        specifier: 'catalog:'
         version: 5.1.0
       openapi-typescript:
         specifier: ^7.10.1
         version: 7.10.1(typescript@6.0.3)
       tsx:
-        specifier: ^4.21.0
+        specifier: 'catalog:'
         version: 4.21.0
       typescript:
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
         specifier: 'catalog:'
@@ -1275,14 +1320,14 @@ importers:
   services/web:
     dependencies:
       '@cerbos/core':
-        specifier: ^0.30.0
-        version: 0.30.0(@bufbuild/protobuf@2.12.0)
+        specifier: 'catalog:'
+        version: 0.31.0(@bufbuild/protobuf@2.12.0)
       '@cerbos/http':
-        specifier: ^0.28.0
-        version: 0.28.0(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.7.0)
+        specifier: 'catalog:'
+        version: 0.28.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)
       '@cerbos/react':
-        specifier: ^0.3.5
-        version: 0.3.5(@cerbos/core@0.30.0(@bufbuild/protobuf@2.12.0))(react@19.2.5)
+        specifier: 'catalog:'
+        version: 0.3.6(@cerbos/core@0.31.0(@bufbuild/protobuf@2.12.0))(react@19.2.5)
       '@hims/ts-sdk-india':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-india
@@ -1341,13 +1386,13 @@ importers:
         specifier: ^4.2.0
         version: 4.2.0(react@19.2.5)
       react:
-        specifier: ^19.1.0
+        specifier: 'catalog:'
         version: 19.2.5
       react-day-picker:
         specifier: ^9.14.0
         version: 9.14.0(react@19.2.5)
       react-dom:
-        specifier: ^19.1.0
+        specifier: 'catalog:'
         version: 19.2.5(react@19.2.5)
       react-hook-form:
         specifier: ^7.56.4
@@ -1362,7 +1407,7 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
       zod:
-        specifier: ^3.25.7
+        specifier: 'catalog:'
         version: 3.25.76
       zustand:
         specifier: ^5.0.5
@@ -1384,7 +1429,7 @@ importers:
         specifier: ^1.120.3
         version: 1.167.32(@tanstack/react-router@1.169.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(vite@7.3.2(@types/node@22.19.18)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.21.0)(yaml@2.8.4))
       '@types/node':
-        specifier: ^22.0.0
+        specifier: 'catalog:'
         version: 22.19.18
       '@types/react':
         specifier: ^19.1.4
@@ -1399,7 +1444,7 @@ importers:
         specifier: ^4.1.7
         version: 4.2.4
       typescript:
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vite:
         specifier: ^7.0.1
@@ -2152,36 +2197,35 @@ packages:
   '@bufbuild/protobuf@2.12.0':
     resolution: {integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==}
 
-  '@cerbos/api@0.7.0':
-    resolution: {integrity: sha512-2sLJLTOvxYlUNdQSNztCMXYRsLJmE4krH02swvjnOrSMFyGZt7oGsKcSt1dUCM8ONrm4POmsnGoZ4xFcyaduVQ==}
+  '@cerbos/api@0.8.0':
+    resolution: {integrity: sha512-iVEdsoYax/gKchx8jv60yNv48HzXfVC/1//f6U4mo5PrGt8k28Nbb95RM4R2U7eT0p3uqDUC8PSovTIrdA6Xww==}
     engines: {node: '>= 20'}
 
-  '@cerbos/core@0.21.1':
-    resolution: {integrity: sha512-pWmNN/d6Fc5URdaSFoUXib3a80bz6Nl54DRxC14s6GqAKCmxCJHHMkrR46BxCBXcaSqBR1cBGr+S8ROvVW51yQ==}
-    engines: {node: '>= 18'}
-
-  '@cerbos/core@0.30.0':
-    resolution: {integrity: sha512-XCTVxc9sTM5FBUVYZpWNTBoKD9UALGp15XZ5xd2idMOMrpWcwsyuj04EHKsPPp643BZ1yYVDANSJZxP+3o2bxQ==}
+  '@cerbos/core@0.31.0':
+    resolution: {integrity: sha512-rlHWHqGMxwDwokkzm2Fajm7ACbq4FAgImJ7pVhWT+Qh5jB6jmyPC2v/SXLhhsX5c6OHLGOyEBVtoJ+zlF1k33Q==}
     engines: {node: '>= 20'}
     peerDependencies:
-      '@bufbuild/protobuf': ^2.11.0
+      '@bufbuild/protobuf': ^2.12.0
 
-  '@cerbos/grpc@0.21.0':
-    resolution: {integrity: sha512-p0Q5ufeIg2jxBqh3TH9t7kqNy4EwvEs8Xa+I+aHuqGEuQFMIgSJB/3a9cYQ1a1d/fwecmPZTnKrqZKp30Z3Htg==}
-    engines: {node: '>= 18'}
-
-  '@cerbos/http@0.28.0':
-    resolution: {integrity: sha512-NqLfv6Xg6SojDgcfKwjyhFGzDk39ueMwc0YVyu2b/qBT+u1bY5H4P/2t7SpljNoW+S0H55Noaf9jwB42MY7GfQ==}
+  '@cerbos/grpc@0.27.1':
+    resolution: {integrity: sha512-cYNr3okdnz/tJnO5eeo1gAMlMiQ2JTCWWFxOrNWOzlblpALfGtyESR3HKkLUZ1JytI0XYAUGHdJuLGAHxWQ+Sg==}
     engines: {node: '>= 20'}
     peerDependencies:
-      '@bufbuild/protobuf': ^2.11.0
-      '@cerbos/api': ^0.7.0
+      '@bufbuild/protobuf': ^2.12.0
+      '@cerbos/api': ^0.8.0
 
-  '@cerbos/react@0.3.5':
-    resolution: {integrity: sha512-ETptIwDL/6IMBkQLN732S9ku3kEGDNgrdWnV6y0+jP/fHNfWxGOJkfV7UadwMA/QFF0strSVVIg21ufgp2TyFQ==}
+  '@cerbos/http@0.28.1':
+    resolution: {integrity: sha512-QPfh3xEoJftamz8Hqajza+2mUMUU06ghTtc5Q1aagfc5TCrECPX66Vpf/NQm15shTJl3Euy1nzaerZHp2iXN3g==}
     engines: {node: '>= 20'}
     peerDependencies:
-      '@cerbos/core': ^0.30.0
+      '@bufbuild/protobuf': ^2.12.0
+      '@cerbos/api': ^0.8.0
+
+  '@cerbos/react@0.3.6':
+    resolution: {integrity: sha512-LJWDYVCS1DModlKsA/KDJSVybDhxC9meA8kFVHjpg0M2CgvFdvt7zwEzt6AtoNsmXMko+XZoSuNkTrZjXVW70A==}
+    engines: {node: '>= 20'}
+    peerDependencies:
+      '@cerbos/core': ^0.31.0
       react: '>=18.0.0'
 
   '@csstools/color-helpers@5.1.0':
@@ -3043,7 +3087,7 @@ packages:
   '@pulse/constants@file:packages/pulse-constants':
     resolution: {directory: packages/pulse-constants, type: directory}
     peerDependencies:
-      typescript: ^5
+      typescript: '>=5 <7'
 
   '@pulse/layouts@file:packages/pulse-layouts':
     resolution: {directory: packages/pulse-layouts, type: directory}
@@ -3067,7 +3111,7 @@ packages:
   '@pulse/utils@file:packages/pulse-utils':
     resolution: {directory: packages/pulse-utils, type: directory}
     peerDependencies:
-      typescript: ^5
+      typescript: '>=5 <7'
 
   '@radix-ui/number@1.1.1':
     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
@@ -6784,10 +6828,6 @@ packages:
   utrie@1.0.2:
     resolution: {integrity: sha512-1MLa5ouZiOmQzUbjbu9VmjLzn1QLXBhwpUa7kdLUQK+KQ5KA9I1vk5U4YHe/X2Ch7PYnJfWuWT+VbuxbGwljhw==}
 
-  uuid@11.1.1:
-    resolution: {integrity: sha512-vIYxrBCC/N/K+Js3qSN88go7kIfNPssr/hHCesKCQNAjmgvYS2oqr69kIufEG+O4+PfezOH4EbIeHCfFov8ZgQ==}
-    hasBin: true
-
   uuid@14.0.0:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
@@ -7981,35 +8021,32 @@ snapshots:
 
   '@bufbuild/protobuf@2.12.0': {}
 
-  '@cerbos/api@0.7.0':
+  '@cerbos/api@0.8.0':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
 
-  '@cerbos/core@0.21.1':
-    dependencies:
-      uuid: 11.1.1
-
-  '@cerbos/core@0.30.0(@bufbuild/protobuf@2.12.0)':
+  '@cerbos/core@0.31.0(@bufbuild/protobuf@2.12.0)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
-      '@cerbos/api': 0.7.0
+      '@cerbos/api': 0.8.0
       uuid: 14.0.0
 
-  '@cerbos/grpc@0.21.0':
+  '@cerbos/grpc@0.27.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
-      '@cerbos/core': 0.21.1
+      '@cerbos/api': 0.8.0
+      '@cerbos/core': 0.31.0(@bufbuild/protobuf@2.12.0)
       '@grpc/grpc-js': 1.14.3
 
-  '@cerbos/http@0.28.0(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.7.0)':
+  '@cerbos/http@0.28.1(@bufbuild/protobuf@2.12.0)(@cerbos/api@0.8.0)':
     dependencies:
       '@bufbuild/protobuf': 2.12.0
-      '@cerbos/api': 0.7.0
-      '@cerbos/core': 0.30.0(@bufbuild/protobuf@2.12.0)
+      '@cerbos/api': 0.8.0
+      '@cerbos/core': 0.31.0(@bufbuild/protobuf@2.12.0)
 
-  '@cerbos/react@0.3.5(@cerbos/core@0.30.0(@bufbuild/protobuf@2.12.0))(react@19.2.5)':
+  '@cerbos/react@0.3.6(@cerbos/core@0.31.0(@bufbuild/protobuf@2.12.0))(react@19.2.5)':
     dependencies:
-      '@cerbos/core': 0.30.0(@bufbuild/protobuf@2.12.0)
+      '@cerbos/core': 0.31.0(@bufbuild/protobuf@2.12.0)
       react: 19.2.5
       use-deep-compare-effect: 1.8.1(react@19.2.5)
 
@@ -9990,7 +10027,6 @@ snapshots:
   '@types/node@25.6.0':
     dependencies:
       undici-types: 7.19.2
-    optional: true
 
   '@types/pako@2.0.4': {}
 
@@ -9998,7 +10034,7 @@ snapshots:
 
   '@types/pg@8.20.0':
     dependencies:
-      '@types/node': 22.19.18
+      '@types/node': 25.6.0
       pg-protocol: 1.13.0
       pg-types: 2.2.0
 
@@ -11984,7 +12020,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 22.19.18
+      '@types/node': 25.6.0
       long: 5.3.2
 
   proxy-from-env@2.1.0: {}
@@ -12580,8 +12616,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici-types@7.19.2:
-    optional: true
+  undici-types@7.19.2: {}
 
   undici@7.25.0: {}
 
@@ -12645,8 +12680,6 @@ snapshots:
     dependencies:
       base64-arraybuffer: 1.0.2
     optional: true
-
-  uuid@11.1.1: {}
 
   uuid@14.0.0: {}
 

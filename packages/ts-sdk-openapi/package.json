@@ -16,10 +16,14 @@
     "fastify": ">=5.0.0"
   },
   "peerDependenciesMeta": {
-    "@fastify/swagger": { "optional": false },
-    "@fastify/swagger-ui": { "optional": false }
+    "@fastify/swagger": {
+      "optional": false
+    },
+    "@fastify/swagger-ui": {
+      "optional": false
+    }
   },
   "devDependencies": {
-    "fastify": "^5.3.3"
+    "fastify": "catalog:"
   }
 }

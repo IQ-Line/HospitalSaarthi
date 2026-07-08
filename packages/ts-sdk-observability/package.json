@@ -16,10 +16,10 @@
     "fastify": ">=5.0.0"
   },
   "dependencies": {
-    "fastify-plugin": "^5.1.0"
+    "fastify-plugin": "catalog:"
   },
   "devDependencies": {
-    "fastify": "^5.0.0",
+    "fastify": "catalog:",
     "vitest": "catalog:"
   }
 }

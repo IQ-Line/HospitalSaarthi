@@ -20,16 +20,16 @@
   ],
   "scripts": {},
   "dependencies": {
-    "@cerbos/core": "0.21.1",
+    "@cerbos/core": "catalog:",
     "@hims/dev-bootstrap": "workspace:*",
     "@hims/ts-sdk-api-key": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-http": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.1.0"
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:"
   },
   "devDependencies": {
     "@fastify/sensible": "^6.0.4",

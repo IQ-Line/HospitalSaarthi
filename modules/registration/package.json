@@ -19,10 +19,10 @@
     "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
-    "tsx": "^4.20.5",
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
+    "tsx": "catalog:",
     "vitest": "catalog:",
     "drizzle-kit": "^0.31.4"
   }

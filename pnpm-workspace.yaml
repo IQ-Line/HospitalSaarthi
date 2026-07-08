@@ -12,3 +12,18 @@ injectWorkspacePackages: true
 # (Started with vitest, which was split across v3 and v4 — one test runner now.)
 catalog:
   vitest: ^4.1.6
+  "@types/node": ^22.19.18
+  dotenv: ^16.6.1
+  drizzle-orm: ^0.45.2
+  eslint: ^10.3.0
+  fastify: ^5.3.3
+  fastify-plugin: ^5.1.0
+  react: ^19.1.0
+  react-dom: ^19.1.0
+  tsx: ^4.21.0
+  typescript: ^6.0.3
+  zod: ^3.25.7
+  "@cerbos/core": ^0.31.0
+  "@cerbos/grpc": ^0.27.1
+  "@cerbos/http": ^0.28.1
+  "@cerbos/react": ^0.3.6
