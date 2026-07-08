@@ -1,88 +1,105 @@
-# ADR-0036: External `pdf-platform` as the report-rendering service; consolidate onto its contract
+# ADR-0036: `pdf-platform` is the report service; HIMS consumes ONE contract generated from its schema
 
-- **Status:** Accepted (first slice) — migration plan pending orchestrator/team sign-off
-- **Date:** 2026-07-08
+- **Status:** Accepted — staged migration in progress
+- **Date:** 2026-07-08 (revised from the initial "vendor as git submodule" slice)
 - **Deciders:** Architect, Engineering Manager, Tech Lead
 - **Consulted:** Registration module owner, OPD module owner
 - **Informed:** Whole engineering team
 
 ## Context and problem statement
 
-External PDF/report rendering in this monorepo is served by **`pdf-platform`** (GitHub `IQ-Line/smart-report-v2`), a separate Turborepo/pnpm service that runs Fastify + Gotenberg and owns the report templates. HIMS talks to it over HTTP. The problem is not *whether* to use it — that is settled — but that HIMS currently **hand-reimplements the client and the templates three different ways**, and those implementations have drifted:
+External PDF/report rendering in this monorepo is served by **`pdf-platform`** (GitHub `IQ-Line/smart-report-v2`), a separate Turborepo/pnpm service running Fastify + Gotenberg that owns the report templates. HIMS talks to it over HTTP. That it is the report service is settled. The problem is that HIMS currently **hand-reimplements the client and templates three ways**, and they have drifted:
 
-1. **TypeScript client** — `packages/pdf-client/` (`HttpPdfPlatformRenderer`, hand-written `types.ts` mirroring pdf-platform's Zod DTOs). Used by `modules/registration`.
-2. **Python client** — `modules/opd/src/opd/lib/pdf_platform_client.py` (a second hand-written HTTP client) plus a legacy self-HTML path in `modules/opd/src/opd/integrations/op_consult_report.py`.
-3. **Scraped templates** — `tools/extract-opd-report-templates.mjs` line-slices `reportTemplates.ts` out of a sibling repo (`hims-frontend-ai-based`) into `packages/registration-reports/src/opd-templates.generated.ts`. pdf-platform scraped the **same** source into `packages/report-opd-slip/src/generated/opd-templates.generated.ts` — so the OPD-slip/receipt HTML now exists, independently maintained, on **both** sides.
+1. **TypeScript client** — `packages/pdf-client/` (`HttpPdfPlatformRenderer` + a hand-written `types.ts` mirroring pdf-platform's Zod DTOs). Used by `modules/registration`.
+2. **Python client** — `modules/opd/src/opd/lib/pdf_platform_client.py` (a second hand-written HTTP client) plus a dead legacy self-HTML path in `modules/opd/src/opd/integrations/op_consult_report.py`.
+3. **Scraped templates** — `tools/extract-opd-report-templates.mjs` line-slices `reportTemplates.ts` out of a sibling repo (`hims-frontend-ai-based`) into `packages/registration-reports/src/opd-templates.generated.ts`. pdf-platform independently scrapes the **same** upstream into `packages/report-opd-slip/src/generated/opd-templates.generated.ts` — so the OPD-slip/receipt HTML now exists, separately maintained, on **both** sides.
 
-The contract (`packages/contracts` on pdf-platform, all Zod) is the single source of truth for request shapes, but nothing in HIMS is generated from it — both the TS `types.ts` and the Python `dict` builders are copied by hand and can silently fall out of sync (the `.strict()` schemas turn any drift into a 400 at runtime).
+pdf-platform's `packages/contracts` (all Zod) is the single source of truth for request shapes, but **nothing in HIMS is generated from it** — the TS interfaces and the Python `dict` builders are copied by hand. Because every server schema is `.strict()`, any drift becomes a runtime 400, not a compile error.
 
-## What pdf-platform actually is (verified against the clone, commit `56e603f`, branch `dev`)
+## What pdf-platform actually is (verified against the clone, branch `dev`)
 
-**pdf-platform renders from structured DATA server-side — it is not merely an HTML→PDF box.** Two public entry points exist (`packages/report-engine/src/routes.ts`, `apps/pdf-worker/src/routes/`):
+**pdf-platform renders from structured DATA server-side — it is not merely an HTML→PDF box.** Entry points (`packages/report-engine/src/routes.ts`, `apps/pdf-worker/src/routes/`):
 
-- **`POST /v1/pdf/reports/:slug`** (and `…/:slug/html`) — accepts **structured report data**, validates it against the report's Zod schema (`opdSlipRequestSchema`, `opConsultationRequestSchema`, `immunizationRequestSchema`, `prescriptionRequestSchema`), then renders HTML **server-side** via the `report-*` packages and streams a PDF through Gotenberg. Registered report types (`packages/contracts/src/schemas/reports/report-types.ts`): `opd-slip`, `op-consultation`, `immunization`, `prescription`. Evidence: `apps/pdf-worker/src/routes/register-report-routes.ts` → `buildRenderHtmlRequestForReport` → `getReportRenderer(type).render(data)`.
-- **`POST /v1/pdf/render-html`** — a generic HTML→PDF fallback (caller supplies HTML). Evidence: `apps/pdf-worker/src/routes/render-html.ts`.
+- **`POST /v1/pdf/reports/:slug`** (and `…/:slug/html`) — accepts **structured report data**, validates against the report's Zod schema, renders HTML server-side via the `report-*` packages, streams a PDF through Gotenberg. Registered types (`packages/contracts/src/schemas/reports/report-types.ts`): `opd-slip`, `op-consultation`, `immunization`, `prescription`. The response is a streamed `application/pdf` (`apps/pdf-worker/src/services/stream-pdf-from-html.ts`).
+- **`POST /v1/pdf/render-html`** — a generic caller-supplies-HTML fallback (`apps/pdf-worker/src/routes/render-html.ts`).
 
-So the target end-state — *HIMS sends data, templates live only in pdf-platform* — **is achievable for the four registered report types.** The contract was in fact designed around HIMS: `packages/contracts/src/schemas/reports/common.ts` documents `smartParchaPageSchema` as "same shape as HIMS `parchaContent`" and the OPD-slip schema comments "HIMS sends `parcha.parchaContent`."
+The target end-state — *HIMS sends data, templates live only in pdf-platform* — **is achievable for the four registered types**; the contract was designed around HIMS (`common.ts` documents `smartParchaPageSchema` as "same shape as HIMS `parchaContent`"). The Python clinical side is **already** on the `/reports` data path.
 
-**One gap:** the **OPD receipt / OP billing** document has a template on pdf-platform (`renderOPBillingHtml` inside `report-opd-slip/src/generated/opd-templates.generated.ts`) but it is **not wired as a report type** — no slug, no schema, no renderer registration. Retiring HIMS's scraped receipt template therefore requires pdf-platform to *expose* an `opd-receipt` (billing) report type first. Until then the receipt is the one document that must keep a template on the HIMS side (or use `render-html`).
+**Two verified facts that shape the decision:**
+
+- **The contract is zod v3.** `@pdf-platform/contracts` depends on `zod ^3.25.42` (resolved `3.25.76`) and its only runtime dependency is `zod`. So (a) a JSON-Schema export uses the **`zod-to-json-schema`** library — zod v4's native `z.toJSONSchema()` does not apply — and (b) that export script runs against `packages/contracts` **in isolation** (just `pnpm install` + `tsc --build`), independent of Gotenberg/Fastify/renderers. This is the clean CI seam.
+- **`opd-receipt` is not a report type yet.** The OP-billing receipt template (`renderOPBillingHtml`, `packages/report-opd-slip/src/generated/opd-templates.generated.ts`) exists but has **no slug, schema, or renderer registration**, and is not exported from the package index. Its input (`OPDBillingReportPayload`, `packages/report-shared/src/types.ts`) is a *presentation* shape with a pre-computed `summary` — but pdf-platform already ships `computeOPDBillingSummary` (`packages/report-shared/src/billing-math.ts`), so a clean contract can accept **raw line items + discounts** and compute the summary server-side.
 
 ## Decision
 
-1. **Treat `pdf-platform` as the external report service** and vendor it into the monorepo as a **git submodule at `external/pdf-platform`** (`https://github.com/IQ-Line/smart-report-v2.git`), so `clone + make setup` pulls it and it can run locally (it ships Gotenberg via docker). `make setup` now runs `git submodule update --init --recursive`.
-2. **Consolidate onto pdf-platform's contract and `report-*` packages.** The end-state is: one TS client and one Python client, each sending **structured data** to `/v1/pdf/reports/:slug`; **zero report templates maintained inside HIMS**; the `tools/extract-opd-report-templates.mjs` scrape and `packages/registration-reports` retired.
-3. **The contract is consumed, not copied.** TypeScript consumes `@pdf-platform/contracts` types via the submodule workspace path (or a thin generated `.d.ts`). Python consumes a **JSON-Schema/OpenAPI export** of the same Zod contract (see open questions — pdf-platform does not export one yet).
+**Consolidate HIMS onto a single report contract that is GENERATED from pdf-platform's exported JSON-Schema and gated against drift in CI. Do NOT vendor pdf-platform as a git submodule.**
 
-This is recorded now with only the **zero-risk first slice executed** (submodule + this ADR + Makefile wiring). No client, template, or report flow is changed yet; the migration below is staged and gated on team sign-off.
+Concretely:
+
+1. **pdf-platform exports a language-neutral schema artifact.** Add a small script to `@pdf-platform/contracts` that emits a JSON-Schema bundle of the report request DTOs (via `zod-to-json-schema`), committed into the repo. This artifact — not the Zod source, not a TS `.d.ts` — is the polyglot source of truth.
+2. **pdf-platform exposes `opd-receipt`** as a first-class report type (slug + Zod schema + a renderer wrapping the existing `renderOPBillingHtml`, computing the summary server-side via `billing-math.ts`), so HIMS can retire its scraped receipt template. This is coupled to (1) — the export must include the new receipt schema — so both land in **one upstream PR**.
+3. **HIMS generates its clients' types from that artifact.** A `make` target pulls the JSON-Schema bundle and runs `json-schema-to-typescript` (→ `packages/pdf-client`) and `datamodel-code-generator` (→ the Python client), writing **committed** files. Regenerating-from-schema kills drift by construction.
+4. **CI has a contract drift-gate.** Regenerate in CI and fail if the committed generated files differ from the fresh output — the guarantee the submodule was reaching for, without coupling every CI job to a private-repo checkout.
+5. **`make dev` clones + runs pdf-platform locally** for end-to-end rendering — into the **gitignored** `external/pdf-platform` at a pinned ref, via its docker-compose (it ships Gotenberg). Developers who never touch reports never clone it.
+6. **Retire the three hand-reimplementations** (see migration plan). Templates live only in pdf-platform; HIMS sends structured data.
+
+### Why generated-from-schema, not a git submodule
+
+The initial slice (reverted) vendored pdf-platform as a submodule at `external/pdf-platform` and wired `git submodule update` into `make setup`. Rejected in favour of the above because the submodule:
+
+- **Only helps the TypeScript half.** Python cannot import Zod/TS types; it would still hand-copy the contract, so drift persists on the OPD side — the worse of the two. A JSON-Schema artifact is language-neutral and feeds **both** `json-schema-to-typescript` and `datamodel-code-generator`.
+- **Couples CI to a private-repo checkout.** `smart-report-v2` is private; every affected CI job (and every fresh clone) would need submodule credentials and an init step. The schema artifact is a committed file — no private checkout in the common case; only the (rare) drift-gate job and `make dev` touch the upstream repo.
+- **Is the highest-friction option for the guarantee it buys.** A submodule pins a commit but does not *verify* the HIMS side matches it — you can still hand-write a drifting `types.ts` against a pinned submodule. The drift-gate verifies the actual generated types against the actual current schema, which is the real guarantee.
+
+Trade-off accepted: HIMS depends on the upstream repo emitting and versioning the schema artifact (a coordinated change, done here), and full "data-only, no templates in HIMS" needs the upstream `opd-receipt` type. Both are within our control (same org, write access).
 
 ## Current HIMS ↔ pdf-platform mapping (what each report uses today)
 
-| HIMS report | Producer | Path used **today** | pdf-platform data-driven type? |
+| HIMS report | Producer | Path used **today** | Data-driven type on pdf-platform? |
 |---|---|---|---|
 | OPD slip (partner API) | `modules/registration` `render-partner-opd-slip-pdf.ts` | **`/v1/pdf/reports/opd-slip`** (data) via `pdf-client.renderOpdSlipReport` | ✅ `opd-slip` |
-| OPD slip (internal documents) | `modules/registration` `get-registration-documents.ts` | `render-html` from **scraped** `renderOPDSlipHtml` | ✅ `opd-slip` (not yet used here) |
-| OPD receipt / OP billing | `modules/registration` `get-registration-documents.ts` | `render-html` from **scraped** `renderOPBillingHtml` | ❌ **template exists on pdf-platform but unexposed** |
+| OPD slip (internal documents) | `modules/registration` `get-registration-documents.ts` | local `renderOPDSlipHtml` → **`/render-html`** | ✅ `opd-slip` (not used here yet) |
+| OPD receipt / OP billing | `modules/registration` `get-registration-documents.ts` | local `renderOPBillingHtml` → **`/render-html`** | ❌ **template exists on pdf-platform but unexposed** |
 | Prescription | `modules/opd` `clinical_documents_service.py` | **`/v1/pdf/reports/prescription`** (data) via `pdf_platform_client.py` | ✅ `prescription` |
 | OP consultation | `modules/opd` `clinical_documents_service.py` | **`/v1/pdf/reports/op-consultation`** (data) | ✅ `op-consultation` |
 | Immunization | `modules/opd` `clinical_documents_service.py` | **`/v1/pdf/reports/immunization`** (data) | ✅ `immunization` |
-| OP consult / OPD-slip health-doc (legacy) | `modules/opd` `integrations/op_consult_report.py` | self-built HTML → `render-html` | superseded by the three above; **appears unused** |
+| OP-consult / OPD-slip health-doc (legacy) | `modules/opd` `integrations/op_consult_report.py` | self-built HTML → `/render-html` | **dead** — no live callers (only two HI-type string constants are imported, by `abdm_m2.py`) |
 
-Notable: the clinical (Python) side is **already** on the data-driven `/reports` path via `pdf_platform_client.py`. The remaining hand-work is (a) the two hand-written clients, (b) the scraped OPD-slip/receipt templates in `registration-reports`, and (c) a likely-dead legacy HTML path in `op_consult_report.py`.
+So the remaining hand-work is: (a) the two hand-written clients, (b) the scraped OPD-slip/receipt templates in `registration-reports` (still live via the registration **internal-documents** path), and (c) the dead legacy Python HTML render functions.
 
-## Migration plan (staged; each stage independently shippable, gated on sign-off)
+## Migration plan (staged; each stage independently shippable)
 
-**Stage 0 — first slice (executed here, zero-risk):** submodule `external/pdf-platform`, this ADR, `make setup` wiring. No behaviour change.
+**Stage 0 — this ADR + revert the submodule slice.** Remove `.gitmodules`, the `external/pdf-platform` gitlink, and the `git submodule update` in `make setup`; `.gitignore` reserves `/external/` for the `make dev` clone. No behaviour change. *(done)*
 
-**Stage 1 — single source for the TS contract.** Point `packages/pdf-client/src/types.ts` at `@pdf-platform/contracts` (via the submodule workspace, or a generated `.d.ts` committed into pdf-client). Delete the hand-copied interfaces. Risk: build/workspace wiring (pnpm must see the submodule package); no runtime change. Verify: registration partner-slip integration test still green.
+**Stage 1 — upstream: schema export + `opd-receipt` (one PR into `smart-report-v2`).**
+- Add `zod-to-json-schema` emit script to `@pdf-platform/contracts`; commit a JSON-Schema bundle covering `opd-slip`, `op-consultation`, `immunization`, `prescription`, and the new `opd-receipt`.
+- Add the `opd-receipt` report type: slug in `REPORT_TYPES`, a `opdReceiptRequestSchema` (raw line items + discounts + received amount), a renderer that computes the summary via `billing-math.ts` and calls `renderOPBillingHtml`, plus route/bootstrap registration.
+- Verify: existing report tests green; the emitted bundle validates a sample of each type.
 
-**Stage 2 — single source for the Python contract.** Add a JSON-Schema (or OpenAPI) export to pdf-platform from the Zod contract (`zod-to-json-schema`), commit it, and validate `pdf_platform_client.py` request bodies against it in tests. Risk: pdf-platform change (coordinate upstream). Verify: `modules/opd/tests/test_pdf_platform_client.py` asserts against the exported schema.
+**Stage 2 — HIMS codegen + drift-gate.** `make gen:report-contracts` fetches the bundle (from the pinned upstream ref) and regenerates `packages/pdf-client` types (`json-schema-to-typescript`) and the Python client models (`datamodel-code-generator`) into committed files. CI regenerates and fails on any diff. Delete the hand-written `pdf-client/src/types.ts` interfaces and the hand-built Python `dict` shapes in favour of the generated types (the Python client keeps its mandatory `_omit_none` — the `.strict()` schemas reject JSON `null` on optionals — and its slug map).
 
-**Stage 3 — move registration internal documents onto `/reports/opd-slip`.** Switch `get-registration-documents.ts` `getOpdSlipPdf` from `renderOPDSlipHtml`+`render-html` to `pdf-client.renderOpdSlipReport` (data). Removes the OPD-slip half of the scrape. Risk: **pixel/layout parity** — pdf-platform's `opd-slip` renderer must reproduce the scraped slip; diff a rendered sample before/after. This is the first flow-changing step and needs explicit approval.
+**Stage 3 — move registration onto typed endpoints.** Switch `get-registration-documents.ts` from local-HTML `renderOpdSlipDocumentHtml`/`renderOpdReceiptDocumentHtml` + `/render-html` to structured `/v1/pdf/reports/opd-slip` and `/v1/pdf/reports/opd-receipt`. The receipt summary computation (`computeOPDBillingSummary` and the `build-opd-receipt-payload.ts` helpers) moves **server-side** into the new upstream renderer; HIMS sends raw billing data. Correctness gate: smoke-render each produces a valid PDF (pre-production, malleable — no pixel-parity-vs-old requirement).
 
-**Stage 4 — expose `opd-receipt` on pdf-platform, then move the receipt.** Upstream: add an `opd-receipt` report type (schema + renderer wrapping the existing `renderOPBillingHtml`) + slug. Then switch `getOpdReceiptPdf` to data. Removes the receipt half of the scrape. Risk: upstream change + billing-math parity (`billing-math.ts` exists on both sides — reconcile to pdf-platform's).
-
-**Stage 5 — retire the scrape and `registration-reports`.** Once Stages 3–4 land, delete `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/`, and the `render*DocumentHtml` wrappers. Verify no remaining importers.
-
-**Stage 6 — remove the legacy Python HTML path.** Confirm `ensure_op_consult_report_pdf_base64` / `ensure_opd_slip_health_document` / `wrap_op_consult_report_document` in `op_consult_report.py` have no live callers (current grep: only the HI-type constants are imported by `abdm_m2.py`; the render functions appear unused) and delete them, keeping the constants.
+**Stage 4 — retire the scrape and dead code.** Delete `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/` (relocating its few non-template exports — logo data URL, patient-name-line helper — into `modules/registration` if still needed), the `render*DocumentHtml` wrappers, and the dead render functions in `op_consult_report.py` (keeping only `OP_CONSULT_HI_TYPE` / `OPD_SLIP_HI_TYPE`, which `abdm_m2.py` reads — move them to a small constants module). Verify no remaining importers.
 
 ## Consequences
 
-**Positive:** one client per language, generated from one contract; zero report templates in HIMS; the scrape (a fragile line-slice of a sibling repo) is deleted; drift between the two `opd-templates.generated.ts` copies ends.
+**Positive:** one client per language, both generated from one schema; zero report templates in HIMS; the fragile sibling-repo scrape (on both sides) is deleted; drift is caught mechanically in CI rather than at runtime as a 400; no private-repo checkout in common-case CI.
 
-**Negative / accepted:** HIMS now depends on a git submodule (extra clone/init step; pinned commit must be bumped deliberately). Stages 3–4 touch live report output and need pixel-parity verification. Stage 2/4 require **coordinated changes in the upstream pdf-platform repo** — HIMS cannot complete full consolidation unilaterally.
+**Negative / accepted:**
+- HIMS depends on the upstream repo emitting + versioning the schema artifact, and on the upstream `opd-receipt` type. Both are in-org, write-accessible, and delivered as part of this work.
+- **`op-consultation` codegen is weak by design.** `opConsultationRequestSchema` types most clinical arrays as `z.record(z.unknown())`, so generated types are `Record<string, unknown>` / `dict[str, Any]` — no stronger than today. Codegen buys real typing for `opd-slip`, `prescription`, `immunization`, `opd-receipt`, not for op-consultation's clinical blobs.
+- **pdf-platform enforces no auth today.** Both clients send an `Authorization: Bearer <apiKey>` the server ignores (verified: the only `onRequest` hook is request-id). Not a functional blocker; flagged so that if a gateway later enforces it, the server needs a matching plugin. The consolidation preserves the client's ability to send the header.
 
-**Honest end-state caveat:** full "data-only, no templates in HIMS" is reachable for all six reports **only if** pdf-platform exposes `opd-receipt` and a Python contract export. If upstream declines either, the realistic end-state is narrower: shared TS contract + single TS/Python clients, with the OPD **receipt** template (and only that) remaining on the HIMS side behind `render-html`.
+## Verification (Stage 0)
 
-## First-slice verification
-
-- `git submodule status` → `external/pdf-platform` present at `56e603f` (branch `dev`); `git submodule update --init --recursive` exits 0 and is idempotent.
-- `.gitmodules` records `external/pdf-platform` → `https://github.com/IQ-Line/smart-report-v2.git`.
-- `make setup` runs `git submodule update --init --recursive` before `pnpm install`.
-- No change to `packages/pdf-client`, `modules/opd/.../pdf_platform_client.py`, `op_consult_report.py`, `tools/extract-opd-report-templates.mjs`, or `packages/registration-reports`.
+- `git submodule status` → empty; `.gitmodules` removed; `external/pdf-platform` gitlink removed; `.git/modules/external/pdf-platform` purged.
+- `make setup` no longer runs `git submodule update`; `.gitignore` ignores `/external/`.
+- No report/client/template code changed by this stage.
 
 ## Links
 
-- Submodule: `external/pdf-platform` (`IQ-Line/smart-report-v2`)
-- pdf-platform evidence: `packages/report-engine/src/routes.ts`, `apps/pdf-worker/src/routes/register-report-routes.ts`, `apps/pdf-worker/src/use-cases/render-report-pdf.ts`, `apps/pdf-worker/src/bootstrap/register-reports.ts`, `packages/contracts/src/schemas/reports/*`, `packages/report-opd-slip/src/generated/opd-templates.generated.ts` (`renderOPBillingHtml`)
-- HIMS evidence: `packages/pdf-client/src/*`, `modules/registration/src/use-cases/render-partner-opd-slip-pdf.ts`, `modules/registration/src/use-cases/get-registration-documents.ts`, `modules/opd/src/opd/lib/pdf_platform_client.py`, `modules/opd/src/opd/services/clinical_documents_service.py`, `modules/opd/src/opd/integrations/op_consult_report.py`, `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/src/opd-templates.generated.ts`
-- Related: [ADR-0034 — Polyglot boundary freeze](./0034-polyglot-boundary-freeze.md) (why the Python client stays Python), [ADR-0016 — Polyglot Nx monorepo, spec-first contracts](./0016-polyglot-nx-monorepo-spec-first-contracts.md) (language-agnostic contracts)
+- Upstream: `IQ-Line/smart-report-v2` (branch `dev`) — schema export + `opd-receipt` (Stage 1).
+- pdf-platform evidence: `packages/contracts/src/schemas/reports/*` (zod v3), `packages/contracts/package.json` (deps = zod only), `packages/report-engine/src/routes.ts` (slug maps), `apps/pdf-worker/src/routes/register-report-routes.ts`, `apps/pdf-worker/src/bootstrap/register-reports.ts`, `packages/report-opd-slip/src/generated/opd-templates.generated.ts` (`renderOPBillingHtml`), `packages/report-shared/src/billing-math.ts` (`computeOPDBillingSummary`), `apps/pdf-worker/src/services/stream-pdf-from-html.ts`.
+- HIMS evidence: `packages/pdf-client/src/*`, `modules/registration/src/use-cases/render-partner-opd-slip-pdf.ts`, `modules/registration/src/use-cases/get-registration-documents.ts`, `modules/registration/src/lib/registration-reports.ts`, `modules/registration/src/use-cases/build-opd-receipt-payload.ts`, `modules/opd/src/opd/lib/pdf_platform_client.py`, `modules/opd/src/opd/services/clinical_documents_service.py`, `modules/opd/src/opd/integrations/op_consult_report.py`, `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/src/opd-templates.generated.ts`.
+- Related: [ADR-0034 — Polyglot boundary freeze](./0034-polyglot-boundary-freeze.md), [ADR-0016 — Polyglot Nx monorepo, spec-first contracts](./0016-polyglot-nx-monorepo-spec-first-contracts.md).
