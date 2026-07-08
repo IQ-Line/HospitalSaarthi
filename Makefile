@@ -161,10 +161,43 @@ test-all: ## Run all tests
 test-integration: ## Run affected integration tests
 	$(NX) affected -t test:integration
 
+# --- Contract codegen --------------------------------------------------------
+
+# The pdf-platform report-client types (TS + Python) are GENERATED from the
+# vendored JSON-Schema contract; never hand-edit the generated output. See the
+# pdf-platform consolidation plan / ADR-0036.
+REPORT_CONTRACTS_SCHEMA := contracts/pdf-platform/report-contracts.schema.json
+REPORT_CONTRACTS_GEN_DIRS := packages/pdf-client/src/generated modules/opd/src/opd/lib/generated
+REPORT_CONTRACTS_REF ?= $(shell cat contracts/pdf-platform/PINNED_REF)
+
+.PHONY: gen-report-contracts
+gen-report-contracts: ## Regenerate report-client types (TS + Python) from the vendored JSON-Schema contract
+	npx tsx tools/gen-report-contracts.mts
+	cd modules/opd && uv run datamodel-codegen \
+		--input ../../$(REPORT_CONTRACTS_SCHEMA) \
+		--input-file-type jsonschema \
+		--output src/opd/lib/generated/report_contracts.py \
+		--output-model-type pydantic_v2.BaseModel \
+		--disable-timestamp \
+		--target-python-version 3.12 \
+		--use-double-quotes \
+		--skip-root-model
+
+.PHONY: check-report-contracts
+check-report-contracts: ## CI drift-gate: regen report-client types and fail if the committed output is stale
+	$(MAKE) gen-report-contracts
+	git diff --exit-code -- $(REPORT_CONTRACTS_GEN_DIRS)
+
+.PHONY: sync-report-contracts
+sync-report-contracts: ## Pull the report contract from upstream at REF (default: PINNED_REF), pin it, and regen
+	gh api "repos/IQ-Line/smart-report-v2/contents/packages/contracts/schema/report-contracts.schema.json?ref=$(REPORT_CONTRACTS_REF)" --jq .content | base64 -d > $(REPORT_CONTRACTS_SCHEMA)
+	@printf '%s\n' "$(REPORT_CONTRACTS_REF)" > contracts/pdf-platform/PINNED_REF
+	$(MAKE) gen-report-contracts
+
 # --- CI ----------------------------------------------------------------------
 
 .PHONY: ci-local
-ci-local: ## Run the full PR pipeline locally (same checks as CI)
+ci-local: check-report-contracts ## Run the full PR pipeline locally (same checks as CI)
 	pnpm run ci:pr
 
 .PHONY: lint

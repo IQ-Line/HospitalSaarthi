@@ -1,0 +1,1340 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "pdf-platform report request contracts",
+  "contractsVersion": "0.1.0",
+  "reportTypes": {
+    "opd-slip": "OpdSlipReportRequest",
+    "opd-receipt": "OpdReceiptReportRequest",
+    "op-consultation": "OpConsultationReportRequest",
+    "immunization": "ImmunizationReportRequest",
+    "prescription": "PrescriptionReportRequest"
+  },
+  "definitions": {
+    "OpdSlipReportRequest": {
+      "type": "object",
+      "properties": {
+        "patientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visitId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "doctorId": {
+          "type": "string"
+        },
+        "patient": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uhid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "dateOfBirth": {
+              "type": "string"
+            },
+            "yearOfBirth": {
+              "type": "integer"
+            },
+            "gender": {
+              "type": "string"
+            },
+            "salutation": {
+              "type": "string"
+            },
+            "abhaNumber": {
+              "type": "string"
+            },
+            "abhaAddress": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uhid"
+          ],
+          "additionalProperties": false
+        },
+        "visit": {
+          "type": "object",
+          "properties": {
+            "visitNumber": {
+              "type": "string"
+            },
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "visitType": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "departmentName": {
+              "type": "string"
+            },
+            "roomNumber": {
+              "type": "string"
+            },
+            "tokenNumber": {
+              "type": "integer"
+            },
+            "fees": {
+              "type": "string"
+            },
+            "visitValidTill": {
+              "type": "string"
+            },
+            "consultationType": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "doctor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "qualification": {
+              "type": "string"
+            },
+            "specialization": {
+              "type": "string"
+            },
+            "hprId": {
+              "type": "string"
+            },
+            "regNumber": {
+              "type": "string"
+            },
+            "signature": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "facility": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "facilityId": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "footerText": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "smartParchaEnabled": {
+          "type": "boolean"
+        },
+        "smartParchaPages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pageNumber": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "pageNumber",
+              "content"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "showDoctorSignature": {
+          "type": "boolean"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "A4",
+                "Letter"
+              ]
+            },
+            "marginTop": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginBottom": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginLeft": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginRight": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "patientId",
+        "visitId",
+        "patient",
+        "visit",
+        "doctor",
+        "facility"
+      ],
+      "additionalProperties": false
+    },
+    "OpdReceiptReportRequest": {
+      "type": "object",
+      "properties": {
+        "patientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "visitId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "patient": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uhid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "dateOfBirth": {
+              "type": "string"
+            },
+            "yearOfBirth": {
+              "type": "integer"
+            },
+            "gender": {
+              "type": "string"
+            },
+            "salutation": {
+              "type": "string"
+            },
+            "abhaNumber": {
+              "type": "string"
+            },
+            "abhaAddress": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uhid"
+          ],
+          "additionalProperties": false
+        },
+        "visit": {
+          "type": "object",
+          "properties": {
+            "visitNumber": {
+              "type": "string"
+            },
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "visitType": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "departmentName": {
+              "type": "string"
+            },
+            "roomNumber": {
+              "type": "string"
+            },
+            "tokenNumber": {
+              "type": "integer"
+            },
+            "fees": {
+              "type": "string"
+            },
+            "visitValidTill": {
+              "type": "string"
+            },
+            "consultationType": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "facility": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "facilityId": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "footerText": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "billNumber": {
+          "type": "string"
+        },
+        "dateOfIssue": {
+          "type": "string"
+        },
+        "receiptTitle": {
+          "type": "string"
+        },
+        "lineItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "serviceName": {
+                "type": "string",
+                "minLength": 1
+              },
+              "serviceDetail": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "number"
+              },
+              "unitPrice": {
+                "type": "number"
+              },
+              "gstPercent": {
+                "type": "number"
+              },
+              "discount": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "serviceName",
+              "quantity",
+              "unitPrice",
+              "gstPercent",
+              "discount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "billLevelDiscount": {
+          "type": "number"
+        },
+        "billingDiscountPercent": {
+          "type": "number"
+        },
+        "receivedAmount": {
+          "type": "number"
+        },
+        "paymentMethods": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "A4",
+                "Letter"
+              ]
+            },
+            "marginTop": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginBottom": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginLeft": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginRight": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "patientId",
+        "visitId",
+        "patient",
+        "visit",
+        "facility",
+        "lineItems"
+      ],
+      "additionalProperties": false
+    },
+    "OpConsultationReportRequest": {
+      "type": "object",
+      "properties": {
+        "facility": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "facilityId": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "footerText": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "patient": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uhid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "dateOfBirth": {
+              "type": "string"
+            },
+            "yearOfBirth": {
+              "type": "integer"
+            },
+            "gender": {
+              "type": "string"
+            },
+            "salutation": {
+              "type": "string"
+            },
+            "abhaNumber": {
+              "type": "string"
+            },
+            "abhaAddress": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uhid"
+          ],
+          "additionalProperties": false
+        },
+        "visit": {
+          "type": "object",
+          "properties": {
+            "visitNumber": {
+              "type": "string"
+            },
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "visitType": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "departmentName": {
+              "type": "string"
+            },
+            "roomNumber": {
+              "type": "string"
+            },
+            "tokenNumber": {
+              "type": "integer"
+            },
+            "fees": {
+              "type": "string"
+            },
+            "visitValidTill": {
+              "type": "string"
+            },
+            "consultationType": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "doctor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "qualification": {
+              "type": "string"
+            },
+            "specialization": {
+              "type": "string"
+            },
+            "hprId": {
+              "type": "string"
+            },
+            "regNumber": {
+              "type": "string"
+            },
+            "signature": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "A4",
+                "Letter"
+              ]
+            },
+            "marginTop": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginBottom": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginLeft": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginRight": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "additionalProperties": false
+        },
+        "vitals": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "vitalsV2": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "vitalsSchemaVersion": {
+          "type": "integer"
+        },
+        "vitalsMasterDisplay": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "complaints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "familyHistory": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "allergyDetails": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "diagnoses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "medicines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "imaging": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "procedures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "carePlan": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "immunizations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "vaccine": {
+                "type": "string"
+              },
+              "vaccineName": {
+                "type": "string"
+              },
+              "manufacturer": {
+                "type": "string"
+              },
+              "lotNo": {
+                "type": "string"
+              },
+              "lotNumber": {
+                "type": "string"
+              },
+              "dateOfDose": {
+                "type": "string"
+              },
+              "nextDueDate": {
+                "type": "string"
+              },
+              "nextDueDoseDate": {
+                "type": "string"
+              },
+              "vaccinatedBy": {
+                "type": "string"
+              },
+              "doseNumber": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "medicalHistory": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "physicalActivity": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        "womensHealth": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "facility",
+        "patient",
+        "visit",
+        "doctor"
+      ],
+      "additionalProperties": false
+    },
+    "ImmunizationReportRequest": {
+      "type": "object",
+      "properties": {
+        "facility": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "facilityId": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "footerText": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "patient": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uhid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "dateOfBirth": {
+              "type": "string"
+            },
+            "yearOfBirth": {
+              "type": "integer"
+            },
+            "gender": {
+              "type": "string"
+            },
+            "salutation": {
+              "type": "string"
+            },
+            "abhaNumber": {
+              "type": "string"
+            },
+            "abhaAddress": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uhid"
+          ],
+          "additionalProperties": false
+        },
+        "visit": {
+          "type": "object",
+          "properties": {
+            "visitNumber": {
+              "type": "string"
+            },
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "visitType": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "departmentName": {
+              "type": "string"
+            },
+            "roomNumber": {
+              "type": "string"
+            },
+            "tokenNumber": {
+              "type": "integer"
+            },
+            "fees": {
+              "type": "string"
+            },
+            "visitValidTill": {
+              "type": "string"
+            },
+            "consultationType": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "doctor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "qualification": {
+              "type": "string"
+            },
+            "specialization": {
+              "type": "string"
+            },
+            "hprId": {
+              "type": "string"
+            },
+            "regNumber": {
+              "type": "string"
+            },
+            "signature": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "A4",
+                "Letter"
+              ]
+            },
+            "marginTop": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginBottom": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginLeft": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginRight": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "additionalProperties": false
+        },
+        "immunizations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "vaccine": {
+                "type": "string"
+              },
+              "vaccineName": {
+                "type": "string"
+              },
+              "manufacturer": {
+                "type": "string"
+              },
+              "lotNo": {
+                "type": "string"
+              },
+              "lotNumber": {
+                "type": "string"
+              },
+              "dateOfDose": {
+                "type": "string"
+              },
+              "nextDueDate": {
+                "type": "string"
+              },
+              "nextDueDoseDate": {
+                "type": "string"
+              },
+              "vaccinatedBy": {
+                "type": "string"
+              },
+              "doseNumber": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "showDepartment": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "facility",
+        "patient",
+        "visit",
+        "doctor",
+        "immunizations"
+      ],
+      "additionalProperties": false
+    },
+    "PrescriptionReportRequest": {
+      "type": "object",
+      "properties": {
+        "facility": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "address": {
+              "type": "string"
+            },
+            "phone": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "facilityId": {
+              "type": "string"
+            },
+            "logoUrl": {
+              "type": "string"
+            },
+            "footerText": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "patient": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "uhid": {
+              "type": "string",
+              "minLength": 1
+            },
+            "phoneNumber": {
+              "type": "string"
+            },
+            "dateOfBirth": {
+              "type": "string"
+            },
+            "yearOfBirth": {
+              "type": "integer"
+            },
+            "gender": {
+              "type": "string"
+            },
+            "salutation": {
+              "type": "string"
+            },
+            "abhaNumber": {
+              "type": "string"
+            },
+            "abhaAddress": {
+              "type": "string"
+            },
+            "address": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "uhid"
+          ],
+          "additionalProperties": false
+        },
+        "visit": {
+          "type": "object",
+          "properties": {
+            "visitNumber": {
+              "type": "string"
+            },
+            "createdAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "string",
+                  "minLength": 1
+                }
+              ]
+            },
+            "visitType": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "departmentName": {
+              "type": "string"
+            },
+            "roomNumber": {
+              "type": "string"
+            },
+            "tokenNumber": {
+              "type": "integer"
+            },
+            "fees": {
+              "type": "string"
+            },
+            "visitValidTill": {
+              "type": "string"
+            },
+            "consultationType": {
+              "type": "string"
+            },
+            "priority": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "doctor": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "qualification": {
+              "type": "string"
+            },
+            "specialization": {
+              "type": "string"
+            },
+            "hprId": {
+              "type": "string"
+            },
+            "regNumber": {
+              "type": "string"
+            },
+            "signature": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "options": {
+          "type": "object",
+          "properties": {
+            "landscape": {
+              "type": "boolean"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "A4",
+                "Letter"
+              ]
+            },
+            "marginTop": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginBottom": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginLeft": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "marginRight": {
+              "type": "string",
+              "maxLength": 32
+            }
+          },
+          "additionalProperties": false
+        },
+        "diagnoses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "notes": {
+                "type": "string"
+              },
+              "certainty": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "presumed",
+                  ""
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "notes"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        },
+        "medicines": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string"
+              },
+              "dosage": {
+                "type": "string"
+              },
+              "frequency": {
+                "type": "string"
+              },
+              "duration": {
+                "type": "string"
+              },
+              "instructions": {
+                "type": "string"
+              },
+              "category": {
+                "type": "string"
+              },
+              "strength": {
+                "type": "string"
+              },
+              "form": {
+                "type": "string"
+              },
+              "volume": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": [
+                  "string",
+                  "number"
+                ]
+              },
+              "sos": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "route": {
+                "type": "string"
+              },
+              "method": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "facility",
+        "patient",
+        "visit",
+        "doctor"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

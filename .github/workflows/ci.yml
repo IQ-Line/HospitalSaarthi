@@ -56,6 +56,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - uses: astral-sh/setup-uv@v5
+
       - uses: nrwl/nx-set-shas@v4
 
       # Stage 1: Static analysis
@@ -78,6 +80,12 @@ jobs:
             exit 1
           fi
           echo "No drizzle schema drift — tables.ts matches committed migrations."
+
+      # Stage 1c: Report-contract codegen drift gate — the pdf-client (TS) and
+      # opd (Python) report types are generated from the vendored JSON-Schema
+      # contract; fail if the committed output is stale vs. a fresh regen.
+      - name: Report contract codegen drift check
+        run: make check-report-contracts
 
       # Stage 2: Type checking
       - name: Typecheck

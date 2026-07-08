@@ -23,6 +23,7 @@ hims_sdk_fhir = { path = "../../packages/py-sdk-fhir", editable = true }
 
 [dependency-groups]
 dev = [
+    "datamodel-code-generator",
     "httpx",
     "pyright",
     "pytest",
