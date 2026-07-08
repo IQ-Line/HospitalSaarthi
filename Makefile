@@ -194,6 +194,37 @@ sync-report-contracts: ## Pull the report contract from upstream at REF (default
 	@printf '%s\n' "$(REPORT_CONTRACTS_REF)" > contracts/pdf-platform/PINNED_REF
 	$(MAKE) gen-report-contracts
 
+# --- pdf-platform (external report service) ----------------------------------
+
+# Report rendering (OPD slip/receipt, prescriptions, ...) is served by the
+# external pdf-platform service. For local end-to-end rendering, clone + run it
+# (it ships Gotenberg + the pdf-worker via docker-compose). Opt-in: developers
+# not touching reports never need this. Pinned to the SAME upstream commit the
+# generated client types were produced from, so local renders match the contract.
+PDF_PLATFORM_REPO := https://github.com/IQ-Line/smart-report-v2.git
+PDF_PLATFORM_DIR := external/pdf-platform
+PDF_PLATFORM_REF := $(shell cat contracts/pdf-platform/PINNED_REF)
+PDF_PLATFORM_COMPOSE := docker compose -f $(PDF_PLATFORM_DIR)/infra/docker/docker-compose.yml
+
+.PHONY: pdf-platform-up
+pdf-platform-up: _pdf-platform-clone ## Clone (pinned) + run pdf-platform locally — Gotenberg + worker on :8091
+	$(PDF_PLATFORM_COMPOSE) --profile full up -d --build
+	@echo "==> pdf-platform up at http://localhost:8091 (health: /health)."
+	@echo "    registration-svc/opd default PDF_PLATFORM_URL to this already."
+
+.PHONY: pdf-platform-down
+pdf-platform-down: ## Stop the local pdf-platform stack
+	@if [ -d $(PDF_PLATFORM_DIR) ]; then $(PDF_PLATFORM_COMPOSE) --profile full down; else echo "pdf-platform not cloned"; fi
+
+.PHONY: _pdf-platform-clone
+_pdf-platform-clone:
+	@if [ ! -d $(PDF_PLATFORM_DIR)/.git ]; then \
+		echo "==> Cloning pdf-platform into $(PDF_PLATFORM_DIR) (gitignored)..."; \
+		git clone $(PDF_PLATFORM_REPO) $(PDF_PLATFORM_DIR); \
+	fi
+	@echo "==> Pinning pdf-platform to $(PDF_PLATFORM_REF)..."
+	@cd $(PDF_PLATFORM_DIR) && git fetch --quiet origin && git checkout --quiet $(PDF_PLATFORM_REF)
+
 # --- CI ----------------------------------------------------------------------
 
 .PHONY: ci-local
