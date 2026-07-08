@@ -26,7 +26,11 @@ export async function renderPartnerOpdSlipPdf(
   }
 
   try {
-    const data = await deps.pdfRenderer.renderOpdSlipReport({ ...body, requestId });
+    const data = await deps.pdfRenderer.renderReport(
+      "opd-slip",
+      body as unknown as Record<string, unknown>,
+      requestId,
+    );
     return { ok: true, data };
   } catch (err) {
     if (err instanceof PdfPlatformRenderError && err.statusCode === 400) {

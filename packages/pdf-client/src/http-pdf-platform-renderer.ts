@@ -1,6 +1,5 @@
 import type {
   HttpPdfPlatformRendererConfig,
-  OpdSlipReportRequest,
   PdfRendererPort,
   RenderHtmlRequest,
 } from "./types.js";
@@ -33,9 +32,21 @@ export class HttpPdfPlatformRenderer implements PdfRendererPort {
     }, request.requestId);
   }
 
-  async renderOpdSlipReport(request: OpdSlipReportRequest): Promise<Buffer> {
-    const { requestId, ...body } = request;
-    return this.postPdf("/v1/pdf/reports/opd-slip", body, requestId);
+  async renderReport(
+    slug: string,
+    body: Record<string, unknown>,
+    requestId?: string,
+  ): Promise<Buffer> {
+    return this.postPdf(`/v1/pdf/reports/${slug}`, body, requestId);
+  }
+
+  async renderReportHtml(
+    slug: string,
+    body: Record<string, unknown>,
+    requestId?: string,
+  ): Promise<string> {
+    const response = await this.post(`/v1/pdf/reports/${slug}/html`, "text/html", body, requestId);
+    return response.text();
   }
 
   private async postPdf(
@@ -43,13 +54,24 @@ export class HttpPdfPlatformRenderer implements PdfRendererPort {
     body: Record<string, unknown>,
     requestId?: string,
   ): Promise<Buffer> {
+    const response = await this.post(path, "application/pdf", body, requestId);
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
+  private async post(
+    path: string,
+    accept: string,
+    body: Record<string, unknown>,
+    requestId?: string,
+  ): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        Accept: "application/pdf",
+        Accept: accept,
       };
       if (requestId) {
         headers["x-request-id"] = requestId;
@@ -74,8 +96,7 @@ export class HttpPdfPlatformRenderer implements PdfRendererPort {
         );
       }
 
-      const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      return response;
     } finally {
       clearTimeout(timeout);
     }

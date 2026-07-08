@@ -1,5 +1,3 @@
-import type { ReportLayoutConfigResult } from "@hims/registration-reports";
-
 /** Desk / service context passed when rendering registration documents. */
 export interface ReportDocumentContext {
   bearerToken?: string;
@@ -21,71 +19,28 @@ export interface ReportDocumentContext {
   billId?: string;
 }
 
-export function buildReportLayoutConfig(
-  context: ReportDocumentContext | undefined,
-  reportTitle: string,
-): ReportLayoutConfigResult {
-  const logo = context?.logoUrl?.trim() || "/reportLogo.svg";
+/** Facility block for pdf-platform report requests. */
+export interface ReportFacility {
+  name: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  facilityId?: string;
+  logoUrl?: string;
+  footerText?: string;
+}
+
+export function buildReportFacility(context: ReportDocumentContext | undefined): ReportFacility {
   const facilityName = context?.facilityName?.trim() || "Hospital";
-  const facilityId = context?.facilityId?.trim() || "—";
-  const facilityAddress = context?.facilityAddress?.trim() || "";
-  const facilityPhone = context?.facilityPhone?.trim() || "";
-  const facilityEmail = context?.facilityEmail?.trim() || "";
-  const footerText = context?.footerText?.trim() || facilityName;
-
   return {
-    reportTitle,
-    facilityName,
-    facilityId,
-    facilityAddress,
-    facilityPhone,
-    facilityEmail,
-    footerText,
-    logo,
-    uploadedLogo: logo,
-    uploadedSignature: "",
-    doctorName: "",
-    doctorDesignation: "",
-    qualification: "",
-    doctorHprId: "",
+    name: facilityName,
+    address: context?.facilityAddress?.trim() || "",
+    phone: context?.facilityPhone?.trim() || "",
+    email: context?.facilityEmail?.trim() || "",
+    facilityId: context?.facilityId?.trim() || "—",
+    logoUrl: context?.logoUrl?.trim() || "/reportLogo.svg",
+    footerText: context?.footerText?.trim() || facilityName,
   };
-}
-
-export function splitPatientName(fullName: string): {
-  firstName: string;
-  middleName?: string;
-  lastName: string;
-} {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: "—", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0]!, lastName: "" };
-  return {
-    firstName: parts[0]!,
-    middleName: parts.length > 2 ? parts.slice(1, -1).join(" ") : undefined,
-    lastName: parts[parts.length - 1]!,
-  };
-}
-
-export function ageYearsFromRegistration(
-  dateOfBirth: string | null,
-  yearOfBirth: number | null,
-): number | undefined {
-  if (dateOfBirth) {
-    const dob = new Date(dateOfBirth);
-    if (!Number.isNaN(dob.getTime())) {
-      const now = new Date();
-      let age = now.getFullYear() - dob.getFullYear();
-      const monthDelta = now.getMonth() - dob.getMonth();
-      if (monthDelta < 0 || (monthDelta === 0 && now.getDate() < dob.getDate())) {
-        age -= 1;
-      }
-      return age >= 0 ? age : undefined;
-    }
-  }
-  if (yearOfBirth != null) {
-    return new Date().getFullYear() - yearOfBirth;
-  }
-  return undefined;
 }
 
 export function tokenNumberFromRegistrationId(registrationId: string): number {

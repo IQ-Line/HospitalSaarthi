@@ -1,30 +1,34 @@
-import type { OPDSlipReportPayload } from "@hims/registration-reports";
+import type { OpdSlipReportRequest } from "@hims/pdf-client";
 import type { BillingReadPort } from "../ports.js";
 import {
-  ageYearsFromRegistration,
-  buildReportLayoutConfig,
+  buildReportFacility,
   formatVisitNumberForSlip,
-  splitPatientName,
   tokenNumberFromRegistrationId,
   type ReportDocumentContext,
 } from "../lib/report-document-context.js";
 import type { RegistrationDocumentSource } from "../lib/registration-document-source.js";
 import { documentVisitRef } from "../lib/registration-document-source.js";
 
-export interface BuildOpdSlipPayloadDeps {
+const SLIP_OPTIONS = {
+  format: "A4" as const,
+  marginTop: "0",
+  marginBottom: "0",
+  marginLeft: "0",
+  marginRight: "0",
+};
+
+export interface BuildOpdSlipReportRequestDeps {
   billingReadPort: BillingReadPort | undefined;
 }
 
-export async function buildOpdSlipPayload(
-  deps: BuildOpdSlipPayloadDeps,
+export async function buildOpdSlipReportRequest(
+  deps: BuildOpdSlipReportRequestDeps,
   tenantId: string,
   source: RegistrationDocumentSource,
   context?: ReportDocumentContext,
-): Promise<OPDSlipReportPayload> {
+): Promise<OpdSlipReportRequest> {
   const { registration: record, visit } = source;
   const visitRef = documentVisitRef(source);
-  const nameParts = splitPatientName(record.patient_full_name);
-  const age = ageYearsFromRegistration(record.patient_date_of_birth, record.patient_year_of_birth);
   const departmentName = context?.departmentName?.trim() || "NA";
   const doctorName = context?.doctorName?.trim() || "NA";
   const roomNumber = context?.roomNumber?.trim() || undefined;
@@ -54,45 +58,35 @@ export async function buildOpdSlipPayload(
   validTillDate.setDate(validTillDate.getDate() + 7);
 
   return {
-    layoutConfig: buildReportLayoutConfig(context, "OPD Slip"),
-    smartParchaPages: [],
-    showDoctorSignature: false,
-    smartParchaEnabled: true,
-    patientData: {
-      salutation: "",
-      firstName: nameParts.firstName,
-      middleName: nameParts.middleName,
-      lastName: nameParts.lastName,
-      gender: record.patient_gender ?? "",
-      age,
-      dateOfBirth: record.patient_date_of_birth ?? "",
-      phoneNumber: record.patient_phone_number,
+    patientId: record.patient_id,
+    visitId: visitRef.id ?? visitRef.registration_id,
+    patient: {
+      name: record.patient_full_name,
       uhid: record.patient_uhid,
+      phoneNumber: record.patient_phone_number,
+      dateOfBirth: record.patient_date_of_birth ?? undefined,
+      yearOfBirth: record.patient_year_of_birth ?? undefined,
+      gender: record.patient_gender ?? undefined,
       abhaNumber: record.patient_abha_number ?? undefined,
       abhaAddress: record.patient_abha_address ?? undefined,
-      addressForDisplay: context?.patientAddress?.trim() || undefined,
+      address: context?.patientAddress?.trim() || undefined,
     },
-    visitData: {
+    visit: {
       visitNumber: formatVisitNumberForSlip(visitRef),
       createdAt: visitRef.created_at.toISOString(),
       visitType: visit?.visit_type ?? "opd_first",
       status: visit?.status ?? "pending",
-      department: { name: departmentName },
-      doctor: { name: doctorName },
+      departmentName,
       roomNumber,
       tokenNumber: tokenNumberFromRegistrationId(record.registration_id),
       fees: feesDisplay,
       visitValidTill: validTillDate.toISOString(),
-      abhaNumber: record.patient_abha_number ?? undefined,
-      abhaAddress: record.patient_abha_address ?? undefined,
     },
-    facilityInfo: {
-      name: context?.facilityName,
-      address: context?.facilityAddress,
-      phone: context?.facilityPhone,
-      email: context?.facilityEmail,
-      facilityId: context?.facilityId,
-    },
-    doctorInfo: doctorName !== "NA" ? { name: doctorName } : null,
+    doctor: { name: doctorName },
+    facility: buildReportFacility(context),
+    smartParchaEnabled: true,
+    smartParchaPages: [],
+    showDoctorSignature: false,
+    options: SLIP_OPTIONS,
   };
 }

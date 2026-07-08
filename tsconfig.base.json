@@ -26,7 +26,6 @@
       "@hims/ts-sdk-authz": ["./packages/ts-sdk-authz/src/index.ts"],
       "@hims/ts-sdk-events": ["./packages/ts-sdk-events/src/index.ts"],
       "@hims/pdf-client": ["./packages/pdf-client/src/index.ts"],
-      "@hims/registration-reports": ["./packages/registration-reports/src/index.ts"],
       "@hims/ts-sdk-db": ["./packages/ts-sdk-db/src/index.ts"],
       "@hims/ts-sdk-tenant": ["./packages/ts-sdk-tenant/src/index.ts"],
       "@hims/ts-sdk-openapi": ["./packages/ts-sdk-openapi/src/index.ts"],
