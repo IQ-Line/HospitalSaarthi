@@ -4,8 +4,13 @@ import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import type { NavigationNode } from './types';
 import {
   principalGrantsCatalogModuleSlugRouteAccess,
+  principalGrantsProductSubtreeRouteAccess,
   principalHasCatalogModuleAction,
 } from '@/lib/catalog-route-access';
+import {
+  INVENTORY_CATALOG_PRODUCT_SLUGS,
+  INVENTORY_ROUTE_PREFIX,
+} from '@/features/inventory/lib/inventory-access';
 import { capabilityKeysGrantProductAccess } from './module-product-access';
 
 /** First segment of a runtime capability key (catalog L2+ module slug). */
@@ -334,6 +339,21 @@ export function principalGrantsNavNodeAccess(
   if (node.route) {
     const routePrefix = options?.routePrefix ?? inferRoutePrefixFromRoute(node.route);
     const pathSegment = inferRoutePathSegmentAfterPrefix(node.route, routePrefix);
+    if (
+      node.route === INVENTORY_ROUTE_PREFIX ||
+      node.route.startsWith(`${INVENTORY_ROUTE_PREFIX}/`)
+    ) {
+      const moduleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
+        routePrefix: INVENTORY_ROUTE_PREFIX,
+        catalogModuleSlug: node.catalogModuleSlug,
+        catalogIndex: input.catalogIndex,
+      });
+      return principalGrantsProductSubtreeRouteAccess(input.capabilityKeys, {
+        productSlugs: INVENTORY_CATALOG_PRODUCT_SLUGS,
+        routeModuleSlugs: moduleSlugs,
+        route: node.route,
+      });
+    }
     const moduleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
       routePrefix,
       catalogModuleSlug: node.catalogModuleSlug,
