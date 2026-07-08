@@ -1,25 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requireCapability } from '../../../src/lib/require-capabilities';
-import { UM_ROLES_ADMIN_ANY, UM_USER_READ } from '../../../src/lib/runtime-capability-keys';
+import { UM_USER_READ } from '../../../src/lib/runtime-capability-keys';
+import { guardRolesAdminRoute } from '@/features/user-management/lib/route-guards';
 import { usePermissionsStore } from '@/stores/permissions.store';
 
-const redirectMock = vi.hoisted(() => vi.fn((opts: { to: string }) => ({ type: 'redirect', ...opts })));
+const redirectMock = vi.hoisted(() =>
+  vi.fn((opts: { to: string }) => ({ type: 'redirect', ...opts })),
+);
 
 vi.mock('@tanstack/react-router', () => ({
   redirect: redirectMock,
 }));
 
-/** Mirrors user-management/$userId route guard. */
+/** Mirrors user-management/$userId route guard (uses the real requireCapability). */
 function userDetailBeforeLoad(): void {
   requireCapability(UM_USER_READ)();
-}
-
-/** Mirrors user-management/roles redirect when only users section is available. */
-function rolesBeforeLoad(): void {
-  const p = usePermissionsStore.getState();
-  if (!p.hasAnyCapability(UM_ROLES_ADMIN_ANY)) {
-    throw redirectMock({ to: '/dashboard' });
-  }
 }
 
 describe('route authorization guards', () => {
@@ -37,11 +32,28 @@ describe('route authorization guards', () => {
     expect(redirectMock).toHaveBeenCalledWith({ to: '/dashboard' });
   });
 
-  it('roles admin route requires any roles admin capability', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['user-roles:user-roles:read']);
-    expect(() => rolesBeforeLoad()).not.toThrow();
+  describe('roles admin route (the REAL guardRolesAdminRoute)', () => {
+    it('allows through when a roles-admin capability is present', () => {
+      usePermissionsStore.getState().setCapabilityKeys(['user-roles:user-roles:read']);
+      expect(() => guardRolesAdminRoute()).not.toThrow();
+      expect(redirectMock).not.toHaveBeenCalled();
+    });
 
-    usePermissionsStore.getState().setCapabilityKeys(['users:users:read']);
-    expect(() => rolesBeforeLoad()).toThrow();
+    it('redirects to the users section when only the users section is reachable', () => {
+      // No roles-admin capability, but a users-section one → /user-management, NOT /dashboard.
+      // This branch was entirely absent from the previous re-implemented copy.
+      usePermissionsStore.getState().setCapabilityKeys(['users:users:read']);
+      expect(() => guardRolesAdminRoute()).toThrow();
+      expect(redirectMock).toHaveBeenCalledWith({
+        to: '/user-management',
+        search: { q: '', createUser: false },
+      });
+    });
+
+    it('redirects to the dashboard when neither roles-admin nor users-section is available', () => {
+      usePermissionsStore.getState().setCapabilityKeys([]);
+      expect(() => guardRolesAdminRoute()).toThrow();
+      expect(redirectMock).toHaveBeenCalledWith({ to: '/dashboard' });
+    });
   });
 });
