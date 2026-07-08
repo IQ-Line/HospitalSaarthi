@@ -88,6 +88,12 @@ db-migrate: ## Run all pending migrations
 	# there are no cross-schema FKs, and no migration depends on another module's
 	# schema at migrate time. Order is therefore independent — listed here roughly by
 	# foundation-first for readability, one invocation per module (no double-runs).
+	#
+	# NOTE: the Python (Alembic) modules — master-data + opd — were squashed to a
+	# single `0001_baseline`. Migrations are disposable (never shipped to prod), so a
+	# DB created BEFORE the squash carries a stale `alembic_version` (e.g. opd's
+	# `0007_opd_distribute_citus`) that no longer resolves → "Can't locate revision".
+	# Recovery on a dev box: `make db-reset` (drops volumes + re-migrates from clean).
 	$(NX) run master-data:db-migrate
 	$(NX) run configurator:db-migrate
 	$(NX) run user-management:db-migrate
