@@ -51,6 +51,13 @@ export type ListUsersOptions = {
   userReadResourceAbac?: UserReadListResourceAbac;
   /** When set, filters to users whose `department` column matches exactly. */
   department?: string;
+  /**
+   * When true, the row includes each user's assigned role display names
+   * (`role_display_names`). Costs a LEFT JOIN over `user_roles` + `roles` and a
+   * GROUP BY, so callers that don't render role names (e.g. the provider
+   * picklist) leave it off to keep the common read path a plain projection.
+   */
+  includeRoleDisplayNames?: boolean;
 };
 
 /** Platform user plus owning tenant (for JWT `iq_tenant_id` resolution by global user id). */

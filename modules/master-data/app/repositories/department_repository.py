@@ -67,6 +67,7 @@ class DepartmentRepository:
                     M.name.ilike(term),
                     M.code.ilike(term),
                     M.type.ilike(term),
+                    M.description.ilike(term),
                 )
             )
 

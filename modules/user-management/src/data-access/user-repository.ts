@@ -241,6 +241,16 @@ export class DrizzleUserRepository implements UserRepository {
       conditions.push(eq(users.department, options.department));
     }
 
+    // Common read path is a plain projection; the role-name join + GROUP BY is
+    // paid only when the caller renders role display names (see ListUsersOptions).
+    if (options?.includeRoleDisplayNames !== true) {
+      const rows = await this.db
+        .select(userColumns)
+        .from(users)
+        .where(and(...conditions));
+      return rows.map((row) => rowToUser(row));
+    }
+
     const rows = await this.db
       .select({
         ...userColumns,

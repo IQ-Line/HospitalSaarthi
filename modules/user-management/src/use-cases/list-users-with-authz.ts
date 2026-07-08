@@ -45,7 +45,10 @@ export async function listUsersWithAuthz(
   filter?: ListUsersFilter,
 ): Promise<User[]> {
   if (isApiKeyAuthenticatedRequest(request)) {
-    return deps.userRepository.listUsers(tenantId, { department: filter?.department });
+    return deps.userRepository.listUsers(tenantId, {
+      department: filter?.department,
+      includeRoleDisplayNames: true,
+    });
   }
 
   const pep = request as PepRequest;
@@ -64,7 +67,10 @@ export async function listUsersWithAuthz(
   }
 
   if (plan.kind === PlanKind.ALWAYS_ALLOWED) {
-    return deps.userRepository.listUsers(tenantId, { department: filter?.department });
+    return deps.userRepository.listUsers(tenantId, {
+      department: filter?.department,
+      includeRoleDisplayNames: true,
+    });
   }
 
   const principalAttr = principalAttrPlain(request);
@@ -74,9 +80,16 @@ export async function listUsersWithAuthz(
     planConditionAllowsUserReadResourceSqlPushdown(plan.condition)
   ) {
     const abac = userReadListResourceAbacFromPrincipalAttr(principalAttr);
-    return deps.userRepository.listUsers(tenantId, { userReadResourceAbac: abac, department: filter?.department });
+    return deps.userRepository.listUsers(tenantId, {
+      userReadResourceAbac: abac,
+      department: filter?.department,
+      includeRoleDisplayNames: true,
+    });
   }
 
-  const rows = await deps.userRepository.listUsers(tenantId, { department: filter?.department });
+  const rows = await deps.userRepository.listUsers(tenantId, {
+    department: filter?.department,
+    includeRoleDisplayNames: true,
+  });
   return filterUsersMatchingUserReadPlan(rows, plan, tenantId, principalAttr);
 }

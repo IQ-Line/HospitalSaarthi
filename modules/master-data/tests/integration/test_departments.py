@@ -55,6 +55,48 @@ def test_duplicate_active_code_conflicts(pg_client: TestClient) -> None:
     assert dup.status_code == 409, dup.text  # real partial-unique index fires
 
 
+def test_list_search_matches_name_code_type_and_description(pg_client: TestClient) -> None:
+    # Distinct rows so each search term isolates exactly one department. The term
+    # that only appears in `description` proves description is searchable (issue #128).
+    assert (
+        pg_client.post(
+            _DEPARTMENTS,
+            json=_create_json("Cardiology", "CARD", type="clinical", description="heart care"),
+        ).status_code
+        == 201
+    )
+    assert (
+        pg_client.post(
+            _DEPARTMENTS,
+            json=_create_json("Radiology", "RADX", type="diagnostic", description="imaging suite"),
+        ).status_code
+        == 201
+    )
+    # A row with NULL description must not break the search OR (ilike NULL -> no match).
+    assert (
+        pg_client.post(
+            _DEPARTMENTS,
+            json={"name": "Housekeeping", "code": "HKPG", "type": "support"},
+        ).status_code
+        == 201
+    )
+
+    def codes_for(term: str) -> set[str]:
+        r = pg_client.get(_DEPARTMENTS, params={"search": term})
+        assert r.status_code == 200, r.text
+        return {row["code"] for row in r.json()["data"]}
+
+    assert codes_for("Cardio") == {"card"}  # name
+    assert codes_for("RADX") == {"radx"}  # code
+    assert codes_for("diagnostic") == {"radx"}  # type
+    assert codes_for("imaging") == {"radx"}  # description-only match
+    assert codes_for("care") == {"card"}  # description-only match
+    # A term present in no searchable column returns nothing (the NULL-description
+    # row is still reachable via its other columns).
+    assert codes_for("nonexistent-token") == set()
+    assert codes_for("HKPG") == {"hkpg"}
+
+
 def test_get_missing_department_404(pg_client: TestClient) -> None:
     assert pg_client.get(f"{_DEPARTMENTS}/{_MISSING_ID}").status_code == 404
 
