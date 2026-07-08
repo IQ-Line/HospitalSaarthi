@@ -1286,6 +1286,14 @@ _SEED = json.loads(
 "is_deleted": false
 },
 {
+"name": "Override invoice price",
+"slug": "invoice.override-price",
+"action": "manage",
+"description": "Billing authorization catalog (invoice.override-price) — desk price/discount overrides on charges.",
+"is_active": true,
+"is_deleted": false
+},
+{
 "name": "Create department",
 "slug": "master-data.department.create",
 "action": "create",
@@ -2220,6 +2228,14 @@ _SEED = json.loads(
 "module_slug": "invoice",
 "permission_slug": "read",
 "is_default": true,
+"is_active": true,
+"is_deleted": false
+},
+{
+"slug": "invoice:invoice.override-price",
+"module_slug": "invoice",
+"permission_slug": "invoice.override-price",
+"is_default": false,
 "is_active": true,
 "is_deleted": false
 },

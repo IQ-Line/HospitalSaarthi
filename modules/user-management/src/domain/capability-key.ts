@@ -20,6 +20,10 @@ export const RUNTIME_CAPABILITY_ACTIONS = [
   "deactivate",
   "delete",
   "manage",
+  // Privileged desk price/discount override on a charge (see billing invoice policy + GH #94).
+  // A distinct verb — deliberately separate from create/update — so holding it is grantable on
+  // its own without implying full invoice management.
+  "override-price",
   "read",
   "update",
   "view",

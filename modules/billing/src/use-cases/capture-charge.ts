@@ -5,18 +5,12 @@ import type { CaptureChargeInput, ChargeIngestResponse, UseCaseResult } from "..
 import type { BillingDeps } from "../ports.js";
 import { newDraftBill } from "../data-access/billing.repository.js";
 
-const DESK_OVERRIDE_DISABLED_MSG =
-  "desk_price_overrides_disabled: set BILLING_ALLOW_DESK_OVERRIDES=true (or false to disable in dev); tracked in #94";
-
-/** Desk discounts / price overrides on POST /charges — gated until #94 approval workflow. */
-function isDeskOverridesAllowed(): boolean {
-  const explicit = process.env["BILLING_ALLOW_DESK_OVERRIDES"];
-  if (explicit === "true") return true;
-  if (explicit === "false") return false;
-  return process.env["NODE_ENV"] !== "production";
-}
-
-function hasDeskPricingOverrides(input: CaptureChargeInput): boolean {
+/**
+ * True when the input carries a desk price / discount override — a unit-price, tax, or
+ * line-discount value that departs from the catalog tariff. Submitting any of these requires
+ * the `invoice:invoice:override-price` capability, enforced by the caller via `canOverridePrice`.
+ */
+export function hasDeskPricingOverrides(input: CaptureChargeInput): boolean {
   return (
     input.unit_price_override != null ||
     input.tax_percentage_override != null ||
@@ -95,18 +89,33 @@ function lineAmounts(input: CaptureChargeInput, tariff: { base_price: string; ta
   };
 }
 
+export interface CaptureChargeOptions {
+  idempotencyKey?: string;
+  /**
+   * Whether the caller is authorized to submit desk price/discount overrides — the
+   * `invoice:invoice:override-price` Cerbos decision, resolved by the HTTP handler. Defaults
+   * to `false` (fail-closed): an override attempt without authorization is rejected.
+   */
+  canOverridePrice?: boolean;
+}
+
 export async function captureCharge(
   deps: BillingDeps,
   tenantId: string,
   input: CaptureChargeInput,
-  idempotencyKey?: string,
+  options: CaptureChargeOptions = {},
 ): Promise<UseCaseResult<ChargeIngestResponse>> {
+  const { idempotencyKey, canOverridePrice = false } = options;
+
   if (!input.patient_id) return fail("VALIDATION", "patient_id is required");
   if (!input.item_code?.trim()) return fail("VALIDATION", "item_code is required");
   if (!input.source_module?.trim()) return fail("VALIDATION", "source_module is required");
 
-  if (hasDeskPricingOverrides(input) && !isDeskOverridesAllowed()) {
-    return fail("VALIDATION", DESK_OVERRIDE_DISABLED_MSG);
+  if (hasDeskPricingOverrides(input) && !canOverridePrice) {
+    return fail(
+      "FORBIDDEN",
+      "desk_price_overrides_forbidden: caller lacks the invoice:invoice:override-price capability",
+    );
   }
 
   const qty = Number(input.quantity ?? 1);
