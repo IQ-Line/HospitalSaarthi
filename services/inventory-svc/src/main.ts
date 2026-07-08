@@ -1,5 +1,7 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import multipart from "@fastify/multipart";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
@@ -28,11 +30,25 @@ const CERBOS_URL = process.env["CERBOS_URL"];
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
 
 async function main() {
+  const app = Fastify({ logger: true });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start inventory-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
   if (!CERBOS_URL) {
     throw new Error("CERBOS_URL environment variable is required");
   }
-
-  const app = Fastify({ logger: true });
 
   await registerOpenApiDocs(app, {
     serviceId: "inventory",
@@ -126,6 +142,7 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  console.error(error);
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
+  console.error("Failed to start inventory-svc:", error);
   process.exit(1);
 });

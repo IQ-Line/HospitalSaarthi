@@ -1,5 +1,7 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
@@ -28,15 +30,29 @@ const fastifyAjv = {
 };
 
 async function main() {
-  if (!DATABASE_URL) {
-    throw new Error("DATABASE_URL is required for record-foundation-svc");
-  }
-
   const app = Fastify({
     logger: true,
     ajv: fastifyAjv,
     bodyLimit: MAX_BUNDLE_BODY_BYTES,
   });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start record-foundation-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
+  if (!DATABASE_URL) {
+    throw new Error("DATABASE_URL is required for record-foundation-svc");
+  }
 
   await registerOpenApiDocs(app, {
     serviceId: "record-foundation",
@@ -80,6 +96,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start record-foundation-svc:", err);
   process.exit(1);
 });

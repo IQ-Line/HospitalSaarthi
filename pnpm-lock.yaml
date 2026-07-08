@@ -777,12 +777,18 @@ importers:
       '@fastify/http-proxy':
         specifier: ^11.4.4
         version: 11.4.4
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-http':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-http
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       fastify:
         specifier: ^5.3.3
         version: 5.8.5
@@ -811,9 +817,15 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -863,12 +875,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -900,12 +918,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -940,12 +964,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -986,9 +1016,15 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -1020,9 +1056,15 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -1051,12 +1093,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi
@@ -1161,12 +1209,18 @@ importers:
       '@hims/ts-sdk-db':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-db
+      '@hims/ts-sdk-errors':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-errors
       '@hims/ts-sdk-events':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-events
       '@hims/ts-sdk-identity':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-identity
+      '@hims/ts-sdk-observability':
+        specifier: workspace:*
+        version: link:../../packages/ts-sdk-observability
       '@hims/ts-sdk-openapi':
         specifier: workspace:*
         version: link:../../packages/ts-sdk-openapi

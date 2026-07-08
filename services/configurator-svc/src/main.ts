@@ -14,6 +14,8 @@ import {
   createPepRuntimeAuthFromUrls,
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import {
   assertConfiguratorDatabaseIsolation,
@@ -58,13 +60,6 @@ function requireUpstreamBaseUrl(envKey: string, fallback: string): string {
 }
 
 async function main() {
-  if (!CERBOS_URL) {
-    throw new Error("CERBOS_URL environment variable is required");
-  }
-  // Capture the narrowed (string) value: the module-level const's narrowing does not propagate
-  // into the nested `registerConfiguratorApi` closure where authzPlugin is registered.
-  const cerbosUrl: string = CERBOS_URL;
-
   const app = Fastify({
     logger: true,
     ajv: {
@@ -74,6 +69,27 @@ async function main() {
       },
     },
   });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start configurator-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
+  if (!CERBOS_URL) {
+    throw new Error("CERBOS_URL environment variable is required");
+  }
+  // Capture the narrowed (string) value: the module-level const's narrowing does not propagate
+  // into the nested `registerConfiguratorApi` closure where authzPlugin is registered.
+  const cerbosUrl: string = CERBOS_URL;
 
   await registerOpenApiDocs(app, {
     serviceId: "configurator",
@@ -298,6 +314,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start configurator-svc:", err);
   process.exit(1);
 });

@@ -1,4 +1,6 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
@@ -25,11 +27,25 @@ const BILLING_DEV_TENANT_ID =
 const USE_MOCK_DATA = process.env["BILLING_USE_MOCK_DATA"] === "true";
 
 async function main() {
+  const app = Fastify({ logger: true });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start billing-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
   if (!CERBOS_URL) {
     throw new Error("CERBOS_URL environment variable is required");
   }
-
-  const app = Fastify({ logger: true });
 
   await registerOpenApiDocs(app, {
     serviceId: "billing",
@@ -98,6 +114,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start billing-svc:", err);
   process.exit(1);
 });

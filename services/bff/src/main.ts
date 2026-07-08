@@ -9,6 +9,8 @@ import {
   type Principal,
 } from '@hims/ts-sdk-identity';
 import { forbidden, unauthorized } from '@hims/ts-sdk-http';
+import { registerProblemErrorHandler } from '@hims/ts-sdk-errors';
+import { correlationIdPlugin } from '@hims/ts-sdk-observability';
 import { createActiveStatusChecker } from './active-status-check.js';
 import { loadWorkspaceEnv } from './load-workspace-env.js';
 
@@ -273,6 +275,13 @@ export async function buildApp(): Promise<FastifyInstance> {
   const corsOrigins = productionCorsOrigins();
   const app = Fastify({ logger: { level: process.env['LOG_LEVEL'] ?? 'info' } });
 
+  // Correlation id first (app root): every proxied route + health gets an id bound to
+  // request.log and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for errors raised at the BFF edge (proxied upstream responses
+  // stream through untouched); inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
   await app.register(cors, {
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -476,15 +485,26 @@ export function assertProductionAuthConfigured(
 }
 
 async function main() {
-  loadWorkspaceEnv();
-  assertProductionAuthConfigured(
-    process.env['NODE_ENV'] === 'production',
-    process.env['ENABLE_AUTH'] === 'true',
-  );
+  let app: FastifyInstance | undefined;
+  try {
+    loadWorkspaceEnv();
+    assertProductionAuthConfigured(
+      process.env['NODE_ENV'] === 'production',
+      process.env['ENABLE_AUTH'] === 'true',
+    );
 
-  const app = await buildApp();
-  await app.listen({ port: PORT, host: '0.0.0.0' });
-  app.log.info(`BFF listening on http://localhost:${PORT}`);
+    app = await buildApp();
+    await app.listen({ port: PORT, host: '0.0.0.0' });
+    app.log.info(`BFF listening on http://localhost:${PORT}`);
+  } catch (err) {
+    if (app) {
+      app.log.fatal({ err }, 'Failed to start BFF');
+    } else {
+      // Pre-logger last resort: buildApp threw before the Fastify instance existed.
+      console.error('Failed to start BFF:', err);
+    }
+    process.exit(1);
+  }
 }
 
 // Auto-start only when this module is the process entry point — not when a test
@@ -493,8 +513,5 @@ const invokedDirectly =
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
-  main().catch((err) => {
-    console.error('Failed to start BFF:', err);
-    process.exit(1);
-  });
+  void main();
 }

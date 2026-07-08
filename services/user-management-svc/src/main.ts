@@ -7,6 +7,8 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
@@ -106,8 +108,12 @@ function readTrustedOrigins(): string[] {
 /**
  * Fastify wiring: event bus, better-auth, identity verification, Cerbos, user-management module.
  */
-async function createApp(): Promise<FastifyInstance> {
-  const app = Fastify();
+async function createApp(app: FastifyInstance): Promise<FastifyInstance> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
 
   const eventBus = createEventBus({ type: "in-process" });
   await eventBus.connect();
@@ -339,14 +345,19 @@ async function main(): Promise<void> {
   const port = Number(
     process.env.USER_MANAGEMENT_SVC_PORT ?? process.env.PORT ?? 3005,
   );
+  const app = Fastify();
   try {
-    const app = await createApp();
+    await createApp(app);
     await app.listen({ port, host: "0.0.0.0" });
     app.log.info(`User Management service listening on http://localhost:${port}`);
   } catch (err) {
-    console.error("Failed to start user-management-svc:", err);
+    app.log.fatal({ err }, "Failed to start user-management-svc");
     process.exit(1);
   }
 }
 
-await main();
+main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
+  console.error("Failed to start user-management-svc:", err);
+  process.exit(1);
+});
