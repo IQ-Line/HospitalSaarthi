@@ -1,10 +1,10 @@
 """Real-Postgres coverage for the prescription tenant/visit partial-unique.
 
 `prescriptions_tenant_visit_active_uq` = UNIQUE (iq_tenant_id, visit_id) WHERE
-deleted_at IS NULL — at most one *active* prescription per (tenant, visit). SQLite
-proves parity via `sqlite_where`, but only real Postgres proves the constraint as it
-ships, and only Citus proves it holds with iq_tenant_id as the distribution column
-(so the same visit under a different tenant is independent).
+deleted_at IS NULL — at most one *active* prescription per (tenant, visit). Only real
+Postgres proves the constraint as it ships, and only Citus proves it holds with
+iq_tenant_id as the distribution column (so the same visit under a different tenant
+is independent).
 """
 
 from __future__ import annotations
@@ -51,4 +51,21 @@ def test_partial_unique_is_tenant_scoped(pg_session: Session) -> None:
     # SAME visit under a DIFFERENT tenant is allowed: the unique key is
     # (iq_tenant_id, visit_id) and iq_tenant_id is the Citus distribution column.
     pg_session.add(_prescription(tenant_b, visit))
+    pg_session.flush()  # must not raise
+
+
+def test_soft_deleted_prescription_frees_the_tenant_visit_slot(
+    pg_session: Session, prescription_repo
+) -> None:
+    tenant, visit = uuid.uuid4(), uuid.uuid4()
+    first = _prescription(tenant, visit)
+    pg_session.add(first)
+    pg_session.flush()
+
+    # Soft-delete the way the app does (PrescriptionRepository sets deleted_at).
+    prescription_repo.soft_delete(tenant, first.id)
+
+    # A NEW active prescription for the same (tenant, visit) is allowed: the unique
+    # index is partial (WHERE deleted_at IS NULL). A plain UNIQUE would reject this.
+    pg_session.add(_prescription(tenant, visit))
     pg_session.flush()  # must not raise

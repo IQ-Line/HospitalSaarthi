@@ -56,13 +56,6 @@ def resolve_report_logo_url(
     return f"{origin}{path if path.startswith('/') else f'/{path}'}"
 
 
-def _qualified_table(session: Session, schema: str, table: str) -> str:
-    bind = session.get_bind()
-    if bind is not None and bind.dialect.name == "sqlite":
-        return table
-    return f"{schema}.{table}"
-
-
 def _text(value: object | None) -> str:
     if value is None:
         return ""
@@ -114,16 +107,10 @@ def _extract_logo_url_from_metadata(metadata: object | None) -> str | None:
 
 def load_tenant_report_facility(session: Session, tenant_id: UUID) -> dict[str, object] | None:
     """Load NDHM hip id, display name, and tenant contact fields from configurator."""
-    bind = session.get_bind()
-    if bind is not None and bind.dialect.name == "sqlite":
-        return None
-
-    profile_table = _qualified_table(session, "configurator", "tenant_integration_profiles")
-    tenant_table = _qualified_table(session, "configurator", "tenants")
     row = (
         session.execute(
             text(
-                f"""
+                """
                 SELECT
                     p.hip_id,
                     p.hip_display_name,
@@ -135,8 +122,8 @@ def load_tenant_report_facility(session: Session, tenant_id: UUID) -> dict[str, 
                     t.contact_phone,
                     t.contact_email,
                     t.metadata
-                FROM {tenant_table} t
-                LEFT JOIN {profile_table} p
+                FROM configurator.tenants t
+                LEFT JOIN configurator.tenant_integration_profiles p
                   ON p.iq_tenant_id = t.iq_tenant_id
                  AND p.integration_kind = 'abdm'
                  AND p.is_active = true
@@ -159,22 +146,12 @@ def load_patient_address_for_report(
     tenant_id: UUID,
     patient_id: UUID,
 ) -> str | None:
-    bind = session.get_bind()
-    if bind is not None and bind.dialect.name == "sqlite":
-        logger.debug(
-            "clinical report: patient address skipped (sqlite bind) tenant_id=%s patient_id=%s",
-            tenant_id,
-            patient_id,
-        )
-        return None
-
-    address_table = _qualified_table(session, "empi", "patient_addresses")
     rows = (
         session.execute(
             text(
-                f"""
+                """
                 SELECT address_type, street, city, district, state, pincode
-                FROM {address_table}
+                FROM empi.patient_addresses
                 WHERE iq_tenant_id = :tenant_id AND patient_id = :patient_id
                 ORDER BY
                     CASE address_type
