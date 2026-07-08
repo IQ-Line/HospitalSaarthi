@@ -3,20 +3,25 @@
  * Postgres — proves route wiring + status/active/lookup/prefill/redeem shapes and
  * the used-token redemption guard end-to-end through the real Drizzle adapter SQL.
  *
- * Skipped unless SCAN_SHARE_TEST_DB_URL points at a Postgres with the
- * `integration_hub.abdm_share_token*` tables (see W5 throwaway `hims-w5-scanshare`,
- * port 5456). Not part of CI's default DB-less run.
+ * Repo-standard integration gating: opt-in via TEST_DATABASE_URL (the
+ * `test:integration` target injects
+ * `${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_integration_hub`);
+ * skips in the DB-less unit `test` run. Schema is applied from the module's own
+ * drizzle-kit journal in beforeAll, exactly like registration/billing.
  */
 
 import Fastify, { type FastifyInstance } from "fastify";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { createDb, sql } from "@hims/ts-sdk-db";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createDb, createPool, type DbInstance } from "@hims/ts-sdk-db";
+import { applyIntegrationHubSchemaMigration } from "../../../../../src/schema/apply-migration.js";
 import { registerScanShareRoutes } from "../../../../../src/integrations/abdm/rest-handlers/scan-share.js";
 import { DrizzleScanShareRepo } from "../../../../../src/integrations/abdm/data-access/abdm-scan-share.repo.js";
 import type { IntegrationContext } from "../../../../../src/lib/integration-context.js";
 import { endOfIstDay, istIssueDate } from "../../../../../src/integrations/abdm/use-cases/scan-share/time.js";
 
-const DB_URL = process.env["SCAN_SHARE_TEST_DB_URL"];
+const TEST_DATABASE_URL = process.env["TEST_DATABASE_URL"];
+const describeDb = TEST_DATABASE_URL ? describe : describe.skip;
+
 const TENANT = "00000000-0000-4000-8000-0000000000aa";
 const FACILITY = "IN-HIP-1";
 const INTEGRATION_ID = "11111111-1111-4111-8111-111111111111";
@@ -44,8 +49,10 @@ function profileCtx(): IntegrationContext {
   };
 }
 
-describe.skipIf(!DB_URL)("scan-share platform routes (real DB)", () => {
-  const db = createDb(DB_URL as string);
+describeDb("scan-share platform routes (real DB)", () => {
+  const url = TEST_DATABASE_URL as string;
+  let pool: ReturnType<typeof createPool>;
+  let db: DbInstance;
   let app: FastifyInstance;
 
   async function buildApp(): Promise<FastifyInstance> {
@@ -74,13 +81,29 @@ describe.skipIf(!DB_URL)("scan-share platform routes (real DB)", () => {
     return issued.token_number;
   }
 
-  beforeEach(async () => {
-    await db.execute(sql`TRUNCATE integration_hub.abdm_share_token_issuances, integration_hub.abdm_share_tokens`);
+  beforeAll(async () => {
+    pool = createPool(url);
+    await pool.query("DROP SCHEMA IF EXISTS integration_hub CASCADE");
+    await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await applyIntegrationHubSchemaMigration(url);
+    db = createDb(url);
     app = await buildApp();
+  }, 60_000);
+
+  beforeEach(async () => {
+    // Per-statement DELETE (not TRUNCATE) — a multi-table TRUNCATE over Citus
+    // distributed tables runs a slow multi-shard 2PC that can straddle the
+    // default 10s hook timeout (see registration's integration suite). No FK
+    // between the two tables, so order is free.
+    await pool.query("DELETE FROM integration_hub.abdm_share_token_issuances");
+    await pool.query("DELETE FROM integration_hub.abdm_share_tokens");
   });
 
   afterAll(async () => {
     await app?.close();
+    await pool.query("DROP SCHEMA IF EXISTS integration_hub CASCADE");
+    await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await pool.end();
   });
 
   it("GET /scan-share/status reports available with a QR", async () => {
