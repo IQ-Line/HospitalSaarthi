@@ -47,7 +47,7 @@ All catalog tables are created in the PostgreSQL **`master_global`** schema (`ma
    **From repository root (recommended):**
 
    ```bash
-   pnpm nx run master-data:migrate
+   pnpm nx run master-data:db-migrate
    ```
 
    **From `modules/master-data` only:**

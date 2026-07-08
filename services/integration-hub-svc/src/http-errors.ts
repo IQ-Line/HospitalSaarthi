@@ -173,7 +173,7 @@ function databaseUnavailableMessage(pg: string): string {
     (pg.includes("abdm_sessions") || pg.includes("integration_hub")) &&
     pg.includes("does not exist")
   ) {
-    return "Database schema missing — run: pnpm --filter @hims/integration-hub-svc db:migrate";
+    return "Database schema missing — run: npx nx run integration-hub-svc:db-migrate";
   }
   if (
     pg.includes("no authentication method") ||

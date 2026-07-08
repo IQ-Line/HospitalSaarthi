@@ -124,7 +124,7 @@ Operational modules (Configurator, User Management, EMPI, …) use **schemas ins
 |---------|-----|
 | `EADDRINUSE` on 3000 / 3001 / 3005 / 5173 / 8010 | Free the port manually (`netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` on Windows; `lsof -i :3000` on macOS/Linux) |
 | Vite on 5174/5175 instead of 5173 | Port 5173 busy — stop the other process or set `WEB_DEV_PORT` in `.env.local` |
-| `schema "master_global" does not exist` on migrate | Run `make db-migrate` (includes `master-data:migrate` against `hims_dev`) |
+| `schema "master_global" does not exist` on migrate | Run `make db-migrate` (includes `master-data:db-migrate` against `hims_dev`) |
 | Orphaned catalog rows after a bad reset | `make db-reset`, then `make db-migrate` |
 | UM fails boot: `CONFIGURATOR_URL` / `MASTER_DATA_URL` | Set in root `.env` |
 | Seed: schema `master_global` not found | Run `make db-migrate` (master-data Alembic) |

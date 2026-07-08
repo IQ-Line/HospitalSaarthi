@@ -120,7 +120,7 @@ Alembic applies the same revisions everywhere — **CI**, **laptop**, or **serve
 From the **repository root**:
 
 ```bash
-pnpm nx run master-data:migrate
+pnpm nx run master-data:db-migrate
 ```
 
 From **`modules/master-data`** only:
@@ -143,7 +143,7 @@ From the repo root:
 
 ```bash
 pnpm nx run master-data:setup     # installs Python deps via uv sync
-pnpm nx run master-data:migrate   # runs alembic upgrade head
+pnpm nx run master-data:db-migrate   # runs alembic upgrade head
 pnpm nx run master-data:serve     # starts uvicorn on port 8010
 ```
 
@@ -194,14 +194,14 @@ Use this when you (or `git pull`) **add columns/tables**, change **routes/schema
 | Editing **only** `specs/openapi/master-data.v1.yaml` | **No** for the running process, but **Swagger UI (`/docs`) does not read that file** — see below. |
 | Port stuck / odd state | **Yes** — Ctrl+C and start again. |
 
-**Important:** The dev server **never** runs migrations for you. New tables/columns exist only after **`pnpm nx run master-data:migrate`** or **`uv run alembic upgrade head`** (same DB URL as the app).
+**Important:** The dev server **never** runs migrations for you. New tables/columns exist only after **`pnpm nx run master-data:db-migrate`** or **`uv run alembic upgrade head`** (same DB URL as the app).
 
 ### Order that avoids “column does not exist” errors
 
 When you add database columns:
 
 1. Add an **Alembic revision** under `alembic/versions/` (and apply [**§4**](#4-database-migrations-any-environment)).
-2. Run **`uv run alembic upgrade head`** (or `pnpm nx run master-data:migrate`).
+2. Run **`uv run alembic upgrade head`** (or `pnpm nx run master-data:db-migrate`).
 3. Update **SQLAlchemy models**, **Pydantic schemas**, **repositories/services**, and **FastAPI routes** — save files; **`--reload`** restarts the app.
 4. Update the **normative contract** in **`specs/openapi/master-data.v1.yaml`** (spec-first in this repo) so it matches the handlers.
 
@@ -260,6 +260,6 @@ If that fails, fix the password or point `MASTER_DATA_DATABASE_URL` at the corre
 
 **Port 8010 already in use** — kill the existing process: `kill $(lsof -ti:8010)`
 
-**`column modules.parent_id does not exist` (or similar) on GET /modules** — the app expects a newer schema than the database. Run **`uv run alembic upgrade head`** (or `pnpm nx run master-data:migrate`) against the same database as **`MASTER_DATA_DATABASE_URL`**, then retry. Also call **`/api/v1/master-data/modules`**, not `/api/master-data/modules`, unless your `.env` still uses the old `MASTER_DATA_API_PREFIX`.
+**`column modules.parent_id does not exist` (or similar) on GET /modules** — the app expects a newer schema than the database. Run **`uv run alembic upgrade head`** (or `pnpm nx run master-data:db-migrate`) against the same database as **`MASTER_DATA_DATABASE_URL`**, then retry. Also call **`/api/v1/master-data/modules`**, not `/api/master-data/modules`, unless your `.env` still uses the old `MASTER_DATA_API_PREFIX`.
 
 **`value too long for type character varying(32)` while running Alembic** — PostgreSQL’s `alembic_version.version_num` is `VARCHAR(32)`; revision labels must be ≤32 characters. This repo uses short revision ids (e.g. `003_soft_delete_audit`, `004_partial_unique`). If you hit this on an older branch, widen once with `ALTER TABLE alembic_version ALTER COLUMN version_num TYPE VARCHAR(128);` then rerun **`upgrade head`**.

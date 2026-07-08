@@ -19,9 +19,6 @@
     "fastify-plugin": "^5.0.1",
     "jose": "^6.2.3"
   },
-  "scripts": {
-    "db:migrate": "pnpm exec tsx ../../modules/integration-hub/scripts/apply-migration.ts"
-  },
   "devDependencies": {
     "tsx": "^4.20.5",
     "vitest": "catalog:"
