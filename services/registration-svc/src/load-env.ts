@@ -7,7 +7,6 @@ import { config } from "dotenv";
 export const ROOT_ONLY_ENV_KEYS = [
   "PDF_PLATFORM_URL",
   "PDF_PLATFORM_API_KEY",
-  "REPORT_WEB_ORIGIN",
   "REPORT_LOGO_URL",
 ] as const;
 

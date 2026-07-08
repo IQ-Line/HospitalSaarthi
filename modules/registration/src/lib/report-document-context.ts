@@ -2,8 +2,6 @@
 export interface ReportDocumentContext {
   bearerToken?: string;
   requestId?: string;
-  /** Absolute web origin for report logo URLs in server-rendered HTML. */
-  webOrigin?: string;
   logoUrl?: string;
   facilityName?: string;
   facilityId?: string;

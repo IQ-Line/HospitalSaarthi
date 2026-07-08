@@ -160,7 +160,6 @@ async function boot(app: FastifyInstance): Promise<void> {
   app.log.info(
     {
       pdfPlatformUrl: PDF_PLATFORM_URL,
-      reportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
     },
     "Registration PDF platform configured",
   );
@@ -183,7 +182,6 @@ async function boot(app: FastifyInstance): Promise<void> {
     visitRepo,
     billingReadPort,
     pdfRenderer,
-    defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
     defaultReportLogoUrl: process.env["REPORT_LOGO_URL"] ?? "/reportLogo.svg",
   };
 
