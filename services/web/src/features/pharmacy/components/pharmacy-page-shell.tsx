@@ -10,23 +10,34 @@ import {
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
 
+type PharmacyBreadcrumbCrumb = {
+  label: string;
+  href?: string;
+};
+
 type PharmacyPageShellProps = {
   title: string;
   description?: string;
   breadcrumbLabel?: string;
+  /** Extra crumbs between Pharmacy and the current page (e.g. Replenishment before New). */
+  breadcrumbTrail?: readonly PharmacyBreadcrumbCrumb[];
   actions?: ReactNode;
   children: ReactNode;
   /** Full-height layout without outer padding (dispense workspace). */
   fullHeight?: boolean;
+  /** Hide the default PageHeader (use when embedding PageHeaderWithTabs). */
+  hideTitle?: boolean;
 };
 
 export function PharmacyPageShell({
   title,
   description,
   breadcrumbLabel,
+  breadcrumbTrail,
   actions,
   children,
   fullHeight = false,
+  hideTitle = false,
 }: PharmacyPageShellProps) {
   const tail = breadcrumbLabel ?? title;
 
@@ -46,7 +57,21 @@ export function PharmacyPageShell({
                 <Link to="/pharmacy/dashboard">Pharmacy</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            {tail !== 'Pharmacy' ? (
+            {breadcrumbTrail?.map((crumb) => (
+              <span key={crumb.label} className="contents">
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  {crumb.href ? (
+                    <BreadcrumbLink asChild>
+                      <Link to={crumb.href}>{crumb.label}</Link>
+                    </BreadcrumbLink>
+                  ) : (
+                    <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  )}
+                </BreadcrumbItem>
+              </span>
+            ))}
+            {tail !== 'Pharmacy' && !breadcrumbTrail?.some((c) => c.label === tail) ? (
               <>
                 <BreadcrumbSeparator />
                 <BreadcrumbItem>
@@ -57,7 +82,9 @@ export function PharmacyPageShell({
           </BreadcrumbList>
         </Breadcrumb>
 
-        <PageHeader title={title} description={description} actions={actions} />
+        {hideTitle ? null : (
+          <PageHeader title={title} description={description} actions={actions} />
+        )}
       </div>
       <div className={fullHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}>{children}</div>
     </div>

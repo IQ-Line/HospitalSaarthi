@@ -88,6 +88,7 @@ describe('clinical role sidebar entries', () => {
       'pharmacy-dashboard',
       'pharmacy-dispense',
       'pharmacy-queue',
+      'pharmacy-replenishment',
     ]);
   });
 });

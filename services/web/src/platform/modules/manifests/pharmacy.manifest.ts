@@ -27,5 +27,11 @@ export const pharmacyModuleManifest: ModuleManifest = {
       icon: 'calendar-clock',
       route: '/pharmacy/queue',
     },
+    {
+      id: 'pharmacy-replenishment',
+      label: 'Replenishment',
+      icon: 'list-checks',
+      route: '/pharmacy/replenishment',
+    },
   ],
 };
