@@ -73,3 +73,34 @@ The 8 *running* real-DB persistence suites are genuinely strong (persisted rows,
 
 **DEAD-in-CI integration files (silent no-run):** inventory store-persistence, integration-hub scan-share-routes, + 7 abdm `*.sandbox.integration.test.ts`. All others RUN (8 real-DB + several in-memory/no-DB).
 
+
+---
+
+## SQLite removal → real Postgres (master-data), 2026-07-08
+
+Per user directive ("remove the sqlite thing… shift to postgres proper"), all DB-touching
+master-data tests moved off in-memory SQLite onto real Citus Postgres, matching the TS
+`test:integration` pattern.
+
+- **~10 duplicated per-file SQLite fixtures** (`module_sqlite_session`/`permission_sqlite_session`/
+  `visitpad_sqlite_session`/… each with its own `create_engine("sqlite://")`+StaticPool+`ATTACH`)
+  and the shared `sqlite_session` in `tests/conftest.py` → **deleted**. Replaced by ONE shared
+  fixture set in `tests/integration/conftest.py`: `pg_engine` (session), `pg_session` (per-test
+  transaction rollback with `join_transaction_mode="create_savepoint"` so committing request
+  handlers still unwind), and `pg_client` (authenticated TestClient on `pg_session`). Isolation:
+  every table in the module schemas is truncated at the start of each test's transaction (empty
+  slate matching what SQLite gave), restored on rollback — so absolute-count assertions still hold.
+- **13 DB-touching files** now live under `tests/integration/` (run only under `test:integration`,
+  gated by `TEST_DATABASE_URL`). 4 genuinely pure-unit files (`_dummy_session` authz/validation,
+  header parsing) stay in `tests/test_api/`. Unit `test` target = `pytest --ignore=tests/integration`.
+- Result: **188 unit + 78 integration green** on real Citus.
+
+### 🔴 Real bug the SQLite masking hid — inventory feature had NO migration
+The inventory-master feature (6 models × global+tenant = 12 tables, repos, **mounted API routes**)
+shipped with **no alembic migration** — every real DB (dev/CI/prod) 503s on `/inventory/*`. The
+SQLite tests only passed because `Base.metadata.create_all` fabricated the schema in memory; there
+is no Python equivalent of the TS drizzle drift-gate to catch this. **Fixed:** added
+`alembic/versions/0003_inventory_masters.py` (frozen DDL generated from the models, registered as
+Citus reference tables like every other catalog table). The 3 inventory integration tests now pass
+legitimately against real Citus. *Follow-up worth filing: add an alembic autogenerate drift-gate to
+CI (mirror the drizzle one) so model-vs-migration drift can't recur silently.*

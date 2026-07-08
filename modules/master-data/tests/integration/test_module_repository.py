@@ -6,8 +6,8 @@ from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import ModuleCategory
 
 
-def test_module_repository_lists_modules_with_category_filter(sqlite_session) -> None:
-    sqlite_session.add_all(
+def test_module_repository_lists_modules_with_category_filter(pg_session) -> None:
+    pg_session.add_all(
         [
             ModuleModel(
                 name="master_data",
@@ -23,17 +23,17 @@ def test_module_repository_lists_modules_with_category_filter(sqlite_session) ->
             ),
         ]
     )
-    sqlite_session.commit()
+    pg_session.commit()
 
-    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
+    repository = ModuleRepository(pg_session, CatalogScope(iq_tenant_id=None))
 
     modules = repository.list_modules(category=ModuleCategory.core)
 
     assert [module.name for module in modules] == ["master_data"]
 
 
-def test_module_repository_excludes_soft_deleted_from_list(sqlite_session) -> None:
-    sqlite_session.add_all(
+def test_module_repository_excludes_soft_deleted_from_list(pg_session) -> None:
+    pg_session.add_all(
         [
             ModuleModel(
                 name="active_mod",
@@ -50,17 +50,17 @@ def test_module_repository_excludes_soft_deleted_from_list(sqlite_session) -> No
             ),
         ]
     )
-    sqlite_session.commit()
+    pg_session.commit()
 
-    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
+    repository = ModuleRepository(pg_session, CatalogScope(iq_tenant_id=None))
     modules = repository.list_modules()
 
     assert [m.name for m in modules] == ["active_mod"]
 
 
-def test_module_repository_get_by_id_returns_none_when_soft_deleted(sqlite_session) -> None:
+def test_module_repository_get_by_id_returns_none_when_soft_deleted(pg_session) -> None:
     module_id = uuid4()
-    sqlite_session.add(
+    pg_session.add(
         ModuleModel(
             id=module_id,
             name="gone",
@@ -70,14 +70,14 @@ def test_module_repository_get_by_id_returns_none_when_soft_deleted(sqlite_sessi
             is_deleted=True,
         )
     )
-    sqlite_session.commit()
+    pg_session.commit()
 
-    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
+    repository = ModuleRepository(pg_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_id(module_id) is None
 
 
-def test_module_repository_get_by_slug_returns_none_when_soft_deleted(sqlite_session) -> None:
-    sqlite_session.add(
+def test_module_repository_get_by_slug_returns_none_when_soft_deleted(pg_session) -> None:
+    pg_session.add(
         ModuleModel(
             name="gone",
             slug="gone-slug",
@@ -86,15 +86,15 @@ def test_module_repository_get_by_slug_returns_none_when_soft_deleted(sqlite_ses
             is_deleted=True,
         )
     )
-    sqlite_session.commit()
+    pg_session.commit()
 
-    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
+    repository = ModuleRepository(pg_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_slug("gone-slug") is None
 
 
-def test_slug_can_repeat_after_soft_delete(sqlite_session) -> None:
+def test_slug_can_repeat_after_soft_delete(pg_session) -> None:
     """Partial unique on slug allows reuse once prior row is soft-deleted."""
-    sqlite_session.add(
+    pg_session.add(
         ModuleModel(
             name="retired",
             slug="shared-slug",
@@ -103,8 +103,8 @@ def test_slug_can_repeat_after_soft_delete(sqlite_session) -> None:
             is_deleted=True,
         )
     )
-    sqlite_session.commit()
-    sqlite_session.add(
+    pg_session.commit()
+    pg_session.add(
         ModuleModel(
             name="replacement",
             slug="shared-slug",
@@ -112,7 +112,7 @@ def test_slug_can_repeat_after_soft_delete(sqlite_session) -> None:
             version="2.0.0",
         )
     )
-    sqlite_session.commit()
+    pg_session.commit()
 
-    repository = ModuleRepository(sqlite_session, CatalogScope(iq_tenant_id=None))
+    repository = ModuleRepository(pg_session, CatalogScope(iq_tenant_id=None))
     assert repository.get_module_by_slug("shared-slug").name == "replacement"

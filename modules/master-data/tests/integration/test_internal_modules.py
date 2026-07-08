@@ -65,13 +65,13 @@ def _client(session: Session, authz: Authz) -> TestClient:
 
 
 def test_returns_whole_global_catalog_including_deleted(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
     m1, m2, deleted = _module("opd"), _module("billing"), _module("legacy", is_deleted=True)
-    sqlite_session.add_all([m1, m2, deleted])
-    sqlite_session.commit()
+    pg_session.add_all([m1, m2, deleted])
+    pg_session.commit()
 
-    with _client(sqlite_session, test_authz) as client:
+    with _client(pg_session, test_authz) as client:
         resp = client.get(_URL, headers={_HEADER: internal_key})
 
     assert resp.status_code == 200
@@ -80,30 +80,30 @@ def test_returns_whole_global_catalog_including_deleted(
 
 
 def test_no_jwt_required_identity_gate_skipped(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
     # A 200 WITHOUT any Authorization header proves the identity gate skips this path.
-    with _client(sqlite_session, test_authz) as client:
+    with _client(pg_session, test_authz) as client:
         resp = client.get(_URL, headers={_HEADER: internal_key})
     assert resp.status_code == 200
 
 
 def test_missing_key_is_401(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
-    with _client(sqlite_session, test_authz) as client:
+    with _client(pg_session, test_authz) as client:
         assert client.get(_URL).status_code == 401
 
 
 def test_wrong_key_is_401(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
-    with _client(sqlite_session, test_authz) as client:
+    with _client(pg_session, test_authz) as client:
         assert client.get(_URL, headers={_HEADER: "wrong"}).status_code == 401
 
 
 def test_unconfigured_key_fails_closed_503(
-    sqlite_session: Session, test_authz: Authz, monkeypatch: pytest.MonkeyPatch
+    pg_session: Session, test_authz: Authz, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # No key configured server-side ⇒ the route is disabled, never open (fail-closed).
     from app.api import internal_auth
@@ -111,33 +111,33 @@ def test_unconfigured_key_fails_closed_503(
     monkeypatch.setattr(
         internal_auth, "get_settings", lambda: SimpleNamespace(internal_api_key="")
     )
-    with _client(sqlite_session, test_authz) as client:
+    with _client(pg_session, test_authz) as client:
         assert client.get(_URL, headers={_HEADER: "anything"}).status_code == 503
 
 
 def test_tenant_header_ignored_returns_global(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
     # The dump is defined over the global catalog; a tenant header must not change it.
     m1 = _module("opd")
-    sqlite_session.add(m1)
-    sqlite_session.commit()
-    with _client(sqlite_session, test_authz) as client:
+    pg_session.add(m1)
+    pg_session.commit()
+    with _client(pg_session, test_authz) as client:
         resp = client.get(_URL, headers={_HEADER: internal_key, "iq_tenant_id": _TENANT})
     assert resp.status_code == 200
     assert [row["id"] for row in resp.json()["data"]] == [str(m1.id)]
 
 
 def test_malformed_tenant_header_is_structurally_ignored(
-    sqlite_session: Session, test_authz: Authz, internal_key: str
+    pg_session: Session, test_authz: Authz, internal_key: str
 ) -> None:
     # The route uses get_global_module_repository (never get_catalog_scope), so it never parses the
     # tenant header — a malformed value returns the global catalog (200), NOT a 400. This locks the
     # header-ignored guarantee: a regression to the header-parsing get_catalog_scope would 400 here.
     m1 = _module("opd")
-    sqlite_session.add(m1)
-    sqlite_session.commit()
-    with _client(sqlite_session, test_authz) as client:
+    pg_session.add(m1)
+    pg_session.commit()
+    with _client(pg_session, test_authz) as client:
         resp = client.get(_URL, headers={_HEADER: internal_key, "iq_tenant_id": "not-a-uuid"})
     assert resp.status_code == 200
     assert [row["id"] for row in resp.json()["data"]] == [str(m1.id)]
