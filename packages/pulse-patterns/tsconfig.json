@@ -9,10 +9,11 @@
     "skipLibCheck": true,
     "noEmit": true,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
     "paths": {
-      "@pulse/utils": ["../utils/src/index.ts"],
-      "@pulse/ui/*": ["../ui/src/*"],
-      "@pulse/blocks/*": ["../blocks/src/*"],
+      "@pulse/utils": ["../pulse-utils/src/index.ts"],
+      "@pulse/ui/*": ["../pulse-ui/src/*"],
+      "@pulse/blocks/*": ["../pulse-blocks/src/*"],
       "@pulse/patterns/*": ["./src/*"]
     }
   },

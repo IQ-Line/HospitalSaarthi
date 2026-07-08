@@ -13,7 +13,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { RoleStatus, UserCapabilityGrantSource } from "../domain/types.js";
+import type { RecoveryTier, RoleStatus, UserCapabilityGrantSource } from "../domain/types.js";
 
 /** Capability-first authorization schema for the User Management module. */
 export const userManagementSchema = pgSchema("user_management");
@@ -46,7 +46,7 @@ export const users = userManagementSchema.table(
      * widens then. Derived at creation from whether a real email was supplied (not honestly
      * backfillable afterwards, hence written now even though no reader exists this pass).
      */
-    recovery_tier: text("recovery_tier").notNull().default("standard"),
+    recovery_tier: text("recovery_tier").$type<RecoveryTier>().notNull().default("standard"),
     /** When true, user must change password on next successful login (admin reset flow). */
     must_change_password: boolean("must_change_password").notNull().default(false),
     /** Configurator `organizations.id` — logical reference only (no FK). */

@@ -133,7 +133,7 @@ async function ensureSuperAdminPlatformUser(db: DbInstance): Promise<string> {
 
 async function ensureSuperAdminAuthUser(
   db: DbInstance,
-  auth: BetterAuthSignUpApi,
+  auth: BetterAuthServerApi,
   platformUserId: string,
 ): Promise<string> {
   const seedUser = DEVELOPMENT_PLATFORM_OPERATOR;
@@ -261,7 +261,7 @@ export async function applyPlatformDataBootstrap(input: {
       userRepository: new DrizzleUserRepository(db),
       principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(db),
       platformAdminRepository: new DrizzlePlatformAdminRepository(db),
-    }) as unknown as BetterAuthSignUpApi;
+    }) as unknown as BetterAuthServerApi;
 
     const authUserId = await ensureSuperAdminAuthUser(db, auth, platformUserId);
     await db

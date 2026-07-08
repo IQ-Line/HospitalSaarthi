@@ -67,7 +67,6 @@ export type CreatePasswordAuthAccountInput = {
    */
   username: string;
   password: string;
-  username: string;
 };
 
 export type CreatePasswordAuthAccountResult = {

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { userMatchesReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
+import type { RecoveryTier } from "../domain/types.js";
 import type {
   CreateUserInput,
   ListUsersOptions,
@@ -20,7 +21,7 @@ type StoredUser = {
   auth_user_id: string | null;
   status: UserStatus;
   username: string | null;
-  recovery_tier: string;
+  recovery_tier: RecoveryTier;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
@@ -65,7 +66,7 @@ export class InMemoryUserRepository implements UserRepository {
     tenantId: string,
     userId: string,
     input: CreateUserInput,
-    recoveryTier = "standard",
+    recoveryTier: RecoveryTier = "standard",
   ): User {
     const key = rowKey(tenantId, userId);
     const row: StoredUser = {

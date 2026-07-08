@@ -19,6 +19,7 @@ enrich only once.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from fastapi import HTTPException, Request, status
 
@@ -67,6 +68,33 @@ def _default_resource_id(request: Request) -> str:
     return "__new__"
 
 
+class PrincipalEnricherLike(Protocol):
+    """The enrichment seam :class:`Authz` depends on — satisfied by :class:`PrincipalEnricher`
+    (production) and by test doubles, so unit tests can inject a stub enricher."""
+
+    async def enrich(self, token: str, identity: VerifiedIdentity) -> CerbosPrincipal: ...
+
+    async def aclose(self) -> None: ...
+
+
+class AuthzClientLike(Protocol):
+    """The Cerbos-decision seam :class:`Authz` depends on — satisfied by :class:`AuthzClient`
+    (production) and by test doubles, so unit tests can inject a stub PDP client."""
+
+    async def is_allowed(
+        self,
+        principal: CerbosPrincipal,
+        kind: str,
+        action: str,
+        resource_id: str,
+        resource_attr: dict[str, object],
+    ) -> bool: ...
+
+    async def assert_reachable(self) -> None: ...
+
+    async def aclose(self) -> None: ...
+
+
 class Authz:
     """Holds the PEP components and exposes FastAPI dependencies."""
 
@@ -74,8 +102,8 @@ class Authz:
         self,
         *,
         verifier: TokenVerifier,
-        enricher: PrincipalEnricher,
-        client: AuthzClient,
+        enricher: PrincipalEnricherLike,
+        client: AuthzClientLike,
     ) -> None:
         self._verifier = verifier
         self._enricher = enricher

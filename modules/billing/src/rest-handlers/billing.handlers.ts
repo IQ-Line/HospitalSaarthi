@@ -10,7 +10,14 @@ import { finalizeBill } from "../use-cases/finalize-bill.js";
 import { getBill } from "../use-cases/get-bill.js";
 import { listBills } from "../use-cases/list-bills.js";
 import { recordPayment } from "../use-cases/record-payment.js";
-import type { BillStatus, ListBillsQuery } from "../domain/bill.types.js";
+import type {
+  ApplyBillDiscountInput,
+  BillStatus,
+  CancelBillInput,
+  CaptureChargeInput,
+  ListBillsQuery,
+  RecordPaymentInput,
+} from "../domain/bill.types.js";
 import {
   applyBillDiscountRouteSchema,
   cancelBillRouteSchema,
@@ -54,7 +61,7 @@ function parseListBillsQuery(q: ListBillsQuerystring): ListBillsQuery {
 }
 
 export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps): void {
-  app.post(
+  app.post<{ Body: CaptureChargeInput }>(
     "/charges",
     { ...protectedRoute, schema: captureChargeRouteSchema },
     async (req, reply) => {
@@ -78,7 +85,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
     async (req, reply) => sendUseCaseResult(reply, await getBill(deps, req.tenantId, req.params.bill_id)),
   );
 
-  app.patch<{ Params: BillParams }>(
+  app.patch<{ Params: BillParams; Body: ApplyBillDiscountInput }>(
     "/bills/:bill_id",
     { ...protectedRoute, schema: applyBillDiscountRouteSchema },
     async (req, reply) =>
@@ -95,7 +102,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
       sendUseCaseResult(reply, await finalizeBill(deps, req.tenantId, req.params.bill_id)),
   );
 
-  app.post<{ Params: BillParams }>(
+  app.post<{ Params: BillParams; Body: CancelBillInput }>(
     "/bills/:bill_id/cancel",
     { ...protectedRoute, schema: cancelBillRouteSchema },
     async (req, reply) =>
@@ -115,7 +122,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
     },
   );
 
-  app.post(
+  app.post<{ Body: RecordPaymentInput }>(
     "/payments",
     { ...protectedRoute, schema: recordPaymentRouteSchema },
     async (req, reply) =>

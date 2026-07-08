@@ -73,7 +73,15 @@ class DrizzleBillingRepo implements BillingRepo {
       tenantId: input.iq_tenant_id,
       identifierType: "op_bill",
     });
-    const [row] = await this.db.insert(bills).values({ ...input, bill_number }).returning();
+    const [row] = await this.db
+      .insert(bills)
+      .values({
+        ...input,
+        bill_number,
+        approved_at: isoDate(input.approved_at),
+        cancelled_at: isoDate(input.cancelled_at),
+      })
+      .returning();
     if (!row) throw new Error("createBill insert failed");
     return toBillRow(row);
   }

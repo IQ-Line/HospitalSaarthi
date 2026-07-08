@@ -17,9 +17,23 @@ export type QueueSummary = {
   gender: string;
 };
 
+/**
+ * Scan-share overlay: any top-level visit field may be prefilled, and the nested
+ * `patient` / address blocks are themselves partial — a prefill rarely carries every
+ * field of a block, and {@link mergeScanSharePrefill} shallow-merges each block onto
+ * the current form values.
+ */
+export type VisitPrefill = Partial<
+  Omit<CreateVisitRequestBody, 'patient' | 'permanent_address' | 'residential_address'>
+> & {
+  patient?: Partial<CreateVisitRequestBody['patient']>;
+  permanent_address?: Partial<CreateVisitRequestBody['permanent_address']>;
+  residential_address?: Partial<CreateVisitRequestBody['residential_address']>;
+};
+
 export type PrefillPayload = {
   token_number: number;
-  prefill: Partial<CreateVisitRequestBody>;
+  prefill: VisitPrefill;
   freeze_abha?: boolean;
 };
 
@@ -110,7 +124,7 @@ export async function redeemScanShareToken(tokenNumber: number): Promise<void> {
 
 export function mergeScanSharePrefill(
   current: CreateVisitRequestBody,
-  prefill: Partial<CreateVisitRequestBody>,
+  prefill: VisitPrefill,
 ): CreateVisitRequestBody {
   return {
     ...current,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -65,16 +66,16 @@ class PrescriptionLegacyVitalsModel(TimestampMixin, TenantPrimaryKeyMixin, Base)
     prescription_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, nullable=False
     )
-    height_cm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    bmi: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    temperature_c: Mapped[float | None] = mapped_column(Numeric(4, 1), nullable=True)
+    height_cm: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    bmi: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    temperature_c: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     pulse_bpm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     bp_systolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     bp_diastolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     respiratory_rate: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     spo2_percent: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    blood_sugar_mg_dl: Mapped[float | None] = mapped_column(Numeric(6, 1), nullable=True)
+    blood_sugar_mg_dl: Mapped[Decimal | None] = mapped_column(Numeric(6, 1), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     prescription: Mapped[PrescriptionModel] = relationship(back_populates="legacy_vitals")
@@ -255,7 +256,7 @@ class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     dosage: Mapped[str | None] = mapped_column(String(256), nullable=True)
     duration: Mapped[str | None] = mapped_column(String(128), nullable=True)
     frequency: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     route: Mapped[str | None] = mapped_column(String(64), nullable=True)
     method: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -279,7 +280,7 @@ class PrescriptionMedicineSubstitutionModel(TimestampMixin, TenantPrimaryKeyMixi
     issued_medicine_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     issued_name: Mapped[str] = mapped_column(String(512), nullable=False)
     item_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     form: Mapped[str | None] = mapped_column(String(128), nullable=True)
     volume: Mapped[str | None] = mapped_column(String(64), nullable=True)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)

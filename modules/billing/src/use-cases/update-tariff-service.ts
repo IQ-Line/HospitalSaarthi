@@ -70,7 +70,11 @@ function resolveEffectiveRange(
         : new Date(existing.effective_from);
   const to =
     patch.effective_to !== undefined
-      ? patch.effective_to
+      ? patch.effective_to === null
+        ? null
+        : patch.effective_to instanceof Date
+          ? patch.effective_to
+          : new Date(patch.effective_to)
       : existing.effective_to
         ? new Date(existing.effective_to)
         : null;

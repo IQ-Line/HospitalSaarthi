@@ -87,7 +87,7 @@ class _StubEnricher:
     def __init__(self, capabilities: tuple[str, ...]) -> None:
         self._caps = list(capabilities)
 
-    async def enrich(self, _token: str, identity) -> CerbosPrincipal:
+    async def enrich(self, token: str, identity) -> CerbosPrincipal:
         return CerbosPrincipal(
             id=identity.user_id,
             roles=tuple(identity.roles) or ("__hims_authenticated__",),
@@ -111,7 +111,7 @@ class _StubAuthzClient:
     def __init__(self, allow: bool) -> None:
         self._allow = allow
 
-    async def is_allowed(self, _principal, _kind, _action, _resource_id, _resource_attr) -> bool:
+    async def is_allowed(self, principal, kind, action, resource_id, resource_attr) -> bool:
         return self._allow
 
     async def assert_reachable(self) -> None:
@@ -207,7 +207,7 @@ def prescription_client(db_session: Session) -> Generator[TestClient, None, None
 
 def make_create_payload(
     *,
-    visit_id: UUID | None = None,
+    visit_id: str | UUID | None = None,
     patient_id: UUID = PATIENT_ID,
 ) -> dict:
     """Request body for POST /prescriptions.

@@ -59,9 +59,13 @@ describe("resetUserPassword", () => {
     // sessions revoked
     expect(authSessionRevoker.revokeAllSessionsForPlatformUser).toHaveBeenCalledWith(created.id);
     // hardening: revoke MUST run before setPassword, so no old session outlives the new credential
-    expect(
-      authSessionRevoker.revokeAllSessionsForPlatformUser.mock.invocationCallOrder[0],
-    ).toBeLessThan(authPasswordResetter.setPassword.mock.invocationCallOrder[0]);
+    const revokeOrder =
+      authSessionRevoker.revokeAllSessionsForPlatformUser.mock.invocationCallOrder[0];
+    const setPasswordOrder = authPasswordResetter.setPassword.mock.invocationCallOrder[0];
+    if (revokeOrder === undefined || setPasswordOrder === undefined) {
+      throw new Error("expected both revoke and setPassword to have recorded an invocation order");
+    }
+    expect(revokeOrder).toBeLessThan(setPasswordOrder);
     // repo update actually invoked with the flag (mutation-proof: removing the flag-set line fails here)
     expect(updateSpy).toHaveBeenCalledWith(CTX.tenantId, created.id, {
       must_change_password: true,

@@ -177,10 +177,6 @@ async function createTestApp() {
             return { authUserId: input.platformUserId };
           },
         },
-        authPasswordAdmin: {
-          async setUserPassword() {},
-          async revokeUserSessions() {},
-        },
         tenantModuleEntitlementPort: {
           async listTenantEnabledModuleIds() {
             return [];

@@ -16,6 +16,7 @@ from uuid import UUID
 
 from hims_sdk_fhir import (
     NRCES_PROFILES,
+    Bundle,
     NrcesProfile,
     build_health_document_bundle,
     build_immunization_bundle,
@@ -150,14 +151,14 @@ def health_document_care_context_ref(document_id: UUID) -> str:
     return f"{document_id}_HealthDocument"
 
 
-def stamp_bundle_identifier(bundle: dict[str, Any], care_context_ref: str) -> None:
+def stamp_bundle_identifier(bundle: Bundle, care_context_ref: str) -> None:
     bundle["identifier"] = {
         "system": BUNDLE_IDENTIFIER_SYSTEM,
         "value": care_context_ref,
     }
 
 
-def _bundle_json_byte_size(bundle_json: dict[str, Any]) -> int:
+def _bundle_json_byte_size(bundle_json: Bundle) -> int:
     return len(json.dumps(bundle_json, separators=(",", ":")).encode("utf-8"))
 
 
@@ -331,7 +332,7 @@ def _persist_care_context_bundle(
     display: str,
     source_record_type: str,
     profile: NrcesProfile,
-    bundle_json: dict[str, Any],
+    bundle_json: Bundle,
     produced_at: datetime,
 ) -> M2CareContext | None:
     _log_abdm_m2(

@@ -15,6 +15,7 @@ import {
   tenantColumn,
 } from "@hims/ts-sdk-db";
 import { integer } from "drizzle-orm/pg-core";
+import type { PharmacyDispenseStatus } from "../domain/pharmacy.types.js";
 
 export const PHARMACY_SCHEMA_NAME = "pharmacy" as const;
 export const pharmacySchema = pgSchema(PHARMACY_SCHEMA_NAME);
@@ -65,7 +66,10 @@ export const dispenseRecords = pharmacySchema.table(
     discount: numeric("discount", { precision: 18, scale: 4 }).notNull().default("0"),
     total_amount: numeric("total_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     notes: text("notes"),
-    dispense_status: text("dispense_status").notNull().default("issued"),
+    dispense_status: text("dispense_status")
+      .$type<PharmacyDispenseStatus>()
+      .notNull()
+      .default("issued"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
   },

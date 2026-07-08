@@ -345,6 +345,7 @@ export class DrizzleUserRepository implements UserRepository {
         status: users.status,
         username: users.username,
         recovery_tier: users.recovery_tier,
+        must_change_password: users.must_change_password,
         org_id: users.org_id,
         department: users.department,
         clearance_tier_required: users.clearance_tier_required,

@@ -237,7 +237,6 @@ describe("Phase 1A.12 smoke", () => {
           full_name: "Smoke User",
           username: "smoke.user",
           email: "smoke.user@example.com",
-          username: "smokeuser",
           password: "password123",
         },
       });

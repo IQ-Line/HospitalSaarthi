@@ -32,8 +32,6 @@ import { resetUserPassword } from "../use-cases/reset-user-password.js";
 import type { ResetUserPasswordDeps } from "../use-cases/reset-user-password.js";
 import { activateUser } from "../use-cases/activate-user.js";
 import type { ActivateUserDeps } from "../use-cases/activate-user.js";
-import { resetUserPassword } from "../use-cases/reset-user-password.js";
-import type { ResetUserPasswordDeps } from "../use-cases/reset-user-password.js";
 import { replaceUserCapabilities } from "../use-cases/replace-user-capabilities.js";
 import type { ReplaceUserCapabilitiesDeps } from "../use-cases/replace-user-capabilities.js";
 import { updateUser } from "../use-cases/update-user.js";

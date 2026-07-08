@@ -59,19 +59,6 @@ export type ModuleCatalogPort = MasterDataModuleCatalogPort;
 
 export type DepartmentCatalogRequestContext = {
   iqTenantId: string;
-  authorization?: string;
-};
-
-/** Master Data authority: resolve department catalog rows by id. */
-export interface DepartmentCatalogPort {
-  resolveDepartmentName(
-    departmentId: string,
-    context: DepartmentCatalogRequestContext,
-  ): Promise<string | null>;
-}
-
-export type DepartmentCatalogRequestContext = {
-  iqTenantId: string;
   /** Forwarded `Authorization` header for upstream services that require bearer auth. */
   authorization?: string;
 };

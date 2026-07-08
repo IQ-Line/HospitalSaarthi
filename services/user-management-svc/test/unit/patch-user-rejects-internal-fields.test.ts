@@ -131,7 +131,7 @@ async function createApp(userRepository: InMemoryUserRepository) {
     },
     masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
     departmentCatalogPort: createDepartmentCatalogPortStub(),
-  } as never);
+  });
 
   return app;
 }

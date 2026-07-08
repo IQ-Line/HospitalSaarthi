@@ -2,6 +2,7 @@
 
 import Fastify from "fastify";
 import fp from "fastify-plugin";
+import { InProcessEventBus } from "@hims/ts-sdk-events";
 import { describe, expect, it } from "vitest";
 import { InMemoryPrincipalAuthorizationRepository } from "../../../src/data-access/in-memory-principal-authorization-repository.js";
 import { InMemoryUserRepository } from "../../../src/data-access/in-memory-user-repository.js";
@@ -59,6 +60,7 @@ describe("GET /auth/principal", () => {
       getTenantId: (request) => resolveEffectiveTenantId(request),
       getUserId: () => "user-1",
       getUserDeps: { userRepository },
+      clearMustChangePasswordDeps: { userRepository, eventBus: new InProcessEventBus() },
       validateUserApiKeyDeps: {
         userRepository,
         accessTokenIssuer: {

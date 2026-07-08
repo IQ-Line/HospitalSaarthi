@@ -45,8 +45,8 @@ type RecordParams = {
   recordId: string;
 };
 
-function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
-  const id = request.user?.id ?? request.user?.sub;
+function actorIdFromRequest(request: { user?: { userId?: string } }): string | null {
+  const id = request.user?.userId;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 

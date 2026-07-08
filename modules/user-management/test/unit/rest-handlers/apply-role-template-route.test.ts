@@ -209,10 +209,6 @@ async function createTestApp(entitlement: {
             return { authUserId: input.platformUserId };
           },
         },
-        authPasswordAdmin: {
-          async setUserPassword() {},
-          async revokeUserSessions() {},
-        },
         tenantModuleEntitlementPort: {
           listTenantEnabledModuleIds: vi.fn().mockResolvedValue(entitlement.moduleIds ?? []),
         },

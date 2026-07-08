@@ -18,7 +18,7 @@ function resolvePathParam(
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
-function tenantAttr(request: FastifyRequest): Record<string, unknown> {
+function tenantAttr(request: FastifyRequest): AuthzTarget["attr"] {
   const tenantId = (request as unknown as { tenantId?: string }).tenantId ?? "";
   return { iq_tenant_id: tenantId };
 }

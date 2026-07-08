@@ -10,6 +10,7 @@ import type {
   ProvisionUserWithAccessInput,
   UserProvisioningRepository,
 } from "../ports/user-provisioning-repository.js";
+import type { RecoveryTier } from "../domain/types.js";
 import type { User } from "../ports/index.js";
 import { roles, user_capabilities, user_roles, users } from "../schema/tables.js";
 
@@ -35,7 +36,7 @@ function rowToUser(row: {
   auth_user_id: string | null;
   status: string;
   username: string | null;
-  recovery_tier: string;
+  recovery_tier: RecoveryTier;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;

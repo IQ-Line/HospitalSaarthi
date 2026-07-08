@@ -72,6 +72,7 @@ def test_resolve_replaces_branch_uuid_with_hip_id(monkeypatch) -> None:
     assert resolved.facility_address == "Main Road, Delhi, 110001"
     assert resolved.patient_address == "12 MG Road, Delhi, Central Delhi, 110001"
     assert resolved.logo_url == load_report_logo_data_url()
+    assert resolved.logo_url is not None
     assert resolved.logo_url.startswith("data:image/svg+xml,")
 
 

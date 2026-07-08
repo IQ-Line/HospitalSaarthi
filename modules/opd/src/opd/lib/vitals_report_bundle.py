@@ -111,7 +111,8 @@ def build_vitals_master_display_plan(
 
         if row.get("is_paired") and _text(row.get("pair_code")):
             pair_code = _norm_code(row.get("pair_code"))
-            pair_key = tuple(sorted((code, pair_code)))
+            first_code, second_code = sorted((code, pair_code))
+            pair_key = (first_code, second_code)
             if pair_key in consumed_pairs:
                 continue
             partner = by_code.get(pair_code)

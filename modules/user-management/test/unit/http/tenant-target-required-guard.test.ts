@@ -13,6 +13,7 @@ import { InMemoryUserProvisioningRepository } from "../../../src/data-access/in-
 import { InMemoryUserRepository } from "../../../src/data-access/in-memory-user-repository.js";
 import { userManagementPlugin } from "../../../src/router.js";
 import { createMasterDataModuleCatalogPortStub } from "../../../src/test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "../../../src/test-support/department-catalog-port-stub.js";
 
 // M1 (bounded-operator adversarial review) — a tenant-less platform operator (scope:platform,
 // JWT tenant "") performing a tenant-scoped write with NO iq_tenant_id header must be rejected
@@ -116,6 +117,7 @@ async function createApp(identity: StubIdentity) {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        departmentCatalogPort: createDepartmentCatalogPortStub(),
       });
     },
     { prefix: "/api/user-management" },

@@ -13,6 +13,7 @@ import { InMemoryUserProvisioningRepository } from "../../../src/data-access/in-
 import { InMemoryUserRepository } from "../../../src/data-access/in-memory-user-repository.js";
 import { userManagementPlugin } from "../../../src/router.js";
 import { createMasterDataModuleCatalogPortStub } from "../../../src/test-support/master-data-catalog-port-stub.js";
+import { createDepartmentCatalogPortStub } from "../../../src/test-support/department-catalog-port-stub.js";
 
 // #48 M3 — end-to-end proof that the platform-controlled `is_system` flag is gated on the
 // verified principal being the platform super-admin, driving the REAL router wiring
@@ -141,6 +142,7 @@ async function createApp(roles: string[], scopes: string[] = []) {
           },
         },
         masterDataModuleCatalogPort: createMasterDataModuleCatalogPortStub(),
+        departmentCatalogPort: createDepartmentCatalogPortStub(),
       });
     },
     { prefix: "/api/user-management" },
