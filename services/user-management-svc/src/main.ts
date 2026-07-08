@@ -41,15 +41,11 @@ import {
   registerTenantEntitlementCacheEventConsumers,
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
-} from "../../../modules/user-management/src/index.js";
-import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
-import {
+  deactivateSupersededLegacyCapabilities,
   HttpConfiguratorTenantModuleEntitlementAdapter,
-} from "../../../modules/user-management/src/adapters/http-configurator-tenant-module-entitlement-adapter.js";
-import {
   HttpMasterDataModuleCatalogAdapter,
-} from "../../../modules/user-management/src/adapters/http-master-data-module-catalog-adapter.js";
-import { tenantApiKeyAuthPlugin } from "@hims/user-management";
+  tenantApiKeyAuthPlugin,
+} from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";

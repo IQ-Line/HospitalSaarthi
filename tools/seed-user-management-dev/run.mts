@@ -2,14 +2,14 @@
 /**
  * Optional dev seed — platform bootstrap (capabilities + super-admin) + Cerbos checks.
  * Prefer: `npx nx run master-data:db-migrate` → `npx nx run user-management:db-migrate` → `pnpm seed`.
- * Schema-only migrate: `npx nx run user-management:db-migrate`. Bootstrap only: `npx nx run user-management:seed-platform`.
+ * Schema-only migrate: `npx nx run user-management:db-migrate`. Bootstrap only: `npx nx run user-management-svc:seed-platform`.
  */
 const { loadWorkspaceEnv, normalizePostgresUrl, requireEnv } = await import("./load-env.ts");
 
 loadWorkspaceEnv();
 
 const { applyPlatformDataBootstrap } = await import(
-  "../../modules/user-management/src/dev/platform-data-bootstrap.ts"
+  "../../services/user-management-svc/src/dev/platform-data-bootstrap.ts"
 );
 const { DEVELOPMENT_PLATFORM_OPERATOR, DEVELOPMENT_PHARMACIST } = await import(
   "../../packages/dev-bootstrap/src/index.ts"

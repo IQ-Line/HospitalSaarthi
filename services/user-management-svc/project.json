@@ -11,6 +11,12 @@
         "envFile": "{workspaceRoot}/.env"
       }
     },
+    "seed-platform": {
+      "command": "tsx scripts/seed-platform-bootstrap.ts",
+      "options": {
+        "cwd": "services/user-management-svc"
+      }
+    },
     "typecheck": {
       "command": "tsc -p tsconfig.json --noEmit",
       "options": {

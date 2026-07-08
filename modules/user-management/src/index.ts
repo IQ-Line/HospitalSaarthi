@@ -93,6 +93,7 @@ export {
   InvalidCapabilityKeyError,
   InvalidModuleSlugError,
   ModuleEntitlementLookupError,
+  AuthInvalidCredentialsError,
   TenantEntitlementLookupError,
   InvalidRoleSeedError,
   RbacIntegrityViolationError,
@@ -297,6 +298,7 @@ export {
   listLegacyCapabilityKeys,
   removeLegacyCapabilitiesFromCatalog,
 } from "./dev/remove-legacy-capabilities.js";
+export { deactivateSupersededLegacyCapabilities } from "./dev/deactivate-superseded-legacy-capabilities.js";
 export type {
   MasterDataModulePermissionRow,
   SyncCapabilitiesFromMasterDataResult,

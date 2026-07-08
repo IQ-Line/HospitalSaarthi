@@ -15,12 +15,6 @@
         "cwd": "modules/user-management"
       }
     },
-    "seed-platform": {
-      "command": "tsx scripts/seed-platform-bootstrap.ts",
-      "options": {
-        "cwd": "modules/user-management"
-      }
-    },
     "test": {
       "dependsOn": ["^build"],
       "command": "pnpm exec vitest run",

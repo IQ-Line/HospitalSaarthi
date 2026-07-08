@@ -1,10 +1,4 @@
-// NOTE: relative imports (not @hims/user-management) match the sibling DrizzleAuthSessionRevoker.
-// Importing the package scope here trips @nx/enforce-module-boundaries' circular-dependency rule
-// because modules/user-management/src/dev/platform-data-bootstrap.ts imports back into this service
-// (a pre-existing module→service cycle slated for cleanup). Relative keeps the new file consistent
-// with the existing adapter and avoids introducing a new lint-error category.
-import type { AuthPasswordResetterPort } from "../../../../modules/user-management/src/ports/auth-password-resetter.js";
-import type { UserRepository } from "../../../../modules/user-management/src/ports/index.js";
+import type { AuthPasswordResetterPort, UserRepository } from "@hims/user-management";
 import type { HimsBetterAuthInstance } from "./create-hims-better-auth.js";
 
 type BetterAuthContext = {

@@ -11,9 +11,11 @@ import {
   InMemoryUserAccessRepository,
   InMemoryUserProvisioningRepository,
   InMemoryUserRepository,
-} from "../../../../modules/user-management/src/index.js";
-import { createMasterDataModuleCatalogPortStub } from "../../../../modules/user-management/src/test-support/master-data-catalog-port-stub.js";
-import { createDepartmentCatalogPortStub } from "../../../../modules/user-management/src/test-support/department-catalog-port-stub.js";
+} from "@hims/user-management";
+import {
+  createDepartmentCatalogPortStub,
+  createMasterDataModuleCatalogPortStub,
+} from "@hims/user-management/test-support";
 import { registerUserManagementApi } from "../../src/openapi/register-user-management-api.js";
 
 const TENANT = "tenant-a";

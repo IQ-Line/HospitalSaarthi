@@ -7,18 +7,20 @@ import {
   DEVELOPMENT_SEED_TENANT_ID,
   DEVELOPMENT_SEED_USERS,
 } from "@hims/dev-bootstrap";
-// Dev-only seed glue: this composes the module's data with the better-auth user table, which
-// is correctly owned by the service-layer auth adapter (ADR-0003). A module importing its own
-// service is the inverse of the layer rule, but the clean fix (extract a shared dev-seed package,
-// or relocate dev composition to the service without leaking dev-only internals into the module's
-// public API) is an authn-layering change tracked with the deferred Token-Handler work. This path
-// never runs in production. Gate: cleanup follow-up "dev-seed module→service composition".
-// eslint-disable-next-line @nx/enforce-module-boundaries -- see comment above (dev-only, gated)
-import { authUser } from "../../../../services/user-management-svc/src/auth/auth-schema.js";
-import { capabilities, platform_admins, roles, user_roles, users } from "../schema/tables.js";
+import {
+  DrizzlePlatformAdminRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzleUserRepository,
+  capabilities,
+  platform_admins,
+  roles,
+  syncCapabilitiesFromMasterDataCatalog,
+  user_roles,
+  users,
+} from "@hims/user-management";
+import { authUser } from "../auth/auth-schema.js";
 import { resolveMasterDataModuleCatalog } from "./resolve-master-data-module-catalog.js";
 import { seedDevConfigurator } from "./seed-dev-configurator.js";
-import { syncCapabilitiesFromMasterDataCatalog } from "./sync-capabilities-from-master-data-catalog.js";
 
 const DEV_TENANT_ID = DEVELOPMENT_SEED_TENANT_ID;
 const DEV_ORG_ID = DEVELOPMENT_BOOTSTRAP_ORG_ID;
@@ -180,7 +182,8 @@ async function ensureSuperAdminAuthUser(
 
 /**
  * Idempotent dev platform bootstrap: Master Data capabilities → Configurator tenant → super-admin.
- * Invoked from `scripts/apply-migration.ts` after SQL migrations.
+ * Invoked from `scripts/seed-platform-bootstrap.ts` (`nx run user-management-svc:seed-platform`)
+ * and `tools/seed-user-management-dev/run.mts` (`pnpm seed`), after SQL migrations.
  */
 export async function applyPlatformDataBootstrap(input: {
   databaseUrl: string;
@@ -235,7 +238,7 @@ export async function applyPlatformDataBootstrap(input: {
 
   if (input.auth) {
     // The dev-seed CLI scripts under `tools/` run via tsx (TS-extension imports, deps resolved from
-    // the repo root) and are intentionally outside this module's NodeNext type-checking surface.
+    // the repo root) and are intentionally outside this service's NodeNext type-checking surface.
     // Load them through `string`-typed paths so tsc treats them as runtime-only dynamic imports.
     // The explicit `: string` is load-bearing (it stops tsc resolving the literal path); the
     // inferrable-types rule would have us delete it, which would re-break the typecheck gate.
@@ -248,14 +251,6 @@ export async function applyPlatformDataBootstrap(input: {
       createDevSeedAuth: (...args: unknown[]) => unknown;
       repairJwksForDevSeed: (...args: unknown[]) => Promise<unknown>;
     };
-    const { DrizzleUserRepository } = await import("../data-access/user-repository.js");
-    const { DrizzlePrincipalRoleProjectionRepository } = await import(
-      "../data-access/drizzle-principal-role-projection-repository.js"
-    );
-    const { DrizzlePlatformAdminRepository } = await import(
-      "../data-access/drizzle-platform-admin-repository.js"
-    );
-
     await repairJwksForDevSeed(db, input.auth.secret);
     const auth = createDevSeedAuth(db, input.auth, {
       userRepository: new DrizzleUserRepository(db),

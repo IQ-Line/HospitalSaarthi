@@ -2,7 +2,7 @@ import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
 import { applyPlatformDataBootstrap } from "../src/dev/platform-data-bootstrap.js";
 
 // nx loads the workspace-root .env into this task's env (NX_LOAD_DOT_ENV_FILES
-// defaults true). Run via `nx run user-management:seed-platform`.
+// defaults true). Run via `nx run user-management-svc:seed-platform`.
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {

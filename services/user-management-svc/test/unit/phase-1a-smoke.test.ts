@@ -20,9 +20,11 @@ import {
   createDefaultPrincipalService,
   principalRoleEnricherPlugin,
   userManagementPlugin,
-} from "../../../../modules/user-management/src/index.js";
-import { createMasterDataModuleCatalogPortStub } from "../../../../modules/user-management/src/test-support/master-data-catalog-port-stub.js";
-import { createDepartmentCatalogPortStub } from "../../../../modules/user-management/src/test-support/department-catalog-port-stub.js";
+} from "@hims/user-management";
+import {
+  createDepartmentCatalogPortStub,
+  createMasterDataModuleCatalogPortStub,
+} from "@hims/user-management/test-support";
 import type { CheckResult } from "@hims/ts-sdk-authz";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
