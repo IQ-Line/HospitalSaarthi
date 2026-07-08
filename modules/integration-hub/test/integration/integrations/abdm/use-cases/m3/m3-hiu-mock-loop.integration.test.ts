@@ -6,12 +6,16 @@ import { startConsentRequest } from "../../../../../../src/integrations/abdm/use
 import { handleOnInitCallback } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-on-init-callback.js";
 import { handleNotifyCallback } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-notify-callback.js";
 import { handleOnFetchCallback } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-on-fetch-callback.js";
-import { startDataRequest } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/start-data-request.js";
+import { ensureDataRequestForConsent } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/start-data-request.js";
 import { handleOnDataRequestCallback } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-on-data-request-callback.js";
 import { handleBundlePush } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-bundle-push.js";
 import { M3Hiu } from "../../../../../../src/integrations/abdm/lib/m3-fsm-states.js";
 import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { M3ConsentRequestRow, M3DataTransferRow } from "../../../../../../src/integrations/abdm/ports.js";
+import type {
+  M3ConsentRequestRow,
+  M3DataTransferRow,
+  M3DataTransfersPort,
+} from "../../../../../../src/integrations/abdm/ports.js";
 
 const TENANT = "00000000-0000-4000-8000-0000000000aa";
 
@@ -97,7 +101,9 @@ describe("m3 HIU mock loop (in-process)", () => {
       listForRequest: vi.fn(async () => []),
     };
 
-    const m3DataTransfers = {
+    // Typed against the port so a future port addition fails the compile
+    // instead of silently no-oping behind production's fire-and-forget catch.
+    const m3DataTransfers: M3DataTransfersPort = {
       insert: vi.fn(async (input) => {
         transferRow = {
           ...input,
@@ -117,6 +123,13 @@ describe("m3 HIU mock loop (in-process)", () => {
           : null,
       ),
       findLatestActiveByConsentId: vi.fn(async () => null),
+      findLatestByConsentId: vi.fn(async (iqTenantId, id) =>
+        transferRow &&
+        transferRow.iqTenantId === iqTenantId &&
+        transferRow.consentId === id
+          ? transferRow
+          : null,
+      ),
       patch: vi.fn(async (input) => {
         if (!transferRow) return;
         transferRow = { ...transferRow, ...input, updatedAt: new Date() };
@@ -144,7 +157,7 @@ describe("m3 HIU mock loop (in-process)", () => {
       fidelius,
       m3ConsentRequests: m3ConsentRequests as never,
       m3ConsentArtefactsHiu: m3ConsentArtefactsHiu as never,
-      m3DataTransfers: m3DataTransfers as never,
+      m3DataTransfers,
       gateway: { post: vi.fn(), get: vi.fn(), getPublicCertificate: vi.fn(), getDiagnosticsSnapshot: vi.fn() } as never,
     });
 
@@ -213,10 +226,22 @@ describe("m3 HIU mock loop (in-process)", () => {
       },
       deps,
     );
-    expect(session!.state).toBe(M3Hiu.CONSENT_GRANTED);
+    // Consent request reached CONSENT_GRANTED …
+    expect(consentRow!.state).toBe(M3Hiu.CONSENT_GRANTED);
+    // … and the GRANTED on-fetch AUTO-fired the data request (legacy-parity
+    // path inside handleOnFetchCallback), moving the session forward.
+    expect(m3DataTransfers.insert).toHaveBeenCalledTimes(1);
+    expect(transferRow!.consentId).toBe(consentId);
+    expect(transferRow!.state).toBe(M3Hiu.DATA_REQUESTED);
+    expect(session!.state).toBe(M3Hiu.DATA_REQUESTED);
 
-    const dataReq = await startDataRequest({ iqTenantId: TENANT, consentId }, deps);
-    expect(dataReq.state).toBe(M3Hiu.DATA_REQUESTED);
+    // Idempotence: the in-flight transfer means ensure does not double-fire.
+    const second = await ensureDataRequestForConsent(
+      { iqTenantId: TENANT, consentId },
+      deps,
+    );
+    expect(second).toBeNull();
+    expect(m3DataTransfers.insert).toHaveBeenCalledTimes(1);
 
     await handleOnDataRequestCallback(
       {
