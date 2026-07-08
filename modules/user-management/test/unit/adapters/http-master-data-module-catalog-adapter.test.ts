@@ -121,6 +121,38 @@ describe("HttpMasterDataModuleCatalogAdapter", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("invalidateModuleSlugMapCache drops every catalog cache, including module kinds", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "mod-a", slug: "visitpad", module_kind: "module" }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "mod-a", slug: "visitpad", module_kind: "feature" }],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const adapter = new HttpMasterDataModuleCatalogAdapter({
+      baseUrl: "http://localhost:8010",
+      cacheTtlMs: 60_000,
+    });
+
+    const before = await adapter.resolveModuleKindBySlugs(["visitpad"]);
+    expect(before.get("visitpad")).toBe("module");
+
+    adapter.invalidateModuleSlugMapCache();
+
+    const after = await adapter.resolveModuleKindBySlugs(["visitpad"]);
+    expect(after.get("visitpad")).toBe("feature");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("throws MODULE_ENTITLEMENT_LOOKUP_FAILED when Master Data returns non-OK", async () => {
     vi.stubGlobal(
       "fetch",

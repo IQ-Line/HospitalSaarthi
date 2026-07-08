@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BoundedTtlCache } from "../../../src/adapters/bounded-ttl-cache.js";
+import { BoundedTtlCache } from "../../../src/util/bounded-ttl-cache.js";
 
 describe("BoundedTtlCache", () => {
   it("tracks hits, misses, and expirations", () => {
