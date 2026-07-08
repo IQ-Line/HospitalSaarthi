@@ -212,11 +212,12 @@ export function registerHttpErrorHandler(app: {
       const matched = mapping(err);
       if (matched) {
         matched.log?.(request, err);
-        return reply.status(matched.status).send(matched.body);
+        reply.status(matched.status).send(matched.body);
+        return;
       }
     }
     request.log.error({ err }, "unhandled error");
-    return reply.status(500).send({
+    reply.status(500).send({
       error: "Internal Server Error",
       message: "Unexpected server error",
     });

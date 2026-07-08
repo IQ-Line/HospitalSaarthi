@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
-import type { DataFlowNotifyBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3";
+import type { DataFlowNotifyBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";
@@ -194,7 +194,8 @@ async function sendDataFlowNotify(
             statusCode: e.statusCode,
             abdmCode: e.abdmCode,
             message: e.message,
-            responseBody: e.responseBody,
+            responseBody:
+              e.responseBody === undefined ? undefined : JSON.stringify(e.responseBody),
           }
         : { message: e instanceof Error ? e.message : String(e) };
     abdmWarn("abdm.m3.hiu_data_flow_notify_failed", {

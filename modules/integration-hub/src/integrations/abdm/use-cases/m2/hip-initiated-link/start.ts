@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { M2_HIP_INITIATED_LINK_STATES } from "@hims/ts-sdk-abha";
-import type { LinkCareContextRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { LinkCareContextRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { LinkTokenNotAvailable, getOrAcquireLinkToken } from "../../../lib/link-token-cache.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";

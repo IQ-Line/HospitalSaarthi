@@ -224,7 +224,10 @@ export function createSmsClientFromProfile(profile: TenantIntegrationProfile): S
     case "noop":
       return new NoOpSmsClient();
     case "msg91": {
-      const msg91 = readMsg91Config(config) ?? createMsg91ClientFromEnv();
+      const msg91Config = readMsg91Config(config);
+      const msg91 = msg91Config
+        ? new Msg91OtpSmsClient(msg91Config)
+        : createMsg91ClientFromEnv();
       if (!msg91) {
         throw new Error(
           `MSG91_URL, MSG91_AUTH_KEY, MSG91_TEMPLATE_ID required when sms_provider=msg91 (tenant=${profile.iqTenantId})`,

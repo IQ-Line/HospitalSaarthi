@@ -1,4 +1,4 @@
-import type { OnSmsNotifyCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { OnSmsNotifyCallback } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { assertFlowKind } from "../../../domain/session.js";
 

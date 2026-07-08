@@ -1,5 +1,5 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
-import type { OnConsentFetchCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
+import type { OnConsentFetchCallback } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
@@ -80,6 +80,7 @@ export async function handleOnFetchCallback(
     artefactJson: input.consent as unknown as Record<string, unknown>,
     signature: input.consent.signature,
     signatureValid,
+    receivedAt: new Date(),
   });
 
   await deps.consentArtefacts.upsert({

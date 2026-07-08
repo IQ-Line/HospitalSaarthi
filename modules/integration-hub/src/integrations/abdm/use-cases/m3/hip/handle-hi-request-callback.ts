@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
-import type { HipHealthInformationAckRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
+import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3";
+import type { HipHealthInformationAckRequest } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import {
@@ -71,7 +71,8 @@ async function postHiAck(
             statusCode: e.statusCode,
             abdmCode: e.abdmCode,
             message: e.message,
-            responseBody: e.responseBody,
+            responseBody:
+              e.responseBody === undefined ? undefined : JSON.stringify(e.responseBody),
           }
         : { message: e instanceof Error ? e.message : String(e) };
     abdmWarn("abdm.m3.hip_hi.gateway_ack_failed", {

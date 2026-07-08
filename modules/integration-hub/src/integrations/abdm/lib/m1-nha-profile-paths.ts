@@ -1,4 +1,4 @@
-import type { AbdmSession } from "../domain/session.js";
+import type { AbdmSession, M1FlowKind } from "../domain/session.js";
 import {
   LOGIN_API_VARIANT_KEY,
   type M1NhaLoginApiVariant,
@@ -35,6 +35,8 @@ export function nhaProfileResourcePath(
   }
 }
 
-export function resolveSessionProfileApiVariant(session: AbdmSession): M1NhaLoginApiVariant {
+export function resolveSessionProfileApiVariant(
+  session: AbdmSession<M1FlowKind>,
+): M1NhaLoginApiVariant {
   return parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY]);
 }

@@ -38,7 +38,7 @@ export function buildMockAbdmDeps(
     consentArtefacts:
       overrides.consentArtefacts ??
       ({
-        upsert: async () => undefined,
+        upsert: async () => true,
         findById: async () => null,
       } as AbdmAdapterDeps["consentArtefacts"]),
     m3ConsentRequests:

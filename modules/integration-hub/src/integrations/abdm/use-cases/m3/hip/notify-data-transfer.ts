@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HipDataFlowNotifyRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
+import type { HipDataFlowNotifyRequest } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
@@ -58,7 +58,8 @@ export async function notifyHipDataTransfer(
             statusCode: e.statusCode,
             abdmCode: e.abdmCode,
             message: e.message,
-            responseBody: e.responseBody,
+            responseBody:
+              e.responseBody === undefined ? undefined : JSON.stringify(e.responseBody),
           }
         : { message: e instanceof Error ? e.message : String(e) };
     abdmWarn("abdm.m3.hip_hi.notify_failed", {

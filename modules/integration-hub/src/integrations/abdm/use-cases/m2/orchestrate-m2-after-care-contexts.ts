@@ -4,7 +4,7 @@ import type {
   AbdmTenantInput,
   AbdmAdapterDeps,
   M2PatientProfile,
-} from "../../../ports.js";
+} from "../../ports.js";
 import { addContextsPublish } from "./add-contexts/publish.js";
 import { hipInitiatedLinkStart } from "./hip-initiated-link/start.js";
 

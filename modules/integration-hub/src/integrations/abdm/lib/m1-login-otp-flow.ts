@@ -150,7 +150,7 @@ function normalizeOtp(raw: string): string {
   return otp;
 }
 
-type VerifiableSession = AbdmSession & { txnId: string };
+type VerifiableSession = AbdmSession<M1OtpSessionFlowKind> & { txnId: string };
 
 /** Load the session and assert it is in a state that can accept an OTP verify. */
 async function loadVerifiableSession(

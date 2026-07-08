@@ -128,8 +128,8 @@ export function splitFacilityAddressForOpdSlipHeader(address: string): { line1: 
   const s = (address || '').trim();
   if (!s) return { line1: '', line2: '' };
   const parts = s.split(',').map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 1) return { line1: parts[0], line2: '' };
-  if (parts.length === 2) return { line1: parts[0], line2: parts[1] };
+  if (parts.length === 1) return { line1: parts[0] ?? '', line2: '' };
+  if (parts.length === 2) return { line1: parts[0] ?? '', line2: parts[1] ?? '' };
   const mid = Math.ceil(parts.length / 2);
   return { line1: parts.slice(0, mid).join(', '), line2: parts.slice(mid).join(', ') };
 }

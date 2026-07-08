@@ -135,6 +135,7 @@ export async function runM3ConsentGrantedFixture(
     {
       iqTenantId,
       inboundRequestId: randomUUID(),
+      response: { requestId: randomUUID() },
       consent: {
         status: "GRANTED",
         signature: "sandbox-signature",
@@ -142,8 +143,9 @@ export async function runM3ConsentGrantedFixture(
           consentId,
           schemaVersion: "v3",
           createdAt: now.toISOString(),
+          lastUpdated: now.toISOString(),
           patient: { id: M3_SANDBOX_ABHA },
-          hip: { id: deps.xHipId, name: "Sandbox HIP" },
+          hip: { id: deps.xHipId },
           hiu: { id: deps.xHiuId },
           hiTypes: ["OPConsultation"],
           careContexts: [

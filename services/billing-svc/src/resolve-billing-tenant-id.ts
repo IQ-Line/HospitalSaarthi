@@ -1,3 +1,4 @@
+import type { IncomingHttpHeaders } from "node:http";
 import {
   DEVELOPMENT_BOOTSTRAP_TENANT_ID,
   DEVELOPMENT_EMPI_PLACEHOLDER_TENANT_ID,
@@ -20,7 +21,7 @@ function normalizeTenantHeader(value: unknown): string | undefined {
  * In development, remaps the EMPI placeholder to the tenant that owns `billing.tariff_master` rows.
  */
 export function resolveBillingRequestTenantId(
-  headers: { "iq_tenant_id"?: unknown; "x-tenant-id"?: unknown },
+  headers: IncomingHttpHeaders,
   fallbackTenantId: string,
 ): string {
   const fromHeader =

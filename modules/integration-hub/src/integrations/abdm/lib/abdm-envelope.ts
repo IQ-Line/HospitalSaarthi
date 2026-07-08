@@ -8,12 +8,12 @@ const SCHEMA_VERSION = "1.0.0";
 
 export const ABDM_SYSTEM_ACTOR_ID = "00000000-0000-0000-0000-000000000000";
 
-export interface AbdmSessionStateChangedPayload {
+export type AbdmSessionStateChangedPayload = {
   sessionId: string;
   flowKind: AbdmFlowKind;
   prevState: AbdmSessionState;
   newState: AbdmSessionState;
-}
+};
 
 function createAbdmEnvelope(
   eventType: string,
@@ -39,16 +39,16 @@ export function createSessionStateChangedEnvelope(
   return createAbdmEnvelope(
     "abdm.session.state-changed",
     iqTenantId,
-    payload as Record<string, unknown>,
+    payload,
   );
 }
 
-export interface CareContextLinkedPayload {
+export type CareContextLinkedPayload = {
   sessionId: string;
   patientId?: string;
   abhaAddress?: string;
   careContextReferences: string[];
-}
+};
 
 export function createCareContextLinkedEnvelope(
   iqTenantId: string,
@@ -57,15 +57,15 @@ export function createCareContextLinkedEnvelope(
   return createAbdmEnvelope(
     "abdm.care-context.linked",
     iqTenantId,
-    payload as Record<string, unknown>,
+    payload,
   );
 }
 
-export interface ConsentGrantedPayload {
+export type ConsentGrantedPayload = {
   consentId: string;
   patientId: string;
   dataEraseAt: string;
-}
+};
 
 export function createConsentGrantedEnvelope(
   iqTenantId: string,
@@ -74,15 +74,15 @@ export function createConsentGrantedEnvelope(
   return createAbdmEnvelope(
     "abdm.consent.granted",
     iqTenantId,
-    payload as Record<string, unknown>,
+    payload,
   );
 }
 
-export interface CareContextPublishedPayload {
+export type CareContextPublishedPayload = {
   sessionId: string;
   abhaAddress: string;
   careContextReferences: string[];
-}
+};
 
 export function createCareContextPublishedEnvelope(
   iqTenantId: string,
@@ -91,15 +91,15 @@ export function createCareContextPublishedEnvelope(
   return createAbdmEnvelope(
     "abdm.care-context.published",
     iqTenantId,
-    payload as Record<string, unknown>,
+    payload,
   );
 }
 
-export interface HealthRecordReceivedPayload {
+export type HealthRecordReceivedPayload = {
   transferId: string;
   consentId: string;
   transactionId: string;
-}
+};
 
 export function createHealthRecordReceivedEnvelope(
   iqTenantId: string,
@@ -108,6 +108,6 @@ export function createHealthRecordReceivedEnvelope(
   return createAbdmEnvelope(
     "abdm.health-record.received",
     iqTenantId,
-    payload as Record<string, unknown>,
+    payload,
   );
 }

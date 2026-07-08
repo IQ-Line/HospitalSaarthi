@@ -3,8 +3,8 @@ import { getAbdmDeps } from "../../../../lib/get-abdm-deps.js";
 import { startConsentRequest } from "../../use-cases/m3/hiu/start-consent-request.js";
 import { startDataRequest } from "../../use-cases/m3/hiu/start-data-request.js";
 import type { SearchConsentRequestsInput } from "../../use-cases/m3/hiu/search-consent-requests.js";
-import type { PurposeCode } from "@hims/ts-sdk-abha/protocol/m3/common.js";
-import type { HiTypePascal } from "@hims/ts-sdk-abha/protocol/m3/common.js";
+import type { PurposeCode } from "@hims/ts-sdk-abha/protocol/m3";
+import type { HiTypePascal } from "@hims/ts-sdk-abha/protocol/m3";
 import { isM3MockGateway } from "../../lib/m3-runtime-env.js";
 import {
   AbdmGatewayError,

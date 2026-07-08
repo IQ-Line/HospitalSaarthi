@@ -1,5 +1,5 @@
 import { createPublicKey, createVerify, X509Certificate, type KeyObject } from "node:crypto";
-import canonicalize from "canonicalize";
+import { canonicalizeJson } from "./json-canonicalize.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
 import { allowInsecureAbdmCallbacks } from "./abdm-runtime-env.js";
 import { isM3MockGateway } from "./m3-runtime-env.js";
@@ -38,7 +38,7 @@ export async function verifyM3ConsentArtefactSignature(input: {
 
   try {
     const publicKey = loadCmVerifyPublicKey(certPem);
-    const canonical = canonicalize(input.consentDetail);
+    const canonical = canonicalizeJson(input.consentDetail);
     if (canonical === undefined) return false;
     const payload = Buffer.from(canonical, "utf8");
     const signature = Buffer.from(signatureB64, "base64");

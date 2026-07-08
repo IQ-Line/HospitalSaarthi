@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { HiTypePascal, PurposeCode } from "@hims/ts-sdk-abha/protocol/m3/common.js";
-import type { ConsentRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
+import type { HiTypePascal, PurposeCode } from "@hims/ts-sdk-abha/protocol/m3";
+import type { ConsentRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import {

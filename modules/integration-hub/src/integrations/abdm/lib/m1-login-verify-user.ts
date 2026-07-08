@@ -51,7 +51,7 @@ export async function m1LoginVerifyUser(
 }
 
 /** A session that has passed {@link assertSessionReadyForVerifyUser}: txnId present, transfer token non-empty. */
-type VerifyUserReadySession = AbdmSession & { txnId: string };
+type VerifyUserReadySession = AbdmSession<M1OtpSessionFlowKind> & { txnId: string };
 
 /**
  * Validates that a freshly-loaded session is in the exact state verify/user requires

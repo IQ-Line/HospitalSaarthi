@@ -49,6 +49,7 @@ export type {
   UserReadListResourceAbac,
   UserAccessRepository,
   UserProvisioningRepository,
+  UserRepository,
   ProvisionUserWithAccessInput,
   RoleTemplateGrantPlan,
   UserCapabilitiesSnapshot,

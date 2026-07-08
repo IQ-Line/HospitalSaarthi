@@ -186,7 +186,7 @@ export async function handleLinkConfirmCallback(
       state: "FAILED",
       contextMerge: {
         error: {
-          code: ABDM_ERROR_CODES.INVALID_REQUEST,
+          code: ABDM_ERROR_CODES.OTP_MISMATCH,
           message: "OTP attempt limit exceeded",
         },
       },
@@ -207,7 +207,7 @@ export async function handleLinkConfirmCallback(
       state: "FAILED",
       contextMerge: {
         error: {
-          code: ABDM_ERROR_CODES.INVALID_REQUEST,
+          code: ABDM_ERROR_CODES.OTP_MISMATCH,
           message: "Invalid or expired OTP",
         },
       },

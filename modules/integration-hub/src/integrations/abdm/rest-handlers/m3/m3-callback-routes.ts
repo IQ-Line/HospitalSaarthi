@@ -10,7 +10,13 @@ import { handleOnDataRequestCallback } from "../../use-cases/m3/hiu/handle-on-da
 import { handleBundlePush } from "../../use-cases/m3/hiu/handle-bundle-push.js";
 import { resolveCallbackTenant, resolveInboundRequestId } from "../../lib/resolve-callback-tenant.js";
 import type { TenantIntegrationProfile } from "../../../../lib/integration-context.js";
-import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type {
+  ConsentNotifyCallback,
+  EncryptedBundlePushBody,
+  OnConsentFetchCallback,
+  OnConsentInitCallback,
+  OnHiuDataRequestCallback,
+} from "@hims/ts-sdk-abha/protocol/m3";
 
 /** Outcome of resolving the tenant for an encrypted bundle push. */
 type TenantResolution =
@@ -88,7 +94,7 @@ export async function registerM3CallbackRoutes(
           {
             iqTenantId: ctx.iqTenantId,
             inboundRequestId: ctx.requestId,
-            ...(ctx.body as object),
+            ...(ctx.body as OnConsentInitCallback),
           },
           ctx.deps,
         );
@@ -108,7 +114,7 @@ export async function registerM3CallbackRoutes(
           {
             iqTenantId: ctx.iqTenantId,
             inboundRequestId: ctx.requestId,
-            ...(ctx.body as object),
+            ...(ctx.body as ConsentNotifyCallback),
           },
           ctx.deps,
         );
@@ -128,7 +134,7 @@ export async function registerM3CallbackRoutes(
           {
             iqTenantId: ctx.iqTenantId,
             inboundRequestId: ctx.requestId,
-            ...(ctx.body as object),
+            ...(ctx.body as OnConsentFetchCallback),
           },
           ctx.deps,
         );
@@ -148,7 +154,7 @@ export async function registerM3CallbackRoutes(
           {
             iqTenantId: ctx.iqTenantId,
             inboundRequestId: ctx.requestId,
-            ...(ctx.body as object),
+            ...(ctx.body as OnHiuDataRequestCallback),
           },
           ctx.deps,
         );

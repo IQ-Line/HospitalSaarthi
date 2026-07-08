@@ -112,7 +112,13 @@ const body = [
     "// buildOpdSlipBarcodeHtml imported from ./barcode.js",
   )
   .replace(/const OPD_SLIP_JSBARCODE_OPTIONS[\s\S]*?};\n\n/, "")
-  .replace(/\/\*\* CODE128 SVG[\s\S]*?\*\/\n/, "");
+  .replace(/\/\*\* CODE128 SVG[\s\S]*?\*\/\n/, "")
+  // Server-side tsconfig uses `noUncheckedIndexedAccess`; guard the indexed access
+  // in splitFacilityAddressForOpdSlipHeader (length-guards don't narrow it away).
+  .replace(
+    "if (parts.length === 1) return { line1: parts[0], line2: '' };\n  if (parts.length === 2) return { line1: parts[0], line2: parts[1] };",
+    "if (parts.length === 1) return { line1: parts[0] ?? '', line2: '' };\n  if (parts.length === 2) return { line1: parts[0] ?? '', line2: parts[1] ?? '' };",
+  );
 
 const exports = `
 export { buildReportHeaderHtml, buildReportFooterHtml, getReportFooterLines, escapeHtml };

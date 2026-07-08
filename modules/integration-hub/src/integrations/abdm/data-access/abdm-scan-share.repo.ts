@@ -15,6 +15,19 @@ import type { ScanShareRepository, ShareIssuance } from "../use-cases/scan-share
 const ISSUANCES = sql.raw(`${INTEGRATION_HUB_SCHEMA_NAME}.abdm_share_token_issuances`);
 const TOKENS = sql.raw(`${INTEGRATION_HUB_SCHEMA_NAME}.abdm_share_tokens`);
 
+/** Map a raw `execute` row (`Record<string, unknown>`) to the typed issuance shape. */
+function rowToShareIssuance(row: Record<string, unknown>): ShareIssuance {
+  const issuedAt = row["issued_at"];
+  return {
+    id: String(row["id"]),
+    token_number: Number(row["token_number"]),
+    abha_address: String(row["abha_address"]),
+    profile_json: (row["profile_json"] ?? {}) as Record<string, unknown>,
+    patient_id: row["patient_id"] == null ? null : String(row["patient_id"]),
+    issued_at: issuedAt instanceof Date ? issuedAt : new Date(String(issuedAt)),
+  };
+}
+
 export class DrizzleScanShareRepo implements ScanShareRepository {
   constructor(private readonly db: DbInstance) {}
 
@@ -82,7 +95,11 @@ export class DrizzleScanShareRepo implements ScanShareRepository {
       FROM upserted
       RETURNING id, token_number, abha_address, profile_json, patient_id, issued_at
     `);
-    return result.rows[0] as ShareIssuance;
+    const row = result.rows[0];
+    if (!row) {
+      throw new Error("abdm_share_token_issuances insert returned no row");
+    }
+    return rowToShareIssuance(row);
   }
 
   async listActive(input: {
@@ -116,7 +133,7 @@ export class DrizzleScanShareRepo implements ScanShareRepository {
     `);
     const runningRow = running.rows[0] as { token_number: number } | undefined;
     return {
-      rows: result.rows as ShareIssuance[],
+      rows: result.rows.map(rowToShareIssuance),
       runningToken: runningRow?.token_number ?? 0,
     };
   }

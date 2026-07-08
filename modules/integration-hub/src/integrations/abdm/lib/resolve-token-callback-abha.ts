@@ -1,4 +1,4 @@
-import type { OnGenerateTokenSuccessCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { OnGenerateTokenSuccessCallback } from "@hims/ts-sdk-abha/protocol/m2";
 import type { LinkTokensPort } from "../ports.js";
 import { decodeLinkTokenPayload } from "./decode-link-token-exp.js";
 

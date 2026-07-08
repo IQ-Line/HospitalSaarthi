@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { GenerateTokenRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { GenerateTokenRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmAdapterDeps } from "../ports.js";
 import { linkTokenExpiresAt } from "./decode-link-token-exp.js";
 import { toGatewayAbhaNumberPlain } from "./m2-gateway-abha-number.js";

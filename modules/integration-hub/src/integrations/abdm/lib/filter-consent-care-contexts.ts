@@ -1,3 +1,5 @@
+import type { ConsentArtefact } from "@hims/ts-sdk-abha/protocol/m2";
+
 /** LIMS parity — only pass care contexts when hiTypes overlap supported clinical types. */
 const SUPPORTED_HI_TYPES = new Set([
   "HealthDocumentRecord",
@@ -10,6 +12,16 @@ const SUPPORTED_HI_TYPES = new Set([
 export type ConsentCareContextRef = {
   patientReference: string;
   careContextReference: string;
+};
+
+/**
+ * The ABDM consent artefact carries `careContexts` on the wire, but the SDK's
+ * {@link ConsentArtefact} type omits it. This models the field as present-but-
+ * unvalidated (consumers re-validate); assigning a plain `ConsentArtefact` to it
+ * is a widening, not a cast.
+ */
+export type ConsentArtefactWithCareContexts = ConsentArtefact & {
+  careContexts?: unknown;
 };
 
 export function filterConsentCareContexts(input: {

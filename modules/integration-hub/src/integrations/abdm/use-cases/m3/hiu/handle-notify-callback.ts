@@ -1,5 +1,5 @@
-import type { ConsentNotifyCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
-import type { OnConsentNotifyAckBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
+import type { ConsentNotifyCallback } from "@hims/ts-sdk-abha/protocol/m3";
+import type { OnConsentNotifyAckBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";

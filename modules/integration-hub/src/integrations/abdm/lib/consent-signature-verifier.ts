@@ -1,8 +1,8 @@
 import { createPublicKey, createVerify, X509Certificate, type KeyObject } from "node:crypto";
-import canonicalize from "canonicalize";
+import { canonicalizeJson } from "./json-canonicalize.js";
 import { abdmWarn } from "./abdm-adapter-log.js";
 import { allowInsecureAbdmCallbacks } from "./abdm-runtime-env.js";
-import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2";
 
 function loadCmVerifyPublicKey(certPem: string): KeyObject {
   try {
@@ -40,7 +40,7 @@ export async function verifyConsentNotificationSignature(
 
   try {
     const publicKey = loadCmVerifyPublicKey(certPem);
-    const canonical = canonicalize(notification.consentDetail);
+    const canonical = canonicalizeJson(notification.consentDetail);
     if (canonical === undefined) {
       abdmWarn("abdm.m2.consent.signature_canonicalize_failed", {
         consentId: notification.consentId,

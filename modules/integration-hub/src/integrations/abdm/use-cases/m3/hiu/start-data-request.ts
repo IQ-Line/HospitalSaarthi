@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HiuDataRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type { HiuDataRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import {

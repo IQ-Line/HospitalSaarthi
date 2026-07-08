@@ -1,4 +1,4 @@
-import type { ContextNotifyHiType } from "@hims/ts-sdk-abha/protocol/m2/common.js";
+import type { ContextNotifyHiType } from "@hims/ts-sdk-abha/protocol/m2";
 
 const TO_GATEWAY_HI_TYPE: Record<string, ContextNotifyHiType | "Invoice"> = {
   PRESCRIPTION: "Prescription",

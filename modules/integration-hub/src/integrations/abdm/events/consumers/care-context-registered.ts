@@ -3,13 +3,13 @@ import type { AbdmAdapterDeps } from "../../ports.js";
 import { orchestrateM2AfterCareContexts } from "../../use-cases/m2/orchestrate-m2-after-care-contexts.js";
 
 /** Payload per record-foundation schema-reference (`care-context.registered`). */
-export interface CareContextRegisteredPayload {
+export type CareContextRegisteredPayload = {
   care_context_id: string;
   patient_id: string;
   source_record_type?: string;
   display?: string;
   iq_tenant_id?: string;
-}
+};
 
 const EVENT_TYPES = [
   "record-foundation.care-context.registered",

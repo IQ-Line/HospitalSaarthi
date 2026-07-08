@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { NhaPublicCertificateResponse } from "@hims/ts-sdk-abha/protocol/common/index.js";
+import type { NhaPublicCertificateResponse } from "@hims/ts-sdk-abha/protocol/common";
 import type {
   AbdmGatewayRouteTarget,
   GatewayClient,

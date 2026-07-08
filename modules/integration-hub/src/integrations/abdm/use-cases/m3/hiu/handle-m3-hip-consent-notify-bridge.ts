@@ -1,10 +1,13 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
-import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
-import type { OnConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { ConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2";
+import type { OnConsentNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
-import { filterConsentCareContexts } from "../../../lib/filter-consent-care-contexts.js";
+import {
+  filterConsentCareContexts,
+  type ConsentArtefactWithCareContexts,
+} from "../../../lib/filter-consent-care-contexts.js";
 import { createConsentGrantedEnvelope } from "../../../lib/abdm-envelope.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { skipOutboundGatewayInDev } from "../../../lib/dev-inbound-simulation.js";
@@ -28,7 +31,7 @@ export async function handleM3HipConsentNotifyBridge(
   }
   if (notification.status !== "GRANTED") return false;
 
-  const detail = notification.consentDetail;
+  const detail: ConsentArtefactWithCareContexts = notification.consentDetail;
   const patientAbha = detail?.patient?.id?.trim();
   const hipId = detail?.hip?.id?.trim();
   const consentId = notification.consentId?.trim();

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { AddContextsRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { AddContextsRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { toContextNotifyHiType } from "../../../lib/m2-hi-type-mapper.js";

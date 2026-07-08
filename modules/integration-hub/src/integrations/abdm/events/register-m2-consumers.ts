@@ -1,4 +1,4 @@
-import type { EventBus } from "@hims/ts-sdk-events";
+import type { DomainEvent, EventBus } from "@hims/ts-sdk-events";
 import type { IntegrationHubSharedInfra } from "../../../lib/build-abdm-deps.js";
 import { buildAbdmDepsForTenant } from "../../../lib/build-abdm-deps.js";
 import {
@@ -17,7 +17,7 @@ export async function registerM2EventConsumers(
     return;
   }
 
-  const handler = async (event: Parameters<typeof handleCareContextRegisteredEvent>[0]) => {
+  const handler = async (event: DomainEvent) => {
     if (!isCareContextRegisteredEvent(event)) return;
     const iqTenantId = event.iq_tenant_id?.trim();
     if (!iqTenantId) {
