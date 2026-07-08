@@ -31,13 +31,20 @@
       "cache": true
     },
     "test": {
-      "command": "uv run pytest",
+      "command": "uv run pytest --ignore=tests/integration",
       "options": {
         "cwd": "modules/opd"
       },
       "dependsOn": ["setup"],
       "inputs": ["default"],
       "cache": true
+    },
+    "test:integration": {
+      "command": "bash scripts/run-integration-tests.sh",
+      "options": {
+        "cwd": "modules/opd"
+      },
+      "dependsOn": ["setup"]
     },
     "db-migrate": {
       "command": "uv run python -m opd.core.migrations",
