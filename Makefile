@@ -181,7 +181,9 @@ gen-report-contracts: ## Regenerate report-client types (TS + Python) from the v
 		--disable-timestamp \
 		--target-python-version 3.12 \
 		--use-double-quotes \
-		--skip-root-model
+		--skip-root-model \
+		--use-annotated \
+		--field-constraints
 
 .PHONY: check-report-contracts
 check-report-contracts: ## CI drift-gate: regen report-client types and fail if the committed output is stale

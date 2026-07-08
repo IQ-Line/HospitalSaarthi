@@ -4,17 +4,17 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, PositiveInt, constr
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
 class Patient(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    name: constr(min_length=1)
-    uhid: constr(min_length=1)
+    name: Annotated[str, Field(min_length=1)]
+    uhid: Annotated[str, Field(min_length=1)]
     phoneNumber: str | None = None
     dateOfBirth: str | None = None
     yearOfBirth: int | None = None
@@ -25,12 +25,16 @@ class Patient(BaseModel):
     address: str | None = None
 
 
+class CreatedAt(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
+
+
 class Visit(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     visitNumber: str | None = None
-    createdAt: AwareDatetime | constr(min_length=1)
+    createdAt: AwareDatetime | CreatedAt
     visitType: str | None = None
     status: str | None = None
     departmentName: str | None = None
@@ -46,7 +50,7 @@ class Doctor(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    name: constr(min_length=1)
+    name: Annotated[str, Field(min_length=1)]
     qualification: str | None = None
     specialization: str | None = None
     hprId: str | None = None
@@ -58,7 +62,7 @@ class Facility(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    name: constr(min_length=1)
+    name: Annotated[str, Field(min_length=1)]
     address: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -71,8 +75,8 @@ class SmartParchaPage(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    pageNumber: PositiveInt
-    content: constr(min_length=1)
+    pageNumber: Annotated[int, Field(gt=0)]
+    content: Annotated[str, Field(min_length=1)]
 
 
 class Format(StrEnum):
@@ -86,18 +90,18 @@ class Options(BaseModel):
     )
     landscape: bool | None = None
     format: Format | None = None
-    marginTop: constr(max_length=32) | None = None
-    marginBottom: constr(max_length=32) | None = None
-    marginLeft: constr(max_length=32) | None = None
-    marginRight: constr(max_length=32) | None = None
+    marginTop: Annotated[str | None, Field(max_length=32)] = None
+    marginBottom: Annotated[str | None, Field(max_length=32)] = None
+    marginLeft: Annotated[str | None, Field(max_length=32)] = None
+    marginRight: Annotated[str | None, Field(max_length=32)] = None
 
 
 class OpdSlipReportRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    patientId: constr(min_length=1)
-    visitId: constr(min_length=1)
+    patientId: Annotated[str, Field(min_length=1)]
+    visitId: Annotated[str, Field(min_length=1)]
     doctorId: str | None = None
     patient: Patient
     visit: Visit
@@ -109,11 +113,28 @@ class OpdSlipReportRequest(BaseModel):
     options: Options | None = None
 
 
+class Visit1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    visitNumber: str | None = None
+    createdAt: AwareDatetime | CreatedAt
+    visitType: str | None = None
+    status: str | None = None
+    departmentName: str | None = None
+    roomNumber: str | None = None
+    tokenNumber: int | None = None
+    fees: str | None = None
+    visitValidTill: str | None = None
+    consultationType: str | None = None
+    priority: str | None = None
+
+
 class LineItem(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    serviceName: constr(min_length=1)
+    serviceName: Annotated[str, Field(min_length=1)]
     serviceDetail: str | None = None
     quantity: float
     unitPrice: float
@@ -127,20 +148,20 @@ class Options1(BaseModel):
     )
     landscape: bool | None = None
     format: Format | None = None
-    marginTop: constr(max_length=32) | None = None
-    marginBottom: constr(max_length=32) | None = None
-    marginLeft: constr(max_length=32) | None = None
-    marginRight: constr(max_length=32) | None = None
+    marginTop: Annotated[str | None, Field(max_length=32)] = None
+    marginBottom: Annotated[str | None, Field(max_length=32)] = None
+    marginLeft: Annotated[str | None, Field(max_length=32)] = None
+    marginRight: Annotated[str | None, Field(max_length=32)] = None
 
 
 class OpdReceiptReportRequest(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    patientId: constr(min_length=1)
-    visitId: constr(min_length=1)
+    patientId: Annotated[str, Field(min_length=1)]
+    visitId: Annotated[str, Field(min_length=1)]
     patient: Patient
-    visit: Visit
+    visit: Visit1
     facility: Facility
     billNumber: str | None = None
     dateOfIssue: str | None = None
@@ -153,16 +174,33 @@ class OpdReceiptReportRequest(BaseModel):
     options: Options1 | None = None
 
 
+class Visit2(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    visitNumber: str | None = None
+    createdAt: AwareDatetime | CreatedAt
+    visitType: str | None = None
+    status: str | None = None
+    departmentName: str | None = None
+    roomNumber: str | None = None
+    tokenNumber: int | None = None
+    fees: str | None = None
+    visitValidTill: str | None = None
+    consultationType: str | None = None
+    priority: str | None = None
+
+
 class Options2(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     landscape: bool | None = None
     format: Format | None = None
-    marginTop: constr(max_length=32) | None = None
-    marginBottom: constr(max_length=32) | None = None
-    marginLeft: constr(max_length=32) | None = None
-    marginRight: constr(max_length=32) | None = None
+    marginTop: Annotated[str | None, Field(max_length=32)] = None
+    marginBottom: Annotated[str | None, Field(max_length=32)] = None
+    marginLeft: Annotated[str | None, Field(max_length=32)] = None
+    marginRight: Annotated[str | None, Field(max_length=32)] = None
 
 
 class Immunization(BaseModel):
@@ -187,7 +225,7 @@ class OpConsultationReportRequest(BaseModel):
     )
     facility: Facility
     patient: Patient
-    visit: Visit
+    visit: Visit2
     doctor: Doctor
     options: Options2 | None = None
     vitals: dict[str, Any] | None = None
@@ -209,16 +247,33 @@ class OpConsultationReportRequest(BaseModel):
     womensHealth: dict[str, Any] | None = None
 
 
+class Visit3(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    visitNumber: str | None = None
+    createdAt: AwareDatetime | CreatedAt
+    visitType: str | None = None
+    status: str | None = None
+    departmentName: str | None = None
+    roomNumber: str | None = None
+    tokenNumber: int | None = None
+    fees: str | None = None
+    visitValidTill: str | None = None
+    consultationType: str | None = None
+    priority: str | None = None
+
+
 class Options3(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     landscape: bool | None = None
     format: Format | None = None
-    marginTop: constr(max_length=32) | None = None
-    marginBottom: constr(max_length=32) | None = None
-    marginLeft: constr(max_length=32) | None = None
-    marginRight: constr(max_length=32) | None = None
+    marginTop: Annotated[str | None, Field(max_length=32)] = None
+    marginBottom: Annotated[str | None, Field(max_length=32)] = None
+    marginLeft: Annotated[str | None, Field(max_length=32)] = None
+    marginRight: Annotated[str | None, Field(max_length=32)] = None
 
 
 class ImmunizationReportRequest(BaseModel):
@@ -227,11 +282,28 @@ class ImmunizationReportRequest(BaseModel):
     )
     facility: Facility
     patient: Patient
-    visit: Visit
+    visit: Visit3
     doctor: Doctor
     options: Options3 | None = None
-    immunizations: list[Immunization] = Field(..., min_length=1)
+    immunizations: Annotated[list[Immunization], Field(min_length=1)]
     showDepartment: bool | None = None
+
+
+class Visit4(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    visitNumber: str | None = None
+    createdAt: AwareDatetime | CreatedAt
+    visitType: str | None = None
+    status: str | None = None
+    departmentName: str | None = None
+    roomNumber: str | None = None
+    tokenNumber: int | None = None
+    fees: str | None = None
+    visitValidTill: str | None = None
+    consultationType: str | None = None
+    priority: str | None = None
 
 
 class Options4(BaseModel):
@@ -240,10 +312,10 @@ class Options4(BaseModel):
     )
     landscape: bool | None = None
     format: Format | None = None
-    marginTop: constr(max_length=32) | None = None
-    marginBottom: constr(max_length=32) | None = None
-    marginLeft: constr(max_length=32) | None = None
-    marginRight: constr(max_length=32) | None = None
+    marginTop: Annotated[str | None, Field(max_length=32)] = None
+    marginBottom: Annotated[str | None, Field(max_length=32)] = None
+    marginLeft: Annotated[str | None, Field(max_length=32)] = None
+    marginRight: Annotated[str | None, Field(max_length=32)] = None
 
 
 class Certainty(StrEnum):
@@ -256,7 +328,7 @@ class Diagnose(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    id: constr(min_length=1)
+    id: Annotated[str, Field(min_length=1)]
     notes: str
     certainty: Certainty | None = None
 
@@ -265,7 +337,7 @@ class Medicine(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    id: constr(min_length=1)
+    id: Annotated[str, Field(min_length=1)]
     name: str
     dosage: str | None = None
     frequency: str | None = None
@@ -288,8 +360,8 @@ class PrescriptionReportRequest(BaseModel):
     )
     facility: Facility
     patient: Patient
-    visit: Visit
+    visit: Visit4
     doctor: Doctor
     options: Options4 | None = None
-    diagnoses: list[Diagnose] | None = Field([], validate_default=True)
-    medicines: list[Medicine] | None = Field([], validate_default=True)
+    diagnoses: Annotated[list[Diagnose] | None, Field(validate_default=True)] = []
+    medicines: Annotated[list[Medicine] | None, Field(validate_default=True)] = []
