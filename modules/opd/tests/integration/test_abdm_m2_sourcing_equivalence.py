@@ -22,7 +22,7 @@ here proves the bundles are now sourced from the full normalized aggregate.
 
 Boundaries mocked (genuinely external to sourcing): patient/practitioner/visit lookups,
 the Record-Foundation HTTP transport, PDF render, the health-document blob repo, and the
-session factory (so the pipeline reads the same in-memory SQLite session we seeded).
+session factory (so the pipeline reads the same real-Postgres session we seeded).
 The clinical sourcing itself is entirely real.
 """
 

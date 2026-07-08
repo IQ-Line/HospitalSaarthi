@@ -104,3 +104,21 @@ is no Python equivalent of the TS drizzle drift-gate to catch this. **Fixed:** a
 Citus reference tables like every other catalog table). The 3 inventory integration tests now pass
 legitimately against real Citus. *Follow-up worth filing: add an alembic autogenerate drift-gate to
 CI (mirror the drizzle one) so model-vs-migration drift can't recur silently.*
+
+## SQLite removal → real Postgres (opd), 2026-07-08
+
+Same treatment for opd. SQLite `db_engine`/`db_session` (schema_translate_map faking the
+`opd`/`registration` schemas + `create_all`) → real-PG `db_session` in
+`tests/integration/conftest.py` (per-test transaction rollback, savepoint join mode; opd
+seeds nothing so no truncate). Names kept (`db_session`/`prescription_repo`/
+`prescription_client`), so the 9 DB-touching files moved into `tests/integration/` with no
+edits; helpers/constants + the no-DB `client` fixture stay in `tests/conftest.py` (imported
+via absolute `from tests.conftest import …`). **37 unit + 56 integration green** on real Citus.
+
+**Cross-module read-models materialized as test scaffolding (correct, not a bug):** opd reads
+`registration.registration` / `registration.visit` — logical cross-schema refs it does NOT own
+(the registration module owns them in the shared prod DB; opd's migration rightly never creates
+them). SQLite's `create_all` implicitly fabricated them; the isolated `hims_test_opd` DB has no
+registration module, so the integration conftest now materializes just those external tables
+(as Citus reference tables, to compose with opd's `iq_tenant_id`-distributed tables in one
+transaction). This is explicit external-dependency scaffolding, not opd claiming ownership.
