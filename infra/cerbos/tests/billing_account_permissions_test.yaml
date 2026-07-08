@@ -1,0 +1,257 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: billing_account_permissions_test
+description: >-
+  Billing account PEP — every action (read/create/update/delete) requires the matching
+  billing-account:billing-account:<action> runtime capability AND tenant (iq_tenant_id)
+  alignment. Delegated capabilities grant. super-admin bypasses tenant equality but still
+  needs the capability. No capability => DENY; wrong tenant => DENY for non super-admin.
+
+principals:
+  ba_reader:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["billing-account:billing-account:read"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  ba_creator:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["billing-account:billing-account:create"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  ba_updater:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["billing-account:billing-account:update"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  ba_deleter:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["billing-account:billing-account:delete"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # read arrives only as a delegated capability — proves delegation is honoured.
+  ba_delegated_reader:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: ["billing-account:billing-account:read"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Authenticated but holds no billing-account capability — proves the "403 authed, no cap" case.
+  ba_nocap:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # super-admin with the read capability — bypasses tenant equality.
+  ba_super_admin:
+    id: super-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["super-admin"]
+      scopes: []
+      capabilities: ["billing-account:billing-account:read"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # super-admin WITHOUT the capability — role alone must not grant.
+  ba_super_admin_nocap:
+    id: super-2
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["super-admin"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  account_same_tenant:
+    id: ba-1
+    kind: billing_account
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  account_other_tenant:
+    id: ba-2
+    kind: billing_account
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: billing-account.read — allowed with read capability and matching tenant
+    input:
+      principals: [ba_reader]
+      resources: [account_same_tenant]
+      actions: [billing-account.read]
+    expected:
+      - principal: ba_reader
+        resource: account_same_tenant
+        actions:
+          billing-account.read: EFFECT_ALLOW
+
+  - name: billing-account.create — allowed with create capability and matching tenant
+    input:
+      principals: [ba_creator]
+      resources: [account_same_tenant]
+      actions: [billing-account.create]
+    expected:
+      - principal: ba_creator
+        resource: account_same_tenant
+        actions:
+          billing-account.create: EFFECT_ALLOW
+
+  - name: billing-account.update — allowed with update capability and matching tenant
+    input:
+      principals: [ba_updater]
+      resources: [account_same_tenant]
+      actions: [billing-account.update]
+    expected:
+      - principal: ba_updater
+        resource: account_same_tenant
+        actions:
+          billing-account.update: EFFECT_ALLOW
+
+  - name: billing-account.delete — allowed with delete capability and matching tenant
+    input:
+      principals: [ba_deleter]
+      resources: [account_same_tenant]
+      actions: [billing-account.delete]
+    expected:
+      - principal: ba_deleter
+        resource: account_same_tenant
+        actions:
+          billing-account.delete: EFFECT_ALLOW
+
+  - name: billing-account.read — allowed via delegated capability
+    input:
+      principals: [ba_delegated_reader]
+      resources: [account_same_tenant]
+      actions: [billing-account.read]
+    expected:
+      - principal: ba_delegated_reader
+        resource: account_same_tenant
+        actions:
+          billing-account.read: EFFECT_ALLOW
+
+  - name: billing-account — denied for every action when no capability is held (same tenant)
+    input:
+      principals: [ba_nocap]
+      resources: [account_same_tenant]
+      actions: [billing-account.read, billing-account.create, billing-account.update, billing-account.delete]
+    expected:
+      - principal: ba_nocap
+        resource: account_same_tenant
+        actions:
+          billing-account.read: EFFECT_DENY
+          billing-account.create: EFFECT_DENY
+          billing-account.update: EFFECT_DENY
+          billing-account.delete: EFFECT_DENY
+
+  - name: billing-account — denied cross-tenant despite holding the capability (non super-admin)
+    input:
+      principals: [ba_reader, ba_creator, ba_updater, ba_deleter]
+      resources: [account_other_tenant]
+      actions: [billing-account.read, billing-account.create, billing-account.update, billing-account.delete]
+    expected:
+      - principal: ba_reader
+        resource: account_other_tenant
+        actions:
+          billing-account.read: EFFECT_DENY
+      - principal: ba_creator
+        resource: account_other_tenant
+        actions:
+          billing-account.create: EFFECT_DENY
+      - principal: ba_updater
+        resource: account_other_tenant
+        actions:
+          billing-account.update: EFFECT_DENY
+      - principal: ba_deleter
+        resource: account_other_tenant
+        actions:
+          billing-account.delete: EFFECT_DENY
+
+  - name: billing-account.read — super-admin reads cross-tenant with capability
+    input:
+      principals: [ba_super_admin]
+      resources: [account_other_tenant]
+      actions: [billing-account.read]
+    expected:
+      - principal: ba_super_admin
+        resource: account_other_tenant
+        actions:
+          billing-account.read: EFFECT_ALLOW
+
+  - name: billing-account.read — super-admin without capability is denied (role alone grants nothing)
+    input:
+      principals: [ba_super_admin_nocap]
+      resources: [account_same_tenant, account_other_tenant]
+      actions: [billing-account.read]
+    expected:
+      - principal: ba_super_admin_nocap
+        resource: account_same_tenant
+        actions:
+          billing-account.read: EFFECT_DENY
+      - principal: ba_super_admin_nocap
+        resource: account_other_tenant
+        actions:
+          billing-account.read: EFFECT_DENY
