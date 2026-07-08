@@ -33,11 +33,6 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-      cerbos:
-        image: ghcr.io/cerbos/cerbos:0.53.0
-        ports:
-          - 3593:3593
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -100,6 +95,23 @@ jobs:
       # Stage 3: Spec validation (User Management OpenAPI ↔ runtime contract)
       - name: Validate specs
         run: npx nx run user-management-svc:validate-spec
+
+      # The PEP wiring suites (empi-svc, configurator-svc) hit a LIVE Cerbos at
+      # :3593 and need the repo's actual policies loaded. A `services:` container
+      # can't mount the workspace (it starts before checkout), so a policy-less
+      # PDP denies everything and the allow-path assertions fail with 403.
+      # Run Cerbos exactly like the local hims-cerbos instead: repo config + policies.
+      - name: Start Cerbos PDP (repo policies)
+        run: |
+          docker run -d --name cerbos-pdp -p 3592:3592 -p 3593:3593 \
+            -v "${{ github.workspace }}/infra/cerbos/cerbos.yaml:/config/cerbos.yaml:ro" \
+            -v "${{ github.workspace }}/infra/cerbos/policies:/policies:ro" \
+            ghcr.io/cerbos/cerbos:0.53.0 server --config=/config/cerbos.yaml
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3592/_cerbos/health >/dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::Cerbos PDP did not become healthy"; docker logs cerbos-pdp; exit 1
 
       # Stage 4: Unit tests
       - name: Test
