@@ -1,28 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { z } from 'zod';
+import {
+  normalizeUsername,
+  signInSchema,
+} from '@/features/auth/lib/sign-in-form';
 
-/** Mirrors login.tsx signInSchema + handleSignIn field usage (username-primary login). */
-const signInSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
+// eslint-disable-next-line sonarjs/no-hardcoded-passwords -- fake credential in a unit-test fixture, not a real secret (#50 verified)
+const FAKE_PASSWORD = 'password';
 
 describe('login sign-in payload', () => {
-  it('maps validated form values to better-auth username (not email)', () => {
-    const values = signInSchema.parse({
-      username: 'Platform',
-      // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- fake credential in a unit-test fixture, not a real secret (#50 verified)
-      password: 'password',
-    });
+  it('normalizes the username the way handleSignIn sends it to better-auth', () => {
+    // The REAL normalizer login.tsx applies before authClient.signIn.username(...).
+    expect(normalizeUsername('  Platform ')).toBe('platform');
+    expect(normalizeUsername('ADMIN')).toBe('admin');
+  });
 
-    // handleSignIn lowercases + trims before calling authClient.signIn.username.
-    expect(values.username.trim().toLowerCase()).toBe('platform');
-    // The schema no longer accepts an `email`-only payload (username is the credential).
-    // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- fake credential in a unit-test fixture, not a real secret (#50 verified)
-    expect(signInSchema.safeParse({ email: 'platform@hospitalsaarthi.dev', password: 'password' }).success).toBe(
-      false,
-    );
-    // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- fake credential in a unit-test fixture, not a real secret (#50 verified)
-    expect(signInSchema.safeParse({ username: 'platform', password: 'password' }).success).toBe(true);
+  it('accepts a username+password payload', () => {
+    const parsed = signInSchema.safeParse({ username: 'platform', password: FAKE_PASSWORD });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects an email-only payload (username is the credential, not email)', () => {
+    const parsed = signInSchema.safeParse({
+      email: 'platform@hospitalsaarthi.dev',
+      password: FAKE_PASSWORD,
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rejects a blank username and a blank password', () => {
+    expect(signInSchema.safeParse({ username: '', password: FAKE_PASSWORD }).success).toBe(false);
+    expect(signInSchema.safeParse({ username: 'platform', password: '' }).success).toBe(false);
   });
 });

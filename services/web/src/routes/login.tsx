@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@pulse/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
@@ -20,13 +19,11 @@ import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
-
-const signInSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
-  password: z.string().min(1, 'Password is required'),
-});
-
-type SignInValues = z.infer<typeof signInSchema>;
+import {
+  normalizeUsername,
+  signInSchema,
+  type SignInValues,
+} from '@/features/auth/lib/sign-in-form';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
@@ -92,7 +89,7 @@ function LoginPage() {
     setLoading(true);
     try {
       const { data, error: authError } = await authClient.signIn.username({
-        username: values.username.trim().toLowerCase(),
+        username: normalizeUsername(values.username),
         password: values.password,
       });
 
