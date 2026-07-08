@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpdQueueProjectionRow } from "../domain/pharmacy.types.js";
-import type { OpdQueueProjectionRepo, WalkInDispenseRepo } from "../ports.js";
+import type { OpdQueueProjectionRepo } from "../ports.js";
 import { listPharmacyQueue } from "./list-pharmacy-queue.js";
 
 const TENANT = "00000000-0000-0000-0000-000000000001";
@@ -40,22 +40,8 @@ function opdQueueProjectionRepo(
   };
 }
 
-function baseDeps(
-  projection: OpdQueueProjectionRepo,
-  walkInResult: Awaited<ReturnType<WalkInDispenseRepo["listForQueue"]>> = {
-    items: [],
-    total: 0,
-  },
-) {
-  const walkInDispenseRepo: WalkInDispenseRepo = {
-    findByRecordId: vi.fn(),
-    listForQueue: vi.fn(async () => walkInResult),
-    create: vi.fn(),
-    upsert: vi.fn(),
-  };
-
+function baseDeps(projection: OpdQueueProjectionRepo) {
   return {
-    walkInDispenseRepo,
     opdQueueProjectionRepo: projection,
   };
 }
@@ -100,42 +86,5 @@ describe("listPharmacyQueue", () => {
 
     expect(page2.total).toBe(3);
     expect(page2.items).toHaveLength(1);
-  });
-
-  it("returns walk-in rows only for kind=walk_in", async () => {
-    const projection = opdQueueProjectionRepo({ total: 0, items: [] });
-    const walkInRow = {
-      record_id: "walk-record-1",
-      walk_in_patient_id: "walk-patient-1",
-      first_name: "Walk",
-      last_name: "In",
-      phone: "+919999999999",
-      gender: "female",
-      date_of_birth: "1990-01-01",
-      created_at: new Date("2026-06-03T12:00:00.000Z"),
-      medicine_count: 1,
-      has_dispense: true,
-      dispense_status: "issued" as const,
-    };
-    const deps = baseDeps(projection, { items: [walkInRow], total: 1 });
-
-    const result = await listPharmacyQueue(deps, TENANT, {
-      kind: "walk_in",
-      page: 1,
-      limit: 10,
-      status: "all",
-    });
-
-    expect(projection.listForQueue).not.toHaveBeenCalled();
-    expect(deps.walkInDispenseRepo.listForQueue).toHaveBeenCalledWith(TENANT, {
-      page: 1,
-      limit: 10,
-      queued_from: undefined,
-      queued_to: undefined,
-      search: "",
-      status: "all",
-    });
-    expect(result.total).toBe(1);
-    expect(result.items[0]?.walk_in_order).toBe(true);
   });
 });

@@ -4,23 +4,27 @@ import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type { DispenseLineItemRecord, DispenseRecord } from "../domain/pharmacy.types.js";
 import { computeRecordAmounts } from "../lib/dispense-amounts.js";
 import type { DispenseRecordRepo, UpsertDispensePayload, UpsertDispenseResult } from "../ports.js";
-import { dispenseLineItems, dispenseRecords } from "../schema/tables.js";
+import { dispenseLineItems, dispense } from "../schema/tables.js";
 
-function mapRecord(row: typeof dispenseRecords.$inferSelect): DispenseRecord {
+function mapRecord(row: typeof dispense.$inferSelect): DispenseRecord {
   return {
     id: row.id,
     iq_tenant_id: row.iq_tenant_id,
-    walk_in_order: row.walk_in_order,
-    walk_in_patient_id: row.walk_in_patient_id,
     visit_id: row.visit_id,
     patient_id: row.patient_id,
     opd_prescription_id: row.opd_prescription_id,
+    department_id: row.department_id,
+    branch_id: row.branch_id,
+    inventory_store_id: row.inventory_store_id,
+    priority: row.priority as DispenseRecord["priority"],
     subtotal: row.subtotal,
     discount: row.discount,
     total_amount: row.total_amount,
     notes: row.notes,
     dispense_status: row.dispense_status as DispenseRecord["dispense_status"],
+    dispense_draft_json: row.dispense_draft_json,
     created_at: row.created_at,
+    updated_at: row.updated_at,
     created_by: row.created_by,
   };
 }
@@ -29,9 +33,11 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
   return {
     id: row.id,
     iq_tenant_id: row.iq_tenant_id,
-    dispense_record_id: row.dispense_record_id,
+    dispense_id: row.dispense_id,
     medicine_id: row.medicine_id ?? null,
     medicine_display_name: row.medicine_display_name,
+    opd_prescription_item_id: row.opd_prescription_item_id,
+    opd_prescription_line_no: row.opd_prescription_line_no,
     prescribed_quantity: row.prescribed_quantity,
     quantity_dispensed: row.quantity_dispensed,
     unit_amount: row.unit_amount,
@@ -39,7 +45,13 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     tax_percent: row.tax_percent,
     tax_amount: row.tax_amount,
     line_total: row.line_total,
+    stock_batch_id: row.stock_batch_id,
+    is_substitution: row.is_substitution,
+    substitute_of_line_id: row.substitute_of_line_id,
+    substitution_reason: row.substitution_reason,
+    line_remarks: row.line_remarks,
     created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -58,13 +70,9 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
   async findByVisit(tenantId: string, visitId: string): Promise<DispenseRecord | undefined> {
     const [row] = await this.db
       .select()
-      .from(dispenseRecords)
+      .from(dispense)
       .where(
-        and(
-          eq(dispenseRecords.iq_tenant_id, tenantId),
-          eq(dispenseRecords.visit_id, visitId),
-          eq(dispenseRecords.walk_in_order, false),
-        ),
+        and(eq(dispense.iq_tenant_id, tenantId), eq(dispense.visit_id, visitId)),
       )
       .limit(1);
     return row ? mapRecord(row) : undefined;
@@ -74,13 +82,9 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
     if (visitIds.length === 0) return [];
     const rows = await this.db
       .select()
-      .from(dispenseRecords)
+      .from(dispense)
       .where(
-        and(
-          eq(dispenseRecords.iq_tenant_id, tenantId),
-          eq(dispenseRecords.walk_in_order, false),
-          inArray(dispenseRecords.visit_id, visitIds),
-        ),
+        and(eq(dispense.iq_tenant_id, tenantId), inArray(dispense.visit_id, visitIds)),
       );
     return rows.map(mapRecord);
   }
@@ -92,7 +96,7 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
       .where(
         and(
           eq(dispenseLineItems.iq_tenant_id, tenantId),
-          eq(dispenseLineItems.dispense_record_id, recordId),
+          eq(dispenseLineItems.dispense_id, recordId),
         ),
       )
       .orderBy(asc(dispenseLineItems.created_at), asc(dispenseLineItems.id));
@@ -122,30 +126,25 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
 
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`
-        SELECT id FROM pharmacy.dispense_records
+        SELECT id FROM pharmacy.dispense
         WHERE iq_tenant_id = ${tenantId}::uuid
           AND visit_id = ${payload.visit_id}::uuid
-          AND walk_in_order = false
         FOR UPDATE
       `);
 
       const existing = await tx
         .select()
-        .from(dispenseRecords)
+        .from(dispense)
         .where(
-          and(
-            eq(dispenseRecords.iq_tenant_id, tenantId),
-            eq(dispenseRecords.visit_id, payload.visit_id),
-            eq(dispenseRecords.walk_in_order, false),
-          ),
+          and(eq(dispense.iq_tenant_id, tenantId), eq(dispense.visit_id, payload.visit_id)),
         )
         .limit(1);
 
-      let recordRow: typeof dispenseRecords.$inferSelect;
+      let recordRow: typeof dispense.$inferSelect;
 
       if (existing[0]) {
         const [updated] = await tx
-          .update(dispenseRecords)
+          .update(dispense)
           .set({
             patient_id: payload.patient_id,
             opd_prescription_id: payload.opd_prescription_id ?? null,
@@ -154,13 +153,9 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
             total_amount: amounts.total_amount,
             notes: payload.notes ?? null,
             dispense_status: payload.dispense_status,
+            updated_at: new Date(),
           })
-          .where(
-            and(
-              eq(dispenseRecords.iq_tenant_id, tenantId),
-              eq(dispenseRecords.id, existing[0].id),
-            ),
-          )
+          .where(and(eq(dispense.iq_tenant_id, tenantId), eq(dispense.id, existing[0].id)))
           .returning();
         if (!updated) {
           throw new Error("dispense record update failed");
@@ -172,16 +167,14 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
           .where(
             and(
               eq(dispenseLineItems.iq_tenant_id, tenantId),
-              eq(dispenseLineItems.dispense_record_id, recordRow.id),
+              eq(dispenseLineItems.dispense_id, recordRow.id),
             ),
           );
       } else {
         const [inserted] = await tx
-          .insert(dispenseRecords)
+          .insert(dispense)
           .values({
             iq_tenant_id: tenantId,
-            walk_in_order: false,
-            walk_in_patient_id: null,
             visit_id: payload.visit_id,
             patient_id: payload.patient_id,
             opd_prescription_id: payload.opd_prescription_id ?? null,

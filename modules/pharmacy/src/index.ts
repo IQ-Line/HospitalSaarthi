@@ -2,7 +2,7 @@ export { createRouter, HttpOpdGateway, HttpMasterDataGateway } from "./router.js
 export type { PharmacyRouterOptions } from "./router.js";
 
 export { PHARMACY_MODULE_KEY } from "./domain/pharmacy.types.js";
-export { PHARMACY_SCHEMA_NAME, dispenseRecords, dispenseLineItems } from "./schema/tables.js";
+export { PHARMACY_SCHEMA_NAME, dispense, dispenseRecords, dispenseLineItems } from "./schema/tables.js";
 export { applyPharmacySchemaMigration } from "./schema/apply-migration.js";
 
 export { createPharmacyAuthzTargetResolver } from "./authz/pharmacy-authz-target-resolver.js";

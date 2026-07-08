@@ -4,20 +4,26 @@ export type DispenseFulfillmentStatus = "issued" | "partial_issue";
 
 export type PharmacyDispenseStatus = "pending" | DispenseFulfillmentStatus;
 
+export type DispensePriority = "stat" | "urgent" | "routine";
+
 export type DispenseRecord = {
   id: string;
   iq_tenant_id: string;
-  walk_in_order: boolean;
-  walk_in_patient_id: string | null;
-  visit_id: string | null;
-  patient_id: string | null;
+  visit_id: string;
+  patient_id: string;
   opd_prescription_id: string | null;
+  department_id: string | null;
+  branch_id: string | null;
+  inventory_store_id: string | null;
+  priority: DispensePriority;
   subtotal: string;
   discount: string;
   total_amount: string;
   notes: string | null;
   dispense_status: DispenseFulfillmentStatus;
+  dispense_draft_json: Record<string, unknown>;
   created_at: Date;
+  updated_at: Date;
   created_by: string | null;
 };
 
@@ -35,9 +41,11 @@ export type WalkInPatientRecord = {
 export type DispenseLineItemRecord = {
   id: string;
   iq_tenant_id: string;
-  dispense_record_id: string;
+  dispense_id: string;
   medicine_id: string | null;
   medicine_display_name: string;
+  opd_prescription_item_id: string | null;
+  opd_prescription_line_no: number | null;
   prescribed_quantity: string | null;
   quantity_dispensed: string;
   unit_amount: string;
@@ -45,7 +53,13 @@ export type DispenseLineItemRecord = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  stock_batch_id: string | null;
+  is_substitution: boolean;
+  substitute_of_line_id: string | null;
+  substitution_reason: string | null;
+  line_remarks: string | null;
   created_at: Date;
+  updated_at: Date;
 };
 
 /** Public API dispense line — excludes internal DB fields. */

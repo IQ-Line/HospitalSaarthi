@@ -1,7 +1,7 @@
 import {
   boolean,
-  date,
   foreignKey,
+  jsonb,
   numeric,
   pgSchema,
   primaryKey,
@@ -15,59 +15,48 @@ import { integer } from "drizzle-orm/pg-core";
 export const PHARMACY_SCHEMA_NAME = "pharmacy" as const;
 export const pharmacySchema = pgSchema(PHARMACY_SCHEMA_NAME);
 
-export const walkInPatients = pharmacySchema.table(
-  "walk_in_patients",
+/** OPD visit dispense header — one row per visit (IQSandbox `pharmacy_workflow` billing slice). */
+export const dispense = pharmacySchema.table(
+  "dispense",
   {
     id: uuid("id").defaultRandom().notNull(),
     ...tenantColumn(),
-    first_name: text("first_name").notNull(),
-    last_name: text("last_name"),
-    phone: text("phone"),
-    gender: text("gender").notNull(),
-    date_of_birth: date("date_of_birth"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
-);
-
-export const dispenseRecords = pharmacySchema.table(
-  "dispense_records",
-  {
-    id: uuid("id").defaultRandom().notNull(),
-    ...tenantColumn(),
-    walk_in_order: boolean("walk_in_order").notNull().default(false),
-    walk_in_patient_id: uuid("walk_in_patient_id"),
-    visit_id: uuid("visit_id"),
-    patient_id: uuid("patient_id"),
+    visit_id: uuid("visit_id").notNull(),
+    patient_id: uuid("patient_id").notNull(),
     opd_prescription_id: uuid("opd_prescription_id"),
+    department_id: uuid("department_id"),
+    branch_id: uuid("branch_id"),
+    inventory_store_id: uuid("inventory_store_id"),
+    priority: text("priority").notNull().default("routine"),
     subtotal: numeric("subtotal", { precision: 18, scale: 4 }).notNull().default("0"),
     discount: numeric("discount", { precision: 18, scale: 4 }).notNull().default("0"),
     total_amount: numeric("total_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     notes: text("notes"),
     dispense_status: text("dispense_status").notNull().default("issued"),
+    dispense_draft_json: jsonb("dispense_draft_json")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
   },
-  (t) => [
-    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
-    foreignKey({
-      name: "dispense_records_walk_in_patient_fk",
-      columns: [t.iq_tenant_id, t.walk_in_patient_id],
-      foreignColumns: [walkInPatients.iq_tenant_id, walkInPatients.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("no action"),
-  ],
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
 );
+
+/** @deprecated Use `dispense` — table renamed in migration 0001. */
+export const dispenseRecords = dispense;
 
 export const dispenseLineItems = pharmacySchema.table(
   "dispense_line_items",
   {
     id: uuid("id").defaultRandom().notNull(),
     ...tenantColumn(),
-    dispense_record_id: uuid("dispense_record_id").notNull(),
+    dispense_id: uuid("dispense_id").notNull(),
     medicine_id: uuid("medicine_id"),
     medicine_display_name: text("medicine_display_name").notNull(),
+    opd_prescription_item_id: uuid("opd_prescription_item_id"),
+    opd_prescription_line_no: integer("opd_prescription_line_no"),
     prescribed_quantity: numeric("prescribed_quantity", { precision: 12, scale: 4 }),
     quantity_dispensed: numeric("quantity_dispensed", { precision: 12, scale: 4 })
       .notNull()
@@ -77,20 +66,34 @@ export const dispenseLineItems = pharmacySchema.table(
     tax_percent: numeric("tax_percent", { precision: 8, scale: 4 }).notNull().default("0"),
     tax_amount: numeric("tax_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     line_total: numeric("line_total", { precision: 18, scale: 4 }).notNull().default("0"),
+    stock_batch_id: uuid("stock_batch_id"),
+    is_substitution: boolean("is_substitution").notNull().default(false),
+    substitute_of_line_id: uuid("substitute_of_line_id"),
+    substitution_reason: text("substitution_reason"),
+    line_remarks: text("line_remarks"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     foreignKey({
-      name: "dispense_line_items_dispense_record_fk",
-      columns: [t.iq_tenant_id, t.dispense_record_id],
-      foreignColumns: [dispenseRecords.iq_tenant_id, dispenseRecords.id],
+      name: "dispense_line_items_dispense_fk",
+      columns: [t.iq_tenant_id, t.dispense_id],
+      foreignColumns: [dispense.iq_tenant_id, dispense.id],
     })
       .onDelete("cascade")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "dispense_line_items_substitute_fk",
+      columns: [t.iq_tenant_id, t.substitute_of_line_id],
+      foreignColumns: [t.iq_tenant_id, t.id],
+    })
+      .onDelete("set null")
       .onUpdate("no action"),
   ],
 );
 
+/** Denormalized OPD prescription queue — synced from OPD on Rx finalize. */
 export const opdQueueProjection = pharmacySchema.table(
   "opd_queue_projection",
   {

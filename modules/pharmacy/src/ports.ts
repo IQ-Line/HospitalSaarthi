@@ -113,7 +113,6 @@ export interface OpdQueueProjectionRepo {
 
 export type PharmacyRepos = {
   dispenseRecordRepo: DispenseRecordRepo;
-  walkInDispenseRepo: WalkInDispenseRepo;
   opdQueueProjectionRepo: OpdQueueProjectionRepo;
 };
 

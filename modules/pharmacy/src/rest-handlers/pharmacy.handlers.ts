@@ -20,12 +20,6 @@ import {
   removeOpdQueueProjection,
 } from "../use-cases/upsert-opd-queue-projection.js";
 import type { OpdQueueProjectionUpsertRequest } from "../use-cases/upsert-opd-queue-projection.js";
-import {
-  WalkInDispenseNotFoundError,
-  getWalkInDispense,
-  saveWalkInDispense,
-  updateWalkInDispense,
-} from "../use-cases/walk-in-dispense.js";
 
 type QueueQuery = {
   page?: string;
@@ -61,7 +55,6 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
       try {
         const result = await listPharmacyQueue(
           {
-            walkInDispenseRepo: deps.walkInDispenseRepo,
             opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
           },
           request.tenantId,
@@ -238,106 +231,37 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
   app.post<{ Body: SaveWalkInDispenseInput }>(
     "/walk-in-dispense-orders",
     { config: { authMode: "protected" } },
-    async (request, reply) => {
-      try {
-        const result = await saveWalkInDispense(
-          { walkInDispenseRepo: deps.walkInDispenseRepo, masterDataGateway: deps.masterDataGateway },
-          request.tenantId,
-          {
-            ...request.body,
-            createdBy: actorIdFromRequest(request),
-            bearerToken: bearerTokenFromHeaders(request.headers),
-          },
-        );
-        return reply.code(201).send(result);
-      } catch (error) {
-        if (error instanceof DispenseValidationError) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: "Bad Request",
-            message: error.message,
-          });
-        }
-        request.log.error({ err: error }, "pharmacy create walk-in dispense failed");
-        return reply.code(502).send({
-          statusCode: 502,
-          error: "Bad Gateway",
-          message: "Unable to create walk-in dispense order",
-        });
-      }
+    async (_request, reply) => {
+      return reply.code(410).send({
+        statusCode: 410,
+        error: "Gone",
+        message:
+          "Walk-in dispense orders are removed. Register the patient in EMPI and dispense against an OPD visit.",
+      });
     },
   );
 
   app.get<{ Params: RecordParams }>(
     "/walk-in-dispense-orders/:recordId",
     { config: { authMode: "protected" } },
-    async (request, reply) => {
-      try {
-        const result = await getWalkInDispense(
-          {
-            walkInDispenseRepo: deps.walkInDispenseRepo,
-            masterDataGateway: deps.masterDataGateway,
-          },
-          request.tenantId,
-          request.params.recordId,
-          bearerTokenFromHeaders(request.headers),
-        );
-        return reply.send(result);
-      } catch (error) {
-        if (error instanceof WalkInDispenseNotFoundError) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: "Not Found",
-            message: error.message,
-          });
-        }
-        request.log.error({ err: error }, "pharmacy get walk-in dispense failed");
-        return reply.code(502).send({
-          statusCode: 502,
-          error: "Bad Gateway",
-          message: "Unable to load walk-in dispense order",
-        });
-      }
+    async (_request, reply) => {
+      return reply.code(410).send({
+        statusCode: 410,
+        error: "Gone",
+        message: "Walk-in dispense orders are removed.",
+      });
     },
   );
 
   app.put<{ Params: RecordParams; Body: SaveWalkInDispenseInput }>(
     "/walk-in-dispense-orders/:recordId",
     { config: { authMode: "protected" } },
-    async (request, reply) => {
-      try {
-        const result = await updateWalkInDispense(
-          { walkInDispenseRepo: deps.walkInDispenseRepo, masterDataGateway: deps.masterDataGateway },
-          request.tenantId,
-          {
-            recordId: request.params.recordId,
-            ...request.body,
-            bearerToken: bearerTokenFromHeaders(request.headers),
-          },
-        );
-        return reply.send(result);
-      } catch (error) {
-        if (error instanceof WalkInDispenseNotFoundError) {
-          return reply.code(404).send({
-            statusCode: 404,
-            error: "Not Found",
-            message: error.message,
-          });
-        }
-        if (error instanceof DispenseValidationError) {
-          return reply.code(400).send({
-            statusCode: 400,
-            error: "Bad Request",
-            message: error.message,
-          });
-        }
-        request.log.error({ err: error }, "pharmacy update walk-in dispense failed");
-        return reply.code(502).send({
-          statusCode: 502,
-          error: "Bad Gateway",
-          message: "Unable to update walk-in dispense order",
-        });
-      }
+    async (_request, reply) => {
+      return reply.code(410).send({
+        statusCode: 410,
+        error: "Gone",
+        message: "Walk-in dispense orders are removed.",
+      });
     },
   );
 }

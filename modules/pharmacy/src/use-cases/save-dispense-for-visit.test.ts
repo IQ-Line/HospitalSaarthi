@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
+import { mockDispenseLine, mockDispenseRecord } from "../test-fixtures/dispense.js";
 import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, OpdQueueProjectionRepo, UserLookupPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import {
@@ -77,38 +78,30 @@ describe("saveDispenseForVisit", () => {
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
       upsertForVisit: vi.fn(async () => ({
-        record: {
+        record: mockDispenseRecord({
           id: "rec-2",
           iq_tenant_id: TENANT,
-          walk_in_order: false,
-          walk_in_patient_id: null,
           visit_id: VISIT,
           patient_id: "patient-2",
           opd_prescription_id: "rx-2",
           subtotal: "20.0000",
-          discount: "0.0000",
           total_amount: "20.0000",
-          notes: null,
-          dispense_status: "issued",
           created_at: new Date("2026-06-02T09:00:00.000Z"),
+          updated_at: new Date("2026-06-02T09:00:00.000Z"),
           created_by: "user-1",
-        },
+        }),
         lines: [
-          {
+          mockDispenseLine({
             id: "line-2",
             iq_tenant_id: TENANT,
-            dispense_record_id: "rec-2",
+            dispense_id: "rec-2",
             medicine_id: MED_ID,
             medicine_display_name: "Tab A",
-            prescribed_quantity: null,
             quantity_dispensed: "2",
-            unit_amount: "10",
-            line_discount: "0.0000",
-            tax_percent: "0.0000",
-            tax_amount: "0.0000",
             line_total: "20.0000",
             created_at: new Date("2026-06-02T09:00:00.000Z"),
-          },
+            updated_at: new Date("2026-06-02T09:00:00.000Z"),
+          }),
         ],
       })),
     };
@@ -150,38 +143,30 @@ describe("saveDispenseForVisit", () => {
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
       upsertForVisit: vi.fn(async () => ({
-        record: {
+        record: mockDispenseRecord({
           id: "rec-3",
           iq_tenant_id: TENANT,
-          walk_in_order: false,
-          walk_in_patient_id: null,
           visit_id: VISIT,
           patient_id: "patient-2",
           opd_prescription_id: "rx-2",
           subtotal: "100.0000",
           discount: "10.0000",
           total_amount: "90.0000",
-          notes: null,
-          dispense_status: "issued",
           created_at: new Date("2026-06-02T10:00:00.000Z"),
-          created_by: null,
-        },
+          updated_at: new Date("2026-06-02T10:00:00.000Z"),
+        }),
         lines: [
-          {
+          mockDispenseLine({
             id: "line-3",
             iq_tenant_id: TENANT,
-            dispense_record_id: "rec-3",
+            dispense_id: "rec-3",
             medicine_id: MED_ID,
             medicine_display_name: "Tab B",
-            prescribed_quantity: null,
             quantity_dispensed: "10",
-            unit_amount: "10",
-            line_discount: "0.0000",
-            tax_percent: "0.0000",
-            tax_amount: "0.0000",
             line_total: "100.0000",
             created_at: new Date("2026-06-02T10:00:00.000Z"),
-          },
+            updated_at: new Date("2026-06-02T10:00:00.000Z"),
+          }),
         ],
       })),
     };
