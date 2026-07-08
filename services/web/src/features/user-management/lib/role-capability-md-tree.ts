@@ -6,7 +6,6 @@ import {
   WIZARD_MODULE_TREE_MAX_LEVEL,
 } from '@/features/configurator/components/create-tenant-wizard/wizard-module-tree';
 import type { Module } from '@/features/master-data/types';
-import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import type { Capability } from '../types';
 
 export { WIZARD_MODULE_TREE_MAX_LEVEL as MASTER_DATA_PERMISSION_TREE_MAX_LEVEL };
@@ -25,7 +24,7 @@ function indexModulesBySlug(modules: Module[]): Map<string, Module[]> {
 
 /**
  * Resolves the Master Data `modules.slug` for a runtime capability row.
- * Role-capability API responses may omit provenance; legacy keys use `um:*` / `user-management:*`.
+ * Role-capability API responses may omit provenance; fall back to the key's module segment.
  */
 export function resolveCapabilityCatalogModuleSlug(
   capability: Capability,
@@ -34,7 +33,7 @@ export function resolveCapabilityCatalogModuleSlug(
   const bySlug = indexModulesBySlug(modules);
   const candidates = [
     capability.source_module_slug?.trim(),
-    canonicalizeRuntimeCapabilityKey(capability.capability_key).split(':')[0]?.trim(),
+    capability.capability_key.trim().toLowerCase().split(':')[0]?.trim(),
     capability.module?.trim(),
   ].filter((value): value is string => Boolean(value?.length));
 

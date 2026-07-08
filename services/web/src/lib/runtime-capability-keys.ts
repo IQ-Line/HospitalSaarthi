@@ -19,7 +19,6 @@ export const UM_CAPABILITY_READ = 'user-capabilities:user-capabilities:read' as 
 
 export const MD_VISITPAD_VIEW = 'visitpad-master:visitpad:view' as const;
 export const MD_VISITPAD_CREATE = 'visitpad-master:visitpad:create' as const;
-/** Retired L1 ``visitpad-templates:catalog:*`` keys — remap only (see legacy-capability-key-remap). */
 export const MD_VISITPAD_CATALOG_READ = 'visitpad-master:visitpad:view' as const;
 export const MD_VISITPAD_UPDATE = 'visitpad-master:visitpad:create' as const;
 export const MD_VISITPAD_DELETE = 'visitpad-master:visitpad:create' as const;

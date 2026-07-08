@@ -60,13 +60,6 @@ describe('capabilityKeysGrantProductAccess', () => {
     expect(capabilityKeysGrantProductAccess(keys, ['master-data'], catalogIndex)).toBe(false);
   });
 
-  it('canonicalizes legacy um:* keys for user-management', () => {
-    const keys = new Set(['um:user:read']);
-    expect(
-      capabilityKeysGrantProductAccess(keys, ['user-management'], catalogIndex),
-    ).toBe(true);
-  });
-
   it('grants visitpad-master for visitpad:view shell key without L2 keys', () => {
     const keys = new Set(['visitpad-master:visitpad:view']);
     expect(

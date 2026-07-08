@@ -12,9 +12,9 @@ describe("intersectCapabilityKeys", () => {
     ).toEqual(["opd:visits:read", "users:users:read"]);
   });
 
-  it("canonicalizes keys before intersection", () => {
+  it("normalizes case and whitespace before intersection", () => {
     const entitled = new Set(["users:users:read"]);
-    expect(intersectCapabilityKeys(["um:user:read"], entitled)).toEqual(["users:users:read"]);
+    expect(intersectCapabilityKeys([" USERS:Users:READ "], entitled)).toEqual(["users:users:read"]);
   });
 
   it("returns empty when entitlement set is empty", () => {

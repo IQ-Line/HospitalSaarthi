@@ -49,6 +49,17 @@ export function normalizeCapabilityKey(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
+/** Trimmed, lowercased, deduplicated, sorted keys for Cerbos and GET /auth/principal. */
+export function normalizeRuntimeCapabilityKeys(keys: readonly string[]): string[] {
+  const set = new Set<string>();
+  for (const key of keys) {
+    const normalized = normalizeCapabilityKey(key);
+    if (normalized.length === 0) continue;
+    set.add(normalized);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
 export function runtimeModuleKeyForCatalogSlug(catalogModuleSlug: string): string {
   return assertValidModuleSlug(catalogModuleSlug, "capabilities.module");
 }

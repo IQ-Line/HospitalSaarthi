@@ -1,5 +1,4 @@
 import { assertValidRuntimeCapabilityRow } from "../domain/capability-key.js";
-import { projectCapabilityRowToCanonical } from "../domain/legacy-capability-key-remap.js";
 import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
 import { assertValidModuleSlug, normalizeModuleSlug } from "../domain/module-slug.js";
 import type { Capability, CapabilityRepository } from "../ports/index.js";
@@ -23,11 +22,11 @@ export class InMemoryCapabilityRepository implements CapabilityRepository {
         source_permission_slug: seed.capability.source_permission_slug,
         source_catalog: seed.capability.source_catalog ?? null,
       });
-      const capability = projectCapabilityRowToCanonical({
+      const capability = {
         ...seed.capability,
         module,
         ...provenance,
-      });
+      };
       assertValidRuntimeCapabilityRow(capability, `seed:${seed.capability.id}`);
       this.capabilities.set(capabilityKey(seed.capability.id), capability);
     }

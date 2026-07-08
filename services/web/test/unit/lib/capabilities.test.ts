@@ -14,7 +14,7 @@ describe('capabilities (store-backed)', () => {
   });
 
   it('normalizes keys case-insensitively', () => {
-    usePermissionsStore.getState().setCapabilityKeys(['UM:USER:READ']);
+    usePermissionsStore.getState().setCapabilityKeys(['USERS:Users:READ']);
     expect(hasCapability('users:users:read')).toBe(true);
   });
 

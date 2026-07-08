@@ -41,7 +41,6 @@ import {
   registerTenantEntitlementCacheEventConsumers,
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
-  deactivateSupersededLegacyCapabilities,
   HttpConfiguratorTenantModuleEntitlementAdapter,
   HttpMasterDataModuleCatalogAdapter,
   tenantApiKeyAuthPlugin,
@@ -159,14 +158,6 @@ async function createApp(app: FastifyInstance): Promise<FastifyInstance> {
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
   const platformAdminRepository = new DrizzlePlatformAdminRepository(pgDb);
-
-  const legacyCleanup = await deactivateSupersededLegacyCapabilities(pgDb);
-  if (legacyCleanup.deactivated > 0) {
-    app.log.info(
-      { deactivatedKeys: legacyCleanup.deactivatedKeys },
-      "Deactivated superseded legacy capability catalog rows",
-    );
-  }
 
   const startupValidation = await validateRuntimeAuthorizationStartup({
     configuratorUrl,

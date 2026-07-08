@@ -1,8 +1,8 @@
-import { canonicalizeRuntimeCapabilityKey } from "./legacy-capability-key-remap.js";
+import { normalizeCapabilityKey } from "./capability-key.js";
 
 /**
  * Returns stored capability keys that are also in the tenant entitlement set.
- * Keys are canonicalized before membership check; output is deduplicated and sorted.
+ * Keys are normalized before membership check; output is deduplicated and sorted.
  */
 export function intersectCapabilityKeys(
   storedKeys: readonly string[],
@@ -12,14 +12,14 @@ export function intersectCapabilityKeys(
   for (const key of entitledKeys) {
     const trimmed = key.trim();
     if (trimmed.length === 0) continue;
-    entitledCanonical.add(canonicalizeRuntimeCapabilityKey(trimmed));
+    entitledCanonical.add(normalizeCapabilityKey(trimmed));
   }
 
   const effective = new Set<string>();
   for (const key of storedKeys) {
     const trimmed = key.trim();
     if (trimmed.length === 0) continue;
-    const canonical = canonicalizeRuntimeCapabilityKey(trimmed);
+    const canonical = normalizeCapabilityKey(trimmed);
     if (entitledCanonical.has(canonical)) {
       effective.add(canonical);
     }

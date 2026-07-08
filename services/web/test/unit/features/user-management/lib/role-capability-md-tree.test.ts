@@ -71,14 +71,14 @@ describe('role-capability-md-tree', () => {
     expect(enabled.has('l4')).toBe(false);
   });
 
-  it('resolves legacy um:user:read to users catalog slug via canonical key', () => {
+  it('falls back to the capability_key module segment when provenance is missing', () => {
     const modules = [
       module('l1', null, 1, 'user-management', 'User Management'),
       module('l2', 'l1', 2, 'users', 'Users'),
     ];
     const cap: Capability = {
-      ...capability('cap-1', 'user-management', 'um:user:read'),
-      capability_key: 'um:user:read',
+      ...capability('cap-1', 'user-management', 'users:users:read'),
+      capability_key: 'users:users:read',
       module: 'user-management',
       source_module_slug: null,
       source_permission_slug: null,

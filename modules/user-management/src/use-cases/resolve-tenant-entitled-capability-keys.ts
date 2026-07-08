@@ -1,4 +1,4 @@
-import { canonicalizeRuntimeCapabilityKeys } from "../domain/legacy-capability-key-remap.js";
+import { normalizeRuntimeCapabilityKeys } from "../domain/capability-key.js";
 import type { TenantEntitlementResolution } from "../ports/module-integration-ports.js";
 import type { ModuleEntitlementRequestContext } from "../ports/index.js";
 import {
@@ -23,7 +23,7 @@ export async function resolveTenantEntitledCapabilityKeys(
 ): Promise<TenantEntitlementResolution> {
   const assignable = await listAssignableRuntimeCapabilities(deps, tenantId, context);
   const rawKeys = assignable.map((capability) => capability.capability_key);
-  const entitledCapabilityKeys = new Set(canonicalizeRuntimeCapabilityKeys(rawKeys));
+  const entitledCapabilityKeys = new Set(normalizeRuntimeCapabilityKeys(rawKeys));
   const sortedKeys = [...entitledCapabilityKeys].sort((a, b) => a.localeCompare(b));
   return {
     entitledCapabilityKeys,

@@ -290,23 +290,10 @@ export {
   loadMasterDataModulePermissions,
   syncCapabilitiesFromMasterDataCatalog,
 } from "./dev/sync-capabilities-from-master-data-catalog.js";
-export {
-  LEGACY_CAPABILITY_KEY_PREFIXES,
-  isLegacyCapabilityKey,
-} from "./dev/legacy-capability-key-prefixes.js";
-export {
-  listLegacyCapabilityKeys,
-  removeLegacyCapabilitiesFromCatalog,
-} from "./dev/remove-legacy-capabilities.js";
-export { deactivateSupersededLegacyCapabilities } from "./dev/deactivate-superseded-legacy-capabilities.js";
 export type {
   MasterDataModulePermissionRow,
   SyncCapabilitiesFromMasterDataResult,
 } from "./dev/sync-capabilities-from-master-data-catalog.js";
-export type {
-  RemoveLegacyCapabilitiesOptions,
-  RemoveLegacyCapabilitiesResult,
-} from "./dev/remove-legacy-capabilities.js";
 export type {
   MappedRuntimeCapability,
   MasterDataPermissionRef,
