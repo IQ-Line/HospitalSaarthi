@@ -53,7 +53,7 @@ from opd.integrations.fhir_bundle_mappers import (
     to_practitioner_input,
     to_prescription_input,
 )
-from opd.integrations.op_consult_report import (
+from opd.integrations.report_constants import (
     OP_CONSULT_HI_TYPE,
     OPD_SLIP_HI_TYPE,
 )

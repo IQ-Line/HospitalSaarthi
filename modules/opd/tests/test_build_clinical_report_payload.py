@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from opd.data_access.registration_patient_source import VisitPatientSource
 from opd.lib.build_clinical_report_payload import (
     _map_medical_history,
     build_clinical_report_request,
@@ -7,6 +11,21 @@ from opd.lib.build_clinical_report_payload import (
     validate_report_request,
 )
 from opd.lib.clinical_report_context import ClinicalReportContext
+
+
+def _sample_source() -> VisitPatientSource:
+    """A real (contract-valid) visit source — the report models validate their input."""
+    return VisitPatientSource(
+        visit_uuid=uuid4(),
+        visit_number="V-001",
+        visit_created_at=datetime(2024, 1, 1, 10, 30, tzinfo=UTC),
+        patient_id=uuid4(),
+        patient_name="Test Patient",
+        patient_uhid="UHID1",
+        patient_phone=None,
+        patient_abha_number=None,
+        patient_abha_address=None,
+    )
 
 
 def _sample_form_data() -> dict:
@@ -29,16 +48,7 @@ def _sample_form_data() -> dict:
 
 
 def test_prescription_report_available_from_stored_form_data() -> None:
-    from unittest.mock import MagicMock
-
-    source = MagicMock()
-    source.visit_number = "V-001"
-    source.patient_name = "Test Patient"
-    source.patient_age_years = 30
-    source.patient_gender = "male"
-    source.patient_uhid = "UHID1"
-    source.doctor_name = "Dr Test"
-    source.department_name = "Medicine"
+    source = _sample_source()
 
     request = build_clinical_report_request(
         "prescription",
@@ -52,16 +62,7 @@ def test_prescription_report_available_from_stored_form_data() -> None:
 
 
 def test_op_consultation_report_includes_clinical_sections() -> None:
-    from unittest.mock import MagicMock
-
-    source = MagicMock()
-    source.visit_number = "V-001"
-    source.patient_name = "Test Patient"
-    source.patient_age_years = 30
-    source.patient_gender = "male"
-    source.patient_uhid = "UHID1"
-    source.doctor_name = "Dr Test"
-    source.department_name = "Medicine"
+    source = _sample_source()
 
     request = build_clinical_report_request(
         "op-consultation",
@@ -77,21 +78,12 @@ def test_op_consultation_report_includes_clinical_sections() -> None:
 
 
 def test_medicine_strength_falls_back_to_clinical_payload() -> None:
-    from unittest.mock import MagicMock
-
     from opd.schemas.prescription.prescription import (
         PrescriptionClinicalPayload,
         PrescriptionMedicinePayload,
     )
 
-    source = MagicMock()
-    source.visit_number = "V-001"
-    source.patient_name = "Test Patient"
-    source.patient_age_years = 30
-    source.patient_gender = "male"
-    source.patient_uhid = "UHID1"
-    source.doctor_name = "Dr Test"
-    source.department_name = "Medicine"
+    source = _sample_source()
 
     clinical = PrescriptionClinicalPayload(
         medicines=[
@@ -174,16 +166,7 @@ def test_report_medical_history_surfaces_diet_from_normalized_clinical() -> None
 
 
 def test_immunization_date_of_dose_is_date_only() -> None:
-    from unittest.mock import MagicMock
-
-    source = MagicMock()
-    source.visit_number = "V-001"
-    source.patient_name = "Test Patient"
-    source.patient_age_years = 30
-    source.patient_gender = "male"
-    source.patient_uhid = "UHID1"
-    source.doctor_name = "Dr Test"
-    source.department_name = "Medicine"
+    source = _sample_source()
 
     form = _sample_form_data()
     request = build_clinical_report_request(

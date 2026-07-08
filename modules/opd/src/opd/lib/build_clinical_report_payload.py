@@ -5,6 +5,11 @@ from uuid import uuid4
 
 from opd.data_access.registration_patient_source import VisitPatientSource
 from opd.lib.clinical_report_context import ClinicalReportContext
+from opd.lib.generated.report_contracts import (
+    ImmunizationReportRequest,
+    OpConsultationReportRequest,
+    PrescriptionReportRequest,
+)
 from opd.lib.vitals_report_bundle import build_vitals_report_bundle
 from opd.schemas.prescription.prescription import PrescriptionClinicalPayload
 
@@ -527,25 +532,39 @@ def build_clinical_report_request(
     clinical: PrescriptionClinicalPayload | None = None,
     visitpad_vitals: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Build pdf-platform typed request body for prescription, OP consult, or immunization."""
+    """Build pdf-platform typed request body for prescription, OP consult, or immunization.
+
+    The request is constructed from the generated contract models
+    (``opd.lib.generated.report_contracts``) and serialized with
+    ``model_dump(mode="json", exclude_none=True)`` so the wire shape is
+    generated-from-contract and cannot silently drift. ``exclude_none`` drops
+    ``None`` optionals (the server's ``.strict()`` schemas reject JSON ``null``),
+    replacing the old hand-rolled ``_omit_none`` in the HTTP client.
+    """
     base = _clinical_base(source, context, report_type)
 
     if report_type == "prescription":
-        return {
+        payload = {
             **base,
             "diagnoses": _map_diagnoses(form_data),
-            "medicines": _enrich_medicines_from_clinical(
-                _map_medicines(form_data),
-                clinical,
-            ),
+            "medicines": _enrich_medicines_from_clinical(_map_medicines(form_data), clinical),
         }
+        return PrescriptionReportRequest.model_validate(payload).model_dump(
+            mode="json", exclude_none=True
+        )
 
     if report_type == "immunization":
-        return {
-            **base,
-            "immunizations": _map_immunizations(form_data),
-            "showDepartment": True,
-        }
+        immunizations = _map_immunizations(form_data)
+        if not immunizations:
+            # The contract requires >=1 immunization, so the typed model cannot be
+            # built here. Return the (unrenderable) request unchanged so the caller's
+            # validate_report_request() can report a friendly "no records" reason —
+            # this body is never POSTed, it is rejected upstream first.
+            return {**base, "immunizations": [], "showDepartment": True}
+        payload = {**base, "immunizations": immunizations, "showDepartment": True}
+        return ImmunizationReportRequest.model_validate(payload).model_dump(
+            mode="json", exclude_none=True
+        )
 
     vitals_bundle = build_vitals_report_bundle(
         form_vitals=form_data.get("vitals") if isinstance(form_data.get("vitals"), dict) else {},
@@ -553,27 +572,25 @@ def build_clinical_report_request(
         visitpad_vitals=visitpad_vitals,
     )
 
-    request = {
+    payload = {
         **base,
         **vitals_bundle,
         "complaints": _map_complaints(form_data),
         "allergyDetails": _map_allergies(form_data),
         "diagnoses": _map_diagnoses(form_data),
-        "medicines": _enrich_medicines_from_clinical(
-            _map_medicines(form_data),
-            clinical,
-        ),
+        "medicines": _enrich_medicines_from_clinical(_map_medicines(form_data), clinical),
         "tests": _map_tests(form_data),
         "imaging": _map_imaging(form_data),
         "procedures": _map_procedures(form_data),
         "immunizations": _map_immunizations(form_data),
         "medicalHistory": _map_medical_history(form_data),
         "physicalActivity": _map_physical_activity(form_data),
+        "carePlan": _map_care_plan(form_data),
     }
-    care_plan = _map_care_plan(form_data)
-    if care_plan:
-        request["carePlan"] = care_plan
-    return _finalize_op_consultation_request(request)
+    dumped = OpConsultationReportRequest.model_validate(payload).model_dump(
+        mode="json", exclude_none=True
+    )
+    return _finalize_op_consultation_request(dumped)
 
 
 def _finalize_op_consultation_request(body: dict[str, Any]) -> dict[str, Any]:
