@@ -1,113 +1,127 @@
-from datetime import UTC, datetime
-from types import SimpleNamespace
-from uuid import uuid4
+"""Full HTTP CRUD against the REAL ``DepartmentRepository`` + in-memory SQLite.
 
+Previously this file injected a hand-written ``FakeDepartmentRepository`` (an
+in-memory list that re-implemented the real repo's flush side-effects), so the
+whole Departments router had zero persistence coverage — a broken repository
+would have stayed green. This exercises the real repository, the real partial-unique
+index (409 on duplicate active code), and the real not-found paths, matching the
+other five catalogs' ``*_crud_integration`` suites.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Generator, Iterator
+from uuid import UUID
+
+import pytest
 from fastapi.testclient import TestClient
 from hims_authz import Authz
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.api.deps import get_department_repository
+from app.api.deps import get_department_repository, get_session
 from app.core.catalog_scope import CatalogScope
 from app.main import create_app
+from app.models import Base
+from app.repositories.department_repository import DepartmentRepository
+
+_MISSING_ID = "00000000-0000-4000-8000-0000000000ff"
+_DEPARTMENTS = "/api/v1/master-data/departments"
 
 
-def _sample_department_row(**overrides):
-    now = datetime.now(UTC)
-    defaults = dict(
-        id=uuid4(),
-        name="General Medicine",
-        code="gen-med",
-        type="clinical",
-        description="OPD general medicine",
-        is_active=True,
-        is_deleted=False,
-        created_by=None,
-        updated_by=None,
-        created_at=now,
-        updated_at=now,
-    )
-    defaults.update(overrides)
-    return SimpleNamespace(**defaults)
-
-
-class FakeDepartmentRepository:
-    scope = CatalogScope(iq_tenant_id=None)
-
-    def __init__(self) -> None:
-        self._rows = [_sample_department_row()]
-
-    def list_departments(
-        self,
-        *,
-        search=None,
-        department_type=None,
-        limit=50,
-        offset=0,
-    ):
-        rows = self._rows
-        if department_type is not None:
-            rows = [r for r in rows if r.type == department_type.value]
-        if search:
-            term = search.strip().lower()
-            rows = [
-                r
-                for r in rows
-                if term in r.name.lower() or term in r.code.lower() or term in r.type.lower()
-            ]
-        total = len(rows)
-        page = rows[offset : offset + limit]
-        return page, total
-
-    def create_department(self, department):
-        # Mirror what the real repo's flush does: populate the columns whose
-        # values are DB/ORM-generated on insert (id, is_deleted, timestamps), so
-        # the response model can validate the returned row.
-        now = datetime.now(UTC)
-        if getattr(department, "id", None) is None:
-            department.id = uuid4()
-        if getattr(department, "is_deleted", None) is None:
-            department.is_deleted = False
-        if getattr(department, "created_at", None) is None:
-            department.created_at = now
-        if getattr(department, "updated_at", None) is None:
-            department.updated_at = now
-        self._rows.append(department)
-        return department
-
-
-def test_get_departments_returns_list(
-    test_authz: Authz, auth_headers: dict[str, str]
-) -> None:
-    app = create_app(deps={"authz": test_authz})
-    app.dependency_overrides[get_department_repository] = lambda: FakeDepartmentRepository()
-
-    response = TestClient(app, headers=auth_headers).get("/api/v1/master-data/departments")
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["total"] == 1
-    assert body["data"][0]["code"] == "gen-med"
-    assert body["data"][0]["type"] == "clinical"
-
-
-def test_post_department_creates_row(
-    test_authz: Authz, auth_headers: dict[str, str]
-) -> None:
-    app = create_app(deps={"authz": test_authz})
-    repo = FakeDepartmentRepository()
-    app.dependency_overrides[get_department_repository] = lambda: repo
-
-    response = TestClient(app, headers=auth_headers).post(
-        "/api/v1/master-data/departments",
-        json={
-            "name": "Cardiology",
-            "code": "CARD",
-            "type": "clinical",
-            "description": "Heart centre",
-        },
+@pytest.fixture()
+def department_sqlite_session() -> Iterator[Session]:
+    # StaticPool: one DB connection shared by test thread and TestClient worker thread.
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
     )
 
-    assert response.status_code == 201
-    body = response.json()["data"]
-    assert body["name"] == "Cardiology"
-    assert body["code"] == "card"
-    assert len(repo._rows) == 2
+    @event.listens_for(engine, "connect")
+    def _sqlite_fk(dbapi_connection, _connection_record) -> None:
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS master_tenant")
+        dbapi_connection.execute("ATTACH DATABASE ':memory:' AS master_global")
+
+    with engine.begin() as conn:
+        Base.metadata.create_all(bind=conn)
+    factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture()
+def department_client(
+    department_sqlite_session: Session,
+    test_authz: Authz,
+    auth_headers: dict[str, str],
+) -> Iterator[TestClient]:
+    app = create_app(deps={"authz": test_authz})
+
+    def _session() -> Generator[Session, None, None]:
+        yield department_sqlite_session
+
+    def _repo() -> DepartmentRepository:
+        # Global scope (iq_tenant_id=None) → the GLOBAL departments model + its
+        # `departments_code_active_key` partial-unique index.
+        return DepartmentRepository(department_sqlite_session, CatalogScope(iq_tenant_id=None))
+
+    app.dependency_overrides[get_session] = _session
+    app.dependency_overrides[get_department_repository] = _repo
+    with TestClient(app, headers=auth_headers) as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+def _create_json(name: str, code: str, **extra: object) -> dict:
+    body: dict = {"name": name, "code": code, "type": "clinical", "description": "d"}
+    body.update(extra)
+    return body
+
+
+def test_department_crud_lifecycle(department_client: TestClient, actor_sub: str) -> None:
+    r = department_client.post(_DEPARTMENTS, json=_create_json("Cardiology", "CARD"))
+    assert r.status_code == 201, r.text
+    body = r.json()["data"]
+    assert body["code"] == "card"  # persisted normalized (lowercased) by the real repo
+    assert body["created_by"] == actor_sub  # verified token sub, not a header
+    did = UUID(body["id"])
+
+    lst = department_client.get(_DEPARTMENTS)
+    assert lst.status_code == 200
+    assert lst.json()["total"] == 1  # the real row is actually in the DB
+
+    g = department_client.get(f"{_DEPARTMENTS}/{did}")
+    assert g.status_code == 200
+    assert g.json()["data"]["code"] == "card"
+
+    p = department_client.patch(f"{_DEPARTMENTS}/{did}", json={"name": "Cardiac Sciences"})
+    assert p.status_code == 200, p.text
+    assert p.json()["data"]["name"] == "Cardiac Sciences"
+    assert p.json()["data"]["updated_by"] == actor_sub
+
+    d = department_client.delete(f"{_DEPARTMENTS}/{did}")
+    assert d.status_code in (200, 204), d.text
+    # soft-deleted → no longer listed
+    assert department_client.get(_DEPARTMENTS).json()["total"] == 0
+
+
+def test_duplicate_active_code_conflicts(department_client: TestClient) -> None:
+    first = department_client.post(_DEPARTMENTS, json=_create_json("Cardiology", "CARD"))
+    assert first.status_code == 201, first.text
+    dup = department_client.post(_DEPARTMENTS, json=_create_json("Cardio Two", "CARD"))
+    assert dup.status_code == 409, dup.text  # real partial-unique index fires
+
+
+def test_get_missing_department_404(department_client: TestClient) -> None:
+    assert department_client.get(f"{_DEPARTMENTS}/{_MISSING_ID}").status_code == 404
+
+
+def test_delete_missing_department_404(department_client: TestClient) -> None:
+    assert department_client.delete(f"{_DEPARTMENTS}/{_MISSING_ID}").status_code == 404
