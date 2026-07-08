@@ -1,6 +1,8 @@
 import "./load-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
@@ -57,6 +59,21 @@ const fastifyAjv = {
 
 async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start registration-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route — healthz, docs, internal, api —
+  // gets an id bound to request.log and echoed on the response header.
+  await app.register(correlationIdPlugin);
+
+  // RFC 7807 problem+json for every error; the handler is inherited by all child scopes.
+  registerProblemErrorHandler(app);
 
   await app.register(cors, {
     credentials: true,
@@ -236,6 +253,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start registration-svc:", err);
   process.exit(1);
 });

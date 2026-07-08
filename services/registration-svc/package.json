@@ -12,6 +12,8 @@
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",

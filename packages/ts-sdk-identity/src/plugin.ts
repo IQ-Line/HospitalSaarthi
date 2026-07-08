@@ -68,14 +68,23 @@ async function identityPluginFn(
   options: IdentityPluginOptions,
 ): Promise<void> {
   fastify.decorateRequest("user", undefined as unknown as Principal);
-  fastify.decorateRequest("correlationId", "");
+  // `correlationId` may already be owned by `@hims/ts-sdk-observability`'s
+  // correlationIdPlugin (registered app-level, first). Guard so we don't
+  // double-decorate, and below we only resolve it if nothing set it yet —
+  // this keeps identity's standalone behavior intact for services without
+  // the observability plugin.
+  if (!fastify.hasRequestDecorator("correlationId")) {
+    fastify.decorateRequest("correlationId", "");
+  }
 
   fastify.addHook(
     "onRequest",
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const correlationId = resolveCorrelationId(request.headers["x-correlation-id"]);
-      request.correlationId = correlationId;
-      reply.header("x-correlation-id", correlationId);
+      if (!request.correlationId) {
+        const correlationId = resolveCorrelationId(request.headers["x-correlation-id"]);
+        request.correlationId = correlationId;
+        reply.header("x-correlation-id", correlationId);
+      }
 
       const rawUrl =
         typeof request.raw?.url === "string" && request.raw.url.length > 0
