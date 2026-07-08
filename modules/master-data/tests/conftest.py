@@ -85,7 +85,14 @@ def mint_token(
         "roles": ["platform-operator"],
         "jti": f"jti-{actor_id}-{now}",
         "iat": now,
-        "exp": now + 300,
+        # Generous TTL on purpose: the token is minted in the `auth_headers` fixture,
+        # but the request that verifies it happens after `create_app` + TestClient
+        # lifespan startup (which connects to the real Postgres). Under the full
+        # `nx affected` parallel load that setup can be CPU/DB-starved, so a short
+        # (e.g. 5-min) window intermittently expired mid-suite → "Signature has
+        # expired" 401s. 1h leaves ample margin. Do not tighten. Expiry rejection is
+        # a property of the shared TokenVerifier, not asserted via this fixture.
+        "exp": now + 3600,
         "iss": _ISSUER,
         "aud": _AUDIENCE,
     }
