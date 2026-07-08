@@ -32,8 +32,8 @@ Suite broadly strong (most files assert values, mapped shapes, arg payloads, gua
 | # | Location | Defect | Sev | Status |
 |---|----------|--------|-----|--------|
 | 1.1 | `modules/user-management/test/unit/data-access/principal-authorization-repository.snapshot.test.ts:25` | Wrong-thing assertion: name promises "reads user_capabilities only, not live role_capabilities" but sole guard is `expect(selectCallCount).toBe(1)`. `chain.from()` mock ignores its table arg, so a regression reading a live `role_capabilities` JOIN (still one select) stays green; `where()` returns a pre-baked clean row so trim/dedup/sort never runs. | med | ✅ FIXED — mock now captures the `from()` table and asserts it `.toBe(user_capabilities)` (proves the stated guarantee), and feeds duplicate/untrimmed/empty rows asserting the output is trimmed+deduped+empty-dropped+sorted. |
-| 1.2 | `modules/integration-hub/src/integrations/abdm/use-cases/m3/hiu/get-consent-artefact-records.test.ts:44` | Happy-path-only: only the `!isConsentHealthDataAccessible → null` guard runs. Value path (consentId filter, per-artefact build, `artefactHipName`, the `consentId && targets.length===0 → null` branch at SUT:54) never exercised. | med | ✅ FIXED — added 3 value-path tests (stubbing the 2 delegated helpers): per-artefact assembly + `hipName` extraction from `artefactJson.consentDetail.hip.name`, the consentId filter, and the consentId-miss→null branch. |
-| 1.3 | `modules/integration-hub/src/integrations/abdm/use-cases/m3/hiu/get-m3-attachment.test.ts:50` | Happy-path-only: all 4 tests force null (`listForRequest` always `[]`). Core `entryContentMatchesBundle` matching + `extractAttachmentContent` mapping never run; a break leaves all four `toBeNull()` green. | med | ✅ FIXED — kept the real consent-gate null tests; added value-path tests: match-by-FHIR-`id` (asserts the MATCHING entry's content goes to the extractor at `num`), careContextReference fallback on non-JSON content, and matched-but-not-extractable→null. |
+| 1.2 | `modules/integration-hub/src/integrations/abdm/use-cases/m3/hiu/get-consent-artefact-records.test.ts:44` | Happy-path-only: only the `!isConsentHealthDataAccessible → null` guard runs. Value path (consentId filter, per-artefact build, `artefactHipName`, the `consentId && targets.length===0 → null` branch at SUT:54) never exercised. | med | ✅ FIXED — added 3 value-path tests (stubbing the 2 delegated helpers): per-artefact assembly + `hipName` extraction from `artefactJson.consentDetail.hip.name`, the consentId filter, and the consentId-miss→null branch. *Fable re-audit 2026-07-08: the original fix mocked `isConsentHealthDataAccessible` with invented logic; replaced with the `importActual` pattern (real gate) + a granted-but-past-`dataEraseAt`→null test.* |
+| 1.3 | `modules/integration-hub/src/integrations/abdm/use-cases/m3/hiu/get-m3-attachment.test.ts:50` | Happy-path-only: all 4 tests force null (`listForRequest` always `[]`). Core `entryContentMatchesBundle` matching + `extractAttachmentContent` mapping never run; a break leaves all four `toBeNull()` green. | med | ✅ FIXED — kept the real consent-gate null tests; added value-path tests: match-by-FHIR-`id` (asserts the MATCHING entry's content goes to the extractor at `num`), careContextReference fallback on non-JSON content, and matched-but-not-extractable→null. *Fable re-audit 2026-07-08: `extractAttachmentContent` itself still had zero real coverage (only ever mocked); added 4 direct tests in `fhir-bundle-display.test.ts` (1-based `num` across collection order, out-of-range→null, skip/defaults, malformed→null).* |
 | **1.5** | `vitest.config.ts` in integration-hub / configurator / web (**systemic — found while fixing 1.2/1.3**) | **~24 `src/`-colocated `.test.ts` files never ran** — a `test/**`-only vitest `include` silently omitted every colocated unit test. **integration-hub** (16 files: fhir-bundle-display, secure-otp-compare, gateway-client.http, m0/m2/m3 use-cases), **configurator** (1: list-active-abdm-integration-profiles), **web** (7). False coverage: ~66 tests appeared to exist but executed nowhere; 1.2/1.3 were among them. (registration/user-management have no local config → vitest default already collected their src tests.) | high | ✅ FIXED — added `src/**/*.test.ts` to all three includes (keeps `test/integration/**` + `*.sandbox` out). integration-hub 69→85 files (195→239 tests); web 91→98 (475→497); configurator +1 file — all green. |
 | 1.4 | `modules/integration-hub/test/unit/integrations/abdm/lib/abdm-signature-verifier.test.ts:23` | Security-critical: only the reject path (missing issuer/audience in prod → false) tested; the signature-valid → `true` path never asserted, so an always-false (or always-true off-prod) verifier passes. Possibly covered by integration — confirm. | low | ⬜ |
 
@@ -100,8 +100,9 @@ The inventory-master feature (6 models × global+tenant = 12 tables, repos, **mo
 shipped with **no alembic migration** — every real DB (dev/CI/prod) 503s on `/inventory/*`. The
 SQLite tests only passed because `Base.metadata.create_all` fabricated the schema in memory; there
 is no Python equivalent of the TS drizzle drift-gate to catch this. **Fixed:** added
-`alembic/versions/0003_inventory_masters.py` (frozen DDL generated from the models, registered as
-Citus reference tables like every other catalog table). The 3 inventory integration tests now pass
+`alembic/versions/0003_inventory_masters.py` (frozen DDL generated from the models; all 12 tables
+registered as Citus reference tables — 0001 only registers a subset of its own, but this module
+distributes nothing, so full registration is the right shape). The 3 inventory integration tests now pass
 legitimately against real Citus. *Follow-up worth filing: add an alembic autogenerate drift-gate to
 CI (mirror the drizzle one) so model-vs-migration drift can't recur silently.*
 
@@ -123,9 +124,22 @@ registration module, so the integration conftest now materializes just those ext
 (as Citus reference tables, to compose with opd's `iq_tenant_id`-distributed tables in one
 transaction). This is explicit external-dependency scaffolding, not opd claiming ownership.
 
+*Fable re-audit 2026-07-08 hardened this scaffolding:* the empi tables opd's raw SQL reads
+(`empi.patients`/`empi.patient_identifiers`) were NOT materialized, leaving
+`load_visit_patient_source` — the module's most complex cross-module SQL — only ever mocked;
+they are now mirrored from empi's migrations (reference-mode, with the Citus planning
+constraint documented in-code) and the function has 4 real unmocked tests. Doing so surfaced
+real mirror drift: the `RegistrationPatientSnapshot` read-model lacked `patient_abha_number`
+which that SQL selects — fixed, and mirrors now drop-and-recreate per session so a persisted
+test DB can't keep stale shapes. The partial-unique prescription test now also proves the
+`WHERE (deleted_at IS NULL)` clause (soft-delete then re-insert). The remaining structural
+risk — mirrors are hand-kept, a rename in the owner keeps opd green while prod breaks — is
+the same missing-drift-gate class as the alembic follow-up above; both belong to the CI
+drift-gate work.
+
 ## Lint coverage for service projects, 2026-07-08
 
-9 `*-svc` projects shipped with **no `lint` target** (only `bff` had one) — never statically
+9 `*-svc` projects shipped with **no `lint` target** (bff, web, opd-svc and master-data-svc had one) — never statically
 analyzed. Added `@nx/eslint:lint` to the 3 that are already clean: **billing-svc, empi-svc,
 inventory-svc** (green via `nx run-many -t lint`).
 
@@ -170,7 +184,9 @@ clean + `nx run-many -t test` (24 projects green). One test runner now.
 ## nx target consistency — decision + minor cleanups, 2026-07-08
 
 **Plugin inference evaluated, deliberately NOT adopted now.** nx.json has no `plugins` array;
-every target is hand-authored (`targetDefaults` supplies cache/inputs). Adopting `@nx/eslint` +
+targets are hand-authored in project.json (`targetDefaults` supplies cache/inputs) — plus nx's
+always-on package.json-script inference, which silently adds a target per script (that inference
+is how the `db:migrate` duplicate below survived its first "removal"). Adopting `@nx/eslint` +
 `@nx/vite` inference would auto-generate lint/test targets and kill per-project drift — the
 idiomatic modern-nx end state. But it is invasive (inferred targets are invisible in project.json)
 for a team NEW to nx, and would need careful CI validation of `nx affected` behavior best done with
@@ -179,11 +195,48 @@ changes autonomously), this session standardized the concrete drift instead — 
 consistent lint-target shape on the services it added, catalog for vitest — and leaves full
 inference as a documented future option (the drift-class root cause remains, tracked here).
 
-**Minor cleanups applied:** removed duplicate migration targets — `master-data:migrate`
-(identical to `db-migrate`) and `integration-hub-svc:db:migrate` (identical to `db-migrate`).
-`db-migrate` is the repo-wide canonical name; neither dropped alias was referenced anywhere.
+**Minor cleanups applied:** removed duplicate migration targets; `db-migrate` is the repo-wide
+canonical name. *Fable re-audit 2026-07-08 corrected two false claims here:* (1) `master-data:migrate`
+WAS still referenced — 8 call-sites across SETUP.md / MODULE-CATALOG.md / local-dev.md / the
+visitpad plan, all updated to `db-migrate` (merge-notes left as frozen history); (2) deleting
+`db:migrate` from integration-hub-svc's project.json didn't remove the target — nx re-inferred it
+from the package.json script. The script is now removed too (with the deprecated
+`scripts/migrate.mjs` wrapper), and the operator hint in `http-errors.ts` points at
+`npx nx run integration-hub-svc:db-migrate`.
 
 **Considered, left as-is:** the `test` targetDefault's `dependsOn: ["^build"]` — flagged as
 possibly needless for esbuild/vitest, but several suites import workspace packages that ship as
 `dist` (unbuilt in dev), so the dependency is a correctness safeguard, not pure overhead. Not worth
 the breakage risk to remove; kept.
+
+## Fable re-audit of the whole sweep, 2026-07-08
+
+After the model switch, all 14 commits above (b8fd30c0→2e39c75e + Tier-1 b2b38041/628d8c53) were
+re-reviewed adversarially: 6 independent reviewers (migration parity, master-data test integrity,
+opd test integrity, vitest/catalog conversion, lint/nx cross-refs, earlier sweep commits) plus
+empirical re-runs of every green claim (master-data 188u+78i, opd suites, nx run-many test 26
+projects + typecheck 36 — all reproduced).
+
+**What held (the important part):** zero weakened/fudged tests anywhere — assertion sets
+byte-identical across the SQLite→Citus moves (443/443 master-data, 93/93 opd), and
+`0003_inventory_masters` proved EXACT model parity via compiled-DDL diff + a live
+upgrade→downgrade→re-upgrade cycle on real Citus.
+
+**What the re-audit caught and fixed (commits c0e40da3…d53513b9):**
+- `extractAttachmentContent` had zero real coverage (only ever a mock) though row 1.3 said FIXED;
+  get-consent-artefact-records tested an invented consent gate → both fixed (rows 1.2/1.3 amended).
+- `integration-hub-svc:db:migrate` "removal" was cosmetic (nx re-inferred it from the package.json
+  script) and `master-data:migrate` was still instructed in 8 live docs → both actually fixed.
+- modules/integration-hub's "narrowed include" was decorative (matched the same 86 files);
+  replaced with the honest contract. modules/registration got the missing base config;
+  ts-sdk-testing's peer still resolved vitest 4.1.5 → catalog-pinned, lockfile single-version.
+- master-data conftest: `alembic_version` lives in master_global and WAS being truncated
+  (docstring claimed otherwise) → excluded + schema-set pinned by assert; test-DB URL now also
+  exported to the app under test; empty placeholder test file deleted.
+- opd: empi mirrors + unmocked load_visit_patient_source tests + partial-index proof + dead-SQLite
+  sweep (see amendment above), incl. a real mirror-drift bug (missing patient_abha_number).
+
+**Still-open (tracked):** CI drift-gates (alembic autogenerate for Python modules; a parity gate
+for opd's hand-kept cross-module mirrors — same class); audit LOW rows 1.4, 2.3, 3.3/3.4,
+4.2/4.3/4.4; the 6-service lint gate (in progress); dep major-splits (typescript ^5/^6 vendored
+pulse, @cerbos/core 0.21/0.30).
