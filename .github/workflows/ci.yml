@@ -61,6 +61,13 @@ jobs:
       - uses: nrwl/nx-set-shas@v4
 
       # Stage 1: Static analysis
+      # Target conformance: every project must expose its class's canonical nx
+      # targets — guards the drift class (missing lint, phantom test targets)
+      # that plugin inference would have prevented; inference was rejected for
+      # this centralized-config layout (decision D6, cleanup master map).
+      - name: Nx target conformance
+        run: node tools/check-nx-target-conformance.mjs
+
       - name: Lint
         run: npx nx affected -t lint --parallel=3
 
