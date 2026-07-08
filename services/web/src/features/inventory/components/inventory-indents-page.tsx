@@ -136,8 +136,9 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
       status,
       page,
       limit: pageSize,
-      ...(direction === 'outgoing' && storeId ? { from_store_id: storeId } : {}),
-      ...(direction === 'incoming' && storeId ? { to_store_id: storeId } : {}),
+      // Outgoing = receiving store's requests (To). Incoming = approving/sending store's inbox (From).
+      ...(direction === 'outgoing' && storeId ? { to_store_id: storeId } : {}),
+      ...(direction === 'incoming' && storeId ? { from_store_id: storeId } : {}),
     }),
     [direction, page, pageSize, search, status, storeId],
   );
@@ -186,7 +187,7 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
         meta: { label: 'Indent date' },
         cell: ({ getValue }) => formatIndentDate(getValue<string>()),
       },
-      { accessorKey: 'to_store', header: 'To store', meta: { label: 'To store' } },
+      { accessorKey: 'from_store', header: 'From store', meta: { label: 'From store' } },
       {
         accessorKey: 'priority',
         header: 'Priority',
@@ -278,7 +279,7 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
         meta: { label: 'Indent date' },
         cell: ({ getValue }) => formatIndentDate(getValue<string>()),
       },
-      { accessorKey: 'from_store', header: 'Requesting store', meta: { label: 'Requesting store' } },
+      { accessorKey: 'to_store', header: 'Receiving store', meta: { label: 'Receiving store' } },
       {
         id: 'requested_by',
         header: 'Requested by',

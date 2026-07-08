@@ -79,8 +79,8 @@ export function InventoryTransferDialog({
     }
     if (indentPrefill) {
       setTransferDate(new Date().toISOString().slice(0, 10));
-      setFromStoreId(indentPrefill.to_store_id ?? '');
-      setToStoreId(indentPrefill.from_store_id);
+      setFromStoreId(indentPrefill.from_store_id);
+      setToStoreId(indentPrefill.to_store_id ?? '');
       setTransferType(
         indentPrefill.indent_type === 'emergency' ? 'emergency' : 'normal',
       );
