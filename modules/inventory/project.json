@@ -27,6 +27,13 @@
         "cwd": "modules/inventory"
       }
     },
+    "test:integration": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "TEST_DATABASE_URL=\"${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_inventory\" vitest run test/integration",
+        "cwd": "modules/inventory"
+      }
+    },
     "db-generate": {
       "executor": "nx:run-commands",
       "options": {

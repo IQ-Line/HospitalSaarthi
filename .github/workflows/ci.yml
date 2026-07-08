@@ -118,7 +118,7 @@ jobs:
         env:
           PGPASSWORD: hims
         run: |
-          for db in registration pharmacy user_management configurator empi billing record_foundation; do
+          for db in registration pharmacy user_management configurator empi billing record_foundation inventory; do
             psql -h 127.0.0.1 -U hims -d hims_test -c "CREATE DATABASE hims_test_$db;"
             psql -h 127.0.0.1 -U hims -d "hims_test_$db" -c "CREATE EXTENSION IF NOT EXISTS citus;"
           done
