@@ -2,6 +2,12 @@
   "name": "integration-hub",
   "tags": ["type:module", "scope:integration-hub", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/integration-hub"
+      }
+    },
     "db-generate": {
       "executor": "nx:run-commands",
       "options": {

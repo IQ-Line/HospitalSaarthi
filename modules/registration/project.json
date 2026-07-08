@@ -2,6 +2,12 @@
   "name": "registration",
   "tags": ["type:module", "scope:registration", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/registration"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

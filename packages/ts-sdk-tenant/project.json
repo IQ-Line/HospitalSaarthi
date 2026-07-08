@@ -8,6 +8,12 @@
     "type:sdk"
   ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-tenant"
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint"
     }

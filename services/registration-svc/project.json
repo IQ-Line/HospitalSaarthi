@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:registration", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/registration-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {

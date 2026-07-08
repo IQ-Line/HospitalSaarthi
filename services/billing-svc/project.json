@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:billing", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/billing-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {

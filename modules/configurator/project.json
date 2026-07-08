@@ -2,6 +2,12 @@
   "name": "configurator",
   "tags": ["type:module", "scope:configurator", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/configurator"
+      }
+    },
     "db-generate": {
       "executor": "nx:run-commands",
       "options": {

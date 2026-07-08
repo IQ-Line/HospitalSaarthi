@@ -6,6 +6,12 @@
     "language:typescript"
   ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/inventory"
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint",
       "options": {

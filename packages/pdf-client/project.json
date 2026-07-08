@@ -5,6 +5,12 @@
     "scope:platform"
   ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/pdf-client"
+      }
+    },
     "lint": {
       "command": "eslint src/",
       "options": {

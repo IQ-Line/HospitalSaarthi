@@ -5,6 +5,12 @@
   "projectType": "library",
   "tags": ["scope:shared", "type:sdk"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-india"
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint"
     },

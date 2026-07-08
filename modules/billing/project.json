@@ -2,6 +2,12 @@
   "name": "billing",
   "tags": ["type:module", "scope:billing", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/billing"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

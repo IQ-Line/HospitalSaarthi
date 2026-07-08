@@ -36,7 +36,6 @@
       }
     },
     "typecheck": {
-      "dependsOn": ["^build"],
       "command": "tsc -p tsconfig.json --noEmit",
       "options": {
         "cwd": "modules/user-management"

@@ -2,6 +2,12 @@
   "name": "record-foundation",
   "tags": ["type:module", "scope:record-foundation", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/record-foundation"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

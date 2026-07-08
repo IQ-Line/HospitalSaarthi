@@ -26,7 +26,7 @@
       "cache": true
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": [],
       "inputs": ["default", "^default"],
       "cache": true
     }

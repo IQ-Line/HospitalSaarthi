@@ -2,6 +2,12 @@
   "name": "pharmacy",
   "tags": ["type:module", "scope:pharmacy", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/pharmacy"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

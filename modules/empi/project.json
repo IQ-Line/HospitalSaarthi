@@ -2,6 +2,12 @@
   "name": "empi",
   "tags": ["type:module", "scope:empi", "language:typescript"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/empi"
+      }
+    },
     "test": {
       "executor": "nx:run-commands",
       "options": {

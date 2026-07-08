@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:record-foundation", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/record-foundation-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {

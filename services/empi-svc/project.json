@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:empi", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/empi-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
