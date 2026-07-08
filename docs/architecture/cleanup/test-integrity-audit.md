@@ -166,3 +166,24 @@ clean + `nx run-many -t test` (24 projects green). One test runner now.
 - **zod** — direct deps are all v3 (`^3.25.7`); the v4 install is transitive only. No action.
 - Benign single-installed-version range drift (`tsx`, `fastify`, `react`, `eslint`, `drizzle-orm`,
   `@types/*`, `@tanstack/*`, `@fastify/*`) can join the catalog incrementally; low risk, low urgency.
+
+## nx target consistency — decision + minor cleanups, 2026-07-08
+
+**Plugin inference evaluated, deliberately NOT adopted now.** nx.json has no `plugins` array;
+every target is hand-authored (`targetDefaults` supplies cache/inputs). Adopting `@nx/eslint` +
+`@nx/vite` inference would auto-generate lint/test targets and kill per-project drift — the
+idiomatic modern-nx end state. But it is invasive (inferred targets are invisible in project.json)
+for a team NEW to nx, and would need careful CI validation of `nx affected` behavior best done with
+the team present. Per the doctrine (simplest that does the job; don't make wide hard-to-reverse
+changes autonomously), this session standardized the concrete drift instead — shared vitest base,
+consistent lint-target shape on the services it added, catalog for vitest — and leaves full
+inference as a documented future option (the drift-class root cause remains, tracked here).
+
+**Minor cleanups applied:** removed duplicate migration targets — `master-data:migrate`
+(identical to `db-migrate`) and `integration-hub-svc:db:migrate` (identical to `db-migrate`).
+`db-migrate` is the repo-wide canonical name; neither dropped alias was referenced anywhere.
+
+**Considered, left as-is:** the `test` targetDefault's `dependsOn: ["^build"]` — flagged as
+possibly needless for esbuild/vitest, but several suites import workspace packages that ship as
+`dist` (unbuilt in dev), so the dependency is a correctness safeguard, not pure overhead. Not worth
+the breakage risk to remove; kept.

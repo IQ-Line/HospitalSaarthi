@@ -32,9 +32,6 @@
         "cwd": "services/integration-hub-svc"
       }
     },
-    "db:migrate": {
-      "dependsOn": ["integration-hub:db-migrate"]
-    },
     "db-migrate": {
       "dependsOn": ["integration-hub:db-migrate"]
     }

@@ -47,13 +47,6 @@
       },
       "dependsOn": ["setup"]
     },
-    "migrate": {
-      "command": "bash scripts/run-migrations.sh",
-      "options": {
-        "cwd": "modules/master-data"
-      },
-      "dependsOn": ["setup"]
-    },
     "db-migrate": {
       "command": "bash scripts/run-migrations.sh",
       "options": {
