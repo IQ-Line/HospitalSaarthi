@@ -7,13 +7,13 @@ import type {
 } from "../../../ports.js";
 import { getConsentArtefactRecords } from "./get-consent-artefact-records.js";
 
-// Isolate this use-case's OWN logic (accessibility gate, consentId filter, hipName
-// extraction, per-artefact assembly) from the two helpers it delegates to.
-vi.mock("./search-consent-requests.js", () => ({
-  isConsentHealthDataAccessible: (row: M3ConsentRequestRow) =>
-    row.state === M3Hiu.CONSENT_GRANTED,
-  loadArtefactDataPushed: vi.fn().mockResolvedValue(undefined),
-}));
+// Keep the REAL consent-accessibility gate (denied / erased / awaiting → not accessible),
+// but stub loadArtefactDataPushed so we can drive this use-case's OWN logic (consentId
+// filter, hipName extraction, per-artefact assembly) directly.
+vi.mock("./search-consent-requests.js", async (importActual) => {
+  const actual = await importActual<typeof import("./search-consent-requests.js")>();
+  return { ...actual, loadArtefactDataPushed: vi.fn().mockResolvedValue(undefined) };
+});
 
 const SESSION_ID = "00000000-0000-4000-8000-000000000001";
 const TENANT_ID = "00000000-0000-4000-8000-0000000000aa";
@@ -71,6 +71,18 @@ function makeDeps(row: M3ConsentRequestRow, artefacts: M3ConsentArtefactHiuRow[]
 describe("getConsentArtefactRecords", () => {
   it("returns null when consent is not accessible", async () => {
     const deps = makeDeps(consentRow({ state: M3Hiu.AWAITING_PATIENT_APPROVAL }), []);
+    const result = await getConsentArtefactRecords(
+      { iqTenantId: TENANT_ID, sessionId: SESSION_ID },
+      deps,
+    );
+    expect(result).toBeNull();
+  });
+
+  it("returns null when consent is granted but past dataEraseAt", async () => {
+    const deps = makeDeps(
+      consentRow({ state: M3Hiu.CONSENT_GRANTED, dataEraseAt: new Date("2020-01-01") }),
+      [artefact("art-1", "hip-A")],
+    );
     const result = await getConsentArtefactRecords(
       { iqTenantId: TENANT_ID, sessionId: SESSION_ID },
       deps,
