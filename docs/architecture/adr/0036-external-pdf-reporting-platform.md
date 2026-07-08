@@ -1,6 +1,6 @@
 # ADR-0036: `pdf-platform` is the report service; HIMS consumes ONE contract generated from its schema
 
-- **Status:** Accepted — staged migration in progress
+- **Status:** Accepted — migration IMPLEMENTED (all HIMS-side stages committed on `dev--improved-v1`: `f8cf038a`→`33a9ccb1`). One caveat: the upstream half (schema export + `opd-receipt` type) ships in **draft PR IQ-Line/smart-report-v2#12** (branch `feat/report-contract-schema-export`), not yet merged — HIMS codegen is pinned to `c50cc0a`; the pin bump is pending that PR's merge.
 - **Date:** 2026-07-08 (revised from the initial "vendor as git submodule" slice)
 - **Deciders:** Architect, Engineering Manager, Tech Lead
 - **Consulted:** Registration module owner, OPD module owner
@@ -53,9 +53,11 @@ The initial slice (reverted) vendored pdf-platform as a submodule at `external/p
 
 Trade-off accepted: HIMS depends on the upstream repo emitting and versioning the schema artifact (a coordinated change, done here), and full "data-only, no templates in HIMS" needs the upstream `opd-receipt` type. Both are within our control (same org, write access).
 
-## Current HIMS ↔ pdf-platform mapping (what each report uses today)
+## HIMS ↔ pdf-platform mapping (pre-consolidation baseline — kept for history)
 
-| HIMS report | Producer | Path used **today** | Data-driven type on pdf-platform? |
+> **This table is the PRE-consolidation baseline; it no longer describes the running system.** It cites paths this migration has since deleted (`renderOpdSlipReport`, the local `renderOPDSlipHtml`/`renderOPBillingHtml` → `/render-html`). **Post-consolidation, all six reports route through the typed `/v1/pdf/reports/:slug` (+`/html`) endpoints with structured data** — the registration slip *and* receipt included, the receipt via the new `opd-receipt` type — and no report HTML is built in HIMS. It is retained below to record what was replaced.
+
+| HIMS report | Producer | Path used **pre-consolidation** | Data-driven type on pdf-platform? |
 |---|---|---|---|
 | OPD slip (partner API) | `modules/registration` `render-partner-opd-slip-pdf.ts` | **`/v1/pdf/reports/opd-slip`** (data) via `pdf-client.renderOpdSlipReport` | ✅ `opd-slip` |
 | OPD slip (internal documents) | `modules/registration` `get-registration-documents.ts` | local `renderOPDSlipHtml` → **`/render-html`** | ✅ `opd-slip` (not used here yet) |
@@ -69,18 +71,23 @@ So the remaining hand-work is: (a) the two hand-written clients, (b) the scraped
 
 ## Migration plan (staged; each stage independently shippable)
 
-**Stage 0 — this ADR + revert the submodule slice.** Remove `.gitmodules`, the `external/pdf-platform` gitlink, and the `git submodule update` in `make setup`; `.gitignore` reserves `/external/` for the `make dev` clone. No behaviour change. *(done)*
+*Outcome annotations added post-execution — every HIMS-side stage is committed on `dev--improved-v1`; the only not-yet-merged piece is upstream Stage 1 (draft PR #12).*
+
+**Stage 0 — this ADR + revert the submodule slice.** Remove `.gitmodules`, the `external/pdf-platform` gitlink, and the `git submodule update` in `make setup`; `.gitignore` reserves `/external/` for the `make dev` clone. No behaviour change. **✅ DONE — `f8cf038a`** (revert submodule + ADR-0036 → Option C).
 
 **Stage 1 — upstream: schema export + `opd-receipt` (one PR into `smart-report-v2`).**
 - Add `zod-to-json-schema` emit script to `@pdf-platform/contracts`; commit a JSON-Schema bundle covering `opd-slip`, `op-consultation`, `immunization`, `prescription`, and the new `opd-receipt`.
 - Add the `opd-receipt` report type: slug in `REPORT_TYPES`, a `opdReceiptRequestSchema` (raw line items + discounts + received amount), a renderer that computes the summary via `billing-math.ts` and calls `renderOPBillingHtml`, plus route/bootstrap registration.
 - Verify: existing report tests green; the emitted bundle validates a sample of each type.
+- **◐ IMPLEMENTED, NOT YET MERGED — branch `feat/report-contract-schema-export`, draft PR IQ-Line/smart-report-v2#12, pin `c50cc0a`.** This is the ONE open dependency: HIMS codegen (Stage 2) is pinned to `c50cc0a`; the pin bumps to the merge commit when #12 lands.
 
-**Stage 2 — HIMS codegen + drift-gate.** `make gen:report-contracts` fetches the bundle (from the pinned upstream ref) and regenerates `packages/pdf-client` types (`json-schema-to-typescript`) and the Python client models (`datamodel-code-generator`) into committed files. CI regenerates and fails on any diff. Delete the hand-written `pdf-client/src/types.ts` interfaces and the hand-built Python `dict` shapes in favour of the generated types (the Python client keeps its mandatory `_omit_none` — the `.strict()` schemas reject JSON `null` on optionals — and its slug map).
+**Stage 2 — HIMS codegen + drift-gate.** `make gen:report-contracts` fetches the bundle (from the pinned upstream ref) and regenerates `packages/pdf-client` types (`json-schema-to-typescript`) and the Python client models (`datamodel-code-generator`) into committed files. CI regenerates and fails on any diff. Delete the hand-written `pdf-client/src/types.ts` interfaces and the hand-built Python `dict` shapes in favour of the generated types (the Python client keeps its mandatory `_omit_none` — the `.strict()` schemas reject JSON `null` on optionals — and its slug map). **✅ DONE — `3ad7cba3`** (codegen TS+Python from vendored schema + CI drift-gate) **+ `2f4db3c3`** (`--use-annotated`, pyright-clean Python models).
 
-**Stage 3 — move registration onto typed endpoints.** Switch `get-registration-documents.ts` from local-HTML `renderOpdSlipDocumentHtml`/`renderOpdReceiptDocumentHtml` + `/render-html` to structured `/v1/pdf/reports/opd-slip` and `/v1/pdf/reports/opd-receipt`. The receipt summary computation (`computeOPDBillingSummary` and the `build-opd-receipt-payload.ts` helpers) moves **server-side** into the new upstream renderer; HIMS sends raw billing data. Correctness gate: smoke-render each produces a valid PDF (pre-production, malleable — no pixel-parity-vs-old requirement).
+**Stage 3 — move registration onto typed endpoints.** Switch `get-registration-documents.ts` from local-HTML `renderOpdSlipDocumentHtml`/`renderOpdReceiptDocumentHtml` + `/render-html` to structured `/v1/pdf/reports/opd-slip` and `/v1/pdf/reports/opd-receipt`. The receipt summary computation (`computeOPDBillingSummary` and the `build-opd-receipt-payload.ts` helpers) moves **server-side** into the new upstream renderer; HIMS sends raw billing data. Correctness gate: smoke-render each produces a valid PDF (pre-production, malleable — no pixel-parity-vs-old requirement). **✅ DONE — `d129075f`** (registration → typed `/reports` + deleted `packages/registration-reports` & the scrape tool).
 
-**Stage 4 — retire the scrape and dead code.** Delete `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/` (relocating its few non-template exports — logo data URL, patient-name-line helper — into `modules/registration` if still needed), the `render*DocumentHtml` wrappers, and the dead render functions in `op_consult_report.py` (keeping only `OP_CONSULT_HI_TYPE` / `OPD_SLIP_HI_TYPE`, which `abdm_m2.py` reads — move them to a small constants module). Verify no remaining importers.
+**Stage 4 — retire the scrape and dead code.** Delete `tools/extract-opd-report-templates.mjs`, `packages/registration-reports/` (relocating its few non-template exports — logo data URL, patient-name-line helper — into `modules/registration` if still needed), the `render*DocumentHtml` wrappers, and the dead render functions in `op_consult_report.py` (keeping only `OP_CONSULT_HI_TYPE` / `OPD_SLIP_HI_TYPE`, which `abdm_m2.py` reads — move them to a small constants module). Verify no remaining importers. **✅ DONE — `d129075f`** (scrape tool + `registration-reports` deleted) **+ `33a9ccb1`** (opd Python → generated models + deleted dead `op_consult_report` render fns).
+
+**Local run.** `make pdf-platform-up` / `make pdf-platform-down` clone + run pdf-platform (Gotenberg included) at the pinned ref for end-to-end rendering. **✅ DONE — `a32c1861`.**
 
 ## Consequences
 
