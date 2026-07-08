@@ -1,5 +1,8 @@
 import { resolve } from 'node:path';
+
 import { defineConfig } from 'vitest/config';
+
+import { baseTest } from '../../vitest.base';
 
 export default defineConfig({
   resolve: {
@@ -9,9 +12,5 @@ export default defineConfig({
       '@hims/ts-sdk-fhir': resolve(__dirname, '../../packages/ts-sdk-fhir/src/index.ts'),
     },
   },
-  test: {
-    environment: 'node',
-    // Include colocated src tests too — a `test/**`-only include silently skips them.
-    include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
-  },
+  test: { ...baseTest },
 });

@@ -1,5 +1,8 @@
 import path from "node:path";
+
 import { defineConfig } from "vitest/config";
+
+import { baseTest } from "../../vitest.base";
 
 export default defineConfig({
   resolve: {
@@ -16,8 +19,5 @@ export default defineConfig({
       ),
     },
   },
-  test: {
-    environment: "node",
-    include: ["test/**/*.test.ts"],
-  },
+  test: { ...baseTest },
 });

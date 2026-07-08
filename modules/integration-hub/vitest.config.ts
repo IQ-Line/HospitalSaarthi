@@ -1,16 +1,18 @@
 import { defineConfig } from "vitest/config";
 
+import { baseTest } from "../../vitest.base";
+
 export default defineConfig({
   test: {
-    environment: "node",
+    ...baseTest,
+    // Deliberately narrowed: broad `test/**` would pull this module's real-DB
+    // `test/integration/**` suites into the unit run (it has no `test:integration`
+    // target). Colocated `src/**` unit tests are included; sandbox tests stay out
+    // via baseTest.exclude.
     include: [
       "test/**/integrations/abdm/**/*.test.ts",
       "test/**/lib/**/*.test.ts",
-      // Colocated unit tests next to the code they cover — previously omitted, so 16
-      // src/*.test.ts files silently never ran. `test/integration/**` real-DB and
-      // `*.sandbox.integration.test.ts` files stay out (own targets / manual-gated).
       "src/**/*.test.ts",
     ],
-    exclude: ["**/*.sandbox.integration.test.ts"],
   },
 });
