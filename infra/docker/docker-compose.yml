@@ -13,8 +13,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # Directory mount (not single-file bind) — single-file binds fail to start on WSL2.
-      # Only init scripts live in ../db/initdb; create-module-databases.sql and
-      # pg-init-trust.sh stay in ../db and are intentionally NOT mounted here.
+      # Only extension bootstrap lives in ../db/initdb (01-citus-init.sql). Modules own
+      # their own schemas in the shared hims_dev DB and create them via migrations.
       - ../db/initdb:/docker-entrypoint-initdb.d
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U hims -d hims_dev']
