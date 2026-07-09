@@ -13,6 +13,9 @@ from app.repositories.inventory.integrity import DuplicateInventoryCatalogKeyErr
 from app.repositories.module_permission_repository import DuplicateModulePermissionKeyError
 from app.repositories.module_repository import DuplicateModuleKeyError
 from app.repositories.permission_repository import DuplicatePermissionKeyError
+from app.repositories.system_role_permission_repository import (
+    DuplicateSystemRolePermissionKeyError,
+)
 from app.repositories.system_role_repository import DuplicateSystemRoleKeyError
 from app.repositories.visitpad.conversion import (
     DuplicateVisitpadUnitConversionKeyError,
@@ -32,6 +35,7 @@ from app.services.module_service import (
     ParentModuleNotFoundError,
 )
 from app.services.permission_service import PermissionNotFoundError
+from app.services.system_role_permission_service import SystemRolePermissionNotFoundError
 from app.services.system_role_service import SystemRoleNotFoundError
 from app.services.visitpad.units import (
     InvalidVisitpadUnitConversionError,
@@ -102,6 +106,22 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=error_payload(
                 "CONFLICT",
                 "Another active system role already uses this slug.",
+            ),
+        )
+
+    @app.exception_handler(DuplicateSystemRolePermissionKeyError)
+    async def _duplicate_system_role_permission_key(
+        _request: Request,
+        _exc: DuplicateSystemRolePermissionKeyError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content=error_payload(
+                "CONFLICT",
+                (
+                    "Another active link already uses this slug or the same system role "
+                    "and permission pair."
+                ),
             ),
         )
 
@@ -206,6 +226,19 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=404,
             content=error_payload("NOT_FOUND", "No system role with this id."),
+        )
+
+    @app.exception_handler(SystemRolePermissionNotFoundError)
+    async def _system_role_permission_missing(
+        _request: Request,
+        _exc: SystemRolePermissionNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content=error_payload(
+                "NOT_FOUND",
+                "No system-role-permission link with this id.",
+            ),
         )
 
     @app.exception_handler(ResourceNotFoundError)

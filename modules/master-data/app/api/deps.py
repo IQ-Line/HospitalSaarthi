@@ -23,6 +23,7 @@ from app.repositories.module_permission_repository import ModulePermissionReposi
 from app.repositories.module_repository import ModuleRepository
 from app.repositories.permission_repository import PermissionRepository
 from app.repositories.picklist_repository import PicklistRepository
+from app.repositories.system_role_permission_repository import SystemRolePermissionRepository
 from app.repositories.system_role_repository import SystemRoleRepository
 from app.repositories.visitpad.allergen import VisitpadAllergenRepository
 from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
@@ -146,6 +147,13 @@ def get_module_permission_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> ModulePermissionRepository:
     return ModulePermissionRepository(session, scope)
+
+
+def get_system_role_permission_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> SystemRolePermissionRepository:
+    return SystemRolePermissionRepository(session, scope)
 
 
 def get_visitpad_unit_repository(
