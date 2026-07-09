@@ -26,6 +26,14 @@ export type CreateItemInput = {
   is_short_expiry?: boolean;
   loose_sale_allowed?: boolean;
   hsn_gst_id?: string | null;
+  hsn_selections?: Array<{
+    id: string;
+    hsn_code: string;
+    effective_from: string;
+    cgst_pct: number;
+    sgst_pct: number;
+    igst_pct: number;
+  }>;
   catalog_number?: string;
   reorder_level?: number;
   storage_condition_id?: string | null;
@@ -76,9 +84,15 @@ export async function createItem(
   const supplyAttributes: Record<string, unknown> = {
     department_ids: input.department_ids ?? [],
   };
+  if (input.hsn_selections?.length) {
+    supplyAttributes.hsnSelections = input.hsn_selections;
+  }
   if (input.pharmacy) {
     supplyAttributes.pharmacy = input.pharmacy;
   }
+
+  const hsnGstId =
+    input.hsn_gst_id ?? input.hsn_selections?.[0]?.id ?? null;
 
   const row = await deps.itemRepo.create(tenantId, {
     name,
@@ -91,7 +105,7 @@ export async function createItem(
     manufacturerId: input.manufacturer_id ?? null,
     manufacturerItemCode: input.manufacturer_item_code?.trim() || null,
     catalogNumber: input.catalog_number?.trim() || null,
-    hsnGstId: input.hsn_gst_id ?? null,
+    hsnGstId: hsnGstId,
     purchaseUomId,
     consumptionUomId,
     saleUomId,

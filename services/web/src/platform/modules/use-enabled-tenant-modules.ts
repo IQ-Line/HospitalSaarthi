@@ -90,9 +90,6 @@ export function allRegisteredManifestTenantGateSlugs(): ReadonlySet<string> {
     for (const slug of manifest.requiredModulesAny ?? []) {
       addCatalogSlugToSet(enabled, slug);
     }
-    for (const slug of manifest.requiredModules ?? []) {
-      addCatalogSlugToSet(enabled, slug);
-    }
   }
   return enabled;
 }
@@ -188,6 +185,9 @@ export function useTenantModuleNavContext(): {
     if (isTenantAdminRole) {
       const enriched = new Set(tenantCatalogSlugs);
       addCatalogSlugToSet(enriched, 'configurator');
+      // Tenant-admin inventory masters / store config — not gated on delegated L3 capability keys.
+      addCatalogSlugToSet(enriched, 'inventory-master');
+      addCatalogSlugToSet(enriched, 'store-config');
       if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
         addCatalogSlugToSet(enriched, 'master-data');
         addCatalogSlugToSet(enriched, 'inventory-master');
@@ -200,7 +200,8 @@ export function useTenantModuleNavContext(): {
         addCatalogSlugToSet(enriched, 'inventory-master');
         addCatalogSlugToSet(enriched, 'master-data');
       }
-      return buildEnabledModuleSlugsFromCatalog(enriched);
+      const enabled = buildEnabledModuleSlugsFromCatalog(enriched);
+      return enabled;
     }
 
     return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);

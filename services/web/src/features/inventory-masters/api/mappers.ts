@@ -98,8 +98,12 @@ export function mapInventoryStoreTypeRow(row: InventoryStoreTypeApiRow): Invento
     code: row.code,
     store_type: row.name,
     description: row.description || null,
-    receive_stock: row.can_receive_stock,
-    dispense: row.can_dispense,
+    can_receive_stock: row.can_receive_stock,
+    can_dispense: row.can_dispense,
+    can_issue_to_ward: row.can_issue_to_ward,
+    track_batch_expiry: row.track_batch_expiry,
+    indent_authority: row.indent_authority,
+    default_indent_target_store_id: row.default_indent_target_store_id,
     status: toStatus(row.is_active),
   };
 }

@@ -106,6 +106,15 @@ export class DrizzleInventoryItemRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
+  async findById(tenantId: string, itemId: string): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(inventoryItems)
+      .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .limit(1);
+    return row;
+  }
+
   /**
    * Non-binding preview of the next code for an item type.
    * Sequence is per item_type_id; persisted codes use the shared ITM-##### format

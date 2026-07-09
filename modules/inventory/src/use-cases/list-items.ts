@@ -38,6 +38,9 @@ export async function listItems(
       category_id: row.category_id,
       manufacturer_id: row.manufacturer_id,
       is_active: row.is_active,
+      unit_of_measure: row.unit_of_measure,
+      tracking_mode: row.tracking_mode as "lot" | "serial" | "none",
+      is_expirable: row.is_expirable,
     })),
     total,
   };

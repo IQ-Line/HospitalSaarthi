@@ -24,4 +24,4 @@ export const inventoryMastersQueryKeys = {
 export const INVENTORY_MASTERS_API_BASE = '/api/v1/master-data/inventory';
 
 /** Operational item catalog (inventory-svc). */
-export const INVENTORY_ITEMS_API_BASE = '/api/v1/inventory/items';
+export const INVENTORY_ITEMS_API_BASE = '/api/inventory/v1/items';

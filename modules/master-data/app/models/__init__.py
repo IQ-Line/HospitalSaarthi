@@ -1,5 +1,10 @@
 from app.models.base import Base
 from app.models.department import DepartmentModel, DepartmentPublicModel, DepartmentTenantModel
+from app.models.inventory.store_type import (
+    InventoryStoreTypeModel,
+    InventoryStoreTypePublicModel,
+    InventoryStoreTypeTenantModel,
+)
 from app.models.module import ModuleModel
 from app.models.module_permission import ModulePermissionModel
 from app.models.permission import PermissionModel
@@ -50,6 +55,9 @@ __all__ = [
     "DepartmentModel",
     "DepartmentPublicModel",
     "DepartmentTenantModel",
+    "InventoryStoreTypeModel",
+    "InventoryStoreTypePublicModel",
+    "InventoryStoreTypeTenantModel",
     "ModuleModel",
     "ModulePermissionModel",
     "PermissionModel",

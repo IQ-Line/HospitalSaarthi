@@ -20,7 +20,7 @@ const CONFIGURATOR_API_PREFIX = '/api/configurator/v1';
 const BILLING_API_PREFIX = '/api/billing/v1/';
 const OPD_API_PREFIX = '/api/v1/opd/';
 const PHARMACY_API_PREFIX = '/api/pharmacy/v1/';
-const INVENTORY_API_PREFIX = '/api/v1/inventory/';
+const INVENTORY_API_PREFIX = '/api/inventory/v1/';
 
 function isRegistrationApiPath(path: string): boolean {
   return (

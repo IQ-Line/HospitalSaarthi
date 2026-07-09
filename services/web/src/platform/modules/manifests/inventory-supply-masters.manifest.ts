@@ -2,7 +2,7 @@ import type { ModuleManifest } from '../types';
 
 /** Tenant-admin catalog for inventory reference masters (categories, UOM, HSN/GST, …). */
 export const inventorySupplyMastersModuleManifest: ModuleManifest = {
-  slug: 'inventory-master',
+  slug: 'inventory-supply-masters',
   name: 'Inventory & Supply Masters',
   icon: 'package',
   routePrefix: '/inventory-supply-masters',

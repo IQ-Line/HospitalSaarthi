@@ -14,6 +14,7 @@ import { USER_MANAGEMENT_EVENT_USER_CREATED } from "../events/constants.js";
 import { ensureUserEventPayload } from "../events/ensure-user-event-payload.js";
 import { publishUserManagementEvent } from "../events/publish-user-management-event.js";
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
+import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 import { resolveRoleTemplateGrantPlans } from "./resolve-role-template-grant-plans.js";
 import type {
   AuthAccountProvisioner,
@@ -200,10 +201,11 @@ export async function createUser(
         )
       : [];
 
-  const grantActorId =
-    (await deps.userRepository.getUserById(ctx.tenantId, ctx.actorId)) !== null
-      ? ctx.actorId
-      : null;
+  const grantActorId = await resolveGrantActorIdForTenant(
+    deps.userRepository,
+    ctx.tenantId,
+    ctx.actorId,
+  );
 
   const userId = randomUUID();
 

@@ -1,9 +1,12 @@
 import { principalHasAnyRole } from '@/lib/principal-roles';
+import { principalGrantsCatalogModuleSlugRouteAccess } from '@/lib/catalog-route-access';
 import { catalogSlugVariants } from '@/platform/modules/catalog-slug-variants';
 import {
   catalogProductSlugsForNode,
   inferRoutePrefixFromRoute,
   principalGrantsNavNodeAccess,
+  principalHasL1ProductShellAccess,
+  resolveCatalogModuleSlugsForNavRoute,
   type NavCapabilityAccessInput,
 } from './nav-capability-access';
 import type { NavFilterContext, NavigationNode } from './types';
@@ -98,10 +101,13 @@ function catalogVisibilityScopeHidesNode(
   node: NavigationNode,
   ctx: NavFilterContext,
 ): boolean {
+  // Tenant-admin-only product shells (inventory-supply-masters, …) use explicit flag.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return false;
+  }
   if (!ctx.catalogIndex) {
     return false;
   }
-  // Tenant-admin product surfaces (e.g. Inventory & Supply Masters) stay visible.
   if (node.tenantAdminOnly) {
     return false;
   }
@@ -114,7 +120,29 @@ function catalogVisibilityScopeHidesNode(
     return false;
   }
   if (ctx.isSuperAdmin || ctx.isTenantAdmin) {
-    return entry.module_kind === 'product';
+    if (entry.module_kind !== 'product') {
+      return false;
+    }
+    const productSlugs = catalogProductSlugsForNode(node);
+    if (productSlugs.length > 0 && ctx.hasAnyCapabilityForProduct?.(productSlugs)) {
+      return false;
+    }
+    if (ctx.navAccess) {
+      const routeSlugs = node.route
+        ? resolveCatalogModuleSlugsForNavRoute(node.route, {
+            routePrefix: inferRoutePrefixFromRoute(node.route),
+            catalogModuleSlug: node.catalogModuleSlug,
+            catalogIndex: ctx.catalogIndex,
+          })
+        : [slug];
+      if (principalGrantsCatalogModuleSlugRouteAccess(ctx.navAccess.capabilityKeys, routeSlugs)) {
+        return false;
+      }
+      if (principalHasL1ProductShellAccess(ctx.navAccess.capabilityKeys, productSlugs, node.route)) {
+        return false;
+      }
+    }
+    return true;
   }
   return entry.visibility_scope === 'superadmin';
 }
@@ -153,6 +181,10 @@ export function isNavigationNodeVisible(
   const gatedNode = nodeWithInheritedTenantGates(node, parent);
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
+  }
+  // Tenant-admin catalog screens (inventory masters, store config) are role-gated, not capability-gated.
+  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+    return true;
   }
   if (!ctx.navAccess) {
     return false;

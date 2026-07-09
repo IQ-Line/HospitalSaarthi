@@ -12,6 +12,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  sql,
   tenantColumn,
 } from "@hims/ts-sdk-db";
 
@@ -41,6 +42,7 @@ export const inventoryStores = inventorySchema.table(
     track_batch_expiry: boolean("track_batch_expiry").notNull().default(true),
     indent_authority: boolean("indent_authority").notNull().default(false),
     indent_target_store_id: uuid("indent_target_store_id"),
+    is_central_store: boolean("is_central_store").notNull().default(false),
     is_active: boolean("is_active").notNull().default(true),
     created_by: uuid("created_by"),
     updated_by: uuid("updated_by"),
@@ -52,6 +54,9 @@ export const inventoryStores = inventorySchema.table(
     uniqueIndex("uq_inventory_stores_tenant_store_code").on(t.iq_tenant_id, t.store_code),
     index("idx_inventory_stores_tenant_branch").on(t.iq_tenant_id, t.branch_id),
     index("idx_inventory_stores_tenant_store_type").on(t.iq_tenant_id, t.store_type_id),
+    uniqueIndex("uq_inventory_stores_tenant_central_store")
+      .on(t.iq_tenant_id)
+      .where(sql`${t.is_central_store} = true`),
     foreignKey({
       name: "inventory_stores_indent_target_store_fk",
       columns: [t.iq_tenant_id, t.indent_target_store_id],
@@ -82,6 +87,17 @@ export const inventoryItemCodeSequences = inventorySchema.table(
     last_sequence: integer("last_sequence").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] })],
+);
+
+export const inventoryIndentSequences = inventorySchema.table(
+  "indent_sequences",
+  {
+    ...tenantColumn(),
+    period_key: text("period_key").notNull(),
+    last_value: integer("last_value").notNull().default(0),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.period_key] })],
 );
 
 // ─── Item catalog ────────────────────────────────────────────────────────────
@@ -160,6 +176,7 @@ export const inventoryGrns = inventorySchema.table(
     inventory_store_id: uuid("inventory_store_id").notNull(),
     manufacturer_id: uuid("manufacturer_id"),
     purchase_request_id: uuid("purchase_request_id"),
+    inventory_indent_id: uuid("inventory_indent_id"),
     voucher_invoice_no: text("voucher_invoice_no").notNull().default(""),
     register_page_no: text("register_page_no"),
     remarks: text("remarks"),
@@ -323,7 +340,7 @@ export const inventoryIndents = inventorySchema.table(
     indent_number: text("indent_number").notNull(),
     indent_date: date("indent_date").notNull(),
     from_store_id: uuid("from_store_id").notNull(),
-    to_store_id: uuid("to_store_id").notNull(),
+    to_store_id: uuid("to_store_id"),
     indent_type: text("indent_type").notNull().default("store_transfer"),
     priority: text("priority").notNull().default("normal"),
     remarks: text("remarks"),
@@ -331,6 +348,7 @@ export const inventoryIndents = inventorySchema.table(
     fulfillment_route: text("fulfillment_route").notNull().default("stock_transfer"),
     purchase_indent_number: text("purchase_indent_number"),
     rejection_reason: text("rejection_reason"),
+    approval_remarks: text("approval_remarks"),
     inventory_stock_transfer_id: uuid("inventory_stock_transfer_id"),
     inventory_purchase_request_id: uuid("inventory_purchase_request_id"),
     inventory_grn_id: uuid("inventory_grn_id"),
@@ -414,6 +432,105 @@ export const inventoryIndentLines = inventorySchema.table(
       foreignColumns: [inventoryLots.iq_tenant_id, inventoryLots.id],
     })
       .onDelete("set null")
+      .onUpdate("no action"),
+  ],
+);
+
+// ─── Stock transfers ─────────────────────────────────────────────────────────
+
+export const inventoryStockTransferSequences = inventorySchema.table(
+  "stock_transfer_sequences",
+  {
+    ...tenantColumn(),
+    period_key: text("period_key").notNull(),
+    last_value: integer("last_value").notNull().default(0),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.period_key] })],
+);
+
+export const inventoryStockTransfers = inventorySchema.table(
+  "stock_transfers",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    transfer_number: text("transfer_number").notNull(),
+    transfer_date: date("transfer_date").notNull(),
+    from_store_id: uuid("from_store_id").notNull(),
+    to_store_id: uuid("to_store_id").notNull(),
+    transfer_type: text("transfer_type").notNull().default("normal"),
+    status: text("status").notNull().default("draft"),
+    remarks: text("remarks"),
+    inventory_indent_id: uuid("inventory_indent_id"),
+    created_by: uuid("created_by"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    uniqueIndex("uq_inventory_stock_transfers_tenant_number").on(
+      t.iq_tenant_id,
+      t.transfer_number,
+    ),
+    index("idx_inventory_stock_transfers_tenant_date").on(t.iq_tenant_id, t.transfer_date),
+    index("idx_inventory_stock_transfers_tenant_indent").on(t.iq_tenant_id, t.inventory_indent_id),
+    foreignKey({
+      name: "inventory_stock_transfers_from_store_fk",
+      columns: [t.iq_tenant_id, t.from_store_id],
+      foreignColumns: [inventoryStores.iq_tenant_id, inventoryStores.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfers_to_store_fk",
+      columns: [t.iq_tenant_id, t.to_store_id],
+      foreignColumns: [inventoryStores.iq_tenant_id, inventoryStores.id],
+    })
+      .onDelete("restrict")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfers_indent_fk",
+      columns: [t.iq_tenant_id, t.inventory_indent_id],
+      foreignColumns: [inventoryIndents.iq_tenant_id, inventoryIndents.id],
+    })
+      .onDelete("set null")
+      .onUpdate("no action"),
+  ],
+);
+
+export const inventoryStockTransferLines = inventorySchema.table(
+  "stock_transfer_lines",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    stock_transfer_id: uuid("stock_transfer_id").notNull(),
+    item_id: uuid("item_id").notNull(),
+    transfer_qty: numeric("transfer_qty", { precision: 12, scale: 3 }).notNull(),
+    line_remarks: text("line_remarks"),
+    sort_order: integer("sort_order").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_inventory_stock_transfer_lines_transfer").on(
+      t.iq_tenant_id,
+      t.stock_transfer_id,
+      t.sort_order,
+    ),
+    foreignKey({
+      name: "inventory_stock_transfer_lines_transfer_fk",
+      columns: [t.iq_tenant_id, t.stock_transfer_id],
+      foreignColumns: [inventoryStockTransfers.iq_tenant_id, inventoryStockTransfers.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("no action"),
+    foreignKey({
+      name: "inventory_stock_transfer_lines_item_fk",
+      columns: [t.iq_tenant_id, t.item_id],
+      foreignColumns: [inventoryItems.iq_tenant_id, inventoryItems.id],
+    })
+      .onDelete("restrict")
       .onUpdate("no action"),
   ],
 );
