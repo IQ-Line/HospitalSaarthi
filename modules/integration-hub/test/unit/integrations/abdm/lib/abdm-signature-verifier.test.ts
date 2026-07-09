@@ -10,7 +10,9 @@ const AUDIENCE = "hims-callback";
 describe("verifyAbdmSignature", () => {
   const env = process.env;
 
-  let privateKey: CryptoKey;
+  // Derived from jose rather than the global CryptoKey: @types/node 24 declares
+  // the global as a value only, so the bare type reference no longer compiles.
+  let privateKey: Awaited<ReturnType<typeof generateKeyPair>>["privateKey"];
   let jwksServer: Server;
   let jwksUrl: string;
 
