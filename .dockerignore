@@ -16,6 +16,9 @@ node_modules
 # Nx cache
 .nx
 
+# Staged thin-image contexts (tools/build-images.sh output)
+dist-images
+
 # Docs & non-source artifacts
 docs
 agent-reviews

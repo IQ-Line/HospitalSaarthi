@@ -82,13 +82,17 @@ Ordered by leverage; items 3–5 are changes in THIS repo, the rest live in devo
 2. **Kaniko cache flags** on the monorepo job (replicate shared-lib commit `e0518958`):
    `--cache=true --cache-repo=acriqline.azurecr.io/kaniko-cache --cache-copy-layers
    --cache-run-layers --compressed-caching=false --snapshot-mode=redo`.
-3. **This repo — Dockerfile layer order:** copy manifests+lockfile → `pnpm install` → copy source.
-4. **This repo — build once, package N times:** one `pnpm install` + `nx run-many -t build` on the
-   agent, then thin runtime images that only COPY each service's built output. Collapses the
-   biggest multiplier.
-5. **This repo — dev manifests:** `infra/k8s/base/hims-platform.yaml` pins mutable `:dev-latest` +
-   `rollout restart` (restarts ALL services, no rollback); QA already uses immutable SHA tags +
-   `kubectl set image` per affected service — align dev with QA.
+3. **This repo — Dockerfile layer order:** ~~copy manifests+lockfile → `pnpm install` → copy
+   source.~~ **DEFERRED by measurement** (RESULTS.md rec 3): the fetch pattern is slower under
+   kaniko in both cache modes; kept as the demo variant for a future BuildKit builder. The
+   misleading comment in `node-svc.Dockerfile` was corrected instead.
+4. **This repo — build once, package N times:** ✅ **SHIPPED 2026-07-09** — `tools/build-images.sh`
+   + `infra/docker/node-svc.thin.Dockerfile` + `web.thin.Dockerfile` + paste-ready stage code in
+   `infra/devops-handoff.md` §6.5. Pipeline adoption is a one-stage swap on devops' side.
+5. **This repo — dev manifests:** no manifest change needed — the fix is pipeline-side: use the
+   handoff §6 rollout stage (`kubectl set image ...:<sha>` per affected service, as QA already
+   does) instead of `rollout restart` + `:dev-latest`. `kubectl set image` overrides the
+   manifest's tag after the initial apply.
 6. **Parallelize the per-service loop** (Jenkins `parallel` / `xargs -P`).
 7. **Nx remote cache — self-hosted only** (user decision: no SaaS reliance, Nx Cloud is out).
    Use `nx-remotecache-azure` against an org blob container, or an S3/minio-compatible cache task

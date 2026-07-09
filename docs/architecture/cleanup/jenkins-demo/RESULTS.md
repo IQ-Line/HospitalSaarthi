@@ -49,8 +49,21 @@ affected service. Re-run with `bash docs/architecture/cleanup/jenkins-demo/run-d
 2. **Parallelize the per-service image loop** — composes with D (thin builds are I/O-light).
 3. **Fix the Dockerfile layer order anyway** (correctness; helps any future BuildKit builder,
    where `RUN --mount=type=cache` and reliable layer caching actually work).
+   **Decision (2026-07-09): deferred.** The fetch-pattern variant measured *slower* under
+   kaniko in both cache modes (C vs A/B above), and kaniko is the org's only CI builder —
+   rewriting the production Dockerfile would regress today's pipeline for a benefit that only
+   materializes under BuildKit. The proven variant is kept here
+   (`node-svc.fixed-layers.Dockerfile`) for the day a BuildKit builder exists; the misleading
+   "maximum layer cache reuse" comment in the real Dockerfile was corrected instead.
 4. **Kaniko cache flags** — cheap to add, but measured here as a ~5 s/image win under the
    current Dockerfile shape; do not expect it to move the needle alone.
+
+## → Productized (2026-07-09)
+
+Recommendation 1 now exists as real repo artifacts, adoptable by the pipeline as-is:
+`tools/build-images.sh` (build once + stage per-service contexts + manifest),
+`infra/docker/node-svc.thin.Dockerfile`, `infra/docker/web.thin.Dockerfile`, and paste-ready
+stage code in `infra/devops-handoff.md` §6.5 (docker + kaniko variants, parallelizable).
 
 ## Fidelity caveats
 

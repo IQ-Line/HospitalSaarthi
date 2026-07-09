@@ -6,6 +6,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Staged thin-image contexts (tools/build-images.sh output)
+/dist-images/
+
 # SDK packages emit to dist/; guard against accidental in-tree tsc output
 packages/ts-sdk-*/src/**/*.js
 packages/ts-sdk-*/src/**/*.js.map

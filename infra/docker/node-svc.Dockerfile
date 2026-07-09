@@ -22,7 +22,14 @@ WORKDIR /repo
 FROM base AS builder
 ARG SERVICE_NAME
 
-# Copy workspace manifests + lockfile first for maximum layer cache reuse
+# NOTE: this is the monolithic fallback/local-verification build. CI should
+# prefer the "build once, package N times" path (tools/build-images.sh +
+# node-svc.thin.Dockerfile) — measured ~18 s/image vs ~2 min here, because the
+# source COPY below invalidates the install layer on every source change and
+# kaniko (the org's CI builder) pays the full install each time. The
+# pnpm-fetch layer reorder was measured SLOWER under kaniko in both cache
+# modes (docs/architecture/cleanup/jenkins-demo/RESULTS.md), so it is
+# deliberately not applied here.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json nx.json ./
 COPY tsup.config.shared.ts ./
 
@@ -39,12 +46,6 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
 
 # Build via nx (driven by the service's project.json build target -> tsup)
 RUN npx nx build "${SERVICE_NAME}"
-
-# registration-reports reads this stylesheet at runtime via import.meta.url.
-# The bundled registration service therefore expects it beside dist/main.js.
-RUN if [ "${SERVICE_NAME}" = "registration-svc" ]; then \
-      cp packages/registration-reports/src/report-print.css services/registration-svc/dist/report-print.css; \
-    fi
 
 # --config.node-linker=hoisted forces a flat node_modules layout in /out
 # so the bundled dist/main.js can resolve npm deps directly. With pnpm's
