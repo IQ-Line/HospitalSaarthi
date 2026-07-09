@@ -8,6 +8,7 @@ import { approveIndent, rejectIndent } from "../use-cases/approve-indent.js";
 import { cancelIndentDraft } from "../use-cases/cancel-indent-draft.js";
 import { fulfillIndent } from "../use-cases/fulfill-indent.js";
 import { getIndent } from "../use-cases/get-indent.js";
+import { getIndentByNumber } from "../use-cases/get-indent-by-number.js";
 import {
   checkActiveIndents,
   listIndentItems,
@@ -47,6 +48,16 @@ export function registerIndentHandlers(app: FastifyInstance, deps: IndentHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const query = listIndentsQuerySchema.parse(request.query);
+
+      if (query.indent_number) {
+        const data = await getIndentByNumber(
+          { indentRepo: deps.indentRepo },
+          request.tenantId,
+          query.indent_number,
+        );
+        return reply.send({ items: [data], total: 1 });
+      }
+
       const page = query.page ?? 1;
       const pageSize = query.page_size ?? 50;
       const data = await listIndents(
@@ -134,6 +145,19 @@ export function registerIndentHandlers(app: FastifyInstance, deps: IndentHandler
         actorIdFromRequest(request),
       );
       return reply.status(201).send({ data });
+    },
+  );
+
+  app.get<{ Params: { indentNumber: string } }>(
+    "/indents/by-number/:indentNumber",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const data = await getIndentByNumber(
+        { indentRepo: deps.indentRepo },
+        request.tenantId,
+        decodeURIComponent(request.params.indentNumber),
+      );
+      return reply.send({ data });
     },
   );
 

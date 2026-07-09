@@ -21,10 +21,34 @@ export async function listStockTransfers(
   const storeRows = await deps.indentRepo.findStoresByIds(tenantId, storeIds);
   const storeMap = new Map(storeRows.map((store) => [store.id, store]));
 
+  const lineCounts = await deps.transferRepo.countLinesByTransferIds(
+    tenantId,
+    result.rows.map((row) => row.id),
+  );
+
+  const indentIds = [
+    ...new Set(
+      result.rows
+        .map((row) => row.inventory_indent_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const indentNumbers = new Map<string, string>();
+  await Promise.all(
+    indentIds.map(async (indentId) => {
+      const indent = await deps.indentRepo.findById(tenantId, indentId);
+      if (indent) indentNumbers.set(indentId, indent.indent_number);
+    }),
+  );
+
   const items = result.rows.map((row) => ({
     ...wireStockTransfer(row),
     from_store: indentStoreRef(storeMap.get(row.from_store_id)),
     to_store: indentStoreRef(storeMap.get(row.to_store_id)),
+    line_count: lineCounts.get(row.id) ?? 0,
+    indent_number: row.inventory_indent_id
+      ? (indentNumbers.get(row.inventory_indent_id) ?? null)
+      : null,
   }));
 
   return { items, total: result.total };

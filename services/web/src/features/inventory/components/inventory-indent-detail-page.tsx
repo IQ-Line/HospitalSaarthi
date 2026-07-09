@@ -26,7 +26,6 @@ import {
   useInventoryIndentSaveDraft,
   useInventoryIndentSubmit,
 } from '../api/indent-mutations';
-import { useInventoryTransferCreate } from '../api/transfer-mutations';
 import {
   useInventoryIndentActiveChecks,
   useInventoryIndentDetail,
@@ -40,7 +39,6 @@ import {
   canFulfillIndent,
   indentStockSupplyStoreId,
   indentTransferFromStoreId,
-  indentTransferToStoreId,
   isPartialApproval,
   resolveIndentDetailDirection,
   validateApprovalStock,
@@ -98,7 +96,6 @@ export function InventoryIndentDetailPage({
   const rejectIndent = useInventoryIndentReject();
   const cancelIndent = useInventoryIndentCancel();
   const fulfillIndent = useInventoryIndentFulfill();
-  const createTransfer = useInventoryTransferCreate();
 
   const [indentDate, setIndentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fulfillment, setFulfillment] = useState<'stock_transfer' | 'procurement'>('stock_transfer');
@@ -438,29 +435,13 @@ export function InventoryIndentDetailPage({
       if (detail.route === 'procurement') {
         await fulfillIndent.mutateAsync(indentId);
         toast.success('Procurement started — complete the draft GRN to finish');
-      } else {
-        const approvedLines = detail.lines.filter(
-          (line) => line.item_id && Number(line.approved_qty ?? line.requested_qty) > 0,
-        );
-        await createTransfer.mutateAsync({
-          transfer_date: new Date().toISOString().slice(0, 10),
-          from_store_id: indentTransferFromStoreId(detail),
-          to_store_id: indentTransferToStoreId(detail),
-          transfer_type: detail.indent_type === 'emergency' ? 'emergency' : 'normal',
-          remarks: detail.remarks
-            ? `From indent ${detail.indent_number}: ${detail.remarks}`
-            : `From indent ${detail.indent_number}`,
-          inventory_indent_id: detail.id,
-          lines: approvedLines.map((line, index) => ({
-            item_id: line.item_id!,
-            transfer_qty: Number(line.approved_qty ?? line.requested_qty),
-            line_remarks: line.remarks ?? null,
-            sort_order: index,
-          })),
-        });
-        toast.success('Transfer created — complete it on Transfers to finish');
+        void refetch();
+        return;
       }
-      void refetch();
+      void navigate({
+        to: '/inventory/transfers',
+        search: { tab: 'outgoing', storeId: indentTransferFromStoreId(detail), indentId: detail.id },
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to initiate fulfillment');
     }
@@ -672,7 +653,7 @@ export function InventoryIndentDetailPage({
                     type="button"
                     className="w-full"
                     onClick={() => void handleInitiateFulfillment()}
-                    disabled={fulfillIndent.isPending || createTransfer.isPending}
+                    disabled={fulfillIndent.isPending}
                   >
                     Initiate fulfillment (
                     {detail.route === 'procurement' ? 'PR + GRN' : 'stock transfer'})
@@ -690,7 +671,17 @@ export function InventoryIndentDetailPage({
                     <Button type="button" className="w-full" asChild>
                       <Link
                         to="/inventory/transfers"
-                        search={{ transferId: detail.inventory_stock_transfer_id }}
+                        search={{
+                          transferId: detail.inventory_stock_transfer_id,
+                          tab:
+                            resolveIndentDetailDirection(detail, activeStoreId) === 'incoming'
+                              ? 'outgoing'
+                              : 'incoming',
+                          storeId:
+                            resolveIndentDetailDirection(detail, activeStoreId) === 'incoming'
+                              ? detail.from_store_id
+                              : detail.to_store_id,
+                        }}
                       >
                         Open transfers
                       </Link>

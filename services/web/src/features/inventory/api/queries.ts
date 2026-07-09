@@ -4,6 +4,7 @@ import {
   mockFetchInventoryDashboard,
   mockFetchInventoryGrnLogs,
   mockFetchInventoryIndents,
+  mockFetchInventoryIndentByNumber,
   mockFetchInventoryItems,
   mockFetchInventoryReconciliation,
   mockFetchInventoryStock,
@@ -141,6 +142,43 @@ async function fetchInventoryIndentById(indentId: string) {
   return mapInventorySvcIndentDetail(response.data);
 }
 
+async function fetchInventoryIndentByNumber(indentNumber: string) {
+  const normalized = indentNumber.trim();
+  if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+    return mockFetchInventoryIndentByNumber(normalized);
+  }
+
+  const listParams = {
+    include_lines: true,
+    page_size: 20,
+  };
+
+  const findExactMatch = (items: InventorySvcIndentRow[]) =>
+    items.find((row) => row.indent_number.trim().toLowerCase() === normalized.toLowerCase());
+
+  try {
+    const byNumber = await inventorySvcGet<InventorySvcIndentListResponse>('/indents', {
+      ...listParams,
+      indent_number: normalized,
+      page_size: 1,
+    });
+    const exact = findExactMatch(byNumber.items);
+    if (exact) return mapInventorySvcIndentDetail(exact);
+  } catch {
+    // Older inventory-svc without indent_number query — fall through to search.
+  }
+
+  const bySearch = await inventorySvcGet<InventorySvcIndentListResponse>('/indents', {
+    ...listParams,
+    search: normalized,
+  });
+  const match = findExactMatch(bySearch.items);
+  if (!match) {
+    throw new Error(`No indent found with number ${normalized}.`);
+  }
+  return mapInventorySvcIndentDetail(match);
+}
+
 async function fetchInventoryIndentActiveCheck(params: {
   from_store_id: string;
   to_store_id?: string;
@@ -196,6 +234,9 @@ async function fetchInventoryTransfers(
   const pageSize = params.limit ?? 10;
   const response = await inventorySvcGet<InventorySvcStockTransferListResponse>('/transfers', {
     search: params.search,
+    status: params.status,
+    from_store_id: params.from_store_id,
+    to_store_id: params.to_store_id,
     page,
     page_size: pageSize,
   });
@@ -288,6 +329,27 @@ export function useInventoryIndentDetail(
     queryFn: () => fetchInventoryIndentById(indentId!),
     enabled: Boolean(indentId) && indentId !== 'new' && OPERATIONAL_INVENTORY_API_ENABLED,
     staleTime: 15_000,
+  });
+  return {
+    data: query.data,
+    isLoading: query.isPending,
+    error: query.error,
+    isError: query.isError,
+    refetch: query.refetch,
+  };
+}
+
+export function useInventoryIndentByNumber(
+  indentNumber: string | undefined,
+  options?: { enabled?: boolean },
+): QueryResultWithRefetch<InventoryIndentRow | undefined> {
+  const normalized = indentNumber?.trim() ?? '';
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.all, 'indent-by-number', normalized, inventoryApiMode] as const,
+    queryFn: () => fetchInventoryIndentByNumber(normalized),
+    enabled: (options?.enabled ?? true) && normalized.length >= 3,
+    staleTime: 15_000,
+    retry: false,
   });
   return {
     data: query.data,

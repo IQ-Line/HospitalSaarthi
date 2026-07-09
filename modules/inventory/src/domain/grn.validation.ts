@@ -25,14 +25,12 @@ export function assertGrnDateNotFuture(grnDate: string): void {
   }
 }
 
-export function assertPurchaseHeader(
-  grnType: "purchase" | "transfer",
-  _manufacturerId: string | null | undefined,
-  voucherInvoiceNo: string | undefined,
+/** GRN must be linked to a procurement indent before submit. */
+export function assertIndentLinkedForSubmit(
+  inventoryIndentId: string | null | undefined,
 ): void {
-  if (grnType !== "purchase") return;
-  if (!voucherInvoiceNo?.trim()) {
-    throw new GrnValidationError("Voucher / invoice number is required for purchase GRN");
+  if (!inventoryIndentId?.trim()) {
+    throw new GrnValidationError("Indent number is required for GRN");
   }
 }
 

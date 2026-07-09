@@ -184,6 +184,24 @@ paths:
           description: Indent created.
         '401':
           $ref: '#/components/responses/Unauthorized'
+  /indents/by-number/{indentNumber}:
+    get:
+      operationId: getIndentByNumber
+      summary: Get procurement indent by indent number (for GRN autofill)
+      tags: [Indents]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: indentNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Indent detail.
+        '404':
+          $ref: '#/components/responses/NotFound'
   /indents/{indentId}:
     get:
       operationId: getIndent
@@ -340,6 +358,40 @@ paths:
       responses:
         '200':
           description: Transfer detail.
+  /transfers/{transferId}/dispatch:
+    post:
+      operationId: dispatchStockTransfer
+      summary: Dispatch stock transfer (deducts source store only)
+      tags: [Transfers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transfer dispatched (in transit).
+  /transfers/{transferId}/receive:
+    post:
+      operationId: receiveStockTransfer
+      summary: Receive stock transfer at destination store
+      tags: [Transfers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Transfer received.
 components:
   securitySchemes:
     bearerAuth:

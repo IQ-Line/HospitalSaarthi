@@ -38,3 +38,54 @@ export function useInventoryTransferCreate() {
     },
   });
 }
+
+export type DispatchStockTransferPayload = {
+  transferId: string;
+  lines?: Array<{
+    item_id: string;
+    dispatch_qty: number;
+  }>;
+};
+
+export function useInventoryTransferDispatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ transferId, lines }: DispatchStockTransferPayload) => {
+      const response = await inventorySvcPost<InventorySvcSingleResponse<InventorySvcStockTransferRow>>(
+        `/transfers/${transferId}/dispatch`,
+        lines?.length ? { lines } : {},
+      );
+      return mapInventorySvcStockTransferRow(response.data);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all });
+    },
+  });
+}
+
+export type ReceiveStockTransferPayload = {
+  transferId: string;
+  lines: Array<{
+    item_id: string;
+    received_qty: number;
+    accepted_qty: number;
+    rejected_qty?: number;
+    rejection_reason?: string | null;
+  }>;
+};
+
+export function useInventoryTransferReceive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ transferId, lines }: ReceiveStockTransferPayload) => {
+      const response = await inventorySvcPost<InventorySvcSingleResponse<InventorySvcStockTransferRow>>(
+        `/transfers/${transferId}/receive`,
+        { lines },
+      );
+      return mapInventorySvcStockTransferRow(response.data);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all });
+    },
+  });
+}

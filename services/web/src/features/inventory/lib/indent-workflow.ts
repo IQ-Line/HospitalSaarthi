@@ -87,6 +87,35 @@ export function canCreateTransferFromIndent(
   return indent.status === 'approved' || indent.status === 'partially_approved';
 }
 
+/** Indents shown on the transfers queue (new transfer or draft awaiting dispatch). */
+export function isIndentReadyForTransferQueue(
+  indent: Pick<InventoryIndentRow, 'status' | 'inventory_stock_transfer_id' | 'route'>,
+  draftTransferIds: ReadonlySet<string>,
+): boolean {
+  if (indent.route !== 'stock_transfer') return false;
+  if (indent.status === 'approved' || indent.status === 'partially_approved') {
+    return !indent.inventory_stock_transfer_id;
+  }
+  if (indent.status === 'in_fulfillment' && indent.inventory_stock_transfer_id) {
+    return draftTransferIds.has(indent.inventory_stock_transfer_id);
+  }
+  return false;
+}
+
+export function transferQueueAction(
+  indent: Pick<InventoryIndentRow, 'status' | 'inventory_stock_transfer_id' | 'route'>,
+  draftTransferIds: ReadonlySet<string>,
+): 'create' | 'dispatch' | null {
+  if (!isIndentReadyForTransferQueue(indent, draftTransferIds)) return null;
+  if (
+    (indent.status === 'approved' || indent.status === 'partially_approved') &&
+    !indent.inventory_stock_transfer_id
+  ) {
+    return 'create';
+  }
+  return 'dispatch';
+}
+
 export function isPartialApproval(
   lines: Array<{ id: string; requested_qty: number; approved_qty?: number | null }>,
   approvedByLine: Record<string, string>,

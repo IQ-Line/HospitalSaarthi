@@ -12,6 +12,7 @@ const MIGRATION_FILES = [
   "0002_inventory_enhancements.sql",
   "0003_inventory_indent_approval_remarks.sql",
   "0004_inventory_stock_transfers.sql",
+  "0005_transfer_receive.sql",
 ] as const;
 
 /** Applies `inventory` schema DDL (idempotent — safe to run on every dev boot). */

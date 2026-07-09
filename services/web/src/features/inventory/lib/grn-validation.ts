@@ -27,6 +27,7 @@ export type GrnFormInput = {
   grn_date: string;
   store_id: string;
   vendor_id: string;
+  indent_number: string;
   voucher_invoice_no: string;
   remarks: string;
   register_page_no: string;
@@ -34,7 +35,16 @@ export type GrnFormInput = {
 };
 
 export type GrnHeaderFieldErrors = Partial<
-  Record<"grn_date" | "store_id" | "vendor_id" | "voucher_invoice_no" | "remarks" | "register_page_no", string>
+  Record<
+    | "grn_date"
+    | "store_id"
+    | "vendor_id"
+    | "indent_number"
+    | "voucher_invoice_no"
+    | "remarks"
+    | "register_page_no",
+    string
+  >
 >;
 
 export type GrnLineFieldErrors = Partial<
@@ -56,6 +66,7 @@ export const grnHeaderSchema = z
     grn_date: z.string().min(1, "GRN date is required"),
     store_id: z.string().uuid("Select a store"),
     vendor_id: z.string(),
+    indent_number: z.string(),
     voucher_invoice_no: z.string(),
   })
   .superRefine((data, ctx) => {
@@ -70,14 +81,14 @@ export const grnHeaderSchema = z
   });
 
 const grnSubmitHeaderSchema = grnHeaderSchema.superRefine((data, ctx) => {
-  if (data.grn_type !== "purchase") return;
-  if (!data.voucher_invoice_no.trim()) {
+  if (!data.indent_number.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Voucher / invoice number is required",
-      path: ["voucher_invoice_no"],
+      message: "Indent number is required",
+      path: ["indent_number"],
     });
   }
+  if (data.grn_type !== "purchase") return;
   if (!uuidSchema.safeParse(data.vendor_id).success) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -139,14 +150,6 @@ export const grnLinesSchema = z
   .array(grnLineSchema)
   .min(1, "Add at least one line with an item");
 
-/** Voucher required only when saving/submitting a purchase GRN (not draft header-only). */
-export function validatePurchaseVoucherForSubmit(voucherInvoiceNo: string): string | null {
-  if (!voucherInvoiceNo.trim()) {
-    return "Voucher / invoice number is required";
-  }
-  return null;
-}
-
 function headerErrorsFromZod(error: z.ZodError): GrnHeaderFieldErrors {
   const out: GrnHeaderFieldErrors = {};
   for (const issue of error.issues) {
@@ -181,6 +184,7 @@ export function validateGrnForm(input: GrnFormInput, mode: GrnValidationMode): G
     grn_date: input.grn_date,
     store_id: input.store_id,
     vendor_id: input.vendor_id,
+    indent_number: input.indent_number,
     voucher_invoice_no: input.voucher_invoice_no,
   });
 
