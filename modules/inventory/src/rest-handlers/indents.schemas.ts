@@ -15,6 +15,7 @@ const fulfillmentRouteSchema = z.enum(["stock_transfer", "procurement"]);
 
 export const listIndentsQuerySchema = z.object({
   search: z.string().trim().max(128).optional(),
+  indent_number: z.string().trim().max(128).optional(),
   status: indentStatusSchema.optional(),
   from_store_id: z.string().uuid().optional(),
   to_store_id: z.string().uuid().optional(),

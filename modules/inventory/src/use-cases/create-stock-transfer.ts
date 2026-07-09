@@ -44,9 +44,10 @@ async function assertIndentEligible(
     throw new TransferValidationError("Indent already has a linked transfer");
   }
   if (!indent.to_store_id) {
-    throw new TransferValidationError("Indent is missing fulfilling store");
+    throw new TransferValidationError("Indent is missing receiving store");
   }
-  if (input.from_store_id !== indent.to_store_id || input.to_store_id !== indent.from_store_id) {
+  // Transfer direction matches indent: From sends stock to To.
+  if (input.from_store_id !== indent.from_store_id || input.to_store_id !== indent.to_store_id) {
     throw new TransferValidationError("Transfer stores must match the approved indent route");
   }
 

@@ -2,6 +2,7 @@ import {
   buildNavCapabilityAccessInput,
   capabilityKeysGrantModuleSlugAccess,
   principalGrantsNavNodeAccess,
+  principalHasL1ProductShellAccess,
 } from '@/navigation/nav-capability-access';
 import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
 import { getModuleCatalogIndexFromCache } from '@/platform/modules/module-catalog';
@@ -85,6 +86,28 @@ export function principalHasCatalogModuleAction(
   }
 
   return capabilityKeysGrantModuleSlugAccess(segments, [moduleSlug]);
+}
+
+/**
+ * L1 product access (or product shell) grants every route under that product;
+ * otherwise fall back to per-route L2+ module slug checks.
+ */
+export function principalGrantsProductSubtreeRouteAccess(
+  capabilityKeys: ReadonlySet<string>,
+  options: {
+    productSlugs: readonly string[];
+    routeModuleSlugs: readonly string[];
+    route?: string;
+  },
+): boolean {
+  const { productSlugs, routeModuleSlugs, route } = options;
+  if (principalGrantsCatalogModuleSlugRouteAccess(capabilityKeys, productSlugs)) {
+    return true;
+  }
+  if (principalHasL1ProductShellAccess(capabilityKeys, productSlugs, route)) {
+    return true;
+  }
+  return principalGrantsCatalogModuleSlugRouteAccess(capabilityKeys, routeModuleSlugs);
 }
 
 /**

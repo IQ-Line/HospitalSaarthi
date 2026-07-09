@@ -506,6 +506,10 @@ export const inventoryStockTransferLines = inventorySchema.table(
     stock_transfer_id: uuid("stock_transfer_id").notNull(),
     item_id: uuid("item_id").notNull(),
     transfer_qty: numeric("transfer_qty", { precision: 12, scale: 3 }).notNull(),
+    received_qty: numeric("received_qty", { precision: 12, scale: 3 }),
+    accepted_qty: numeric("accepted_qty", { precision: 12, scale: 3 }),
+    rejected_qty: numeric("rejected_qty", { precision: 12, scale: 3 }),
+    rejection_reason: text("rejection_reason"),
     line_remarks: text("line_remarks"),
     sort_order: integer("sort_order").notNull().default(0),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -531,6 +535,37 @@ export const inventoryStockTransferLines = inventorySchema.table(
       foreignColumns: [inventoryItems.iq_tenant_id, inventoryItems.id],
     })
       .onDelete("restrict")
+      .onUpdate("no action"),
+  ],
+);
+
+export const inventoryStockTransferAllocations = inventorySchema.table(
+  "stock_transfer_allocations",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    stock_transfer_line_id: uuid("stock_transfer_line_id").notNull(),
+    source_stock_id: uuid("source_stock_id").notNull(),
+    lot_id: uuid("lot_id"),
+    qty: numeric("qty", { precision: 12, scale: 3 }).notNull(),
+    accepted_qty: numeric("accepted_qty", { precision: 12, scale: 3 }).notNull().default("0"),
+    returned_qty: numeric("returned_qty", { precision: 12, scale: 3 }).notNull().default("0"),
+    sort_order: integer("sort_order").notNull().default(0),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_inventory_stock_transfer_allocations_line").on(
+      t.iq_tenant_id,
+      t.stock_transfer_line_id,
+      t.sort_order,
+    ),
+    foreignKey({
+      name: "inventory_stock_transfer_allocations_line_fk",
+      columns: [t.iq_tenant_id, t.stock_transfer_line_id],
+      foreignColumns: [inventoryStockTransferLines.iq_tenant_id, inventoryStockTransferLines.id],
+    })
+      .onDelete("cascade")
       .onUpdate("no action"),
   ],
 );

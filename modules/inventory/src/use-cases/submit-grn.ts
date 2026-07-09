@@ -2,7 +2,7 @@ import type { DrizzleInventoryGrnRepository } from "../data-access/grn.repo.js";
 import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.js";
 import type { IndentRepo } from "../ports.js";
 import { GrnNotFoundError, GrnValidationError } from "../errors.js";
-import { assertPurchaseHeader } from "../domain/grn.validation.js";
+import { assertIndentLinkedForSubmit, assertPurchaseHeader } from "../domain/grn.validation.js";
 import { wireGrn } from "./list-grns.js";
 import { validateGrnLinesAgainstItems } from "./validate-grn-input.js";
 
@@ -33,11 +33,8 @@ export async function submitGrn(
     throw new GrnValidationError("Add at least one line before submitting");
   }
 
-  assertPurchaseHeader(
-    existing.grn_type,
-    existing.manufacturer_id,
-    existing.voucher_invoice_no,
-  );
+  assertIndentLinkedForSubmit(existing.inventory_indent_id);
+  assertPurchaseHeader(existing.grn_type, existing.manufacturer_id, existing.voucher_invoice_no);
 
   await validateGrnLinesAgainstItems(
     { itemRepo: deps.itemRepo },
