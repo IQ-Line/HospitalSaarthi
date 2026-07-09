@@ -14,6 +14,15 @@ const pharmacySchema = z.object({
   mrp: z.number().finite().nonnegative(),
 });
 
+const hsnSnapshotSchema = z.object({
+  id: z.string().uuid(),
+  hsn_code: z.string(),
+  effective_from: z.string(),
+  cgst_pct: z.number(),
+  sgst_pct: z.number(),
+  igst_pct: z.number(),
+});
+
 export const createItemBodySchema = z
   .object({
     name: z.string().trim().min(1, "name is required"),
@@ -36,6 +45,7 @@ export const createItemBodySchema = z
     is_short_expiry: z.boolean().optional(),
     loose_sale_allowed: z.boolean().optional(),
     hsn_gst_id: z.string().uuid().nullable().optional(),
+    hsn_selections: z.array(hsnSnapshotSchema).optional(),
     catalog_number: z.string().trim().optional(),
     reorder_level: z.number().finite().nonnegative().optional(),
     storage_condition_id: z.string().uuid().nullable().optional(),

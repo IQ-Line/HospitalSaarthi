@@ -338,16 +338,16 @@ function VisitpadConversionsPage() {
       <ConfirmDialog
         open={!!deleting}
         onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete conversion"
-        description={`Remove mapping ${deleting?.from_unit_code ?? ''} → ${deleting?.to_unit_code ?? ''}?`}
-        confirmLabel="Delete"
+        title="Deactivate conversion?"
+        description={`${deleting?.from_unit_code ?? ''} → ${deleting?.to_unit_code ?? ''} will be deactivated. You can activate it again later.`}
+        confirmLabel="Deactivate"
         destructive
         onConfirm={() => {
           if (!deleting) return;
           void (async () => {
             try {
               await del.mutateAsync(deleting.id);
-              toast.success('Conversion deleted');
+              toast.success('Conversion deactivated');
               setDeleting(null);
             } catch (e) {
               toast.error(mutationErrorMessage(e));

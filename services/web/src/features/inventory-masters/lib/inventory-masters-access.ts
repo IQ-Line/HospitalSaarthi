@@ -55,3 +55,11 @@ export function defaultInventoryMasterLandingPath(): string {
 export function catalogModuleSlugForInventoryMasterTab(tabId: InventoryMasterTabId): string {
   return INVENTORY_MASTER_TABS.find((tab) => tab.id === tabId)?.catalogModuleSlug ?? 'inventory-master';
 }
+
+/** Tenant administrators manage inventory masters by role; capability keys gate delegated staff only. */
+export function isInventorySupplyMastersTenantAdminPrincipal(): boolean {
+  const authRoles = useAuthStore.getState().roles;
+  const principalRoles = usePermissionsStore.getState().roles;
+  const accessToken = useAuthStore.getState().accessToken;
+  return resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+}

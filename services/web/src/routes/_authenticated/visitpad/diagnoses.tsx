@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -24,8 +23,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
-  useVisitpadDelete,
+import {
   useVisitpadDiagnoses,
   useVisitpadDiagnosesGlobalLibrary,
   useVisitpadPatch,
@@ -65,7 +63,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 
 function VisitpadDiagnosesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-diagnoses');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -80,7 +78,6 @@ function VisitpadDiagnosesPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadDiagnosis | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadDiagnosis | null>(null);
   const cat = category === 'all' ? undefined : category;
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
@@ -96,7 +93,6 @@ function VisitpadDiagnosesPage() {
     librarySearch || undefined,
   );
   const patch = useVisitpadPatch(DX_BASE);
-  const del = useVisitpadDelete(DX_BASE);
   const create = useVisitpadPost(DX_BASE);
   const platformImport = useVisitpadPlatformImport('/diagnoses/import-from-platform');
   const { data: tenantCodeKeys, isLoading: tenantCodeKeysLoading } = useVisitpadTenantImportKeys(
@@ -106,7 +102,7 @@ function VisitpadDiagnosesPage() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = visitpadActiveTotal(rows, total);
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const importedKeys = useMemo(() => tenantCodeKeys ?? new Set<string>(), [tenantCodeKeys]);
   const globalRows = globalLib?.data ?? [];
@@ -211,13 +207,11 @@ function VisitpadDiagnosesPage() {
       },
       visitpadActionsColumn<VisitpadDiagnosis>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [activeToggle, busy, canUpdate, canDelete],
+    [activeToggle, busy, canUpdate],
   );
 
   return (
@@ -347,26 +341,6 @@ function VisitpadDiagnosesPage() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Delete diagnosis"
-        description={`Soft-delete ${deleting?.code ?? ''} — ${deleting?.display_name ?? ''}?`}
-        confirmLabel="Delete"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Diagnosis deleted');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
-        }}
-      />
 
       <VisitpadSnomedFooter />
     </VisitpadPageShell>

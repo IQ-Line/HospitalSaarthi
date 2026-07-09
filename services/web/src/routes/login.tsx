@@ -15,11 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pulse/ui/dialog';
-import { authClient } from '@/lib/auth-client';
-import { completePasswordChange, fetchAuthMe } from '@/lib/auth-me';
-import { refreshAuthorizationContext } from '@/lib/authorization-context';
+import { completeInteractiveLogin, loginWithCredentials } from '@/lib/auth-session';
 import { queryClient } from '@/lib/query-client';
-import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
 
 const signInSchema = z.object({
@@ -45,19 +42,24 @@ export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
-async function fetchJwt(): Promise<string> {
-  const { data, error } = await authClient.token();
-
-  if (error || !data?.token) {
-    throw new Error(`JWT fetch failed: ${error?.message ?? 'empty response'}`);
+function resolveLoginErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  try {
+    const body = JSON.parse(raw) as { message?: string; code?: string };
+    if (body.code === 'AUTH_INVALID_CREDENTIALS') {
+      return 'Invalid email/username or password';
+    }
+    if (typeof body.message === 'string' && body.message.trim()) {
+      return body.message;
+    }
+  } catch {
+    /* not JSON */
   }
-
-  return data.token;
+  return raw || 'Sign-in failed';
 }
 
 function LoginPage() {
   const navigate = useNavigate();
-  const setSession = useAuthStore((s) => s.setSession);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -81,7 +83,8 @@ function LoginPage() {
       authUserIqTenantId: authUser.iq_tenant_id ?? null,
     });
 
-    await refreshAuthorizationContext(queryClient);
+    // Fresh entitlement after sign-in (avoids stale UM TTL cache when master-data just recovered).
+    await refreshAuthorizationContext(queryClient, { bypassEntitlementCache: true });
 
     const profile = await fetchAuthMe();
     if (profile.must_change_password === true) {
@@ -96,31 +99,16 @@ function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const identifier = values.identifier.trim();
-      const { data, error: authError } = identifier.includes('@')
-        ? await authClient.signIn.email({
-            email: identifier.toLowerCase(),
-            password: values.password,
-          })
-        : await authClient.signIn.username({
-            username: identifier,
-            password: values.password,
-          });
-
-      if (authError) {
-        setError(authError.message ?? 'Sign-in failed');
-        return;
-      }
-
-      const sessionToken = data?.token;
-      if (!sessionToken || !data?.user) {
-        setError('Unexpected response from server');
-        return;
-      }
-
-      await completeSignIn(sessionToken, data.user);
+      const login = await loginWithCredentials({
+        identifier: values.identifier,
+        password: values.password,
+      });
+      await completeInteractiveLogin(queryClient, login);
+      navigate({
+        to: login.user.must_change_password === true ? '/change-password' : '/dashboard',
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Sign-in failed');
+      setError(resolveLoginErrorMessage(err));
     } finally {
       setLoading(false);
     }

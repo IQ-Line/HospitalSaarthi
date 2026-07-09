@@ -8,8 +8,11 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { CatalogActiveSwitch } from '@/features/visitpad/components/catalog-active-switch';
+import { useStores } from '@/features/store-configuration/api/stores';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
+import { Switch } from '@pulse/ui/switch';
+import { Textarea } from '@pulse/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -24,15 +27,16 @@ import {
 } from '@/features/inventory-masters/api/mutations';
 import { INVENTORY_MASTERS_API_BASE } from '@/features/inventory-masters/api/query-keys';
 import { inventoryMasterApiBasePath } from '@/features/inventory-masters/lib/inventory-master-api-paths';
-import type {
-  InventoryCategory,
-  InventoryHsnGst,
-  InventoryItemType,
-  InventoryManufacturer,
-  InventoryMasterTabId,
-  InventoryStorageCondition,
-  InventoryStoreType,
-  InventoryUom,
+import {
+  DEFAULT_STORE_TYPE_OPERATIONAL_CONFIG,
+  type InventoryCategory,
+  type InventoryHsnGst,
+  type InventoryItemType,
+  type InventoryManufacturer,
+  type InventoryMasterTabId,
+  type InventoryStorageCondition,
+  type InventoryStoreType,
+  type InventoryUom,
 } from '@/features/inventory-masters/types';
 
 const nameOnlySchema = z.object({
@@ -52,7 +56,7 @@ const uomSchema = z.object({
 
 const storageSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
-  description: z.string().trim().min(1, 'Description is required'),
+  description: z.string().optional(),
   is_active: z.boolean(),
 });
 
@@ -63,36 +67,80 @@ const categorySchema = z.object({
   is_active: z.boolean(),
 });
 
-const hsnSchema = z
-  .object({
-    hsn_code: z.string().trim().regex(/^\d{4,8}$/, 'HSN code must be 4–8 digits'),
-    effective_from: z.string().trim().min(1, 'Effective date is required'),
-    cgst_pct: z.coerce.number().min(0),
-    sgst_pct: z.coerce.number().min(0),
-    igst_pct: z.coerce.number().min(0),
-    remarks: z.string().optional(),
-    is_active: z.boolean(),
-  })
-  .refine((v) => v.cgst_pct + v.sgst_pct === v.igst_pct, {
-    message: 'CGST + SGST must equal IGST',
-    path: ['igst_pct'],
-  });
+const hsnSchema = z.object({
+  hsn_code: z.string().trim().regex(/^\d{4,8}$/, 'HSN code must be 4–8 digits'),
+  effective_from: z.string().trim().min(1, 'Effective date is required'),
+  cgst_pct: z.coerce.number().min(0),
+  sgst_pct: z.coerce.number().min(0),
+  igst_pct: z.coerce.number().min(0),
+  is_active: z.boolean(),
+});
+
+const STORE_TYPE_DESCRIPTION_MAX_LENGTH = 500;
+const NONE_STORE_VALUE = '__none__';
 
 const storeTypeSchema = z.object({
-  name: z.string().trim().min(1, 'Name is required'),
-  description: z.string().optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Enter a store type name.')
+    .max(200, 'Store type name must be at most 200 characters.'),
+  description: z
+    .string()
+    .max(
+      STORE_TYPE_DESCRIPTION_MAX_LENGTH,
+      `Description must be at most ${STORE_TYPE_DESCRIPTION_MAX_LENGTH} characters.`,
+    )
+    .optional(),
   can_receive_stock: z.boolean(),
   can_dispense: z.boolean(),
+  can_issue_to_ward: z.boolean(),
+  track_batch_expiry: z.boolean(),
+  indent_authority: z.boolean(),
+  default_indent_target_store_id: z.string().nullable(),
   is_active: z.boolean(),
 });
 
 const manufacturerSchema = z.object({
-  code: z.string().trim().min(1, 'Code is required'),
+  code: z.string().optional(),
   display_name: z.string().trim().min(1, 'Display name is required'),
   is_active: z.boolean(),
 });
 
 type DeleteTarget = { id: string; label: string };
+
+function computeIgstRate(cgst: number, sgst: number): number {
+  return Math.round((cgst + sgst) * 10000) / 10000;
+}
+
+function resolveManufacturerCode(code: string | undefined, displayName: string): string {
+  const trimmed = code?.trim().toLowerCase() ?? '';
+  if (/^[a-z0-9_]{3,9}$/.test(trimmed)) return trimmed;
+  const fromName = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, '')
+    .slice(0, 9);
+  if (fromName.length >= 3) return fromName;
+  return `m${Date.now().toString(36).slice(-8)}`.slice(0, 9);
+}
+
+function RequiredLabel({
+  htmlFor,
+  children,
+  required = false,
+}: {
+  htmlFor?: string;
+  children: ReactNode;
+  required?: boolean;
+}) {
+  return (
+    <Label htmlFor={htmlFor} className="text-xs font-medium text-muted-foreground">
+      {children}
+      {required ? <span className="text-destructive"> *</span> : null}
+    </Label>
+  );
+}
 
 type InventoryMasterCrudDialogsProps = {
   tabId: InventoryMasterTabId;
@@ -177,18 +225,20 @@ export function InventoryMasterCrudDialogs({
         onOpenChange={(open) => {
           if (!open) onDeletingChange(null);
         }}
-        title="Delete record?"
+        title="Deactivate record?"
         description={
-          deleting ? `Delete “${deleting.label}”? This can be restored from the catalog.` : ''
+          deleting
+            ? `“${deleting.label}” will be deactivated. You can activate it again later.`
+            : ''
         }
-        confirmLabel="Delete"
+        confirmLabel="Deactivate"
         destructive
         loading={del.isPending}
         onConfirm={async () => {
           if (!deleting) return;
           try {
             await del.mutateAsync(deleting.id);
-            toast.success('Deleted');
+            toast.success('Deactivated');
             onDeletingChange(null);
           } catch (error) {
             toast.error(mutationErrorMessage(error));
@@ -635,7 +685,7 @@ function StorageCrudDialog(props: {
 
   const toBody = (values: z.infer<typeof storageSchema>) => ({
     name: values.name,
-    description: values.description,
+    description: values.description?.trim() || '',
     is_active: values.is_active,
   });
 
@@ -649,12 +699,14 @@ function StorageCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="storage-name">Name</Label>
+            <RequiredLabel htmlFor="storage-name" required>
+              Name
+            </RequiredLabel>
             <Input id="storage-name" {...form.register('name')} />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="storage-desc">Description</Label>
-            <Input id="storage-desc" {...form.register('description')} />
+            <RequiredLabel htmlFor="storage-desc">Description</RequiredLabel>
+            <Input id="storage-desc" placeholder="Optional" {...form.register('description')} />
           </div>
           <ActiveField
             checked={form.watch('is_active')}
@@ -683,10 +735,18 @@ function HsnCrudDialog(props: {
       cgst_pct: 0,
       sgst_pct: 0,
       igst_pct: 0,
-      remarks: '',
       is_active: true,
     },
   });
+
+  const cgstPct = form.watch('cgst_pct');
+  const sgstPct = form.watch('sgst_pct');
+
+  useEffect(() => {
+    const cg = Number(cgstPct) || 0;
+    const sg = Number(sgstPct) || 0;
+    form.setValue('igst_pct', computeIgstRate(cg, sg), { shouldValidate: true });
+  }, [cgstPct, sgstPct, form]);
 
   useEffect(() => {
     if (props.createOpen) {
@@ -696,7 +756,6 @@ function HsnCrudDialog(props: {
         cgst_pct: 0,
         sgst_pct: 0,
         igst_pct: 0,
-        remarks: '',
         is_active: true,
       });
     }
@@ -710,7 +769,6 @@ function HsnCrudDialog(props: {
         cgst_pct: props.editing.cgst_percent,
         sgst_pct: props.editing.sgst_percent,
         igst_pct: props.editing.igst_percent,
-        remarks: '',
         is_active: props.editing.status === 'active',
       });
     }
@@ -722,7 +780,6 @@ function HsnCrudDialog(props: {
     cgst_pct: values.cgst_pct,
     sgst_pct: values.sgst_pct,
     igst_pct: values.igst_pct,
-    remarks: values.remarks?.trim() || null,
     is_active: values.is_active,
   });
 
@@ -731,13 +788,17 @@ function HsnCrudDialog(props: {
     cgst_pct: values.cgst_pct,
     sgst_pct: values.sgst_pct,
     igst_pct: values.igst_pct,
-    remarks: values.remarks?.trim() || null,
     is_active: values.is_active,
   });
 
+  const igstDisplay = String(form.watch('igst_pct') ?? 0);
+
   return (
     <CrudDialogPair
-      entityLabel="HSN / GST"
+      entityLabel="HSN & GST"
+      createSubmitLabel="Save"
+      editSubmitLabel="Save"
+      fieldsClassName="grid gap-4 md:grid-cols-2"
       {...props}
       form={form}
       onCreate={(values) => props.create.mutateAsync(toCreateBody(values))}
@@ -745,34 +806,96 @@ function HsnCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="hsn-code">HSN code</Label>
-            <Input id="hsn-code" {...form.register('hsn_code')} disabled={props.editing != null} />
+            <RequiredLabel htmlFor="hsn-code" required>
+              HSN Code
+            </RequiredLabel>
+            <Input
+              id="hsn-code"
+              className="font-mono"
+              placeholder="4–8 digits"
+              inputMode="numeric"
+              maxLength={8}
+              {...form.register('hsn_code')}
+              disabled={props.editing != null}
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="hsn-date">Effective from</Label>
+            <RequiredLabel htmlFor="hsn-date" required>
+              Date of Activation
+            </RequiredLabel>
             <Input id="hsn-date" type="date" {...form.register('effective_from')} />
           </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="cgst">CGST %</Label>
-              <Input id="cgst" type="number" step="0.01" {...form.register('cgst_pct')} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="sgst">SGST %</Label>
-              <Input id="sgst" type="number" step="0.01" {...form.register('sgst_pct')} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="igst">IGST %</Label>
-              <Input id="igst" type="number" step="0.01" {...form.register('igst_pct')} />
-            </div>
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="cgst" required>
+              CGST Rate (%)
+            </RequiredLabel>
+            <Input id="cgst" type="number" step="0.01" min={0} {...form.register('cgst_pct')} />
           </div>
-          <ActiveField
-            checked={form.watch('is_active')}
-            onCheckedChange={(value) => form.setValue('is_active', value)}
-          />
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="sgst" required>
+              SGST Rate (%)
+            </RequiredLabel>
+            <Input id="sgst" type="number" step="0.01" min={0} {...form.register('sgst_pct')} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <RequiredLabel htmlFor="igst" required>
+              IGST Rate (%)
+            </RequiredLabel>
+            <Input
+              id="igst"
+              className="bg-muted"
+              placeholder="Auto"
+              value={igstDisplay}
+              readOnly
+              disabled
+              tabIndex={-1}
+              aria-readonly
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+            <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+              <Label htmlFor="hsn-status" className="text-sm font-medium text-foreground">
+                Status
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                IGST is calculated as CGST + SGST. Updates apply to future transactions only.
+              </p>
+            </div>
+            <Switch
+              id="hsn-status"
+              checked={form.watch('is_active')}
+              onCheckedChange={(value) => form.setValue('is_active', value)}
+            />
+          </div>
         </>
       )}
     />
+  );
+}
+
+function StoreTypeOperationalFlag({
+  id,
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (value: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+      <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+        <Label htmlFor={id} className="text-sm font-medium text-foreground">
+          {label}
+        </Label>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
   );
 }
 
@@ -785,26 +908,26 @@ function StoreTypeCrudDialog(props: {
   patch: ReturnType<typeof useInventoryMasterPatch>;
   busy: boolean;
 }) {
+  const storesQuery = useStores({ status: 'active', pageSize: 200 });
+  const stores = storesQuery.data?.data ?? [];
+
+  const defaultValues: z.infer<typeof storeTypeSchema> = {
+    name: '',
+    description: '',
+    ...DEFAULT_STORE_TYPE_OPERATIONAL_CONFIG,
+    is_active: true,
+  };
+
   const form = useForm<z.infer<typeof storeTypeSchema>>({
     resolver: zodResolver(storeTypeSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      can_receive_stock: true,
-      can_dispense: false,
-      is_active: true,
-    },
+    defaultValues,
   });
+
+  const indentAuthority = form.watch('indent_authority');
 
   useEffect(() => {
     if (props.createOpen) {
-      form.reset({
-        name: '',
-        description: '',
-        can_receive_stock: true,
-        can_dispense: false,
-        is_active: true,
-      });
+      form.reset(defaultValues);
     }
   }, [props.createOpen, form]);
 
@@ -813,61 +936,167 @@ function StoreTypeCrudDialog(props: {
       form.reset({
         name: props.editing.store_type,
         description: props.editing.description ?? '',
-        can_receive_stock: props.editing.receive_stock,
-        can_dispense: props.editing.dispense,
+        can_receive_stock: props.editing.can_receive_stock,
+        can_dispense: props.editing.can_dispense,
+        can_issue_to_ward: props.editing.can_issue_to_ward,
+        track_batch_expiry: props.editing.track_batch_expiry,
+        indent_authority: props.editing.indent_authority,
+        default_indent_target_store_id: props.editing.default_indent_target_store_id,
         is_active: props.editing.status === 'active',
       });
     }
   }, [props.editing, form]);
 
-  const toCreateBody = (values: z.infer<typeof storeTypeSchema>) => ({
-    name: values.name,
-    description: values.description?.trim() ?? '',
+  const buildOperationalBody = (values: z.infer<typeof storeTypeSchema>) => ({
     can_receive_stock: values.can_receive_stock,
     can_dispense: values.can_dispense,
-    can_issue_to_ward: false,
-    track_batch_expiry: true,
-    indent_authority: false,
+    can_issue_to_ward: values.can_issue_to_ward,
+    track_batch_expiry: values.track_batch_expiry,
+    indent_authority: values.indent_authority,
+    default_indent_target_store_id: values.indent_authority
+      ? values.default_indent_target_store_id
+      : null,
+  });
+
+  const toCreateBody = (values: z.infer<typeof storeTypeSchema>) => ({
+    name: values.name.trim(),
+    description: values.description?.trim() ?? '',
     is_active: values.is_active,
+    ...buildOperationalBody(values),
   });
 
   const toPatchBody = (values: z.infer<typeof storeTypeSchema>) => ({
-    name: values.name,
+    name: values.name.trim(),
     description: values.description?.trim() ?? '',
-    can_receive_stock: values.can_receive_stock,
-    can_dispense: values.can_dispense,
     is_active: values.is_active,
+    ...buildOperationalBody(values),
   });
 
   return (
     <CrudDialogPair
       entityLabel="Store type"
+      createSubmitLabel="Save"
+      editSubmitLabel="Save"
+      fieldsClassName="grid gap-4 md:grid-cols-2"
       {...props}
       form={form}
       onCreate={(values) => props.create.mutateAsync(toCreateBody(values))}
       onEdit={(id, values) => props.patch.mutateAsync({ id, body: toPatchBody(values) })}
       renderFields={() => (
         <>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="store-name">Store type name</Label>
+          {props.editing ? (
+            <div className="flex flex-col gap-2 md:col-span-2">
+              <RequiredLabel htmlFor="store-code">Store type code</RequiredLabel>
+              <Input
+                id="store-code"
+                className="font-mono"
+                value={props.editing.code}
+                readOnly
+                disabled
+              />
+            </div>
+          ) : null}
+          <div className={`flex flex-col gap-2 ${props.editing ? '' : 'md:col-span-2'}`}>
+            <RequiredLabel htmlFor="store-name" required>
+              Store type name
+            </RequiredLabel>
             <Input id="store-name" {...form.register('name')} />
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="store-desc">Description</Label>
-            <Input id="store-desc" {...form.register('description')} />
+          <div className="flex flex-col gap-2 md:col-span-2">
+            <RequiredLabel htmlFor="store-desc">Description</RequiredLabel>
+            <Textarea
+              id="store-desc"
+              className="min-h-[72px] resize-y"
+              placeholder={`Optional (max ${STORE_TYPE_DESCRIPTION_MAX_LENGTH} characters)`}
+              maxLength={STORE_TYPE_DESCRIPTION_MAX_LENGTH}
+              {...form.register('description')}
+            />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register('can_receive_stock')} />
-            Can receive stock
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" {...form.register('can_dispense')} />
-            Can dispense
-          </label>
-          <ActiveField
-            checked={form.watch('is_active')}
-            onCheckedChange={(value) => form.setValue('is_active', value)}
-          />
+          <div className="flex items-center justify-between gap-4 rounded-md border px-3 py-2 md:col-span-2">
+            <div className="flex min-w-0 flex-col gap-0.5 pr-2">
+              <Label htmlFor="store-status" className="text-sm font-medium text-foreground">
+                Status
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Inactive types are hidden when creating new stores. Existing stores are unchanged.
+              </p>
+            </div>
+            <Switch
+              id="store-status"
+              checked={form.watch('is_active')}
+              onCheckedChange={(value) => form.setValue('is_active', value)}
+            />
+          </div>
+          <div className="flex flex-col gap-3 md:col-span-2">
+            <p className="text-sm font-medium text-foreground">Default operational configuration</p>
+            <p className="text-xs text-muted-foreground">
+              New stores inherit these settings. Changes apply only to stores created after you save.
+            </p>
+            <StoreTypeOperationalFlag
+              id="store-receive"
+              label="Can Receive Stock"
+              hint="GRN and transfer destination"
+              checked={form.watch('can_receive_stock')}
+              onCheckedChange={(value) => form.setValue('can_receive_stock', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-dispense"
+              label="Can Dispense to Patient"
+              hint="Queue, dispensing, counter sale"
+              checked={form.watch('can_dispense')}
+              onCheckedChange={(value) => form.setValue('can_dispense', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-ward"
+              label="Can Issue to Ward"
+              hint="Ward issue workflows"
+              checked={form.watch('can_issue_to_ward')}
+              onCheckedChange={(value) => form.setValue('can_issue_to_ward', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-batch"
+              label="Track Batch & Expiry"
+              hint="Batch and expiry mandatory"
+              checked={form.watch('track_batch_expiry')}
+              onCheckedChange={(value) => form.setValue('track_batch_expiry', value)}
+            />
+            <StoreTypeOperationalFlag
+              id="store-indent"
+              label="Indent Authority"
+              hint="Create indent action enabled"
+              checked={form.watch('indent_authority')}
+              onCheckedChange={(value) => form.setValue('indent_authority', value)}
+            />
+            {indentAuthority ? (
+              <div className="flex flex-col gap-2 md:col-span-2">
+                <Label htmlFor="store-indent-target">Default indent target store</Label>
+                <Select
+                  value={form.watch('default_indent_target_store_id') ?? NONE_STORE_VALUE}
+                  onValueChange={(value) =>
+                    form.setValue(
+                      'default_indent_target_store_id',
+                      value === NONE_STORE_VALUE ? null : value,
+                    )
+                  }
+                  disabled={storesQuery.isPending}
+                >
+                  <SelectTrigger id="store-indent-target">
+                    <SelectValue
+                      placeholder={storesQuery.isPending ? 'Loading stores…' : 'Select store (optional)'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE_STORE_VALUE}>None</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.store_code} — {store.store_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
         </>
       )}
     />
@@ -903,7 +1132,7 @@ function ManufacturerCrudDialog(props: {
   }, [props.editing, form]);
 
   const toCreateBody = (values: z.infer<typeof manufacturerSchema>) => ({
-    code: values.code,
+    code: resolveManufacturerCode(values.code, values.display_name),
     display_name: values.display_name,
     display_order: 0,
     is_active: values.is_active,
@@ -924,11 +1153,18 @@ function ManufacturerCrudDialog(props: {
       renderFields={() => (
         <>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="mfr-code">Code</Label>
-            <Input id="mfr-code" {...form.register('code')} disabled={props.editing != null} />
+            <RequiredLabel htmlFor="mfr-code">Code</RequiredLabel>
+            <Input
+              id="mfr-code"
+              placeholder="Optional"
+              {...form.register('code')}
+              disabled={props.editing != null}
+            />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="mfr-name">Display name</Label>
+            <RequiredLabel htmlFor="mfr-name" required>
+              Display name
+            </RequiredLabel>
             <Input id="mfr-name" {...form.register('display_name')} />
           </div>
           <ActiveField
@@ -952,6 +1188,9 @@ function CrudDialogPair<T extends Record<string, unknown>>({
   onCreate,
   onEdit,
   renderFields,
+  fieldsClassName = 'flex flex-col gap-4',
+  createSubmitLabel = 'Create',
+  editSubmitLabel = 'Save',
 }: {
   entityLabel: string;
   createOpen: boolean;
@@ -963,6 +1202,9 @@ function CrudDialogPair<T extends Record<string, unknown>>({
   onCreate: (values: T) => Promise<unknown>;
   onEdit: (id: string, values: T) => Promise<unknown>;
   renderFields: () => ReactNode;
+  fieldsClassName?: string;
+  createSubmitLabel?: string;
+  editSubmitLabel?: string;
 }) {
   const submitCreate: SubmitHandler<T> = async (values) => {
     try {
@@ -991,11 +1233,12 @@ function CrudDialogPair<T extends Record<string, unknown>>({
         open={createOpen}
         onOpenChange={onCreateOpenChange}
         title={`Add ${entityLabel}`}
-        submitLabel="Create"
-        loading={busy}
+        description=""
+        submitLabel={createSubmitLabel}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitCreate)}
       >
-        <div className="flex flex-col gap-4">{renderFields()}</div>
+        <div className={fieldsClassName}>{renderFields()}</div>
       </EntityFormDialog>
       <EntityFormDialog
         open={editing != null}
@@ -1003,11 +1246,12 @@ function CrudDialogPair<T extends Record<string, unknown>>({
           if (!open) onEditingChange(null);
         }}
         title={`Edit ${entityLabel}`}
-        submitLabel="Save"
-        loading={busy}
+        description=""
+        submitLabel={editSubmitLabel}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitEdit)}
       >
-        <div className="flex flex-col gap-4">{renderFields()}</div>
+        <div className={fieldsClassName}>{renderFields()}</div>
       </EntityFormDialog>
     </>
   );

@@ -27,6 +27,7 @@ import {
   itemTypeCodePrefix,
   type CreateItemMasterPayload,
   type ItemClassification,
+  type ItemMasterHsnSnapshot,
   type ItemMasterPharmacyAttributes,
   type ItemTrackingMode,
 } from '@/features/inventory-masters/items/item-master-model';
@@ -78,6 +79,23 @@ function isActiveStatus(status: string): boolean {
   return status === 'active';
 }
 
+function hsnRowToSnapshot(row: InventoryHsnGst): ItemMasterHsnSnapshot {
+  const from =
+    row.activation_date.length >= 10 ? row.activation_date.slice(0, 10) : row.activation_date;
+  return {
+    id: row.id,
+    hsn_code: row.hsn_code,
+    effective_from: from,
+    cgst_pct: row.cgst_percent,
+    sgst_pct: row.sgst_percent,
+    igst_pct: row.igst_percent,
+  };
+}
+
+function formatHsnRowLabel(row: InventoryHsnGst): string {
+  return `${row.hsn_code} · CGST ${row.cgst_percent}% / SGST ${row.sgst_percent}% / IGST ${row.igst_percent}%`;
+}
+
 export type ItemMasterFormPanelProps = {
   open: boolean;
   onClose: () => void;
@@ -127,7 +145,7 @@ export function ItemMasterFormPanel({
   const [consumptionUomId, setConsumptionUomId] = React.useState('');
   const [itemTypeId, setItemTypeId] = React.useState('');
   const [saleUomId, setSaleUomId] = React.useState('');
-  const [hsnSelectedId, setHsnSelectedId] = React.useState('');
+  const [hsnSelectedIds, setHsnSelectedIds] = React.useState<Set<string>>(() => new Set());
   const [catalogNo, setCatalogNo] = React.useState('');
   const [reorderStr, setReorderStr] = React.useState('');
   const [storageConditionId, setStorageConditionId] = React.useState('');
@@ -276,7 +294,7 @@ export function ItemMasterFormPanel({
     setConsumptionUomId('');
     setSaleUomId('');
     setItemTypeId('');
-    setHsnSelectedId('');
+    setHsnSelectedIds(new Set());
     setCatalogNo('');
     setReorderStr('');
     setStorageConditionId('');
@@ -302,6 +320,15 @@ export function ItemMasterFormPanel({
 
   const toggleDepartment = (id: string, checked: boolean) => {
     setDepartmentSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleHsn = (id: string, checked: boolean) => {
+    setHsnSelectedIds((prev) => {
       const next = new Set(prev);
       if (checked) next.add(id);
       else next.delete(id);
@@ -350,8 +377,8 @@ export function ItemMasterFormPanel({
         toast.error('Select purchase, consumption, and sale units.');
         return;
       }
-      if (activeHsnRows.length > 0 && !hsnSelectedId) {
-        toast.error('Select an HSN row.');
+      if (activeHsnRows.length > 0 && hsnSelectedIds.size === 0) {
+        toast.error('Select at least one HSN row.');
         return;
       }
 
@@ -402,6 +429,11 @@ export function ItemMasterFormPanel({
       const isExpirable = isMedicine ? true : effectiveTracking === 'by-batch' ? batchExpirable === 'yes' : false;
       const isShortExpiry = effectiveTracking === 'by-batch' ? batchShortExpiry === 'yes' : false;
 
+      const hsnSelections = activeHsnRows
+        .filter((row) => hsnSelectedIds.has(row.id))
+        .map(hsnRowToSnapshot);
+      const primaryHsnId = hsnSelections[0]?.id ?? null;
+
       await onSubmit({
         name,
         display_name: displayName.trim() || name,
@@ -422,7 +454,8 @@ export function ItemMasterFormPanel({
         is_expirable: isExpirable,
         is_short_expiry: isShortExpiry,
         loose_sale_allowed: looseQualitySale === 'yes',
-        hsn_gst_id: hsnSelectedId || null,
+        hsn_gst_id: primaryHsnId,
+        hsn_selections: hsnSelections.length > 0 ? hsnSelections : undefined,
         catalog_number: catalogNo.trim() || undefined,
         reorder_level: reorderParsed,
         storage_condition_id: storageConditionId || null,
@@ -449,6 +482,13 @@ export function ItemMasterFormPanel({
     selectedFormularyOption?.brandNames?.[0]?.trim() ||
     selectedFormularyOption?.manufacturer?.trim() ||
     '—';
+
+  const hsnSummary =
+    hsnSelectedIds.size === 0
+      ? activeHsnRows.length
+        ? 'Select HSN…'
+        : 'Add HSN rows first'
+      : `${hsnSelectedIds.size} HSN row(s)`;
 
   const formBody = (
     <div className="flex flex-col gap-4">
@@ -902,19 +942,40 @@ export function ItemMasterFormPanel({
           <CardTitle className="text-sm font-medium">Financial and regulatory</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <Field label="HSN / GST row" htmlFor="imf-hsn" required={activeHsnRows.length > 0}>
-            <Select value={hsnSelectedId || undefined} onValueChange={setHsnSelectedId}>
-              <SelectTrigger id="imf-hsn" className="h-9 w-full">
-                <SelectValue placeholder={activeHsnRows.length ? 'Select HSN…' : 'Add HSN rows first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeHsnRows.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
-                    {r.hsn_code}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <Field label="HSN / GST rows" htmlFor="imf-hsn-pop" required={activeHsnRows.length > 0}>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="imf-hsn-pop"
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full justify-start font-normal"
+                >
+                  <span className="truncate">{hsnSummary}</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-3" align="start">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  Select one or more HSN rows
+                </p>
+                <div className="max-h-56 space-y-2 overflow-y-auto">
+                  {activeHsnRows.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Add HSN/GST in Masters.</p>
+                  ) : (
+                    activeHsnRows.map((row) => (
+                      <label key={row.id} className="flex cursor-pointer items-start gap-2 text-sm">
+                        <Checkbox
+                          className="mt-0.5"
+                          checked={hsnSelectedIds.has(row.id)}
+                          onCheckedChange={(checked) => toggleHsn(row.id, checked === true)}
+                        />
+                        <span className="font-mono text-xs leading-snug">{formatHsnRowLabel(row)}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </Field>
           <Field label="Catalog number" htmlFor="imf-catalog">
             <Input id="imf-catalog" className="h-9" value={catalogNo} onChange={(e) => setCatalogNo(e.target.value)} />

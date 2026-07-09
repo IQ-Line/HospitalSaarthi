@@ -348,6 +348,12 @@ export class ApiKeyInvalidError extends UserManagementError {
   }
 }
 
+export class AuthInvalidCredentialsError extends UserManagementError {
+  constructor() {
+    super("AUTH_INVALID_CREDENTIALS", "Invalid email/username or password");
+  }
+}
+
 export class RbacIntegrityViolationError extends UserManagementError {
   constructor(public readonly reason: "orphan_user_role_template") {
     super(

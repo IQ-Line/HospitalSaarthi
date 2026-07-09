@@ -1,62 +1,58 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { authClient } from '@/lib/auth-client';
+import { clearAuthMeCache } from '@/lib/auth-me';
+import { decodeAccessTokenPayload } from '@/lib/access-token';
+import type { AuthPrincipalResponse } from '@/lib/auth-principal';
+import { applyAuthorizationFromLogin } from '@/lib/authorization-context';
+import { resolveBrowserApiBaseUrl } from '@/lib/api-base-url';
 import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { catalogIqTenantHeaderValue, jwtIqTenantHeaderValue } from '@/lib/catalog-tenant';
+import type { UmUser } from '@/features/user-management/types';
+import { parseAccessJwtClaims } from '@/lib/jwt-claims';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTenantStore } from '@/stores/tenant.store';
+
+const BASE_URL = resolveBrowserApiBaseUrl();
+
+export type InteractiveLoginResponse = {
+  access_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+  refresh_token: string;
+  refresh_expires_in: number;
+  session_token: string;
+  tenant_id: string;
+  user: UmUser;
+  principal: AuthPrincipalResponse;
+};
 
 let authBootstrapComplete = false;
 let authBootstrapPromise: Promise<void> | null = null;
 let authRefreshPromise: Promise<string | null> | null = null;
+let storeRehydrated = false;
 
-type ResolvedAuthSession = {
-  accessToken: string;
-  sessionToken: string;
-  userId: string;
-  displayName: string;
-  authUserIqTenantId: string | null;
-};
-
-async function resolveAuthSessionFromBetterAuth(): Promise<ResolvedAuthSession | null> {
-  const { data: sessionData, error: sessionError } = await authClient.getSession();
-  const sessionToken = sessionData?.session?.token;
-  const userId = sessionData?.user?.id;
-  const displayName = sessionData?.user?.name;
-
-  if (
-    sessionError ||
-    typeof sessionToken !== 'string' ||
-    sessionToken.length === 0 ||
-    typeof userId !== 'string' ||
-    userId.length === 0
-  ) {
-    return null;
+function isAccessTokenUsable(accessToken: string | null | undefined, skewSeconds = 60): boolean {
+  if (typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+    return false;
   }
-
-  const { data: tokenData, error: tokenError } = await authClient.token();
-  const accessToken = tokenData?.token;
-  if (tokenError || typeof accessToken !== 'string' || accessToken.length === 0) {
-    return null;
+  const exp = decodeAccessTokenPayload(accessToken)?.exp;
+  if (typeof exp !== 'number' || !Number.isFinite(exp)) {
+    return true;
   }
-
-  const authUser = sessionData?.user as { iq_tenant_id?: string } | undefined;
-  const authUserIqTenantId =
-    typeof authUser?.iq_tenant_id === 'string' && authUser.iq_tenant_id.trim().length > 0
-      ? authUser.iq_tenant_id.trim()
-      : null;
-
-  return {
-    accessToken,
-    sessionToken,
-    userId,
-    displayName: typeof displayName === 'string' ? displayName : '',
-    authUserIqTenantId,
-  };
+  return exp > Math.floor(Date.now() / 1000) + skewSeconds;
 }
 
-/**
- * After reload, align tenant store to JWT (dev only).
- * Prod cookie-bootstrap UX is tracked in #90 — do not inject dev placeholders there.
- */
+async function ensureAuthStoreRehydrated(): Promise<void> {
+  if (storeRehydrated) {
+    return;
+  }
+  const store = useAuthStore;
+  if ('persist' in store && typeof store.persist.rehydrate === 'function') {
+    await store.persist.rehydrate();
+  }
+  storeRehydrated = true;
+}
+
 function syncTenantStoreFromAccessToken(accessToken: string): void {
   if (!import.meta.env.DEV) return;
 
@@ -79,54 +75,135 @@ function syncTenantStoreFromAccessToken(accessToken: string): void {
 }
 
 function redirectToLoginIfBrowserSessionExpired(): void {
-  if (typeof window === 'undefined') {
+  if (typeof window === 'undefined' || window.location.pathname === '/login') {
     return;
   }
-
-  if (window.location.pathname === '/login') {
-    return;
-  }
-
   window.location.replace('/login');
 }
 
-/**
- * Signs out and clears client auth when the platform user is deactivated mid-session.
- */
+async function hydrateTenantFromAccessToken(accessToken: string): Promise<void> {
+  const claims = parseAccessJwtClaims(accessToken);
+  await applyTenantSessionFromAuth({
+    accessToken,
+    authUserIqTenantId: claims.iq_tenant_id ?? null,
+    preferredActiveTenantId: useTenantStore.getState().tenantId,
+  });
+  syncTenantStoreFromAccessToken(accessToken);
+}
+
+async function refreshPlatformAccessToken(refreshToken: string): Promise<string> {
+  const response = await fetch(`${BASE_URL}/api/auth/token`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${refreshToken.trim()}` },
+    credentials: 'include',
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text.length > 0 ? text : `Token refresh failed (${response.status})`);
+  }
+  const parsed = JSON.parse(text) as { token?: unknown };
+  const accessToken = typeof parsed.token === 'string' ? parsed.token.trim() : '';
+  if (accessToken.length === 0) {
+    throw new Error('Token refresh returned an empty access token');
+  }
+  return accessToken;
+}
+
+async function refreshStoredAccessToken(): Promise<string | null> {
+  const auth = useAuthStore.getState();
+  const refreshToken = auth.refreshToken?.trim();
+  if (!refreshToken || !auth.userId) {
+    return null;
+  }
+
+  if (isAccessTokenUsable(auth.accessToken)) {
+    return auth.accessToken;
+  }
+
+  const accessToken = await refreshPlatformAccessToken(refreshToken);
+  useAuthStore.getState().setSession({
+    accessToken,
+    refreshToken,
+    sessionToken: auth.sessionToken ?? '',
+    userId: auth.userId,
+    displayName: auth.displayName ?? '',
+  });
+  await hydrateTenantFromAccessToken(accessToken);
+  return accessToken;
+}
+
+export async function loginWithCredentials(input: {
+  identifier: string;
+  password: string;
+}): Promise<InteractiveLoginResponse> {
+  const response = await fetch(`${BASE_URL}/api/user-management/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({
+      identifier: input.identifier.trim(),
+      password: input.password,
+    }),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(text.length > 0 ? text : `Login failed (${response.status})`);
+  }
+  return JSON.parse(text) as InteractiveLoginResponse;
+}
+
+export async function completeInteractiveLogin(
+  queryClient: QueryClient,
+  login: InteractiveLoginResponse,
+): Promise<void> {
+  useAuthStore.getState().setSession({
+    accessToken: login.access_token,
+    refreshToken: login.refresh_token,
+    sessionToken: login.session_token,
+    userId: login.user.id,
+    displayName: login.user.full_name,
+    mustChangePassword: login.user.must_change_password === true,
+  });
+  authBootstrapComplete = true;
+  authBootstrapPromise = null;
+
+  await applyTenantSessionFromAuth({
+    accessToken: login.access_token,
+    authUserIqTenantId: login.tenant_id,
+  });
+  await applyAuthorizationFromLogin(queryClient, login.principal);
+}
+
 export async function forceLogoutDueToAccountDisabled(): Promise<void> {
   authBootstrapComplete = false;
   authBootstrapPromise = null;
+  clearAuthMeCache();
   useAuthStore.getState().clearSession();
   try {
     await authClient.signOut();
   } catch {
-    /* best-effort — server sessions may already be revoked */
+    /* best-effort */
   }
   redirectToLoginIfBrowserSessionExpired();
 }
 
 function isAccountDisabledTokenError(error: unknown): boolean {
-  if (error == null || typeof error !== "object") {
+  if (error == null || typeof error !== 'object') {
     return false;
   }
   const status = (error as { status?: unknown }).status;
   const message = (error as { message?: unknown }).message;
   return (
     status === 403 &&
-    typeof message === "string" &&
-    message.toLowerCase().includes("deactivated")
+    typeof message === 'string' &&
+    message.toLowerCase().includes('deactivated')
   );
 }
 
-/**
- * Restores the browser session from better-auth's cookie-backed session before route guards run.
- * JWTs stay in memory; on reload we re-fetch them from the active better-auth session.
- */
 export async function ensureAuthSession(): Promise<void> {
   if (authBootstrapComplete) {
     return;
   }
-
   if (authBootstrapPromise) {
     await authBootstrapPromise;
     return;
@@ -134,18 +211,26 @@ export async function ensureAuthSession(): Promise<void> {
 
   authBootstrapPromise = (async () => {
     try {
-      const resolvedSession = await resolveAuthSessionFromBetterAuth();
-      if (resolvedSession === null) {
-        useAuthStore.getState().clearSession();
+      await ensureAuthStoreRehydrated();
+      const auth = useAuthStore.getState();
+
+      // Login page uses POST /auth/login — do not silently refresh here.
+      if (typeof window !== 'undefined' && window.location.pathname === '/login') {
         return;
       }
 
-      useAuthStore.getState().setSession(resolvedSession);
-      await applyTenantSessionFromAuth({
-        accessToken: resolvedSession.accessToken,
-        authUserIqTenantId: resolvedSession.authUserIqTenantId,
-        preferredActiveTenantId: useTenantStore.getState().tenantId,
-      });
+      if (!auth.isAuthenticated || !auth.refreshToken?.trim() || !auth.userId) {
+        useAuthStore.getState().clearSession();
+        return;
+      }
+      if (isAccessTokenUsable(auth.accessToken)) {
+        await hydrateTenantFromAccessToken(auth.accessToken!);
+        return;
+      }
+      const accessToken = await refreshStoredAccessToken();
+      if (accessToken === null) {
+        useAuthStore.getState().clearSession();
+      }
     } catch (error) {
       useAuthStore.getState().clearSession();
       if (isAccountDisabledTokenError(error)) {
@@ -160,10 +245,6 @@ export async function ensureAuthSession(): Promise<void> {
   await authBootstrapPromise;
 }
 
-/**
- * Re-fetches a short-lived JWT from the active better-auth cookie session and updates the auth
- * store. This is used when APIs reject the in-memory JWT after it expires during navigation.
- */
 export async function refreshAccessToken(): Promise<string | null> {
   if (authRefreshPromise) {
     return authRefreshPromise;
@@ -171,20 +252,13 @@ export async function refreshAccessToken(): Promise<string | null> {
 
   authRefreshPromise = (async () => {
     try {
-      const resolvedSession = await resolveAuthSessionFromBetterAuth();
-      if (resolvedSession === null) {
+      const accessToken = await refreshStoredAccessToken();
+      if (accessToken === null) {
         useAuthStore.getState().clearSession();
         redirectToLoginIfBrowserSessionExpired();
         return null;
       }
-
-      useAuthStore.getState().setSession(resolvedSession);
-      await applyTenantSessionFromAuth({
-        accessToken: resolvedSession.accessToken,
-        authUserIqTenantId: resolvedSession.authUserIqTenantId,
-        preferredActiveTenantId: useTenantStore.getState().tenantId,
-      });
-      return resolvedSession.accessToken;
+      return accessToken;
     } catch {
       useAuthStore.getState().clearSession();
       redirectToLoginIfBrowserSessionExpired();

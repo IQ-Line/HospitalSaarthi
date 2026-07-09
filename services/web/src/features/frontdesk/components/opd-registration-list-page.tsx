@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
-import { listRegistrations } from '@/features/frontdesk/api/registrations';
+import { fetchOpdRegistrationDeskList } from '@/features/frontdesk/api/opd-registration-list';
 import { fetchOpdEncounterOverlaysByVisitIds } from '@/features/opd-patients/api/opd-encounter-overlay';
 import type { RegistrationReportQueryContext } from '@/features/frontdesk/api/registration-documents';
 import { resolveRegistrationBillId } from '@/features/frontdesk/api/registration-bill';
@@ -28,7 +28,6 @@ import {
   effectiveOpdQueueStatus,
   queueStatusLabel,
 } from '@/features/opd-patients/lib/registration-visit-status';
-import { ApiError } from '@/lib/api-client';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
@@ -43,9 +42,10 @@ type ReportsModalConfig = {
 
 export function OpdRegistrationListPage() {
   const navigate = useNavigate();
-  const { canCreate, canRead } = useCatalogModuleCrud('registration', {
+  const { canCreate, canRead, canMutate } = useCatalogModuleCrud('registration', {
     productModuleSlug: 'frontdesk',
   });
+  const canViewList = canRead || canMutate;
   const tenantName = useTenantStore((s) => s.tenantName);
   const branches = useTenantStore((s) => s.branches);
   const activeBranch = useTenantStore((s) => s.activeBranch);
@@ -69,11 +69,12 @@ export function OpdRegistrationListPage() {
   const listQuery = useQuery({
     queryKey: ['registrations', 'list', listPage, listSearch],
     queryFn: () =>
-      listRegistrations({
+      fetchOpdRegistrationDeskList({
         page: listPage,
         limit: 10,
         q: listSearch || undefined,
       }),
+    enabled: canViewList,
   });
 
   const listVisitIds = useMemo(
@@ -143,7 +144,7 @@ export function OpdRegistrationListPage() {
           ) : null}
         </header>
 
-        {canRead ? (
+        {canViewList ? (
           <div className="mt-6 space-y-4 rounded-lg border border-border bg-card p-4 md:p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
               Registrations
@@ -166,7 +167,7 @@ export function OpdRegistrationListPage() {
               Results update as you type. Newest registrations first.
             </p>
 
-            {listQuery.isError && !(listQuery.error instanceof ApiError && listQuery.error.status === 403) ? (
+            {listQuery.isError ? (
               <p className="text-sm text-destructive" role="alert">
                 {mutationErrorMessage(listQuery.error)}
               </p>
@@ -196,7 +197,9 @@ export function OpdRegistrationListPage() {
                       {listQuery.data.data.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="text-center text-muted-foreground">
-                            No registrations match your search.
+                            {listSearch
+                              ? 'No registrations match your search.'
+                              : 'No registrations yet. Create one with + New registration.'}
                           </TableCell>
                         </TableRow>
                       ) : (

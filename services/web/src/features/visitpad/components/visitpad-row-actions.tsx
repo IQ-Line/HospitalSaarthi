@@ -3,13 +3,13 @@ import { Button } from '@pulse/ui/button';
 
 interface VisitpadRowActionsProps {
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   disabled?: boolean;
   canEdit?: boolean;
   canDelete?: boolean;
 }
 
-/** Edit + delete (soft delete via API) for Visitpad catalog tables — matches reference row actions. */
+/** Edit + deactivate for Visitpad catalog tables — matches reference row actions. */
 export function VisitpadRowActions({
   onEdit,
   onDelete,
@@ -29,17 +29,19 @@ export function VisitpadRowActions({
       >
         <Pencil className="size-4" />
       </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        onClick={onDelete}
-        disabled={disabled || !canDelete}
-        className="text-destructive hover:text-destructive"
-        aria-label="Delete row"
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      {canDelete && onDelete ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={onDelete}
+          disabled={disabled}
+          className="text-destructive hover:text-destructive"
+          aria-label="Deactivate row"
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      ) : null}
     </div>
   );
 }
