@@ -1,9 +1,9 @@
 # ADR-0031: User Management role-template snapshot semantics (PR #56)
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0037](0037-user-capability-live-join-grant-deny-overrides.md) (issue #60) — the read path and `user_capabilities` shape below are replaced by live role-JOIN resolution plus grant/deny overrides. Retained as history for the Phase 1 rationale.
 - **Date:** 2026-05-17
 - **Deciders:** User Management module owners, platform architecture
-- **Related:** PR #56, issue #60 (PEP snapshot-only follow-up)
+- **Related:** PR #56, issue #60 (resolved by ADR-0037)
 
 ## Context and problem statement
 

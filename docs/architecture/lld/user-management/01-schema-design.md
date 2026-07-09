@@ -3,7 +3,9 @@
 **Module:** User Management  
 **Schema name:** `user_management`  
 **Related HLD:** [04-authn-authz-flow.md](../../hld/04-authn-authz-flow.md)  
-**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md), [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md), [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md), [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md) (role-template snapshot semantics, PR #56)
+**Related ADRs:** [ADR-0003](../../adr/0003-authn-better-auth-identity-adapter.md), [ADR-0004](../../adr/0004-authz-cerbos-sidecar.md), [ADR-0005](../../adr/0005-policy-as-code-permission-data-as-config.md), [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md) (role-template snapshot semantics, PR #56 — **superseded for `user_capabilities`/read-path by ADR-0037 below**), [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md) (live-JOIN base + grant/deny overrides, Phase 1.5 / issue #60)
+
+> **Superseded 2026-07-09 (issue #60, Phase 1.5):** every description of `user_capabilities` below as a **snapshot** populated by copy-on-apply (`grant_source`, `source_role_id`, re-apply sync, detach-revoke) describes the Phase 1 (PR #56 / ADR-0031) shape only. As of [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md), `user_capabilities` is an **override-only** table (`effect: grant|deny`, `reason`, no `source_role_id`); role composition is resolved live from `user_roles ⨝ role_capabilities` on every request, not copied. The sections below are left as written for historical trace of the Phase 1 design — read `user_capabilities`/snapshot language as superseded, not current.
 
 ## Canonical model
 User Management uses a single authorization vocabulary:
@@ -127,6 +129,8 @@ Key fields:
 ## Runtime contract
 
 > **ADR-0031:** Persisted grants in `user_capabilities` are the write-path source of truth. Until issue #60, `listEffectiveCapabilityKeys` may also union live `user_roles ⨝ role_capabilities` — document as temporary hybrid, not the long-term model.
+>
+> **Superseded 2026-07-09:** issue #60 landed as [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md). The live `user_roles ⨝ role_capabilities` join is now the permanent base layer (not a temporary union), with `user_capabilities` narrowed to grant/deny overrides evaluated on top of it. The 7-step resolution list above should be read as: (1) verify JWT, (2) resolve role codes, (3) resolve live role-derived capabilities via the join, (4) apply `user_capabilities` grant/deny overrides, (5) resolve delegated capabilities, (6) resolve clearances, (7) build Cerbos principal — step 4 above ("temporary, pre-#60 union") no longer exists as a separate temporary step.
 
 JWTs remain lightweight and contain only identity and coarse context:
 

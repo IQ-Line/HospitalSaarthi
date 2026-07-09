@@ -4,6 +4,8 @@
 **Scope:** User Management entitlement-aware runtime authorization + role-template snapshot model  
 **Method:** Static code trace (handlers → use-cases → repositories → principal enrichment), OpenAPI contract, tests, and existing LLD docs. GitHub PR comments were not available (`gh` unauthenticated); blocker IDs **B1–B6** follow the review brief supplied for this audit.
 
+> **Superseded 2026-07-09:** this audit's §5 "Future migration friendliness (#60)" and the "#60 transition doc" / "PEP snapshot-only" rows in §6's implementation matrix describe issue #60 as future work. #60 landed as [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md) — `user_capabilities` is now override-only (grant/deny) and the PEP reads a live `user_roles ⨝ role_capabilities` join, not the hybrid this audit was assessing migration-friendliness toward. Left unmodified below as the point-in-time PR #56 review record.
+
 ---
 
 ## Executive summary

@@ -41,6 +41,7 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0034](0034-polyglot-boundary-freeze.md) | Freeze the polyglot language boundary where it stands | Accepted |
 | [0035](0035-bounded-platform-operator-scope.md) | Phase-4 authorization — bounded platform-operator scope replaces god-mode super-admin | Accepted |
 | [0036](0036-external-pdf-reporting-platform.md) | `pdf-platform` is the report service; HIMS consumes one contract generated from its schema (drift-gated in CI) | Accepted |
+| [0037](0037-user-capability-live-join-grant-deny-overrides.md) | User capability resolution — live JOIN base + grant/deny overrides (Phase 1.5, issue #60) | Accepted |
 
 > Numbering note: ADRs 0027 and 0028 were originally drafted as 0020 and 0021 on `feat/integration-platform-lld`. They were renumbered when that branch merged with `dev`, where Master Data's 0020 and 0021 had landed in parallel. The MADR convention is that the number is a permanent identifier; this is the first renumber in the project's history, performed to resolve the collision. A second collision (two ADRs numbered 0031 — UM role-template snapshot semantics and ABDM M3 mock-harness strategy) was resolved on `dev--improved-v1` (2026-06-21): the ABDM M3 mock-harness ADR moved to **0033**; the UM role-template ADR (referenced earlier and far more widely) kept **0031**.
 

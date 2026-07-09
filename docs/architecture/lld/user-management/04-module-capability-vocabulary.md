@@ -4,6 +4,8 @@ Pre-production alignment between **Master Data**, **Configurator**, **User Manag
 
 > **Runtime capability key format** (`um:user:create`, etc.): see [runtime-capability-vocabulary.md](./runtime-capability-vocabulary.md) and the [vocabulary audit](./runtime-capability-vocabulary-audit.md).
 
+> **Superseded 2026-07-09 (issue #60, Phase 1.5):** the "stored grants" row below describes `user_capabilities` as PR #56's copy-on-apply snapshot. As of [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md), `user_capabilities` holds per-user grant/deny **overrides only**; the base capability set comes from a live `user_roles ⨝ role_capabilities` join, not a snapshot. `effective_capabilities` (below) is now `(live-join base ∪ grant overrides − deny overrides ∪ delegated) ∩ tenant_entitlement`, still per ADR-0032 for the tenant-entitlement half. Left as-is below for historical trace of the Phase 1 design.
+
 ## Authority boundaries
 
 | System | Owns | Does not own |
@@ -78,6 +80,7 @@ A **small fixed allowlist** (`user-management`, `configurator`) is **always** un
 
 - **`capabilities` rows** in UM are the **global runtime vocabulary** (including `capability_key` strings consumed by Cerbos).
 - **`user_roles`** records which **role templates** are applied to a user. **Runtime grants** materialize in `user_capabilities` on apply (snapshot-at-write). See [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md). Until issue #60, PEP reads may temporarily union live `role_capabilities` — not the long-term model.
+  **Superseded 2026-07-09:** issue #60 landed — see [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md). PEP reads are now a live `user_roles ⨝ role_capabilities` join by design (not a temporary union), with `user_capabilities` narrowed to grant/deny overrides only; there is no more snapshot-at-write for role-derived grants.
 - **Master Data `permissions.slug`** values are **catalog documentation** for product/modules; they are **not** Cerbos runtime keys until UM maps them into stable `capability_key` rows (future MD → UM sync only).
 - **Configurator** answers **only** “which `module_id`s are enabled for this tenant?” — never runtime capability truth.
 
