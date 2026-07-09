@@ -1,9 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
+import type { EventBus } from "@hims/ts-sdk-events";
 import { ensurePatientAbhaAddress } from "../../../src/use-cases/ensure-patient-abha-address.js";
 
 const TENANT = "1e8b5a2b-c4a2-4405-baad-c39b515a3426";
 const PATIENT = "ade41f80-bcbd-4d58-9bdb-a80056ebef33";
 const OTHER = "00000000-0000-4000-8000-000000000001";
+
+/** Full EventBus fake — only `publish` is exercised by these tests. */
+function fakeEventBus(publish: EventBus["publish"] = vi.fn()): EventBus {
+  return {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    publish,
+    subscribe: vi.fn(),
+  };
+}
 
 describe("ensurePatientAbhaAddress", () => {
   it("links when no existing identifier", async () => {
@@ -24,7 +35,7 @@ describe("ensurePatientAbhaAddress", () => {
           findByPatient: vi.fn(),
           deactivate: vi.fn(),
         },
-        eventBus: { publish },
+        eventBus: fakeEventBus(publish),
       },
       TENANT,
       PATIENT,
@@ -50,7 +61,7 @@ describe("ensurePatientAbhaAddress", () => {
           findByPatient: vi.fn(),
           deactivate: vi.fn(),
         },
-        eventBus: { publish: vi.fn() },
+        eventBus: fakeEventBus(),
       },
       TENANT,
       PATIENT,
@@ -70,7 +81,7 @@ describe("ensurePatientAbhaAddress", () => {
           findByPatient: vi.fn(),
           deactivate: vi.fn(),
         },
-        eventBus: { publish: vi.fn() },
+        eventBus: fakeEventBus(),
       },
       TENANT,
       PATIENT,

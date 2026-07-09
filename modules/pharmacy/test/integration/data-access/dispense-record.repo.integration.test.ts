@@ -188,7 +188,7 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
     // Old lines are gone; only the new single line remains.
     const lines = await readLines(TENANT_A, firstId);
     expect(lines).toHaveLength(1);
-    expect(lines[0].medicine_display_name).toBe("Tab Z");
+    expect(lines[0]!.medicine_display_name).toBe("Tab Z");
     expect(lines.map((l) => l.medicine_display_name)).not.toContain("Tab A");
     expect(lines.map((l) => l.medicine_display_name)).not.toContain("Tab B");
   });
@@ -244,12 +244,12 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
 
     const records = await readRecord(TENANT_A, VISIT);
     expect(records).toHaveLength(1);
-    expect(records[0].subtotal).toBe("10.0000");
+    expect(records[0]!.subtotal).toBe("10.0000");
     // Delete-and-replace under retry leaves exactly one clean line set (the
     // blocker seeded none; the repo's own line is what remains).
-    const lines = await readLines(TENANT_A, records[0].id);
+    const lines = await readLines(TENANT_A, records[0]!.id);
     expect(lines).toHaveLength(1);
-    expect(lines[0].medicine_display_name).toBe("Tab A");
+    expect(lines[0]!.medicine_display_name).toBe("Tab A");
   });
 
   it("scopes the unique index + reads by tenant (same visit_id across tenants is distinct)", async () => {
@@ -284,7 +284,7 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
     // Lines never bleed across tenants.
     const linesA = await repo.findLinesByRecordId(TENANT_A, a.record.id);
     expect(linesA).toHaveLength(1);
-    expect(linesA[0].medicine_display_name).toBe("A-only");
+    expect(linesA[0]!.medicine_display_name).toBe("A-only");
     expect(linesA.every((l) => l.iq_tenant_id === TENANT_A)).toBe(true);
     // Tenant B cannot read tenant A's lines.
     expect(await repo.findLinesByRecordId(TENANT_B, a.record.id)).toHaveLength(0);

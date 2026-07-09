@@ -57,7 +57,9 @@ function makeVisitRepo(opts: {
 }): { repo: VisitRepo; insert: ReturnType<typeof vi.fn> } {
   const insert = vi.fn(async (_t: string, input: CreateVisitInput) => ({
     created: opts.created ?? true,
-    record: makeRecord({ ...input, id: "v1" }),
+    // Mirror the real repo's defaulting: CreateVisitInput.consultation_type is
+    // optional/nullable, but a persisted VisitRecord always has a concrete type.
+    record: makeRecord({ ...input, id: "v1", consultation_type: input.consultation_type ?? "new" }),
   }));
   const repo: VisitRepo = {
     findByIdempotencyKey: vi.fn().mockResolvedValue(undefined),

@@ -4,64 +4,46 @@ import type { AbdmSession } from "../../../../../../../src/integrations/abdm/dom
 import type { AbdmSessionsPort } from "../../../../../../../src/integrations/abdm/ports.js";
 import { buildMockAbdmDeps } from "../../../../../../../src/integrations/abdm/test-utils/mock-deps.js";
 import { handleDiscoverCallback } from "../../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-discover-callback.js";
+import {
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../../helpers/abdm-fakes.js";
 
 function mockSessions(): AbdmSessionsPort {
   const rows: AbdmSession[] = [];
-  return {
-    async create(input) {
-      const s: AbdmSession = {
+  return fakeSessionsPort({
+    create: async (input) => {
+      const s = makeSession({
         iqTenantId: input.iqTenantId,
         sessionId: randomUUID(),
         flowKind: input.flowKind,
-        state: "INIT",
-        txnId: null,
-        requestId: null,
-        xToken: null,
-        tToken: null,
         context: input.initialContext ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
       rows.push(s);
       return s;
     },
-    async findById(input) {
-      return rows.find(
+    findById: async (input) =>
+      rows.find(
         (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
-      ) ?? null;
-    },
-    async patch(input) {
+      ) ?? null,
+    patch: async (input) => {
       const s = rows.find(
         (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
       );
       if (!s) throw new Error("not found");
-      if (input.state !== undefined) s.state = input.state as AbdmSession["state"];
+      if (input.state !== undefined) s.state = input.state;
       if (input.txnId !== undefined) s.txnId = input.txnId;
       if (input.contextMerge) s.context = { ...s.context, ...input.contextMerge };
       return s;
     },
-    async findUserLinkByTransactionId(input) {
-      return (
-        rows.find(
-          (r) =>
-            r.flowKind === "abdm.m2.user-initiated-link.v1" &&
-            r.txnId === input.transactionId,
-        ) ?? null
-      );
-    },
-    async findUserLinkByLinkRefNumber() {
-      return null;
-    },
-    async findHipLinkByRequestId() {
-      return null;
-    },
-    async findByFlowAndRequestId() {
-      return null;
-    },
-    async findAddContextsNotifiedByCareContextReference() {
-      return null;
-    },
-  };
+    findUserLinkByTransactionId: async (input) =>
+      rows.find(
+        (r) =>
+          r.flowKind === "abdm.m2.user-initiated-link.v1" &&
+          r.txnId === input.transactionId,
+      ) ?? null,
+  });
 }
 
 describe("handleDiscoverCallback", () => {
@@ -70,7 +52,7 @@ describe("handleDiscoverCallback", () => {
     const sessions = mockSessions();
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       empi: {
         findPatientByAbhaAddress: async () => null,
         findPatientByAbhaNumber: async () => null,
@@ -108,7 +90,7 @@ describe("handleDiscoverCallback", () => {
     });
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       empi: {
         findPatientByAbhaAddress,
         findPatientByAbhaNumber: async () => null,
@@ -159,7 +141,7 @@ describe("handleDiscoverCallback", () => {
     const sessions = mockSessions();
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       empi: {
         findPatientByAbhaAddress: async () => ({
           patientId: "patient-1",
@@ -228,7 +210,7 @@ describe("handleDiscoverCallback", () => {
     const sessions = mockSessions();
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       empi: {
         findPatientByAbhaAddress: async () => ({
           patientId: "patient-1",
@@ -273,7 +255,7 @@ describe("handleDiscoverCallback", () => {
     const sessions = mockSessions();
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       empi: {
         findPatientByAbhaAddress: async () => null,
         findPatientByAbhaNumber: async () => null,

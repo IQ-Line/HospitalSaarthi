@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import type { EventBus } from "@hims/ts-sdk-events";
+import type { EventBus, EventHandler } from "@hims/ts-sdk-events";
 import { registerM2EventConsumers } from "../../../../../src/integrations/abdm/events/register-m2-consumers.js";
 import type { IntegrationHubSharedInfra } from "../../../../../src/lib/build-abdm-deps.js";
 import type { IntegrationProfileRepo } from "../../../../../src/lib/integration-profile-repo.js";
+import { fakeSessionsPort } from "../../../../helpers/abdm-fakes.js";
 
 const tenantId = "00000000-0000-4000-8000-0000000000aa";
 
@@ -24,6 +25,7 @@ describe("registerM2EventConsumers", () => {
     const subscribe = vi.fn();
     const eventBus: EventBus = {
       connect: vi.fn(),
+      disconnect: vi.fn(),
       publish: vi.fn(),
       subscribe,
     };
@@ -62,7 +64,7 @@ describe("registerM2EventConsumers", () => {
         gatewayBaseUrl: "https://dev.abdm.gov.in",
         abhaApiBaseUrl: "https://abhasbx.abdm.gov.in/abha/api",
       },
-      sessions: { findByFlowAndRequestId: vi.fn(async () => null) },
+      sessions: fakeSessionsPort({ findByFlowAndRequestId: async () => null }),
       inboundMessages: {} as IntegrationHubSharedInfra["inboundMessages"],
       linkTokens: {} as IntegrationHubSharedInfra["linkTokens"],
       consentArtefacts: {} as IntegrationHubSharedInfra["consentArtefacts"],
@@ -70,15 +72,17 @@ describe("registerM2EventConsumers", () => {
       m3ConsentArtefactsHiu: {} as IntegrationHubSharedInfra["m3ConsentArtefactsHiu"],
       m3DataTransfers: {} as IntegrationHubSharedInfra["m3DataTransfers"],
       empi: {
-        findAbhaAddressByPatientId: vi.fn(async () => undefined),
+        findPatientByAbhaAddress: vi.fn(async () => null),
+        findPatientByDemographics: vi.fn(async () => null),
+        findPatientByAbhaNumber: vi.fn(async () => null),
+        findAbhaAddressByPatientId: vi.fn(async () => null),
         findM2PatientProfile: vi.fn(async () => null),
-      } as IntegrationHubSharedInfra["empi"],
+      } satisfies IntegrationHubSharedInfra["empi"],
       registration: {
         findM2PatientProfile: vi.fn(async () => null),
-      } as IntegrationHubSharedInfra["registration"],
-      gateway: {
-        post: vi.fn(async () => ({})),
-      } as IntegrationHubSharedInfra["gateway"],
+        findPatientIdByAbhaAddress: vi.fn(async () => null),
+        findAllPatientIdsByAbhaAddress: vi.fn(async () => []),
+      } satisfies IntegrationHubSharedInfra["registration"],
       recordFoundation: {} as IntegrationHubSharedInfra["recordFoundation"],
       careContextLinkState: {} as IntegrationHubSharedInfra["careContextLinkState"],
       fidelius: {} as IntegrationHubSharedInfra["fidelius"],
@@ -86,12 +90,14 @@ describe("registerM2EventConsumers", () => {
       linkOtpStore: {} as IntegrationHubSharedInfra["linkOtpStore"],
     } as IntegrationHubSharedInfra;
 
-    const handlers = new Map<string, (event: unknown) => Promise<void>>();
+    const handlers = new Map<string, EventHandler>();
     const eventBus: EventBus = {
       connect: vi.fn(),
+      disconnect: vi.fn(),
       publish: vi.fn(),
-      subscribe: vi.fn(async (topic: string, handler: (event: unknown) => Promise<void>) => {
+      subscribe: vi.fn(async (topic: string, handler: EventHandler) => {
         handlers.set(topic, handler);
+        return { unsubscribe: async () => {} };
       }),
     };
 
@@ -101,8 +107,14 @@ describe("registerM2EventConsumers", () => {
     expect(handler).toBeDefined();
 
     await handler!({
-      iq_tenant_id: tenantId,
+      event_id: "00000000-0000-4000-8000-0000000000e1",
       event_type: "record-foundation.care-context.registered",
+      source_module: "record-foundation",
+      iq_tenant_id: tenantId,
+      occurred_at: new Date().toISOString(),
+      correlation_id: "00000000-0000-4000-8000-0000000000c1",
+      actor_id: "system",
+      event_contract_version: "1.0.0",
       payload: {
         care_context_id: "visit-001",
         patient_id: "patient-001",

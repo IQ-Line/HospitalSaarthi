@@ -1,14 +1,19 @@
 import { randomUUID, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
+import type {
+  AbdmFlowKind,
+  AbdmSession,
+  AbdmSessionShape,
+} from "../../../../../../src/integrations/abdm/domain/session.js";
 import type { AbdmAdapterDeps, AbdmSessionsPort, GatewayClient } from "../../../../../../src/integrations/abdm/ports.js";
 import { enrolAadhaarOtpRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-otp-request.js";
+import { baseAdapterDeps } from "../../../../../helpers/abdm-fakes.js";
 
 function buildDeps(): AbdmAdapterDeps {
   const rows: AbdmSession[] = [];
   const sessions: AbdmSessionsPort = {
     async create(input) {
-      const s: AbdmSession = {
+      const shape: AbdmSessionShape<AbdmFlowKind> = {
         iqTenantId: input.iqTenantId,
         sessionId: randomUUID(),
         flowKind: input.flowKind,
@@ -21,6 +26,7 @@ function buildDeps(): AbdmAdapterDeps {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      const s = shape as AbdmSession;
       rows.push(s);
       return s;
     },
@@ -40,6 +46,11 @@ function buildDeps(): AbdmAdapterDeps {
       s.updatedAt = new Date();
       return s;
     },
+    findUserLinkByTransactionId: async () => null,
+    findUserLinkByLinkRefNumber: async () => null,
+    findHipLinkByRequestId: async () => null,
+    findByFlowAndRequestId: async () => null,
+    findLatestLinkedUserLinkByAbhaAddress: async () => null,
   };
 
   const gateway: GatewayClient = {
@@ -51,14 +62,18 @@ function buildDeps(): AbdmAdapterDeps {
       certValidUntilMs: null,
       certCached: false,
     })),
+    invalidateBearer: vi.fn(),
   };
 
   return {
+    ...baseAdapterDeps(),
     sessions,
     gateway,
     secrets: { resolve: vi.fn() },
     fidelius: {
+      generateOurKeyMaterial: vi.fn(),
       encryptForPeer: vi.fn(),
+      encryptBundles: vi.fn(),
       decryptBundle: vi.fn(),
     },
   };
@@ -92,7 +107,7 @@ describe("enrolAadhaarOtpRequest", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
     );
     expect(deps.gateway.post).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(deps.gateway.post).mock.calls[0][0] as {
+    const call = vi.mocked(deps.gateway.post).mock.calls[0]![0] as {
       path: string;
       body: {
         scope: string[];

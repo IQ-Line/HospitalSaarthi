@@ -3,27 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../../../../../src/integrations/abdm/lib/rsa-abdm-login-id.js", () => ({
   encryptLoginIdWithAbdmPublicKey: vi.fn(() => "enc-otp"),
 }));
-import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
+import type {
+  AbdmFlowKind,
+  AbdmSession,
+  AbdmSessionShape,
+} from "../../../../../../src/integrations/abdm/domain/session.js";
 import { loginVerifyOtpRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/login-verify-otp-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "tenant-1";
 
-function session(overrides: Partial<AbdmSession> = {}): AbdmSession {
-  return {
+function session(overrides: Partial<AbdmSessionShape<AbdmFlowKind>> = {}): AbdmSession {
+  return makeSession({
     iqTenantId: TENANT,
     sessionId: "sess-1",
     flowKind: "abdm.m1.login.v1",
     state: "OTP_REQUESTED",
     txnId: "txn-otp",
-    requestId: null,
-    xToken: null,
-    tToken: null,
     context: { loginScopes: ["abha-login", "mobile-verify"] },
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
-  };
+  });
 }
 
 describe("loginVerifyOtpRequest", () => {
@@ -32,39 +36,34 @@ describe("loginVerifyOtpRequest", () => {
       ...session({ state: "OTP_VERIFIED" }),
       ...input,
     }));
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    const gateway = fakeGatewayClient({
+      getPublicCertificate: vi.fn(async () => ({
+        publicKey: "pk",
+        encryptionAlgorithm: "RSA",
+      })),
+      post: vi.fn(),
+      get: vi.fn(),
+    });
+    vi.mocked(gateway.post).mockResolvedValue({
+      txnId: "txn-new",
+      message: "OTP verified",
+      token: "transfer.jwt",
+      accounts: [
+        {
+          ABHANumber: "91-7561-4088-1234",
+          preferredAbhaAddress: "user@sbx",
+          name: "Test User",
+        },
+      ],
+    });
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () => session()),
         patch,
         create: vi.fn(),
-      },
-      gateway: {
-        getPublicCertificate: vi.fn(async () => ({
-          publicKey: "pk",
-          encryptionAlgorithm: "RSA",
-        })),
-        post: vi.fn(async () => ({
-          txnId: "txn-new",
-          message: "OTP verified",
-          token: "transfer.jwt",
-          accounts: [
-            {
-              ABHANumber: "91-7561-4088-1234",
-              preferredAbhaAddress: "user@sbx",
-              name: "Test User",
-            },
-          ],
-        })),
-        get: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway,
+    });
 
     const out = await loginVerifyOtpRequest(
       { sessionId: "sess-1", otp: "123456", iqTenantId: TENANT },
@@ -90,42 +89,37 @@ describe("loginVerifyOtpRequest", () => {
       ...session({ state: "OTP_VERIFIED", context: { loginScopes: ["abha-login", "aadhaar-verify"] } }),
       ...input,
     }));
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    const gateway = fakeGatewayClient({
+      getPublicCertificate: vi.fn(async () => ({
+        publicKey: "pk",
+        encryptionAlgorithm: "RSA",
+      })),
+      post: vi.fn(),
+      get: vi.fn(),
+    });
+    vi.mocked(gateway.post).mockResolvedValue({
+      txnId: "txn-new",
+      message: "OTP verified",
+      token: "profile.jwt",
+      refreshToken: "refresh.jwt",
+      accounts: [
+        {
+          ABHANumber: "91-3488-3776-0621",
+          preferredAbhaAddress: "kamal_kamal060600@sbx",
+          name: "Kamal Jeet Arya",
+        },
+      ],
+    });
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () =>
           session({ context: { loginScopes: ["abha-login", "aadhaar-verify"] } }),
         ),
         patch,
         create: vi.fn(),
-      },
-      gateway: {
-        getPublicCertificate: vi.fn(async () => ({
-          publicKey: "pk",
-          encryptionAlgorithm: "RSA",
-        })),
-        post: vi.fn(async () => ({
-          txnId: "txn-new",
-          message: "OTP verified",
-          token: "profile.jwt",
-          refreshToken: "refresh.jwt",
-          accounts: [
-            {
-              ABHANumber: "91-3488-3776-0621",
-              preferredAbhaAddress: "kamal_kamal060600@sbx",
-              name: "Kamal Jeet Arya",
-            },
-          ],
-        })),
-        get: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway,
+    });
 
     const out = await loginVerifyOtpRequest(
       { sessionId: "sess-1", otp: "123456", iqTenantId: TENANT },
@@ -149,32 +143,27 @@ describe("loginVerifyOtpRequest", () => {
 
   it("stores refreshToken as transfer token when token is absent", async () => {
     const patch = vi.fn(async () => session({ state: "OTP_VERIFIED" }));
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    const gateway = fakeGatewayClient({
+      getPublicCertificate: vi.fn(async () => ({
+        publicKey: "pk",
+        encryptionAlgorithm: "RSA",
+      })),
+      post: vi.fn(),
+      get: vi.fn(),
+    });
+    vi.mocked(gateway.post).mockResolvedValue({
+      txnId: "txn-new",
+      refreshToken: "transfer-from-refresh",
+      accounts: [{ ABHANumber: "91-7561-4088-1234" }],
+    });
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () => session()),
         patch,
         create: vi.fn(),
-      },
-      gateway: {
-        getPublicCertificate: vi.fn(async () => ({
-          publicKey: "pk",
-          encryptionAlgorithm: "RSA",
-        })),
-        post: vi.fn(async () => ({
-          txnId: "txn-new",
-          refreshToken: "transfer-from-refresh",
-          accounts: [{ ABHANumber: "91-7561-4088-1234" }],
-        })),
-        get: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway,
+    });
 
     const out = await loginVerifyOtpRequest(
       { sessionId: "sess-1", otp: "123456", iqTenantId: TENANT },

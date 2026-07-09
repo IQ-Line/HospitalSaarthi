@@ -2,8 +2,8 @@ import { createSign, generateKeyPairSync } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import canonicalize from "canonicalize";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { canonicalizeJson as canonicalize } from "../../../../../src/integrations/abdm/lib/json-canonicalize.js";
 import { verifyConsentNotificationSignature } from "../../../../../src/integrations/abdm/lib/consent-signature-verifier.js";
 
 const fixturePath = join(

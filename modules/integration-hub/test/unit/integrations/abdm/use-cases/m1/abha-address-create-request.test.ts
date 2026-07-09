@@ -1,60 +1,50 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps, AbdmSessionsPort, GatewayClient } from "../../../../../../src/integrations/abdm/ports.js";
+import type {
+  AbdmFlowKind,
+  AbdmSession,
+  AbdmSessionShape,
+} from "../../../../../../src/integrations/abdm/domain/session.js";
 import { AbdmUseCaseError } from "../../../../../../src/integrations/abdm/lib/m1-errors.js";
 import { abhaAddressCreateRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/abha-address-create-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "00000000-0000-4000-8000-000000000099";
 const SID = randomUUID();
 
-function sessionRow(overrides: Partial<AbdmSession> = {}): AbdmSession {
-  return {
+function sessionRow(overrides: Partial<AbdmSessionShape<AbdmFlowKind>> = {}): AbdmSession {
+  return makeSession({
     iqTenantId: TENANT,
     sessionId: SID,
     flowKind: "abdm.m1.aadhaar-otp.v1",
     state: "MOBILE_OTP_VERIFIED",
     txnId: "chain-txn",
-    requestId: null,
     xToken: "jwt",
-    tToken: null,
-    context: {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
-  };
+  });
 }
 
 describe("abhaAddressCreateRequest", () => {
   it("rejects preferred other than 1", async () => {
     const stored = sessionRow();
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === SID ? stored : null;
-      },
-      async patch() {
-        return stored;
-      },
-    };
-    const gateway: GatewayClient = {
+      findById: async (input) => (input.sessionId === SID ? stored : null),
+      patch: async () => stored,
+    });
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    });
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     await expect(
       abhaAddressCreateRequest(
@@ -68,18 +58,14 @@ describe("abhaAddressCreateRequest", () => {
 
   it("POSTs abha-address with preferred 1", async () => {
     const stored = sessionRow();
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === SID ? stored : null;
-      },
-      async patch() {
-        return stored;
-      },
-    };
-    const gateway: GatewayClient = {
+      findById: async (input) => (input.sessionId === SID ? stored : null),
+      patch: async () => stored,
+    });
+    const gateway = fakeGatewayClient({
       post: vi.fn().mockResolvedValue({
         txnId: "new-txn",
         healthIdNumber: "91-1111-1111-1111",
@@ -87,18 +73,8 @@ describe("abhaAddressCreateRequest", () => {
       }),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    });
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     const out = await abhaAddressCreateRequest(
       { sessionId: SID, abhaAddress: "valid_name", iqTenantId: TENANT },

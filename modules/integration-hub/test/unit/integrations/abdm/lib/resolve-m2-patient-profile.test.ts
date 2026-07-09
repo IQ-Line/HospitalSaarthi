@@ -21,12 +21,15 @@ function deps(overrides: {
     empi: {
       findM2PatientProfile: vi.fn(async () => null),
       findPatientByAbhaAddress: async () => null,
+      findPatientByAbhaNumber: async () => null,
       findPatientByDemographics: async () => null,
       findAbhaAddressByPatientId: async () => null,
       ...overrides.empi,
     },
     registration: {
       findM2PatientProfile: vi.fn(async () => null),
+      findPatientIdByAbhaAddress: async () => null,
+      findAllPatientIdsByAbhaAddress: async () => [],
       ...overrides.registration,
     },
   };

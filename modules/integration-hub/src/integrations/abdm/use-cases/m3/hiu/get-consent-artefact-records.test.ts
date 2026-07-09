@@ -57,6 +57,8 @@ function artefact(
     careContexts: [],
     artefactJson: hipName ? { consentDetail: { hip: { name: hipName } } } : {},
     signature: "sig",
+    signatureValid: true,
+    receivedAt: new Date("2025-01-01"),
   };
 }
 

@@ -182,7 +182,7 @@ describeDb("registration data-access (real DB)", () => {
 
       const rows = await readVisits(TENANT_A, "k-race");
       expect(rows).toHaveLength(1);
-      expect(rows[0].visit_id).toBe("OP-BLOCKER");
+      expect(rows[0]?.visit_id).toBe("OP-BLOCKER");
     });
 
     it("scopes the idempotency unique index per tenant (same key, different tenants → two rows)", async () => {
@@ -315,10 +315,10 @@ describeDb("registration data-access (real DB)", () => {
       const rows = await readByPatient(TENANT_A, PATIENT);
       expect(rows).toHaveLength(1);
       // The patch refreshed the demographics on the existing row.
-      expect(rows[0].patient_abha_address).toBe("asha@abdm");
-      expect(rows[0].patient_year_of_birth).toBe(1990);
+      expect(rows[0]?.patient_abha_address).toBe("asha@abdm");
+      expect(rows[0]?.patient_year_of_birth).toBe(1990);
       // The original key is preserved (the re-intake does not overwrite it).
-      expect(rows[0].idempotency_key).toBe("k1");
+      expect(rows[0]?.idempotency_key).toBe("k1");
     });
 
     it("recovers from a real 23505 via the findByPatientId fallback (held-lock patient collision)", async () => {
@@ -355,7 +355,7 @@ describeDb("registration data-access (real DB)", () => {
 
       const rows = await readByPatient(TENANT_A, PATIENT);
       expect(rows).toHaveLength(1);
-      expect(rows[0].patient_uhid).toBe("UHID-BLOCKER");
+      expect(rows[0]?.patient_uhid).toBe("UHID-BLOCKER");
     });
 
     it("scopes the patient unique index per tenant (same patient, different tenants → two rows)", async () => {

@@ -30,6 +30,10 @@ function createRepo(row: TariffMasterRow): TariffMasterRepo {
   let current = { ...row };
   return {
     findById: async () => current,
+    findByCodeAndProvider: async (_t, serviceCode, providerId) =>
+      current.service_code === serviceCode && current.provider_id === providerId
+        ? current
+        : undefined,
     update: async (_t, _id, patch) => {
       current = applyTariffPatch(current, patch);
       return current;
@@ -40,7 +44,13 @@ function createRepo(row: TariffMasterRow): TariffMasterRepo {
 describe("updateTariffService", () => {
   it("returns NOT_FOUND when service is missing", async () => {
     const result = await updateTariffService(
-      { tariffRepo: { findById: async () => undefined, update: async () => undefined } },
+      {
+        tariffRepo: {
+          findById: async () => undefined,
+          findByCodeAndProvider: async () => undefined,
+          update: async () => undefined,
+        },
+      },
       baseRow.iq_tenant_id,
       baseRow.id,
       { service_name: "Updated" },

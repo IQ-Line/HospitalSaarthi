@@ -3,60 +3,41 @@ import { describe, expect, it, vi } from "vitest";
 import type { AbdmSession } from "../../../domain/session.js";
 import type { AbdmSessionsPort, ConsentArtefactsPort } from "../../../ports.js";
 import { buildMockAbdmDeps } from "../../../test-utils/mock-deps.js";
+import {
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../../test/helpers/abdm-fakes.js";
 import { handleConsentNotifyCallback } from "./handle-consent-notify-callback.js";
 
 function mockSessions(linkSession: AbdmSession | null): AbdmSessionsPort {
   const rows: AbdmSession[] = [];
-  return {
-    async create(input) {
-      const s: AbdmSession = {
+  return fakeSessionsPort({
+    create: async (input) => {
+      const s = makeSession({
         iqTenantId: input.iqTenantId,
         sessionId: randomUUID(),
         flowKind: input.flowKind,
-        state: "INIT",
-        txnId: null,
-        requestId: null,
-        xToken: null,
-        tToken: null,
         context: input.initialContext ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
       rows.push(s);
       return s;
     },
-    async findById(input) {
-      return (
-        rows.find(
-          (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
-        ) ?? null
-      );
-    },
-    async patch(input) {
+    findById: async (input) =>
+      rows.find(
+        (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
+      ) ?? null,
+    patch: async (input) => {
       const s = rows.find(
         (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
       );
       if (!s) throw new Error("not found");
-      if (input.state !== undefined) s.state = input.state as AbdmSession["state"];
+      if (input.state !== undefined) s.state = input.state;
       if (input.contextMerge) s.context = { ...s.context, ...input.contextMerge };
       return s;
     },
-    async findUserLinkByTransactionId() {
-      return null;
-    },
-    async findUserLinkByLinkRefNumber() {
-      return null;
-    },
-    async findHipLinkByRequestId() {
-      return null;
-    },
-    async findByFlowAndRequestId() {
-      return null;
-    },
-    async findLatestLinkedUserLinkByAbhaAddress() {
-      return linkSession;
-    },
-  };
+    findLatestLinkedUserLinkByAbhaAddress: async () => linkSession,
+  });
 }
 
 function consentDetail(overrides: {
@@ -70,6 +51,7 @@ function consentDetail(overrides: {
     createdAt: new Date().toISOString(),
     patient: { id: "patient@sbx" },
     hip: { id: "IN3610001625" },
+    hiu: { id: "IN3610001625" },
     purpose: { text: "care", code: "CAREMGT", refUri: "https://example" },
     hiTypes: overrides.hiTypes ?? ["OPConsultation"],
     careContexts: overrides.careContexts ?? [
@@ -111,7 +93,7 @@ describe("handleConsentNotifyCallback", () => {
     };
 
     const deps = buildMockAbdmDeps({
-      gateway: { post },
+      gateway: fakeGatewayClient({ post }),
       sessions: mockSessions(linkSession),
       consentArtefacts: { upsert, findById: async () => null } as ConsentArtefactsPort,
       empi: {

@@ -33,8 +33,9 @@ export interface M2UserLinkContext {
   abhaAddress?: string;
   linkRefNumber?: string;
   patientId?: string;
-  careContexts?: Array<{ referenceNumber: string; display: string }>;
+  careContexts?: Array<{ referenceNumber: string; display: string; hiType?: string }>;
   otpToken?: string;
+  otpAttemptCount?: number;
   error?: { code: string; message: string };
 }
 

@@ -25,7 +25,7 @@ describe("saveWalkInDispense", () => {
     const walkInDispenseRepo: WalkInDispenseRepo = {
       findByRecordId: vi.fn(),
       listForQueue: vi.fn(async () => ({ items: [], total: 0 })),
-      create: vi.fn(async () => ({
+      create: vi.fn<WalkInDispenseRepo["create"]>(async () => ({
         record: {
           id: "rec-walk-1",
           iq_tenant_id: TENANT,
@@ -38,6 +38,7 @@ describe("saveWalkInDispense", () => {
           discount: "0.0000",
           total_amount: "100.0000",
           notes: null,
+          dispense_status: "issued",
           created_at: new Date("2026-06-05T10:00:00.000Z"),
           created_by: "user-1",
         },

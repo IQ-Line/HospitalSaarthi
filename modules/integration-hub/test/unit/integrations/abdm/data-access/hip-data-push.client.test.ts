@@ -8,7 +8,10 @@ describe("HttpHipDataPushClient", () => {
   });
 
   it("sends full adapter headers on loopback adapter URLs", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    const fetchMock = vi.fn(
+      async (..._args: Parameters<typeof fetch>) =>
+        new Response("", { status: 200 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const client = new HttpHipDataPushClient({
@@ -27,11 +30,16 @@ describe("HttpHipDataPushClient", () => {
     expect((init.headers as Record<string, string>)["x-tenant-id"]).toBe(
       "00000000-0000-4000-8000-0000000000aa",
     );
-    expect(String(init.headers?.["REQUEST-ID"] ?? "")).toBe("req-1");
+    expect(
+      String((init.headers as Record<string, string> | undefined)?.["REQUEST-ID"] ?? ""),
+    ).toBe("req-1");
   });
 
   it("omits REQUEST-ID on external CM transfer URLs (auto minimal headers)", async () => {
-    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    const fetchMock = vi.fn(
+      async (..._args: Parameters<typeof fetch>) =>
+        new Response("", { status: 200 }),
+    );
     vi.stubGlobal("fetch", fetchMock);
     vi.stubEnv("ABDM_ADAPTER_PUBLIC_BASE_URL", "https://bridge.example");
 
@@ -46,7 +54,9 @@ describe("HttpHipDataPushClient", () => {
     });
 
     const init = fetchMock.mock.calls[0]![1] as RequestInit;
-    expect(init.headers?.["REQUEST-ID"]).toBeUndefined();
+    expect(
+      (init.headers as Record<string, string> | undefined)?.["REQUEST-ID"],
+    ).toBeUndefined();
   });
 });
 

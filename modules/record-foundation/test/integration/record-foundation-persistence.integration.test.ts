@@ -72,7 +72,7 @@ describeDb("record-foundation persistence (real DB)", () => {
     await pool.end();
   });
 
-  const post = (url: string, payload: unknown, tenant = TENANT_A) =>
+  const post = (url: string, payload: object, tenant = TENANT_A) =>
     app.inject({ method: "POST", url, payload, headers: { "x-tenant-id": tenant } });
   const get = (url: string, tenant = TENANT_A) =>
     app.inject({ method: "GET", url, headers: { "x-tenant-id": tenant } });

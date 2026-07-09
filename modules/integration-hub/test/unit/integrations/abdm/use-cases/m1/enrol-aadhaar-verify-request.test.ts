@@ -1,28 +1,32 @@
 import { randomUUID, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps, AbdmSessionsPort, GatewayClient } from "../../../../../../src/integrations/abdm/ports.js";
+import {
+  assertFlowKind,
+  type AbdmFlowKind,
+  type AbdmSession,
+  type AbdmSessionShape,
+} from "../../../../../../src/integrations/abdm/domain/session.js";
 import { extractEnrolmentProfileTokens } from "@hims/ts-sdk-abha/protocol/m1";
 import { enrolAadhaarVerifyRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-verify-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "00000000-0000-4000-8000-000000000099";
 const SID = randomUUID();
 
-function baseSession(overrides: Partial<AbdmSession> = {}): AbdmSession {
-  return {
+function baseSession(overrides: Partial<AbdmSessionShape<AbdmFlowKind>> = {}): AbdmSession {
+  return makeSession({
     iqTenantId: TENANT,
     sessionId: SID,
     flowKind: "abdm.m1.aadhaar-otp.v1",
     state: "AADHAAR_OTP_REQUESTED",
     txnId: "txn-from-otp",
-    requestId: null,
-    xToken: null,
-    tToken: null,
-    context: {},
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
-  };
+  });
 }
 
 describe("extractEnrolmentProfileTokens", () => {
@@ -46,17 +50,16 @@ describe("extractEnrolmentProfileTokens", () => {
 describe("enrolAadhaarVerifyRequest", () => {
   it("posts byAadhaar and patches session with tokens + txnId", async () => {
     let stored = baseSession();
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
+      findById: async (input) =>
+        input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
           ? stored
-          : null;
-      },
-      async patch(input) {
-        stored = {
+          : null,
+      patch: async (input) => {
+        stored = makeSession({
           ...stored,
           ...(input.state !== undefined ? { state: input.state } : {}),
           ...(input.txnId !== undefined ? { txnId: input.txnId } : {}),
@@ -64,28 +67,18 @@ describe("enrolAadhaarVerifyRequest", () => {
           ...(input.tToken !== undefined ? { tToken: input.tToken } : {}),
           context: { ...stored.context, ...(input.contextMerge ?? {}) },
           updatedAt: new Date(),
-        };
+        });
         return stored;
       },
-    };
+    });
 
-    const gateway: GatewayClient = {
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
+    });
 
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;
@@ -114,9 +107,12 @@ describe("enrolAadhaarVerifyRequest", () => {
     expect(stored.txnId).toBe("txn-after-create");
 
     expect(deps.gateway.post).toHaveBeenCalledTimes(1);
-    const call = vi.mocked(deps.gateway.post).mock.calls[0][0] as {
+    const call = vi.mocked(deps.gateway.post).mock.calls[0]![0] as {
       path: string;
-      body: { authData: { authMethods: string[]; otp: { txnId: string } }; consent: { code: string } };
+      body: {
+        authData: { authMethods: string[]; otp: { txnId: string; mobile: string } };
+        consent: { code: string };
+      };
     };
     expect(call.path).toBe("/v3/enrollment/enrol/byAadhaar");
     expect(call.body.authData.authMethods).toEqual(["otp"]);
@@ -127,17 +123,16 @@ describe("enrolAadhaarVerifyRequest", () => {
 
   it("skips mobile-verify when useAadhaarLinkedMobile is true", async () => {
     let stored = baseSession();
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
+      findById: async (input) =>
+        input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
           ? stored
-          : null;
-      },
-      async patch(input) {
-        stored = {
+          : null,
+      patch: async (input) => {
+        stored = makeSession({
           ...stored,
           ...(input.state !== undefined ? { state: input.state } : {}),
           ...(input.txnId !== undefined ? { txnId: input.txnId } : {}),
@@ -145,28 +140,18 @@ describe("enrolAadhaarVerifyRequest", () => {
           ...(input.tToken !== undefined ? { tToken: input.tToken } : {}),
           context: { ...stored.context, ...(input.contextMerge ?? {}) },
           updatedAt: new Date(),
-        };
+        });
         return stored;
       },
-    };
+    });
 
-    const gateway: GatewayClient = {
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
+    });
 
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;
@@ -195,49 +180,39 @@ describe("enrolAadhaarVerifyRequest", () => {
 
     expect(out.mobileVerifySkipped).toBe(true);
     expect(stored.state).toBe("MOBILE_OTP_VERIFIED");
+    assertFlowKind(stored, "abdm.m1.aadhaar-otp.v1");
     expect(stored.context.mobileVerifiedVia).toBe("aadhaar-linked");
     expect(stored.context.enrolPrimaryMobile).toBe("9876543210");
   });
 
   it("infers mobile-verify skip from NHA ABHAProfile.mobile when flag omitted", async () => {
     let stored = baseSession();
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
+      findById: async (input) =>
+        input.sessionId === stored.sessionId && input.iqTenantId === stored.iqTenantId
           ? stored
-          : null;
-      },
-      async patch(input) {
-        stored = {
+          : null,
+      patch: async (input) => {
+        stored = makeSession({
           ...stored,
           ...(input.state !== undefined ? { state: input.state } : {}),
           context: { ...stored.context, ...(input.contextMerge ?? {}) },
           updatedAt: new Date(),
-        };
+        });
         return stored;
       },
-    };
+    });
 
-    const gateway: GatewayClient = {
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
+    });
 
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;

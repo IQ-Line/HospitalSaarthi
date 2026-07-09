@@ -33,7 +33,7 @@ describe("HttpRecordFoundationClient", () => {
   });
 
   it("listBundles calls care-context bundles endpoint with encoded ref", async () => {
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) =>
       Response.json({
         data: [
           {

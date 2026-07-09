@@ -4,6 +4,8 @@ import { DrizzleAbdmSessionsRepo } from "../../../../../../src/integrations/abdm
 import { EnvSecretsClient } from "../../../../../../src/integrations/abdm/data-access/env-secrets.client.js";
 import { FideliusEncryptor } from "../../../../../../src/integrations/abdm/data-access/fidelius.js";
 import { HttpGatewayClient } from "../../../../../../src/integrations/abdm/data-access/gateway-client.http.js";
+import { buildM3SandboxDeps } from "../../../../../../src/integrations/abdm/test-utils/m3-sandbox-harness.js";
+import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
 import { enrolAadhaarOtpRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-otp-request.js";
 
 /**
@@ -35,7 +37,13 @@ describe.skipIf(!RUN || !DB_URL || !hasSandboxAadhaarEnv())(
     const db = createDb(databaseUrl);
     const sessions = new DrizzleAbdmSessionsRepo(db);
     const fidelius = new FideliusEncryptor();
-    const deps = { sessions, gateway, secrets, fidelius };
+    const deps: AbdmAdapterDeps = {
+      ...buildM3SandboxDeps(databaseUrl),
+      sessions,
+      gateway,
+      secrets,
+      fidelius,
+    };
 
     const aadhaar = process.env["ABDM_SANDBOX_TEST_AADHAAR"]!;
 

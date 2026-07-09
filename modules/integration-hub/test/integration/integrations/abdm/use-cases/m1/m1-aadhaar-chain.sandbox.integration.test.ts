@@ -4,6 +4,8 @@ import { DrizzleAbdmSessionsRepo } from "../../../../../../src/integrations/abdm
 import { EnvSecretsClient } from "../../../../../../src/integrations/abdm/data-access/env-secrets.client.js";
 import { FideliusEncryptor } from "../../../../../../src/integrations/abdm/data-access/fidelius.js";
 import { HttpGatewayClient } from "../../../../../../src/integrations/abdm/data-access/gateway-client.http.js";
+import { buildM3SandboxDeps } from "../../../../../../src/integrations/abdm/test-utils/m3-sandbox-harness.js";
+import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
 import { enrolAadhaarOtpRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-otp-request.js";
 import { enrolAadhaarVerifyRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-verify-request.js";
 import { enrolMobileVerifySendOtpRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-mobile-verify-send-otp-request.js";
@@ -30,7 +32,7 @@ import { resolveSandboxDatabaseUrl, hasSandboxAadhaarEnv } from "../../../../../
 const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
 const DB_URL = resolveSandboxDatabaseUrl();
 
-function buildDeps() {
+function buildDeps(): AbdmAdapterDeps {
   const databaseUrl = DB_URL!;
   const secrets = new EnvSecretsClient();
   const gateway = new HttpGatewayClient({
@@ -45,7 +47,13 @@ function buildDeps() {
   const db = createDb(databaseUrl);
   const sessions = new DrizzleAbdmSessionsRepo(db);
   const fidelius = new FideliusEncryptor();
-  return { sessions, gateway, secrets, fidelius };
+  return {
+    ...buildM3SandboxDeps(databaseUrl),
+    sessions,
+    gateway,
+    secrets,
+    fidelius,
+  };
 }
 
 describe.skipIf(!RUN || !DB_URL || !hasSandboxAadhaarEnv())("M1 Aadhaar chain — ABDM sandbox", () => {

@@ -1,58 +1,52 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
+import type {
+  AbdmFlowKind,
+  AbdmSession,
+  AbdmSessionShape,
+} from "../../../../../../src/integrations/abdm/domain/session.js";
 import { loginVerifyUserRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/login-verify-user-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "tenant-1";
 
-function session(overrides: Partial<AbdmSession> = {}): AbdmSession {
-  return {
+function session(overrides: Partial<AbdmSessionShape<AbdmFlowKind>> = {}): AbdmSession {
+  return makeSession({
     iqTenantId: TENANT,
     sessionId: "sess-1",
     flowKind: "abdm.m1.login.v1",
     state: "OTP_VERIFIED",
     txnId: "txn-1",
-    requestId: null,
-    xToken: null,
-    tToken: null,
     context: {
       loginScopes: ["abha-login", "mobile-verify"],
       loginTransferToken: "transfer.jwt",
       loginNeedsUserVerify: true,
     },
-    createdAt: new Date(),
-    updatedAt: new Date(),
     ...overrides,
-  };
+  });
 }
 
 describe("loginVerifyUserRequest", () => {
   it("calls NHA verify/user with T-token and stores profile x_token", async () => {
     const patch = vi.fn(async () => session({ xToken: "profile.jwt" }));
-    const post = vi.fn(async () => ({
+    const post = vi.fn();
+    post.mockResolvedValue({
       token: "profile.jwt",
       refreshToken: "refresh.jwt",
       message: "User verified",
-    }));
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    });
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () => session()),
         patch,
         create: vi.fn(),
-      },
-      gateway: {
-        post,
-        get: vi.fn(),
-        getPublicCertificate: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway: fakeGatewayClient({ post, get: vi.fn(), getPublicCertificate: vi.fn() }),
+    });
 
     const out = await loginVerifyUserRequest(
       {
@@ -85,8 +79,8 @@ describe("loginVerifyUserRequest", () => {
   it("completes aadhaar-verify verify/user locally without NHA T-token call", async () => {
     const patch = vi.fn(async () => session({ xToken: "profile.jwt" }));
     const post = vi.fn();
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () =>
           session({
             context: {
@@ -100,20 +94,9 @@ describe("loginVerifyUserRequest", () => {
         ),
         patch,
         create: vi.fn(),
-      },
-      gateway: {
-        post,
-        get: vi.fn(),
-        getPublicCertificate: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway: fakeGatewayClient({ post, get: vi.fn(), getPublicCertificate: vi.fn() }),
+    });
 
     const out = await loginVerifyUserRequest(
       {
@@ -139,8 +122,8 @@ describe("loginVerifyUserRequest", () => {
   });
 
   it("rejects ABHA-address (PHR) sessions — verify/user is profile/mobile only", async () => {
-    const deps: AbdmAdapterDeps = {
-      sessions: {
+    const deps = baseAdapterDeps({
+      sessions: fakeSessionsPort({
         findById: vi.fn(async () =>
           session({
             flowKind: "abdm.m1.verify-existing.v1",
@@ -153,20 +136,9 @@ describe("loginVerifyUserRequest", () => {
         ),
         patch: vi.fn(),
         create: vi.fn(),
-      },
-      gateway: {
-        post: vi.fn(),
-        get: vi.fn(),
-        getPublicCertificate: vi.fn(),
-        getDiagnosticsSnapshot: vi.fn(() => ({
-          tokenValidUntilMs: null,
-          certValidUntilMs: null,
-          certCached: false,
-        })),
-      },
-      fidelius: {} as AbdmAdapterDeps["fidelius"],
-      secrets: {} as AbdmAdapterDeps["secrets"],
-    };
+      }),
+      gateway: fakeGatewayClient({ post: vi.fn(), get: vi.fn(), getPublicCertificate: vi.fn() }),
+    });
 
     await expect(
       loginVerifyUserRequest(

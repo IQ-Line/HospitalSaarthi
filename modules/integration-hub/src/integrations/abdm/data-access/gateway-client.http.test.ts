@@ -16,7 +16,7 @@ describe("HttpGatewayClient doGet", () => {
   });
 
   it("sends X-CM-ID on gateway-target GET requests", async () => {
-    let capturedHeaders: HeadersInit | undefined;
+    let capturedHeaders: RequestInit["headers"];
 
     globalThis.fetch = vi.fn(async (_url, init) => {
       if (init?.method === "POST") {

@@ -5,67 +5,44 @@ import type { AbdmSessionsPort } from "../../../ports.js";
 import { InMemoryLinkOtpStore } from "../../../lib/link-otp-store.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import { buildMockAbdmDeps } from "../../../test-utils/mock-deps.js";
+import {
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../../test/helpers/abdm-fakes.js";
 import { handleLinkConfirmCallback } from "./handle-link-confirm-callback.js";
 
 function mockSessions(session: AbdmSession): AbdmSessionsPort {
   const rows = [session];
-  return {
-    async create(input) {
-      const s: AbdmSession = {
-        iqTenantId: input.iqTenantId,
-        sessionId: randomUUID(),
+  return fakeSessionsPort({
+    create: async (input) => {
+      const s = makeSession({
         flowKind: input.flowKind,
-        state: "CREATED",
-        txnId: null,
-        requestId: null,
-        xToken: null,
-        tToken: null,
         context: input.initialContext ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
       rows.push(s);
       return s;
     },
-    async findById(input) {
-      return (
-        rows.find(
-          (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
-        ) ?? null
-      );
-    },
-    async patch(input) {
+    findById: async (input) =>
+      rows.find(
+        (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
+      ) ?? null,
+    patch: async (input) => {
       const s = rows.find(
         (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
       );
       if (!s) throw new Error("not found");
-      if (input.state !== undefined) s.state = input.state as AbdmSession["state"];
+      if (input.state !== undefined) s.state = input.state;
       if (input.contextMerge) s.context = { ...s.context, ...input.contextMerge };
       return s;
     },
-    async findUserLinkByTransactionId() {
-      return null;
-    },
-    async findUserLinkByLinkRefNumber(input) {
-      return (
-        rows.find(
-          (r) =>
-            r.flowKind === "abdm.m2.user-initiated-link.v1" &&
-            (r.context as { linkRefNumber?: string }).linkRefNumber ===
-              input.linkRefNumber,
-        ) ?? null
-      );
-    },
-    async findHipLinkByRequestId() {
-      return null;
-    },
-    async findByFlowAndRequestId() {
-      return null;
-    },
-    async findLatestLinkedUserLinkByAbhaAddress() {
-      return null;
-    },
-  };
+    findUserLinkByLinkRefNumber: async (input) =>
+      rows.find(
+        (r) =>
+          r.flowKind === "abdm.m2.user-initiated-link.v1" &&
+          (r.context as { linkRefNumber?: string }).linkRefNumber === input.linkRefNumber,
+      ) ?? null,
+  });
 }
 
 describe("handleLinkConfirmCallback", () => {
@@ -87,7 +64,7 @@ describe("handleLinkConfirmCallback", () => {
       iqTenantId: tenantId,
       sessionId,
       flowKind: "abdm.m2.user-initiated-link.v1",
-      state: "ON_INIT_RESPONDED",
+      state: "OTP_DISPATCHED",
       txnId: randomUUID(),
       requestId: null,
       xToken: null,
@@ -114,7 +91,7 @@ describe("handleLinkConfirmCallback", () => {
     });
 
     const deps = buildMockAbdmDeps({
-      gateway: { post },
+      gateway: fakeGatewayClient({ post }),
       sessions,
       linkOtpStore: otpStore,
       careContextLinkState: { listLinkedReferences: async () => new Set(), markLinked },
@@ -196,7 +173,7 @@ describe("handleLinkConfirmCallback", () => {
     });
 
     const deps = buildMockAbdmDeps({
-      gateway: { post },
+      gateway: fakeGatewayClient({ post }),
       sessions,
       linkOtpStore: otpStore,
       careContextLinkState: { listLinkedReferences: async () => new Set(), markLinked },
@@ -254,7 +231,7 @@ describe("handleLinkConfirmCallback", () => {
     });
 
     const deps = buildMockAbdmDeps({
-      gateway: { post },
+      gateway: fakeGatewayClient({ post }),
       sessions,
       linkOtpStore: otpStore,
     });
@@ -311,7 +288,7 @@ describe("handleLinkConfirmCallback", () => {
     });
 
     const deps = buildMockAbdmDeps({
-      gateway: { post },
+      gateway: fakeGatewayClient({ post }),
       sessions,
       linkOtpStore: otpStore,
     });

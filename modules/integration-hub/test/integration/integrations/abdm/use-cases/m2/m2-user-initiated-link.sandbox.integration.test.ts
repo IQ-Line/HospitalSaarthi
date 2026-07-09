@@ -3,6 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import { createDb } from "@hims/ts-sdk-db";
 import { DrizzleAbdmSessionsRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-sessions.repo.js";
 import { DrizzleInboundMessagesRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-inbound-messages.repo.js";
+import { DrizzleM3ConsentRequestsRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-consent-requests.repo.js";
+import { DrizzleM3ConsentArtefactsHiuRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-consent-artefacts-hiu.repo.js";
+import { DrizzleM3DataTransfersRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-data-transfers.repo.js";
+import { DrizzleCareContextLinkStateRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-care-context-link-state.repo.js";
+import { NoOpRegistrationClient } from "../../../../../../src/integrations/abdm/data-access/registration-client.http.js";
 import {
   MockEmpiClient,
   MockRecordFoundationClient,
@@ -13,6 +18,7 @@ import { EnvSecretsClient } from "../../../../../../src/integrations/abdm/data-a
 import { InMemoryLinkOtpStore } from "../../../../../../src/integrations/abdm/lib/link-otp-store.js";
 import { HttpGatewayClient } from "../../../../../../src/integrations/abdm/data-access/gateway-client.http.js";
 import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
+import { assertFlowKind } from "../../../../../../src/integrations/abdm/domain/session.js";
 import { handleDiscoverCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-discover-callback.js";
 import { handleLinkInitCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-link-init-callback.js";
 import { handleLinkConfirmCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-link-confirm-callback.js";
@@ -48,13 +54,19 @@ function buildDeps(): AbdmAdapterDeps {
     } as never,
     consentArtefacts: { upsert: async () => true, findById: async () => null } as never,
     empi: new MockEmpiClient(process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx"),
+    registration: new NoOpRegistrationClient(),
     recordFoundation: new MockRecordFoundationClient(
       process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx",
     ),
+    careContextLinkState: new DrizzleCareContextLinkStateRepo(db),
+    m3ConsentRequests: new DrizzleM3ConsentRequestsRepo(db),
+    m3ConsentArtefactsHiu: new DrizzleM3ConsentArtefactsHiuRepo(db),
+    m3DataTransfers: new DrizzleM3DataTransfersRepo(db),
     payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
     linkOtpStore: new InMemoryLinkOtpStore(),
     sms: new LoggingSmsClient(),
     xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
+    xHiuId: process.env["ABDM_X_HIU_ID"] ?? "IN3610001625",
     xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
   };
 }
@@ -104,7 +116,9 @@ describe.skipIf(!RUN || !DB_URL)("M2 user-initiated link — in-process chain", 
       iqTenantId: tenantId,
       transactionId: txnId,
     });
-    const linkRefNumber = String(afterInit?.context.linkRefNumber ?? "");
+    if (!afterInit) throw new Error("user-link session missing after init");
+    assertFlowKind(afterInit, "abdm.m2.user-initiated-link.v1");
+    const linkRefNumber = String(afterInit.context.linkRefNumber ?? "");
     const otp = (deps.linkOtpStore as InMemoryLinkOtpStore).peekOtp(
       tenantId,
       linkRefNumber,
@@ -115,7 +129,6 @@ describe.skipIf(!RUN || !DB_URL)("M2 user-initiated link — in-process chain", 
       {
         iqTenantId: tenantId,
         inboundRequestId: randomUUID(),
-        transactionId: txnId,
         confirmation: { token: otp!, linkRefNumber },
       },
       deps,

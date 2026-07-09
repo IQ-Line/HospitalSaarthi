@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { LinkTokensPort } from "../../../../../src/integrations/abdm/ports.js";
 import {
   resolveAbhaAddressForTokenCallback,
   resolveAbhaAddressFromTokenCallback,
@@ -40,9 +41,14 @@ describe("resolveAbhaAddressForTokenCallback", () => {
         response: { requestId: "req-abc" },
       } as never,
       linkTokens: {
+        findFresh: async () => null,
+        claimAcquisition: async () => "claimed",
+        completeAcquisition: async () => {},
+        invalidate: async () => {},
         findAbhaAddressByPendingRequestId: async (_t, id) =>
           id === "req-abc" ? "kamal_kamal@sbx" : null,
-      } as never,
+        janitor: async () => 0,
+      } satisfies LinkTokensPort,
     });
     expect(abha).toBe("kamal_kamal@sbx");
   });

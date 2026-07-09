@@ -1,4 +1,4 @@
-/// <reference path="../fastify.d.ts" />
+/// <reference path="../../../src/fastify.d.ts" />
 import Fastify from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
@@ -81,6 +81,7 @@ function mockDeps(): {
     },
     identifierRepo: {
       findByPatient: vi.fn().mockResolvedValue([]),
+      findActivePatientIdByIdentifier: vi.fn().mockResolvedValue(undefined),
       create: vi.fn().mockResolvedValue({} as never),
       deactivate: vi.fn().mockResolvedValue(undefined),
     },

@@ -1,8 +1,13 @@
 import { randomUUID, generateKeyPairSync } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps, AbdmSessionsPort, GatewayClient } from "../../../../../../src/integrations/abdm/ports.js";
 import { enrolAadhaarOtpResendRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/enrol-aadhaar-otp-resend-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "00000000-0000-4000-8000-000000000099";
 const SID = randomUUID();
@@ -22,41 +27,29 @@ describe("enrolAadhaarOtpResendRequest", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === stored.sessionId ? stored : null;
-      },
-      async patch(input) {
-        stored = {
+      findById: async (input) => (input.sessionId === stored.sessionId ? stored : null),
+      patch: async (input) => {
+        stored = makeSession({
           ...stored,
           ...(input.txnId !== undefined ? { txnId: input.txnId } : {}),
           context: { ...stored.context, ...(input.contextMerge ?? {}) },
           updatedAt: new Date(),
-        };
+        });
         return stored;
       },
-    };
+    });
 
-    const gateway: GatewayClient = {
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
+    });
 
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
     const spki = publicKey.export({ type: "spki", format: "der" }) as Buffer;
@@ -76,7 +69,7 @@ describe("enrolAadhaarOtpResendRequest", () => {
 
     expect(out.txnId).toBe("new-txn");
     expect(stored.txnId).toBe("new-txn");
-    const call = vi.mocked(deps.gateway.post).mock.calls[0][0] as {
+    const call = vi.mocked(deps.gateway.post).mock.calls[0]![0] as {
       body: { txnId: string; loginHint: string };
     };
     expect(call.body.txnId).toBe("");

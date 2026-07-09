@@ -22,7 +22,9 @@ describe("ConfiguratorHttpIntegrationProfileRepo", () => {
   });
 
   it("never sends Authorization bearer on internal profile routes", async () => {
-    const fetchMock = vi.fn(async () => Response.json(profileRow));
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      Response.json(profileRow),
+    );
     const repo = new ConfiguratorHttpIntegrationProfileRepo({
       baseUrl: "http://localhost:3001",
       internalApiKey: "secret-key",

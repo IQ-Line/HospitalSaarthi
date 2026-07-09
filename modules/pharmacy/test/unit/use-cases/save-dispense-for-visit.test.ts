@@ -76,7 +76,7 @@ describe("saveDispenseForVisit", () => {
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
-      upsertForVisit: vi.fn(async () => ({
+      upsertForVisit: vi.fn<DispenseRecordRepo["upsertForVisit"]>(async () => ({
         record: {
           id: "rec-2",
           iq_tenant_id: TENANT,
@@ -149,7 +149,7 @@ describe("saveDispenseForVisit", () => {
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
-      upsertForVisit: vi.fn(async () => ({
+      upsertForVisit: vi.fn<DispenseRecordRepo["upsertForVisit"]>(async () => ({
         record: {
           id: "rec-3",
           iq_tenant_id: TENANT,

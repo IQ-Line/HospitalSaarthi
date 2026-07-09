@@ -67,13 +67,13 @@ describe("registerPatient", () => {
 
     expect(allocatePatientUhid).toHaveBeenCalledWith("11111111-2222-4333-8444-555555555555");
     expect(patientRepo.create).toHaveBeenCalled();
-    const createdArg = (patientRepo.create as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
+    const createdArg = (patientRepo.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
       uhid: string;
     };
     expect(createdArg.uhid).toBe("260327000010000007");
 
     expect(publish).toHaveBeenCalledTimes(1);
-    const envelope = publish.mock.calls[0][0] as {
+    const envelope = publish.mock.calls[0]?.[0] as {
       event_type: string;
       payload: { uhid: string };
     };

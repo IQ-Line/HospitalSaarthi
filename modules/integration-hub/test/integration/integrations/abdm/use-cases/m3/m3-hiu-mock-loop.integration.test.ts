@@ -11,6 +11,7 @@ import { handleOnDataRequestCallback } from "../../../../../../src/integrations/
 import { handleBundlePush } from "../../../../../../src/integrations/abdm/use-cases/m3/hiu/handle-bundle-push.js";
 import { M3Hiu } from "../../../../../../src/integrations/abdm/lib/m3-fsm-states.js";
 import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
+import { assertFlowKind } from "../../../../../../src/integrations/abdm/domain/session.js";
 import type {
   M3ConsentRequestRow,
   M3DataTransferRow,
@@ -40,7 +41,7 @@ describe("m3 HIU mock loop (in-process)", () => {
           iqTenantId: input.iqTenantId,
           sessionId: randomUUID(),
           flowKind: "abdm.m3.hiu.v1",
-          state: "INIT",
+          state: M3Hiu.CONSENT_INIT_REQUESTED,
           txnId: null,
           requestId: null,
           xToken: null,
@@ -202,6 +203,7 @@ describe("m3 HIU mock loop (in-process)", () => {
       {
         iqTenantId: TENANT,
         inboundRequestId: randomUUID(),
+        response: { requestId: randomUUID() },
         consent: {
           status: "GRANTED",
           signature: "mock-signature",
@@ -209,8 +211,9 @@ describe("m3 HIU mock loop (in-process)", () => {
             consentId,
             schemaVersion: "v3",
             createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
             patient: { id: "test.user@sbx" },
-            hip: { id: "HIP-1", name: "Test HIP" },
+            hip: { id: "HIP-1" },
             hiu: { id: deps.xHiuId },
             hiTypes: ["OPConsultation"],
             careContexts: [{ patientReference: "p1", careContextReference: "cc1" }],
@@ -248,7 +251,7 @@ describe("m3 HIU mock loop (in-process)", () => {
         iqTenantId: TENANT,
         inboundRequestId: randomUUID(),
         response: { requestId: transferRow!.outboundRequestId! },
-        hiRequest: { transactionId: `TXN-${randomUUID()}` },
+        hiRequest: { transactionId: `TXN-${randomUUID()}`, sessionStatus: "ACKNOWLEDGED" },
       },
       deps,
     );
@@ -295,6 +298,8 @@ describe("m3 HIU mock loop (in-process)", () => {
     expect(transferRow!.state).toBe(M3Hiu.ACKNOWLEDGED);
     expect(session!.state).toBe(M3Hiu.ACKNOWLEDGED);
     expect(transferRow!.bundleJson).toBeTruthy();
-    expect(session!.context.bundleJsonId).toBe(transferRow!.transferId);
+    const finalSession = session!;
+    assertFlowKind(finalSession, "abdm.m3.hiu.v1");
+    expect(finalSession.context.bundleJsonId).toBe(transferRow!.transferId);
   });
 });

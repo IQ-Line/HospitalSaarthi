@@ -68,7 +68,7 @@ describe("startConsentRequest", () => {
 
   it("defaults requester REGNO when omitted (ABDM rejects empty identifier)", async () => {
     vi.stubEnv("ABDM_M3_MOCK_GATEWAY", "false");
-    const gatewayPost = vi.fn(async () => ({}));
+    const gatewayPost = vi.fn(async (_input: { path: string; body: unknown }) => ({}));
     const sessions = {
       create: vi.fn(async () => ({
         iqTenantId: "t1",

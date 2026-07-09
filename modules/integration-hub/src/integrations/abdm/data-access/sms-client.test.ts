@@ -4,7 +4,7 @@ import {
   LoggingSmsClient,
   Msg91OtpSmsClient,
 } from "./sms-client.js";
-import type { TenantIntegrationProfile } from "../../lib/integration-context.js";
+import type { TenantIntegrationProfile } from "../../../lib/integration-context.js";
 
 function baseProfile(): TenantIntegrationProfile {
   return {

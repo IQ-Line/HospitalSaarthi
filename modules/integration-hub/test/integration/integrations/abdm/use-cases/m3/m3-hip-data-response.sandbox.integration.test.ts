@@ -51,7 +51,7 @@ describe.skipIf(!RUN || !DB_URL)("m3 HIP data-response sandbox", () => {
         iqTenantId: M3_SANDBOX_TENANT,
         inboundRequestId: randomUUID(),
         response: { requestId: inboundRequestId },
-        hiRequest: { transactionId: cmTxnId },
+        hiRequest: { transactionId: cmTxnId, sessionStatus: "ACKNOWLEDGED" },
       },
       deps,
     );

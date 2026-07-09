@@ -40,9 +40,11 @@ function mockTenantRepo(): TenantRepo {
   return {
     findAll: vi.fn(),
     findById: vi.fn(),
+    findBySlug: vi.fn(),
+    findByOrgId: vi.fn(),
+    findByOrgIdAndBranchCode: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
-    delete: vi.fn(),
   };
 }
 

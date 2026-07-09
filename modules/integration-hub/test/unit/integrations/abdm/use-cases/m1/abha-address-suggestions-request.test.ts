@@ -1,8 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import type { AbdmSession } from "../../../../../../src/integrations/abdm/domain/session.js";
-import type { AbdmAdapterDeps, AbdmSessionsPort, GatewayClient } from "../../../../../../src/integrations/abdm/ports.js";
 import { abhaAddressSuggestionsRequest } from "../../../../../../src/integrations/abdm/use-cases/m1/abha-address-suggestions-request.js";
+import {
+  baseAdapterDeps,
+  fakeGatewayClient,
+  fakeSessionsPort,
+} from "../../../../../helpers/abdm-fakes.js";
 
 const TENANT = "00000000-0000-4000-8000-000000000099";
 const SID = randomUUID();
@@ -22,39 +26,27 @@ describe("abhaAddressSuggestionsRequest", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const sessions: AbdmSessionsPort = {
-      async create() {
+    const sessions = fakeSessionsPort({
+      create: async () => {
         throw new Error("unused");
       },
-      async findById(input) {
-        return input.sessionId === SID ? stored : null;
-      },
-      async patch(input) {
+      findById: async (input) => (input.sessionId === SID ? stored : null),
+      patch: async (input) => {
         Object.assign(stored, {
           ...(input.txnId !== undefined ? { txnId: input.txnId } : {}),
           context: { ...stored.context, ...(input.contextMerge ?? {}) },
         });
         return stored;
       },
-    };
+    });
 
-    const gateway: GatewayClient = {
+    const gateway = fakeGatewayClient({
       post: vi.fn(),
       get: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getDiagnosticsSnapshot: vi.fn(() => ({
-        tokenValidUntilMs: null,
-        certValidUntilMs: null,
-        certCached: false,
-      })),
-    };
+    });
 
-    const deps: AbdmAdapterDeps = {
-      sessions,
-      gateway,
-      secrets: { resolve: vi.fn() },
-      fidelius: { encryptForPeer: vi.fn(), decryptBundle: vi.fn() },
-    };
+    const deps = baseAdapterDeps({ sessions, gateway });
 
     vi.mocked(deps.gateway.get).mockResolvedValue({
       txnId: "suggestion-txn",

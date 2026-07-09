@@ -1,69 +1,51 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import type { AbdmSession } from "../../../domain/session.js";
+import { assertFlowKind, type AbdmSession } from "../../../domain/session.js";
 import type { AbdmSessionsPort } from "../../../ports.js";
 import { InMemoryLinkOtpStore } from "../../../lib/link-otp-store.js";
 import { buildMockAbdmDeps } from "../../../test-utils/mock-deps.js";
+import {
+  fakeGatewayClient,
+  fakeSessionsPort,
+  makeSession,
+} from "../../../../../../test/helpers/abdm-fakes.js";
 import { handleLinkInitCallback } from "./handle-link-init-callback.js";
 
 function mockSessions(): AbdmSessionsPort {
   const rows: AbdmSession[] = [];
-  return {
-    async create(input) {
-      const s: AbdmSession = {
+  return fakeSessionsPort({
+    create: async (input) => {
+      const s = makeSession({
         iqTenantId: input.iqTenantId,
         sessionId: randomUUID(),
         flowKind: input.flowKind,
         state: "ON_DISCOVER_RESPONDED",
-        txnId: input.initialContext?.transactionId as string | null,
-        requestId: null,
-        xToken: null,
-        tToken: null,
+        txnId: (input.initialContext?.transactionId as string | undefined) ?? null,
         context: input.initialContext ?? {},
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      });
       rows.push(s);
       return s;
     },
-    async findById(input) {
-      return (
-        rows.find(
-          (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
-        ) ?? null
-      );
-    },
-    async patch(input) {
+    findById: async (input) =>
+      rows.find(
+        (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
+      ) ?? null,
+    patch: async (input) => {
       const s = rows.find(
         (r) => r.sessionId === input.sessionId && r.iqTenantId === input.iqTenantId,
       );
       if (!s) throw new Error("not found");
-      if (input.state !== undefined) s.state = input.state as AbdmSession["state"];
+      if (input.state !== undefined) s.state = input.state;
       if (input.contextMerge) s.context = { ...s.context, ...input.contextMerge };
       return s;
     },
-    async findUserLinkByTransactionId(input) {
-      return (
-        rows.find(
-          (r) =>
-            r.flowKind === "abdm.m2.user-initiated-link.v1" &&
-            r.txnId === input.transactionId,
-        ) ?? null
-      );
-    },
-    async findUserLinkByLinkRefNumber() {
-      return null;
-    },
-    async findHipLinkByRequestId() {
-      return null;
-    },
-    async findByFlowAndRequestId() {
-      return null;
-    },
-    async findLatestLinkedUserLinkByAbhaAddress() {
-      return null;
-    },
-  };
+    findUserLinkByTransactionId: async (input) =>
+      rows.find(
+        (r) =>
+          r.flowKind === "abdm.m2.user-initiated-link.v1" &&
+          r.txnId === input.transactionId,
+      ) ?? null,
+  });
 }
 
 describe("handleLinkInitCallback", () => {
@@ -97,7 +79,7 @@ describe("handleLinkInitCallback", () => {
     const linkOtpStore = new InMemoryLinkOtpStore();
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       sms: { sendOtp },
       linkOtpStore,
       empi: {
@@ -155,11 +137,13 @@ describe("handleLinkInitCallback", () => {
       iqTenantId: "00000000-0000-4000-8000-0000000000aa",
       transactionId: txnId,
     });
-    const linkRef = String(after?.context.linkRefNumber ?? "");
+    if (!after) throw new Error("session not found");
+    assertFlowKind(after, "abdm.m2.user-initiated-link.v1");
+    const linkRef = String(after.context.linkRefNumber ?? "");
     expect(linkOtpStore.peekOtp("00000000-0000-4000-8000-0000000000aa", linkRef)).toMatch(
       /^\d{6}$/,
     );
-    expect(after?.context.careContexts).toEqual([
+    expect(after.context.careContexts).toEqual([
       {
         referenceNumber: "f8fa989e-65cb-42ca-964c-b03036a40452_OPConsultNote",
         display: "f8fa989e-65cb-42ca-964c-b03036a40452_OPConsultNote",
@@ -197,7 +181,7 @@ describe("handleLinkInitCallback", () => {
 
     const deps = buildMockAbdmDeps({
       sessions,
-      gateway: { post } as never,
+      gateway: fakeGatewayClient({ post }),
       sms: { sendOtp },
       linkOtpStore: new InMemoryLinkOtpStore(),
       empi: {
@@ -231,6 +215,8 @@ describe("handleLinkInitCallback", () => {
       iqTenantId: "00000000-0000-4000-8000-0000000000aa",
       transactionId: txnId,
     });
-    expect(after?.context.careContexts).toEqual([]);
+    if (!after) throw new Error("session not found");
+    assertFlowKind(after, "abdm.m2.user-initiated-link.v1");
+    expect(after.context.careContexts).toEqual([]);
   });
 });

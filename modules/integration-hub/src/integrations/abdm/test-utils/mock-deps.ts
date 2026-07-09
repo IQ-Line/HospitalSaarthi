@@ -3,7 +3,11 @@ import { InMemoryLinkOtpStore } from "../lib/link-otp-store.js";
 
 /** Minimal `AbdmAdapterDeps` for unit tests (M1 + M2). */
 export function buildMockAbdmDeps(
-  overrides: Partial<AbdmAdapterDeps> = {},
+  overrides: Omit<Partial<AbdmAdapterDeps>, "empi" | "registration"> & {
+    /** Merged over sensible defaults, so a test may supply only the methods it drives. */
+    empi?: Partial<AbdmAdapterDeps["empi"]>;
+    registration?: Partial<AbdmAdapterDeps["registration"]>;
+  } = {},
 ): AbdmAdapterDeps {
   const defaultEmpi = {
     findPatientByAbhaAddress: async () => null,

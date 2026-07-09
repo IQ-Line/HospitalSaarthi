@@ -354,14 +354,14 @@ describe("createIntakeForNewPatient", () => {
     expect(res.result.visit?.patient_id).toBe("patient-new");
 
     // EMPI register body must NOT carry abha_address (EMPI create rejects it)...
-    const empiBody = (empiGateway.registerPatient as ReturnType<typeof vi.fn>).mock.calls[0][2];
+    const empiBody = (empiGateway.registerPatient as ReturnType<typeof vi.fn>).mock.calls[0]?.[2];
     expect(empiBody).toMatchObject({ full_name: "Asha Rao", abha_number: "12-3456-7890-1234" });
     expect(empiBody).not.toHaveProperty("abha_address");
 
     // ...but the registration snapshot must KEEP it (merged back in).
-    const regInput = (registrationRepo.insert as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    expect(regInput.patient_snapshot.abha_address).toBe("asha@abdm");
-    expect(regInput.patient_source_record_id).toBe("src-new");
+    const regInput = (registrationRepo.insert as ReturnType<typeof vi.fn>).mock.calls[0]?.[1];
+    expect(regInput?.patient_snapshot.abha_address).toBe("asha@abdm");
+    expect(regInput?.patient_source_record_id).toBe("src-new");
 
     // ABHA address is linked in EMPI after the patient exists.
     expect(empiGateway.linkAbhaAddress).toHaveBeenCalledWith(
@@ -395,7 +395,7 @@ describe("createIntakeForNewPatient", () => {
 
     expect(res.ok).toBe(true);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toMatchObject({ patientId: "patient-new", reason: "conflict", status: 409 });
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({ patientId: "patient-new", reason: "conflict", status: 409 });
   });
 });
 
@@ -498,7 +498,7 @@ describe("createVisitForExistingPatient", () => {
     );
     // Permanent address is pushed to EMPI as the canonical store.
     expect(empiGateway.upsertPermanentAddress).toHaveBeenCalledTimes(1);
-    const addrArg = (empiGateway.upsertPermanentAddress as ReturnType<typeof vi.fn>).mock.calls[0][2];
+    const addrArg = (empiGateway.upsertPermanentAddress as ReturnType<typeof vi.fn>).mock.calls[0]?.[2];
     expect(addrArg).toMatchObject({ address_type: "permanent", city: "Pune", pincode: "411001" });
   });
 
@@ -525,6 +525,6 @@ describe("createVisitForExistingPatient", () => {
     expect(res.created).toBe(true);
     expect(res.visit.patient_id).toBe(PATIENT);
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0][0]).toMatchObject({ patientId: PATIENT, reason: "error", status: 502 });
+    expect(warn.mock.calls[0]?.[0]).toMatchObject({ patientId: PATIENT, reason: "error", status: 502 });
   });
 });
