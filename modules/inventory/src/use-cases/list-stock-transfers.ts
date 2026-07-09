@@ -33,13 +33,8 @@ export async function listStockTransfers(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
-  const indentNumbers = new Map<string, string>();
-  await Promise.all(
-    indentIds.map(async (indentId) => {
-      const indent = await deps.indentRepo.findById(tenantId, indentId);
-      if (indent) indentNumbers.set(indentId, indent.indent_number);
-    }),
-  );
+  const indentRows = await deps.indentRepo.findByIds(tenantId, indentIds);
+  const indentNumbers = new Map(indentRows.map((indent) => [indent.id, indent.indent_number]));
 
   const items = result.rows.map((row) => ({
     ...wireStockTransfer(row),

@@ -24,7 +24,6 @@ import {
   canReceiveTransfer,
   defaultTransferDirection,
   incomingTransferStoreFilter,
-  INCOMING_TRANSFER_STATUSES,
   outgoingTransferStoreFilter,
   type TransferListDirection,
 } from '../lib/transfer-workflow';
@@ -152,34 +151,35 @@ export function InventoryTransfersPage({
       }));
   }, [direction, draftTransferIds, readyIndentsData?.data, search]);
 
-  const transferListParams = useMemo(
-    () => ({
+  const transferListParams = useMemo(() => {
+    const mappedStatus =
+      status === 'all'
+        ? undefined
+        : ({
+            Draft: 'draft',
+            Dispatched: 'in_transit',
+            'Partially received': 'partially_received',
+            Completed: 'completed',
+            Rejected: 'rejected',
+            Cancelled: 'cancelled',
+          }[status] as const);
+
+    return {
       search: search || undefined,
-      status:
-        status === 'all'
-          ? undefined
-          : ({
-              Draft: 'draft',
-              Dispatched: 'in_transit',
-              'Partially received': 'partially_received',
-              Completed: 'completed',
-              Rejected: 'rejected',
-              Cancelled: 'cancelled',
-            }[status] as const),
+      status: direction === 'incoming' && status === 'all' ? undefined : mappedStatus,
+      statuses:
+        direction === 'incoming' && status === 'all'
+          ? (['in_transit', 'partially_received'] as const)
+          : undefined,
       page,
       limit: pageSize,
       ...(direction === 'outgoing' && storeId ? outgoingTransferStoreFilter(storeId) : {}),
       ...(direction === 'incoming' && storeId ? incomingTransferStoreFilter(storeId) : {}),
-    }),
-    [direction, page, pageSize, search, status, storeId],
-  );
+    };
+  }, [direction, page, pageSize, search, status, storeId]);
 
   const { data: transferData, isLoading: transfersLoading } = useInventoryTransfers(transferListParams);
-  const transferRows = useMemo(() => {
-    const rows = transferData?.data ?? [];
-    if (direction !== 'incoming') return rows;
-    return rows.filter((row) => INCOMING_TRANSFER_STATUSES.includes(row.status));
-  }, [direction, transferData?.data]);
+  const transferRows = transferData?.data ?? [];
 
   useEffect(() => {
     if (routePrefill?.transferId && routeTransferDetail) {

@@ -42,3 +42,25 @@ export function canDispatchTransfer(
 ): boolean {
   return transfer.status === 'Draft';
 }
+
+/** Draft cancel — sending store. In-transit cancel — receiving store closes unsettled qty. */
+export function canCancelTransfer(
+  transfer: Pick<InventoryTransferRow, 'status'>,
+  direction: TransferListDirection,
+): boolean {
+  if (transfer.status === 'Draft') return direction === 'outgoing';
+  if (transfer.status === 'Dispatched' || transfer.status === 'Partially received') {
+    return direction === 'incoming';
+  }
+  return false;
+}
+
+export function transferHasUnsettledQty(
+  transfer: Pick<InventoryTransferRow, 'lines'>,
+): boolean {
+  return transfer.lines.some((line) => {
+    const dispatched = line.dispatched_qty ?? line.quantity;
+    const received = line.received_qty ?? 0;
+    return received + 0.0005 < dispatched;
+  });
+}

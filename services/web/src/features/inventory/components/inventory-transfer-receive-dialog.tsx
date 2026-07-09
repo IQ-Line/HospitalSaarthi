@@ -11,11 +11,17 @@ import {
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import { cn } from '@pulse/utils';
-import { useInventoryTransferReceive } from '../api/transfer-mutations';
+import { useInventoryTransferCancel, useInventoryTransferReceive } from '../api/transfer-mutations';
 import { useInventoryIndentDetail } from '../api/queries';
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
-import { canReceiveTransfer } from '../lib/transfer-workflow';
+import { canReceiveTransfer, transferHasUnsettledQty } from '../lib/transfer-workflow';
 import type { InventoryTransferLine, InventoryTransferRow } from '../types';
+
+const QTY_EPSILON = 0.0005;
+
+function qtyNearlyEqual(a: number, b: number): boolean {
+  return Math.abs(a - b) <= QTY_EPSILON;
+}
 
 type InventoryTransferReceiveDialogProps = {
   open: boolean;
@@ -25,6 +31,10 @@ type InventoryTransferReceiveDialogProps = {
 };
 
 type ReceiveLineState = InventoryTransferLine & {
+  previously_received: number;
+  previously_accepted: number;
+  previously_rejected: number;
+  remaining_qty: number;
   received_qty: number;
   accepted_qty: number;
   rejected_qty: number;
@@ -33,13 +43,21 @@ type ReceiveLineState = InventoryTransferLine & {
 
 function toReceiveLine(line: InventoryTransferLine): ReceiveLineState {
   const dispatched = line.dispatched_qty ?? line.quantity;
+  const previouslyReceived = line.received_qty ?? 0;
+  const previouslyAccepted = line.accepted_qty ?? 0;
+  const previouslyRejected = line.rejected_qty ?? 0;
+  const remaining = Math.max(0, dispatched - previouslyReceived);
   return {
     ...line,
     dispatched_qty: dispatched,
-    received_qty: dispatched,
-    accepted_qty: dispatched,
+    previously_received: previouslyReceived,
+    previously_accepted: previouslyAccepted,
+    previously_rejected: previouslyRejected,
+    remaining_qty: remaining,
+    received_qty: remaining,
+    accepted_qty: remaining,
     rejected_qty: 0,
-    rejection_reason: '',
+    rejection_reason: line.rejection_reason ?? '',
   };
 }
 
@@ -50,14 +68,18 @@ export function InventoryTransferReceiveDialog({
   transferLoading = false,
 }: InventoryTransferReceiveDialogProps) {
   const receiveTransfer = useInventoryTransferReceive();
+  const cancelTransfer = useInventoryTransferCancel();
   const { data: linkedIndent } = useInventoryIndentDetail(transfer?.inventory_indent_id ?? undefined);
   const [lines, setLines] = useState<ReceiveLineState[]>([]);
+  const [cancelReason, setCancelReason] = useState('');
 
   const readOnly = transfer != null && !canReceiveTransfer(transfer);
+  const canCancelRemainder = transfer != null && transferHasUnsettledQty(transfer);
 
   useEffect(() => {
     if (!open || transferLoading || !transfer) return;
     setLines(transfer.lines.map(toReceiveLine));
+    setCancelReason('');
   }, [open, transfer, transferLoading]);
 
   const updateLine = (lineId: string, patch: Partial<ReceiveLineState>) => {
@@ -85,22 +107,26 @@ export function InventoryTransferReceiveDialog({
   const validate = (): string | null => {
     if (!transfer) return 'Transfer not loaded.';
     for (const line of lines) {
-      const dispatched = line.dispatched_qty ?? 0;
+      const remaining = line.remaining_qty;
       const received = Number(line.received_qty);
       const accepted = Number(line.accepted_qty);
       const rejected = Number(line.rejected_qty);
-      if (received > dispatched) {
-        return `${line.item_name}: received qty cannot exceed dispatched qty (${dispatched}).`;
+      if (received > remaining) {
+        return `${line.item_name}: this receipt cannot exceed remaining qty (${remaining}).`;
       }
-      if (accepted + rejected !== received) {
-        return `${line.item_name}: accepted + rejected must equal received qty.`;
+      if (!qtyNearlyEqual(accepted + rejected, received)) {
+        return `${line.item_name}: accepted + rejected must equal received qty for this receipt.`;
       }
       if (rejected > 0 && !line.rejection_reason.trim()) {
         return `${line.item_name}: rejection reason is required.`;
       }
     }
-    const totalAccepted = lines.reduce((sum, line) => sum + Number(line.accepted_qty), 0);
-    if (totalAccepted <= 0) {
+    const totalThisAccepted = lines.reduce((sum, line) => sum + Number(line.accepted_qty), 0);
+    const totalThisReceived = lines.reduce((sum, line) => sum + Number(line.received_qty), 0);
+    if (totalThisReceived <= 0) {
+      return 'Enter quantities for this receipt, or cancel the remaining transfer.';
+    }
+    if (totalThisAccepted <= 0) {
       const allRejectedWithReason = lines.every(
         (line) =>
           Number(line.received_qty) > 0 &&
@@ -124,9 +150,9 @@ export function InventoryTransferReceiveDialog({
 
     const payload = lines.map((line) => ({
       item_id: line.item_id!,
-      received_qty: Number(line.received_qty),
-      accepted_qty: Number(line.accepted_qty),
-      rejected_qty: Number(line.rejected_qty),
+      received_qty: line.previously_received + Number(line.received_qty),
+      accepted_qty: line.previously_accepted + Number(line.accepted_qty),
+      rejected_qty: line.previously_rejected + Number(line.rejected_qty),
       rejection_reason: line.rejection_reason.trim() || null,
     }));
 
@@ -138,10 +164,30 @@ export function InventoryTransferReceiveDialog({
 
     try {
       await receiveTransfer.mutateAsync({ transferId: transfer.id, lines: payload });
-      toast.success('Transfer received — stock added to your store.');
+      toast.success('Transfer received — stock updated.');
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to receive transfer');
+    }
+  };
+
+  const handleCancelRemainder = async () => {
+    if (!transfer) return;
+    if (!cancelReason.trim()) {
+      toast.error('Cancellation reason is required.');
+      return;
+    }
+    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+      toast.success('Transfer cancelled (mock).');
+      onOpenChange(false);
+      return;
+    }
+    try {
+      await cancelTransfer.mutateAsync({ transferId: transfer.id, reason: cancelReason.trim() });
+      toast.success('Remaining transfer qty returned to source store.');
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel transfer');
     }
   };
 
@@ -191,7 +237,7 @@ export function InventoryTransferReceiveDialog({
               </div>
 
               <div className="border-t pt-3">
-                <Label className="mb-2 block">Items</Label>
+                <Label className="mb-2 block">Items — this receipt</Label>
                 <div className="flex flex-col gap-3">
                   {lines.map((line) => (
                     <div key={line.id} className="rounded-md border p-3">
@@ -199,13 +245,21 @@ export function InventoryTransferReceiveDialog({
                         <span className="mr-1 font-mono text-xs text-muted-foreground">{line.item_code}</span>
                         {line.item_name}
                       </p>
-                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-6">
                         <div className="grid gap-1">
                           <Label className="text-xs">Dispatched</Label>
                           <Input className="h-9 tabular-nums" value={line.dispatched_qty ?? 0} disabled readOnly />
                         </div>
                         <div className="grid gap-1">
-                          <Label className="text-xs">Received</Label>
+                          <Label className="text-xs">Previously received</Label>
+                          <Input className="h-9 tabular-nums" value={line.previously_received} disabled readOnly />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label className="text-xs">Remaining</Label>
+                          <Input className="h-9 tabular-nums" value={line.remaining_qty} disabled readOnly />
+                        </div>
+                        <div className="grid gap-1">
+                          <Label className="text-xs">Received now</Label>
                           <Input
                             type="number"
                             min={0}
@@ -219,7 +273,7 @@ export function InventoryTransferReceiveDialog({
                           />
                         </div>
                         <div className="grid gap-1">
-                          <Label className="text-xs">Accepted</Label>
+                          <Label className="text-xs">Accepted now</Label>
                           <Input
                             type="number"
                             min={0}
@@ -233,7 +287,7 @@ export function InventoryTransferReceiveDialog({
                           />
                         </div>
                         <div className="grid gap-1">
-                          <Label className="text-xs">Rejected</Label>
+                          <Label className="text-xs">Rejected now</Label>
                           <Input
                             type="number"
                             min={0}
@@ -262,6 +316,31 @@ export function InventoryTransferReceiveDialog({
                   ))}
                 </div>
               </div>
+
+              {!readOnly && canCancelRemainder ? (
+                <div className="rounded-md border border-dashed p-3">
+                  <Label className="text-xs">Cancel remaining in-transit qty</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Returns undelivered stock to the source store and closes this transfer.
+                  </p>
+                  <Input
+                    className="mt-2 h-9"
+                    placeholder="Cancellation reason"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    disabled={cancelTransfer.isPending}
+                    onClick={() => void handleCancelRemainder()}
+                  >
+                    Cancel remaining qty
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -281,7 +360,7 @@ export function InventoryTransferReceiveDialog({
               disabled={receiveTransfer.isPending || transferLoading}
               onClick={() => void handleReceive()}
             >
-              Accept transfer
+              Confirm receipt
             </Button>
           )}
         </div>

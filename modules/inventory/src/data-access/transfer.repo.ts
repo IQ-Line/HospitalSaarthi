@@ -9,13 +9,25 @@ import type {
   ReceiveStockTransferInput,
   StockTransferLineRow,
   StockTransferRow,
+  CancelStockTransferInput,
 } from "../domain/transfer.types.js";
 import { TransferValidationError } from "../errors.js";
-import { creditStockToStore } from "../lib/credit-stock.js";
 import { deductStockFefo } from "../lib/deduct-stock-fefo.js";
 import {
+  mapStockAllocation,
+  returnUnsettledFromAllocations,
+} from "../lib/credit-stock.js";
+import { qtyGreaterThan, qtyLessThan } from "../lib/qty-math.js";
+import {
+  applyReceiveLineStockMovements,
+  resolveReceiveStatus,
+  validateReceiveLine,
+} from "../lib/transfer-receive.js";
+import {
+  inventoryIndentLines,
   inventoryIndents,
   inventoryItems,
+  inventoryStockTransferAllocations,
   inventoryStockTransferLines,
   inventoryStockTransferSequences,
   inventoryStockTransfers,
@@ -358,13 +370,26 @@ export class DrizzleInventoryTransferRepository {
           throw new TransferValidationError(`Item ${line.item_id} is inactive`);
         }
 
-        await deductStockFefo(tx, {
+        const deductions = await deductStockFefo(tx, {
           tenantId,
           storeId: transfer.from_store_id,
           itemId: line.item_id,
           qty: dispatchQty,
           transferDate: transfer.transfer_date,
         });
+
+        if (deductions.length) {
+          await tx.insert(inventoryStockTransferAllocations).values(
+            deductions.map((deduction, index) => ({
+              iq_tenant_id: tenantId,
+              stock_transfer_line_id: line.id,
+              source_stock_id: deduction.stockId,
+              lot_id: deduction.lotId,
+              qty: String(deduction.qty),
+              sort_order: index,
+            })),
+          );
+        }
 
         if (dispatchQty !== Number(line.transfer_qty)) {
           await tx
@@ -462,56 +487,58 @@ export class DrizzleInventoryTransferRepository {
 
       const receiveByItem = new Map(input.lines.map((line) => [line.item_id, line]));
       let totalAccepted = 0;
-      let totalRejected = 0;
-      let totalDispatched = 0;
+      let allLinesFullyReceived = true;
 
       for (const line of existingLines) {
         const dispatchedQty = Number(line.transfer_qty);
-        totalDispatched += dispatchedQty;
         const receiveLine = receiveByItem.get(line.item_id);
         if (!receiveLine) {
           throw new TransferValidationError(`Missing receive line for item ${line.item_id}`);
         }
 
-        const receivedQty = receiveLine.received_qty;
-        const acceptedQty = receiveLine.accepted_qty;
-        const rejectedQty = receiveLine.rejected_qty ?? Math.max(0, receivedQty - acceptedQty);
-
-        if (!Number.isFinite(receivedQty) || receivedQty < 0) {
-          throw new TransferValidationError("Received quantity must be >= 0");
-        }
-        if (!Number.isFinite(acceptedQty) || acceptedQty < 0) {
-          throw new TransferValidationError("Accepted quantity must be >= 0");
-        }
-        if (receivedQty > dispatchedQty) {
-          throw new TransferValidationError("Received quantity cannot exceed dispatched quantity");
-        }
-        if (acceptedQty > receivedQty) {
-          throw new TransferValidationError("Accepted quantity cannot exceed received quantity");
-        }
-        if (acceptedQty + rejectedQty !== receivedQty) {
-          throw new TransferValidationError("Accepted and rejected quantities must equal received quantity");
-        }
-        if (rejectedQty > 0 && !receiveLine.rejection_reason?.trim()) {
-          throw new TransferValidationError("Rejection reason is required when quantity is rejected");
-        }
-
-        if (acceptedQty > 0) {
-          await creditStockToStore(tx, {
-            tenantId,
-            storeId: transfer.to_store_id,
+        const validated = validateReceiveLine(
+          {
             itemId: line.item_id,
-            qty: acceptedQty,
+            lineId: line.id,
+            dispatchedQty,
+            previousReceived: Number(line.received_qty ?? 0),
+            previousAccepted: Number(line.accepted_qty ?? 0),
+            previousRejected: Number(line.rejected_qty ?? 0),
+          },
+          receiveLine,
+        );
+
+        if (qtyGreaterThan(validated.deltaAccepted, 0) || qtyGreaterThan(validated.deltaRejected, 0)) {
+          const allocationRows = await tx
+            .select()
+            .from(inventoryStockTransferAllocations)
+            .where(
+              and(
+                eq(inventoryStockTransferAllocations.iq_tenant_id, tenantId),
+                eq(inventoryStockTransferAllocations.stock_transfer_line_id, line.id),
+              ),
+            )
+            .orderBy(asc(inventoryStockTransferAllocations.sort_order));
+
+          const allocations = allocationRows.map((row) => mapStockAllocation(row));
+
+          await applyReceiveLineStockMovements(tx, {
+            tenantId,
+            toStoreId: transfer.to_store_id,
+            itemId: line.item_id,
+            transferDate: transfer.transfer_date,
+            line: validated,
+            allocations,
           });
         }
 
         await tx
           .update(inventoryStockTransferLines)
           .set({
-            received_qty: String(receivedQty),
-            accepted_qty: String(acceptedQty),
-            rejected_qty: String(rejectedQty),
-            rejection_reason: receiveLine.rejection_reason?.trim() || null,
+            received_qty: String(validated.receivedQty),
+            accepted_qty: String(validated.acceptedQty),
+            rejected_qty: String(validated.rejectedQty),
+            rejection_reason: validated.rejectionReason,
             updated_at: new Date(),
           })
           .where(
@@ -521,18 +548,13 @@ export class DrizzleInventoryTransferRepository {
             ),
           );
 
-        totalAccepted += acceptedQty;
-        totalRejected += rejectedQty;
+        totalAccepted += validated.acceptedQty;
+        if (qtyLessThan(validated.receivedQty, dispatchedQty)) {
+          allLinesFullyReceived = false;
+        }
       }
 
-      let nextStatus: StockTransferRow["status"];
-      if (totalAccepted <= 0) {
-        nextStatus = "rejected";
-      } else if (totalAccepted < totalDispatched || totalRejected > 0) {
-        nextStatus = "partially_received";
-      } else {
-        nextStatus = "completed";
-      }
+      const nextStatus = resolveReceiveStatus(totalAccepted, allLinesFullyReceived);
 
       const [received] = await tx
         .update(inventoryStockTransfers)
@@ -564,6 +586,172 @@ export class DrizzleInventoryTransferRepository {
 
       return mapTransferRow(received);
     });
+  }
+
+  async cancel(
+    tenantId: string,
+    transferId: string,
+    input: CancelStockTransferInput,
+  ): Promise<StockTransferRow> {
+    return this.db.transaction(async (tx) => {
+      const [transfer] = await tx
+        .select()
+        .from(inventoryStockTransfers)
+        .where(
+          and(
+            eq(inventoryStockTransfers.iq_tenant_id, tenantId),
+            eq(inventoryStockTransfers.id, transferId),
+          ),
+        )
+        .limit(1);
+
+      if (!transfer) {
+        throw new TransferValidationError("Transfer not found");
+      }
+
+      if (transfer.status === "draft") {
+        const [cancelled] = await tx
+          .update(inventoryStockTransfers)
+          .set({
+            status: "cancelled",
+            remarks: input.reason?.trim() || transfer.remarks,
+            updated_at: new Date(),
+          })
+          .where(
+            and(
+              eq(inventoryStockTransfers.iq_tenant_id, tenantId),
+              eq(inventoryStockTransfers.id, transferId),
+              eq(inventoryStockTransfers.status, "draft"),
+            ),
+          )
+          .returning();
+
+        if (!cancelled) {
+          throw new TransferValidationError("Transfer could not be cancelled");
+        }
+
+        if (transfer.inventory_indent_id) {
+          await this.restoreIndentAfterTransferCancel(tx, tenantId, transfer.inventory_indent_id);
+        }
+
+        return mapTransferRow(cancelled);
+      }
+
+      if (!["in_transit", "partially_received"].includes(transfer.status)) {
+        throw new TransferValidationError("Only draft or in-transit transfers can be cancelled");
+      }
+
+      const existingLines = await tx
+        .select()
+        .from(inventoryStockTransferLines)
+        .where(
+          and(
+            eq(inventoryStockTransferLines.iq_tenant_id, tenantId),
+            eq(inventoryStockTransferLines.stock_transfer_id, transferId),
+          ),
+        )
+        .orderBy(asc(inventoryStockTransferLines.sort_order));
+
+      for (const line of existingLines) {
+        const dispatchedQty = Number(line.transfer_qty);
+        const receivedQty = Number(line.received_qty ?? 0);
+        const unsettledQty = dispatchedQty - receivedQty;
+
+        if (qtyGreaterThan(unsettledQty, 0)) {
+          const allocationRows = await tx
+            .select()
+            .from(inventoryStockTransferAllocations)
+            .where(
+              and(
+                eq(inventoryStockTransferAllocations.iq_tenant_id, tenantId),
+                eq(inventoryStockTransferAllocations.stock_transfer_line_id, line.id),
+              ),
+            )
+            .orderBy(asc(inventoryStockTransferAllocations.sort_order));
+
+          const allocations = allocationRows.map((row) => mapStockAllocation(row));
+          await returnUnsettledFromAllocations(tx, tenantId, allocations, unsettledQty);
+        }
+      }
+
+      const [cancelled] = await tx
+        .update(inventoryStockTransfers)
+        .set({
+          status: "cancelled",
+          remarks: input.reason?.trim() || transfer.remarks,
+          updated_at: new Date(),
+        })
+        .where(
+          and(
+            eq(inventoryStockTransfers.iq_tenant_id, tenantId),
+            eq(inventoryStockTransfers.id, transferId),
+            inArray(inventoryStockTransfers.status, ["in_transit", "partially_received"]),
+          ),
+        )
+        .returning();
+
+      if (!cancelled) {
+        throw new TransferValidationError("Transfer could not be cancelled");
+      }
+
+      if (transfer.inventory_indent_id) {
+        const totalAccepted = existingLines.reduce(
+          (sum, line) => sum + Number(line.accepted_qty ?? 0),
+          0,
+        );
+        if (totalAccepted > 0) {
+          await tx
+            .update(inventoryIndents)
+            .set({ status: "fulfilled", fulfilled_at: new Date(), updated_at: new Date() })
+            .where(
+              and(
+                eq(inventoryIndents.iq_tenant_id, tenantId),
+                eq(inventoryIndents.id, transfer.inventory_indent_id),
+              ),
+            );
+        } else {
+          await this.restoreIndentAfterTransferCancel(tx, tenantId, transfer.inventory_indent_id);
+        }
+      }
+
+      return mapTransferRow(cancelled);
+    });
+  }
+
+  private async restoreIndentAfterTransferCancel(
+    tx: Parameters<Parameters<DbInstance["transaction"]>[0]>[0],
+    tenantId: string,
+    indentId: string,
+  ): Promise<void> {
+    const lineRows = await tx
+      .select({
+        requested_qty: inventoryIndentLines.requested_qty,
+        approved_qty: inventoryIndentLines.approved_qty,
+      })
+      .from(inventoryIndentLines)
+      .where(
+        and(
+          eq(inventoryIndentLines.iq_tenant_id, tenantId),
+          eq(inventoryIndentLines.indent_id, indentId),
+        ),
+      );
+
+    const hasPartial = lineRows.some((line) => {
+      const requested = Number(line.requested_qty);
+      const approved = Number(line.approved_qty ?? 0);
+      return approved > 0 && approved < requested;
+    });
+
+    await tx
+      .update(inventoryIndents)
+      .set({
+        status: hasPartial ? "partially_approved" : "approved",
+        inventory_stock_transfer_id: null,
+        updated_at: new Date(),
+      })
+      .where(
+        and(eq(inventoryIndents.iq_tenant_id, tenantId), eq(inventoryIndents.id, indentId)),
+      );
   }
 
   private async nextTransferNumberInTx(

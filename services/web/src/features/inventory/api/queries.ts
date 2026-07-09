@@ -235,6 +235,7 @@ async function fetchInventoryTransfers(
   const response = await inventorySvcGet<InventorySvcStockTransferListResponse>('/transfers', {
     search: params.search,
     status: params.status,
+    statuses: params.statuses?.join(','),
     from_store_id: params.from_store_id,
     to_store_id: params.to_store_id,
     page,

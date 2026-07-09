@@ -317,6 +317,7 @@ export type InventoryTransferRow = {
 export type InventoryTransferListParams = {
   search?: string;
   status?: 'draft' | 'in_transit' | 'partially_received' | 'completed' | 'rejected' | 'cancelled';
+  statuses?: Array<'draft' | 'in_transit' | 'partially_received' | 'completed' | 'rejected' | 'cancelled'>;
   from_store_id?: string;
   to_store_id?: string;
   page?: number;

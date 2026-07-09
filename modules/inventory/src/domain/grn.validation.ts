@@ -34,6 +34,17 @@ export function assertIndentLinkedForSubmit(
   }
 }
 
+export function assertPurchaseHeader(
+  grnType: "purchase" | "transfer",
+  _manufacturerId: string | null | undefined,
+  voucherInvoiceNo: string | undefined,
+): void {
+  if (grnType !== "purchase") return;
+  if (!voucherInvoiceNo?.trim()) {
+    throw new GrnValidationError("Voucher / invoice number is required for purchase GRN");
+  }
+}
+
 export function assertLineAgainstItem(
   item: GrnValidationItemRef,
   line: Pick<

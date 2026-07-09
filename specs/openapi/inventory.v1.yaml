@@ -392,6 +392,33 @@ paths:
       responses:
         '200':
           description: Transfer received.
+  /transfers/{transferId}/cancel:
+    post:
+      operationId: cancelStockTransfer
+      summary: Cancel transfer and return unsettled stock to source store
+      tags: [Transfers]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 250
+                  nullable: true
+      responses:
+        '200':
+          description: Transfer cancelled.
 components:
   securitySchemes:
     bearerAuth:

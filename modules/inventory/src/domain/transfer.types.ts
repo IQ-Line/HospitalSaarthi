@@ -88,3 +88,7 @@ export type ReceiveStockTransferLineInput = {
 export type ReceiveStockTransferInput = {
   lines: ReceiveStockTransferLineInput[];
 };
+
+export type CancelStockTransferInput = {
+  reason?: string | null;
+};

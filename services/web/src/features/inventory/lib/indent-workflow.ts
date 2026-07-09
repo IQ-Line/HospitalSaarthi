@@ -25,16 +25,8 @@ export function indentStockSupplyStoreId(
   return indent.from_store_id;
 }
 
-/**
- * Approval is role-based (higher authority), not tied to incoming/outgoing store tabs.
- * Wire Cerbos `inventory:indent:approve` here when available.
- */
-export function canApproveIndent(
-  indent: Pick<InventoryIndentRow, 'status'>,
-  _activeStoreId?: string,
-  hasApprovePermission = true,
-): boolean {
-  if (!hasApprovePermission) return false;
+/** All submitted indents are approved; procurement vs stock transfer differs only in stock checks. */
+export function canApproveIndent(indent: Pick<InventoryIndentRow, 'status'>): boolean {
   return indent.status === 'submitted';
 }
 
@@ -46,13 +38,17 @@ export function canFulfillIndent(
     InventoryIndentRow,
     'status' | 'inventory_stock_transfer_id' | 'inventory_grn_id'
   >,
-  _activeStoreId?: string,
-  hasApprovePermission = true,
 ): boolean {
-  if (!hasApprovePermission) return false;
   if (indent.status !== 'approved' && indent.status !== 'partially_approved') return false;
   if (indent.inventory_stock_transfer_id || indent.inventory_grn_id) return false;
   return true;
+}
+
+/** Stock availability is validated at approval only for store-to-store stock transfer indents. */
+export function indentApprovalRequiresStockCheck(
+  route: InventoryIndentRow['route'],
+): boolean {
+  return route === 'stock_transfer';
 }
 
 export function resolveIndentDetailDirection(
@@ -130,6 +126,7 @@ export const INDENT_INSUFFICIENT_STOCK_MESSAGE =
   'Insufficient stock at the source store — no batch has enough quantity for the approved amount. Receive stock via GRN, lower the approved quantity, or use procurement.';
 
 export function validateApprovalStock(
+  route: InventoryIndentRow['route'],
   lines: Array<{
     id: string;
     item_id?: string;
@@ -141,6 +138,8 @@ export function validateApprovalStock(
   availableQtyByItemCode: Map<string, number>,
   availableQtyByItemId?: Map<string, number>,
 ): string | null {
+  if (!indentApprovalRequiresStockCheck(route)) return null;
+
   for (const line of lines) {
     const approved = Number(approvedByLine[line.id] ?? 0);
     if (approved <= 0) continue;

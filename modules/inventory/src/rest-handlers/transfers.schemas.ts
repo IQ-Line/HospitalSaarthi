@@ -32,6 +32,18 @@ export const createStockTransferBodySchema = z.object({
 export const listStockTransfersQuerySchema = z.object({
   search: z.string().optional(),
   status: transferStatusSchema.optional(),
+  statuses: z
+    .union([transferStatusSchema, z.array(transferStatusSchema), z.string()])
+    .optional()
+    .transform((value) => {
+      if (value == null) return undefined;
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
+        return parts.length ? parts : undefined;
+      }
+      return [value];
+    }),
   from_store_id: z.string().uuid().optional(),
   to_store_id: z.string().uuid().optional(),
   inventory_indent_id: z.string().uuid().optional(),
@@ -62,4 +74,8 @@ export const receiveStockTransferBodySchema = z.object({
       }),
     )
     .min(1),
+});
+
+export const cancelStockTransferBodySchema = z.object({
+  reason: z.string().max(250).nullable().optional(),
 });

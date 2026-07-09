@@ -37,6 +37,7 @@ import {
 import {
   canApproveIndent,
   canFulfillIndent,
+  indentApprovalRequiresStockCheck,
   indentStockSupplyStoreId,
   indentTransferFromStoreId,
   isPartialApproval,
@@ -128,7 +129,8 @@ export function InventoryIndentDetailPage({
   const showApproval = detail ? canApproveIndent(detail) : false;
   const showWorkflowView = !isNew && status !== 'draft';
   const canFulfill = detail ? canFulfillIndent(detail) : false;
-  const showAvailableQty = showApproval || canFulfill;
+  const requiresApprovalStockCheck = detail ? indentApprovalRequiresStockCheck(detail.route) : false;
+  const showAvailableQty = (showApproval && requiresApprovalStockCheck) || (canFulfill && requiresApprovalStockCheck);
   const showApprovedQtyReadOnly =
     !showApproval &&
     status != null &&
@@ -141,7 +143,7 @@ export function InventoryIndentDetailPage({
       : null;
 
   const { data: stockData } = useInventoryStock({
-    store_id: showApproval || canFulfill ? stockStoreId : undefined,
+    store_id: showAvailableQty ? stockStoreId : undefined,
     status: 'all',
   });
 
@@ -371,12 +373,16 @@ export function InventoryIndentDetailPage({
       return;
     }
 
-    const stockError = validateApprovalStock(
-      lines,
-      approvedQtyByLine,
-      availableQtyByItemCode,
-      availableQtyByItemId,
-    );
+    const stockError =
+      detail != null
+        ? validateApprovalStock(
+            detail.route,
+            lines,
+            approvedQtyByLine,
+            availableQtyByItemCode,
+            availableQtyByItemId,
+          )
+        : null;
     if (stockError) {
       toast.error(stockError);
       return;
@@ -568,7 +574,7 @@ export function InventoryIndentDetailPage({
                       </div>
                       {showApproval ? (
                         <>
-                          {line.item_code || line.item_id ? (
+                          {requiresApprovalStockCheck && (line.item_code || line.item_id) ? (
                             <p className="mt-1 text-xs text-muted-foreground">
                               Available at {stockStoreName ?? 'supply store'}:{' '}
                               {(line.item_id

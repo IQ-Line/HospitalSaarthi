@@ -20,6 +20,7 @@ import {
 } from '@pulse/ui/select';
 import { cn } from '@pulse/utils';
 import {
+  useInventoryTransferCancel,
   useInventoryTransferCreate,
   useInventoryTransferDispatch,
 } from '../api/transfer-mutations';
@@ -73,6 +74,7 @@ export function InventoryTransferDialog({
   const { data: linkedIndent } = useInventoryIndentDetail(linkedIndentId ?? undefined);
   const createTransfer = useInventoryTransferCreate();
   const dispatchTransfer = useInventoryTransferDispatch();
+  const cancelTransfer = useInventoryTransferCancel();
   const readOnly = isReadOnly(transfer);
   const indentLocked = Boolean(indentPrefill);
 
@@ -238,11 +240,28 @@ export function InventoryTransferDialog({
     }
   };
 
+  const handleCancelDraft = async () => {
+    if (!transfer?.id) return;
+    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
+      toast.success('Draft transfer cancelled (mock).');
+      onOpenChange(false);
+      return;
+    }
+    try {
+      await cancelTransfer.mutateAsync({ transferId: transfer.id, reason: 'Draft cancelled' });
+      toast.success('Draft transfer cancelled.');
+      onOpenChange(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel transfer');
+    }
+  };
+
   const title =
     transfer?.transfer_number ?? (transfer ? 'Transfer' : 'New Transfer');
 
   const destinationStores = stores.filter((store) => store.id !== fromStoreId);
-  const isPending = createTransfer.isPending || dispatchTransfer.isPending;
+  const isPending =
+    createTransfer.isPending || dispatchTransfer.isPending || cancelTransfer.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -464,15 +483,27 @@ export function InventoryTransferDialog({
               </Button>
             </DialogClose>
           ) : (
-            <Button
-              type="button"
-              size="sm"
-              className="ml-auto"
-              onClick={() => void handleDispatch()}
-              disabled={isPending || transferLoading}
-            >
-              {transfer ? 'Dispatch transfer' : 'Create & dispatch'}
-            </Button>
+            <div className="ml-auto flex gap-2">
+              {transfer?.status === 'Draft' ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending || transferLoading}
+                  onClick={() => void handleCancelDraft()}
+                >
+                  Cancel draft
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void handleDispatch()}
+                disabled={isPending || transferLoading}
+              >
+                {transfer ? 'Dispatch transfer' : 'Create & dispatch'}
+              </Button>
+            </div>
           )}
         </div>
       </DialogContent>

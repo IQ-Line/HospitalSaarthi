@@ -3,12 +3,14 @@ import type { DrizzleInventoryIndentRepository } from "../data-access/indent.rep
 import type { DrizzleInventoryTransferRepository } from "../data-access/transfer.repo.js";
 import type { StoreRepo } from "../ports.js";
 import { receiveStockTransfer } from "../use-cases/receive-stock-transfer.js";
+import { cancelStockTransfer } from "../use-cases/cancel-stock-transfer.js";
 import { createStockTransfer } from "../use-cases/create-stock-transfer.js";
 import { dispatchStockTransfer } from "../use-cases/dispatch-stock-transfer.js";
 import { getStockTransfer } from "../use-cases/get-stock-transfer.js";
 import { listStockTransfers } from "../use-cases/list-stock-transfers.js";
 import {
   createStockTransferBodySchema,
+  cancelStockTransferBodySchema,
   dispatchStockTransferBodySchema,
   listStockTransfersQuerySchema,
   receiveStockTransferBodySchema,
@@ -39,6 +41,7 @@ export function registerTransferHandlers(app: FastifyInstance, deps: TransferHan
         {
           search: query.search,
           status: query.status,
+          statuses: query.statuses,
           from_store_id: query.from_store_id,
           to_store_id: query.to_store_id,
           inventory_indent_id: query.inventory_indent_id,
@@ -103,6 +106,21 @@ export function registerTransferHandlers(app: FastifyInstance, deps: TransferHan
     async (request, reply) => {
       const body = receiveStockTransferBodySchema.parse(request.body);
       const data = await receiveStockTransfer(
+        { transferRepo: deps.transferRepo, indentRepo: deps.indentRepo },
+        request.tenantId,
+        request.params.transferId,
+        body,
+      );
+      return reply.send({ data });
+    },
+  );
+
+  app.post<{ Params: { transferId: string }; Body: unknown }>(
+    "/transfers/:transferId/cancel",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const body = cancelStockTransferBodySchema.parse(request.body ?? {});
+      const data = await cancelStockTransfer(
         { transferRepo: deps.transferRepo, indentRepo: deps.indentRepo },
         request.tenantId,
         request.params.transferId,

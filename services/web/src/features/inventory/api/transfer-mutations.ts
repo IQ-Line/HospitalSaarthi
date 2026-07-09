@@ -89,3 +89,24 @@ export function useInventoryTransferReceive() {
     },
   });
 }
+
+export type CancelStockTransferPayload = {
+  transferId: string;
+  reason?: string | null;
+};
+
+export function useInventoryTransferCancel() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ transferId, reason }: CancelStockTransferPayload) => {
+      const response = await inventorySvcPost<InventorySvcSingleResponse<InventorySvcStockTransferRow>>(
+        `/transfers/${transferId}/cancel`,
+        { reason: reason ?? null },
+      );
+      return mapInventorySvcStockTransferRow(response.data);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all });
+    },
+  });
+}
