@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DispenseLineItemRecord, DispenseRecord, OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
+import type { OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
+import { mockDispenseLine, mockDispenseRecord } from "../test-fixtures/dispense.js";
 import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort } from "../ports.js";
 import { DispenseVisitNotFoundError, getDispenseForVisit } from "./get-dispense-for-visit.js";
 
@@ -83,7 +84,7 @@ const queueProjection = {
   last_synced_at: new Date("2026-06-01T12:00:00.000Z"),
 };
 
-const opdQueueProjectionRepo = {
+const queueProjectionRepo = {
   listForQueue: vi.fn(),
   upsert: vi.fn(),
   updateDispenseStatus: vi.fn(),
@@ -104,7 +105,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -121,38 +122,30 @@ describe("getDispenseForVisit", () => {
   });
 
   it("returns saved record and filtered line items", async () => {
-    const saved: DispenseRecord = {
+    const saved = mockDispenseRecord({
       id: "rec-1",
       iq_tenant_id: TENANT,
-      walk_in_order: false,
-      walk_in_patient_id: null,
       visit_id: VISIT,
       patient_id: "patient-1",
       opd_prescription_id: "rx-1",
       subtotal: "50.0000",
-      discount: "0.0000",
       total_amount: "50.0000",
       notes: "counter",
-      dispense_status: "issued",
       created_at: new Date("2026-06-02T08:00:00.000Z"),
-      created_by: null,
-    };
-    const lines: DispenseLineItemRecord[] = [
-      {
+      updated_at: new Date("2026-06-02T08:00:00.000Z"),
+    });
+    const lines = [
+      mockDispenseLine({
         id: "line-1",
         iq_tenant_id: TENANT,
-        dispense_record_id: "rec-1",
+        dispense_id: "rec-1",
         medicine_id: "med-1",
-        medicine_display_name: "Paracetamol 500mg",
         prescribed_quantity: "10",
         quantity_dispensed: "5",
-        unit_amount: "10",
-        line_discount: "0.0000",
-        tax_percent: "0.0000",
-        tax_amount: "0.0000",
         line_total: "50.0000",
         created_at: new Date("2026-06-02T08:00:00.000Z"),
-      },
+        updated_at: new Date("2026-06-02T08:00:00.000Z"),
+      }),
     ];
 
     const opdGateway: OpdGatewayPort = {
@@ -166,7 +159,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -190,7 +183,7 @@ describe("getDispenseForVisit", () => {
 
     await expect(
       getDispenseForVisit(
-        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
         TENANT,
         { visitId: VISIT },
       ),

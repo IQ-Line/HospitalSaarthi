@@ -1,11 +1,11 @@
-import type { OpdQueueProjectionRow, PharmacyQueueItem } from "../domain/pharmacy.types.js";
+import type { PharmacyQueueItem, QueueProjectionRow } from "../domain/pharmacy.types.js";
 import { hasPharmacyDispenseRecord } from "./dispense-completion.js";
 
-export function mapOpdQueueProjectionToQueueItem(row: OpdQueueProjectionRow): PharmacyQueueItem {
+export function mapQueueProjectionToQueueItem(row: QueueProjectionRow): PharmacyQueueItem {
   return {
     walk_in_order: false,
     record_id: null,
-    visit_id: row.visit_id,
+    visit_id: row.encounter_id,
     patient_id: row.patient_id,
     walk_in_patient_id: null,
     prescription_id: row.prescription_id,
@@ -26,3 +26,6 @@ export function mapOpdQueueProjectionToQueueItem(row: OpdQueueProjectionRow): Ph
     dispense_status: row.dispense_status,
   };
 }
+
+/** @deprecated Use `mapQueueProjectionToQueueItem`. */
+export const mapOpdQueueProjectionToQueueItem = mapQueueProjectionToQueueItem;

@@ -15,7 +15,7 @@ import {
 } from "../lib/filter-tenant-catalog-medicines.js";
 import { computeOpdDispenseFulfillmentStatus } from "../lib/dispense-completion.js";
 import { buildVisitDispenseResponse } from "../lib/dispense-wire-response.js";
-import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, OpdQueueProjectionRepo, UserLookupPort } from "../ports.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, QueueProjectionRepo, UserLookupPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import { updateOpdQueueProjectionDispenseStatus } from "./upsert-opd-queue-projection.js";
 
@@ -108,7 +108,7 @@ export async function saveDispenseForVisit(
     dispenseRecordRepo: DispenseRecordRepo;
     masterDataGateway: MasterDataGatewayPort;
     userLookup: UserLookupPort;
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
   },
   tenantId: string,
   command: SaveDispenseForVisitCommand,
@@ -206,13 +206,13 @@ export async function saveDispenseForVisit(
     prescription,
   );
 
-  const existingProjection = await deps.opdQueueProjectionRepo.findByVisitId(
+  const existingProjection = await deps.queueProjectionRepo.findByVisitId(
     tenantId,
     command.visitId,
   );
   if (existingProjection != null) {
     await updateOpdQueueProjectionDispenseStatus(
-      { opdQueueProjectionRepo: deps.opdQueueProjectionRepo },
+      { queueProjectionRepo: deps.queueProjectionRepo },
       tenantId,
       command.visitId,
       dispense_status,
@@ -220,7 +220,7 @@ export async function saveDispenseForVisit(
   }
 
   const queueProjection =
-    (await deps.opdQueueProjectionRepo.findByVisitId(tenantId, command.visitId)) ??
+    (await deps.queueProjectionRepo.findByVisitId(tenantId, command.visitId)) ??
     existingProjection;
 
   return buildVisitDispenseResponse({
