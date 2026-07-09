@@ -14,7 +14,7 @@ ARG NODE_VERSION=24
 ARG PNPM_VERSION=10.33.0
 
 # ---------- base: node + pnpm ----------
-FROM acriqline.azurecr.io/node:24-bookworm-slim AS base
+FROM node:24-bookworm-slim AS base
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /repo
 
@@ -22,14 +22,7 @@ WORKDIR /repo
 FROM base AS builder
 ARG SERVICE_NAME
 
-# NOTE: this is the monolithic fallback/local-verification build. CI should
-# prefer the "build once, package N times" path (tools/build-images.sh +
-# node-svc.thin.Dockerfile) — measured ~18 s/image vs ~2 min here, because the
-# source COPY below invalidates the install layer on every source change and
-# kaniko (the org's CI builder) pays the full install each time. The
-# pnpm-fetch layer reorder was measured SLOWER under kaniko in both cache
-# modes (docs/architecture/cleanup/jenkins-demo/RESULTS.md), so it is
-# deliberately not applied here.
+# Copy workspace manifests + lockfile first for maximum layer cache reuse
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json nx.json ./
 COPY tsup.config.shared.ts ./
 
@@ -61,7 +54,7 @@ RUN if [ "${SERVICE_NAME}" = "registration-svc" ]; then \
 RUN pnpm --filter "@hims/${SERVICE_NAME}" deploy --prod --config.node-linker=hoisted /out
 
 # ---------- runtime ----------
-FROM acriqline.azurecr.io/node:24-bookworm-slim AS runtime
+FROM node:24-bookworm-slim AS runtime
 ARG SERVICE_NAME
 
 ENV NODE_ENV=production
