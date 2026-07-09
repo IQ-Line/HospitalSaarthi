@@ -69,9 +69,10 @@ export class InMemoryUserProvisioningRepository implements UserProvisioningRepos
       }
 
       if (input.manualCapabilityIds.length > 0) {
-        await this.userAccessRepository.replaceManualCapabilityGrants(tenantId, {
+        await this.userAccessRepository.replaceCapabilityOverrides(tenantId, {
           userId: linked.id,
-          capabilityIds: input.manualCapabilityIds,
+          grants: input.manualCapabilityIds.map((capability_id) => ({ capability_id })),
+          denies: [],
           actorId: input.actorId,
         });
       }
@@ -80,7 +81,6 @@ export class InMemoryUserProvisioningRepository implements UserProvisioningRepos
         await this.userAccessRepository.applyRoleTemplate(tenantId, {
           userId: linked.id,
           roleId: grant.roleId,
-          capabilityIds: grant.capabilityIds,
           actorId: input.actorId,
         });
       }

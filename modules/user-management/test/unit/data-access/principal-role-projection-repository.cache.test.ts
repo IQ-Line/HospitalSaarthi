@@ -25,7 +25,6 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
         roleId: "r1",
-        capabilityIds: [],
         actorId: null,
       });
 
@@ -54,13 +53,11 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
         roleId: "r1",
-        capabilityIds: [],
         actorId: null,
       });
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u2",
         roleId: "r2",
-        capabilityIds: [],
         actorId: null,
       });
 
@@ -83,7 +80,6 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
         roleId: "r1",
-        capabilityIds: [],
         actorId: null,
       });
 
@@ -108,7 +104,6 @@ describe("PrincipalRoleProjectionRepository instance cache", () => {
       await userAccessRepository.applyRoleTemplate("t1", {
         userId: "u1",
         roleId: "r1",
-        capabilityIds: [],
         actorId: null,
       });
 

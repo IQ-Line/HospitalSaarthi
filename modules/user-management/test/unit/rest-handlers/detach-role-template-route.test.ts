@@ -157,7 +157,6 @@ async function createTestApp() {
   await userAccessRepository.applyRoleTemplate(TENANT, {
     userId: USER_ID,
     roleId: ROLE_ID,
-    capabilityIds: [CAP_UM],
     actorId: ACTOR_ID,
   });
 

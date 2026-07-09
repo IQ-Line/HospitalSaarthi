@@ -20,14 +20,14 @@ export async function getUserCapabilities(
     throw new UserNotFoundError(userId);
   }
 
-  const [roleTemplates, grants] = await Promise.all([
+  const [roleTemplates, overrides] = await Promise.all([
     deps.userAccessRepository.listRoleTemplatesByUser(tenantId, userId),
     deps.userAccessRepository.listActiveCapabilityGrantsByUser(tenantId, userId),
   ]);
 
   return {
-    direct_grants: grants.filter((grant) => grant.grant_source !== "role_template"),
-    copied_grants: grants.filter((grant) => grant.grant_source === "role_template"),
+    grant_overrides: overrides.filter((override) => override.effect === "grant"),
+    deny_overrides: overrides.filter((override) => override.effect === "deny"),
     role_templates: roleTemplates,
   };
 }

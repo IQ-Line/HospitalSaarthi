@@ -19,8 +19,10 @@ import type {
 //     ONLY a real driver violation exercises isPostgresUniqueViolation)
 //   - the multi-statement transaction is ATOMIC (a late failure rolls back the
 //     user row AND the capability grants written earlier in the same tx)
-//   - listEffectiveCapabilityKeys is snapshot-only (never unions role_capabilities),
-//     filters revoked grants, and is tenant-scoped
+//   - direct capabilities persist as effect='grant' OVERRIDE rows; a role template writes ONLY
+//     a user_roles membership (no user_capabilities rows) — ADR-0037
+//   - listEffectiveCapabilityKeys resolves role capabilities LIVE (role_capabilities via
+//     user_roles) unioned with grant overrides, and is tenant-scoped
 // Opt-in via TEST_DATABASE_URL (the hims-verify Citus on :5444); skips otherwise.
 // ---------------------------------------------------------------------------
 
@@ -129,7 +131,7 @@ describeDb("user-management persistence (real DB)", () => {
     );
   }
 
-  it("persists the user, a manual grant, and a role-template grant atomically", async () => {
+  it("persists the user, a direct grant override, and a role-template membership atomically", async () => {
     await seedCapability(CAP_A, "users", "users", "read");
     await seedCapability(CAP_B, "users", "users", "create");
     await seedRole(TENANT_1, ROLE_1, "nurse");
@@ -140,7 +142,7 @@ describeDb("user-management persistence (real DB)", () => {
         userId: USER_A,
         username: "alice",
         manualCapabilityIds: [CAP_A],
-        roleTemplateGrants: [{ roleId: ROLE_1, capabilityIds: [CAP_B] }],
+        roleTemplateGrants: [{ roleId: ROLE_1 }],
       }),
     );
     expect(result.id).toBe(USER_A);
@@ -153,17 +155,15 @@ describeDb("user-management persistence (real DB)", () => {
     expect(userRows).toHaveLength(1);
     expect(userRows[0]).toMatchObject({ id: USER_A, username: "alice", auth_user_id: AUTH_UID });
 
-    // grant_source is distinct per origin and the role-template grant records its source role.
+    // ADR-0037: the direct capability persists as an effect='grant' override; the role template
+    // writes NO user_capabilities row (its capabilities are read live from role_capabilities).
     const { rows: capRows } = await pool.query(
-      `SELECT capability_id, grant_source, source_role_id
+      `SELECT capability_id, effect
          FROM user_management.user_capabilities
         WHERE iq_tenant_id = $1 AND user_id = $2 ORDER BY capability_id`,
       [TENANT_1, USER_A],
     );
-    expect(capRows).toEqual([
-      { capability_id: CAP_A, grant_source: "manual", source_role_id: null },
-      { capability_id: CAP_B, grant_source: "role_template", source_role_id: ROLE_1 },
-    ]);
+    expect(capRows).toEqual([{ capability_id: CAP_A, effect: "grant" }]);
 
     const { rows: roleRows } = await pool.query(
       "SELECT role_id FROM user_management.user_roles WHERE iq_tenant_id = $1 AND user_id = $2",
@@ -206,7 +206,7 @@ describeDb("user-management persistence (real DB)", () => {
           userId: USER_C,
           username: "carol",
           manualCapabilityIds: [CAP_A],
-          roleTemplateGrants: [{ roleId: MISSING_ROLE, capabilityIds: [CAP_A] }],
+          roleTemplateGrants: [{ roleId: MISSING_ROLE }],
         }),
       ),
     ).rejects.toThrow();
@@ -242,46 +242,41 @@ describeDb("user-management persistence (real DB)", () => {
     expect(rows.map((r) => r.iq_tenant_id)).toEqual([TENANT_1, TENANT_2]);
   });
 
-  it("listEffectiveCapabilityKeys is snapshot-only, revoked-filtered, and tenant-scoped", async () => {
+  it("listEffectiveCapabilityKeys unions live role capabilities with grant overrides, tenant-scoped", async () => {
     const keyA = await seedCapability(CAP_A, "users", "users", "read");
     await seedCapability(CAP_B, "users", "users", "create");
-    await seedCapability(CAP_C, "billing", "bills", "read");
+    const keyC = await seedCapability(CAP_C, "billing", "bills", "read");
     await seedRole(TENANT_1, ROLE_1, "nurse");
 
-    // Tenant 1 user with two manual grants AND membership in ROLE_1 (empty
-    // capability set, so the role contributes no user_capabilities rows itself).
+    // Tenant 1 user with one direct grant override (CAP_A) AND membership in ROLE_1.
     await provisioning.provisionUserWithAccess(
       TENANT_1,
       makeInput({
         userId: USER_A,
         username: "snap",
-        manualCapabilityIds: [CAP_A, CAP_B],
-        roleTemplateGrants: [{ roleId: ROLE_1, capabilityIds: [] }],
+        manualCapabilityIds: [CAP_A],
+        roleTemplateGrants: [{ roleId: ROLE_1 }],
       }),
     );
-    // ...one manual grant is then revoked (must drop out of the effective set).
-    await pool.query(
-      `UPDATE user_management.user_capabilities SET revoked_at = now()
-        WHERE iq_tenant_id = $1 AND user_id = $2 AND capability_id = $3`,
-      [TENANT_1, USER_A, CAP_B],
-    );
-    // CAP_C lives ONLY in ROLE_1's role_capabilities template — the user is a
-    // member of ROLE_1 but was never granted CAP_C as a user_capability. A
-    // snapshot-only read must NOT surface it; a read that unions role_capabilities
-    // through user_roles would (this is why USER_A is a ROLE_1 member above).
+    // CAP_C lives ONLY in ROLE_1's role_capabilities and is NEVER copied onto the user. Under
+    // ADR-0037 the live read MUST surface it through the user's ROLE_1 membership (this is exactly
+    // the snapshot-vs-live inversion issue #60 makes). CAP_B is neither on the role nor an override.
     await pool.query(
       `INSERT INTO user_management.role_capabilities (iq_tenant_id, role_id, capability_id)
        VALUES ($1, $2, $3)`,
       [TENANT_1, ROLE_1, CAP_C],
     );
-    // A different tenant holds CAP_A actively — must not bleed across tenants.
+    // A different tenant holds CAP_A as a grant override — must not bleed across tenants.
     await provisioning.provisionUserWithAccess(
       TENANT_2,
       makeInput({ userId: USER_D, username: "snap", manualCapabilityIds: [CAP_A] }),
     );
 
-    expect(await principalAuthz.listEffectiveCapabilityKeys(TENANT_1, USER_A)).toEqual([keyA]);
-    // Sanity: tenant 2's own grant resolves independently.
+    // CAP_A (grant override) ∪ CAP_C (live role capability), sorted; CAP_B absent.
+    expect(await principalAuthz.listEffectiveCapabilityKeys(TENANT_1, USER_A)).toEqual(
+      [keyA, keyC].sort((a, b) => a.localeCompare(b)),
+    );
+    // Sanity: tenant 2's own grant resolves independently (ROLE_1 membership is tenant-1-only).
     expect(await principalAuthz.listEffectiveCapabilityKeys(TENANT_2, USER_D)).toEqual([keyA]);
   });
 });

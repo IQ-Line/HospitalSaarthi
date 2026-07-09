@@ -1096,9 +1096,9 @@ paths:
       summary: List applied role templates for a tenant-scoped user
       description: >
         Returns the role templates applied to the specified user (`user_roles` associations).
-        Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants).
-        See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities
-        until issue #60. Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
+        Runtime authorization resolves role capabilities live from `role_capabilities` at principal
+        hydration, plus this user's grant/deny overrides in `user_capabilities` (ADR-0037, supersedes
+        the ADR-0031 snapshot). Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
       security:
         - bearerAuth: []
         - tenantApiKey: []
@@ -1141,12 +1141,12 @@ paths:
         - RoleTemplates
       summary: Apply a role template to a user
       description: >
-        Creates or updates a `user_roles` association and synchronizes the role-scoped capability
-        snapshot in `user_capabilities` during the same write flow. Re-applying the same template
-        narrows or widens the copied grants for that `source_role_id`. When
-        `role_template_capability_ids` is present, only those capabilities (each belonging to the
-        role) are included in the snapshot; omit the field to use the role's full composition.
-        Later edits to the role template definition do not retroactively change existing user rows.
+        Creates a `user_roles` membership (ADR-0037). Role capabilities are resolved live from
+        `role_capabilities` at principal hydration — nothing is copied onto the user, so later edits
+        to the role definition propagate immediately to every assigned user. `role_template_capability_ids`,
+        when present, is still validated (each id must belong to the role and be tenant-entitled) but
+        is no longer materialized; to grant this user a capability below/beyond the role composition,
+        use PUT /users/{id}/capabilities grant/deny overrides.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1214,10 +1214,10 @@ paths:
         - RoleTemplates
       summary: Remove a role-template association from a user
       description: >
-        Removes the `user_roles` association and soft-revokes active `user_capabilities` rows where
-        `grant_source` is `role_template` and `source_role_id` matches the detached role. Manual,
-        delegated, and system grants are not changed. Revoked rows retain audit fields
-        (`revoked_at`, `revoked_by_user_id`).
+        Removes the `user_roles` membership (ADR-0037). Because role capabilities are read live and
+        never copied onto the user, no capability rows need cleanup — the role simply stops
+        contributing to the user's effective capabilities on their next request. Any grant/deny
+        overrides in `user_capabilities` are independent of role lifecycle and are left untouched.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1261,10 +1261,12 @@ paths:
     get:
       tags:
         - Capabilities
-      summary: Get persisted user capability grants
+      summary: Get persisted user capability overrides
       description: >
-        Returns the user's persisted base grants split into direct grants, copied template grants,
-        and applied role-template associations. Delegated overlays are excluded from this endpoint.
+        Returns the user's persisted capability overrides split into `grant_overrides` and
+        `deny_overrides`, plus applied role-template memberships (ADR-0037). Role-derived
+        capabilities (resolved live from `role_capabilities`) and delegated overlays are excluded
+        from this endpoint.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1300,10 +1302,13 @@ paths:
     put:
       tags:
         - Capabilities
-      summary: Replace direct user capability grants
+      summary: Replace user capability overrides
       description: >
-        Replaces the user's direct manual capability grants. Copied template grants remain
-        untouched until an explicit capability edit changes them.
+        Full-replace of the user's grant/deny capability overrides (ADR-0037). `grant_overrides`
+        pin capabilities on and `deny_overrides` pin them off, independent of the user's roles;
+        role-derived capabilities are resolved live and are not edited here. A capability appearing
+        in BOTH lists resolves as deny (deny wins) — the single override row per capability cannot
+        hold both. To restrict a user below their role's composition, deny-override the capability.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
         - $ref: "#/components/parameters/UserIdPath"
@@ -1315,16 +1320,20 @@ paths:
               type: object
               additionalProperties: false
               required:
-                - capability_ids
+                - grant_overrides
+                - deny_overrides
               properties:
-                capability_ids:
+                grant_overrides:
                   type: array
                   items:
-                    type: string
-                    format: uuid
+                    $ref: "#/components/schemas/CapabilityOverrideInput"
+                deny_overrides:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CapabilityOverrideInput"
       responses:
         "200":
-          description: Direct user grants replaced; response returns the refreshed persisted grant snapshot.
+          description: Overrides replaced; response returns the refreshed persisted override view.
           content:
             application/json:
               schema:
@@ -1757,8 +1766,26 @@ components:
           format: date-time
         role:
           $ref: "#/components/schemas/Role"
+    CapabilityOverrideInput:
+      type: object
+      description: One override entry in a PUT /users/{id}/capabilities grant/deny list (ADR-0037).
+      additionalProperties: false
+      required:
+        - capability_id
+      properties:
+        capability_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          nullable: true
+          description: Optional admin audit note for this deliberate exception.
     UserCapabilityGrant:
       type: object
+      description: >
+        A single per-user capability OVERRIDE row (ADR-0037). `effect` pins the capability on
+        ('grant') or off ('deny') for this user, independent of any role; `reason` is the admin's
+        audit note for the deliberate exception.
       required:
         - id
         - user_id
@@ -1768,12 +1795,10 @@ components:
         - feature
         - action
         - display_name
-        - grant_source
-        - source_role_id
+        - effect
+        - reason
         - granted_by_user_id
         - granted_at
-        - revoked_at
-        - revoked_by_user_id
       properties:
         id:
           type: string
@@ -1797,12 +1822,11 @@ components:
         description:
           type: string
           nullable: true
-        grant_source:
+        effect:
           type: string
-          enum: [manual, role_template, delegated, system]
-        source_role_id:
+          enum: [grant, deny]
+        reason:
           type: string
-          format: uuid
           nullable: true
         granted_by_user_id:
           type: string
@@ -1811,27 +1835,25 @@ components:
         granted_at:
           type: string
           format: date-time
-        revoked_at:
-          type: string
-          format: date-time
-          nullable: true
-        revoked_by_user_id:
-          type: string
-          format: uuid
-          nullable: true
     UserCapabilitiesSnapshot:
       type: object
+      description: >
+        A user's persisted capability OVERRIDES (grant/deny) plus applied role-template
+        memberships (ADR-0037). Role-derived capabilities are resolved live from
+        `role_capabilities` at principal hydration and are not listed here.
       required:
-        - direct_grants
-        - copied_grants
+        - grant_overrides
+        - deny_overrides
         - role_templates
       properties:
-        direct_grants:
+        grant_overrides:
           type: array
+          description: Override rows with `effect='grant'` (this user gains the capability regardless of role).
           items:
             $ref: "#/components/schemas/UserCapabilityGrant"
-        copied_grants:
+        deny_overrides:
           type: array
+          description: Override rows with `effect='deny'` (this user is restricted from the capability; deny wins).
           items:
             $ref: "#/components/schemas/UserCapabilityGrant"
         role_templates:

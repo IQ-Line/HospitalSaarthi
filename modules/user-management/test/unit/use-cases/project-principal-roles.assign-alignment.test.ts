@@ -19,7 +19,6 @@ describe("projectPrincipalRoles in-memory alignment", () => {
     await userAccessRepository.applyRoleTemplate("tenant-a", {
       userId: "user-1",
       roleId: "role-1",
-      capabilityIds: [],
       actorId: null,
     });
 

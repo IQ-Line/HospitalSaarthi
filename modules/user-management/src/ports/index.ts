@@ -6,6 +6,7 @@ import type {
   AppliedRoleTemplate,
   Capability,
   AuthContext,
+  CapabilityOverrideInput,
   CreateUserInput,
   CreateRoleInput,
   Principal,
@@ -23,6 +24,8 @@ export type {
   AppliedRoleTemplate,
   Capability,
   AuthContext,
+  CapabilityOverrideEffect,
+  CapabilityOverrideInput,
   CreateUserInput,
   CreateRoleInput,
   Principal,
@@ -35,7 +38,6 @@ export type {
   UpdateUserInput,
   UserCapabilitiesSnapshot,
   UserCapabilityGrant,
-  UserCapabilityGrantSource,
   UserEffectiveCapabilities,
   User,
   UserStatus,
@@ -177,12 +179,16 @@ export interface RoleCapabilityRepository {
 }
 
 export interface UserAccessRepository {
+  /**
+   * Assigns a role-template membership (`user_roles`). Under ADR-0037 this writes ONLY the
+   * membership — role capabilities are read live from `role_capabilities` at principal
+   * hydration, never copied into `user_capabilities`.
+   */
   applyRoleTemplate(
     tenantId: string,
     input: {
       userId: string;
       roleId: string;
-      capabilityIds: string[];
       actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate>;
@@ -195,12 +201,18 @@ export interface UserAccessRepository {
     },
   ): Promise<AppliedRoleTemplate | null>;
   listRoleTemplatesByUser(tenantId: string, userId: string): Promise<AppliedRoleTemplate[]>;
+  /** All override rows (grant and deny) for the user. */
   listActiveCapabilityGrantsByUser(tenantId: string, userId: string): Promise<UserCapabilityGrant[]>;
-  replaceManualCapabilityGrants(
+  /**
+   * Full-replace of the user's override rows (ADR-0037). Delete-all-then-insert of `grant`/`deny`
+   * override rows. A capability present in both `grants` and `denies` resolves as deny (deny wins).
+   */
+  replaceCapabilityOverrides(
     tenantId: string,
     input: {
       userId: string;
-      capabilityIds: string[];
+      grants: CapabilityOverrideInput[];
+      denies: CapabilityOverrideInput[];
       actorId: string | null;
     },
   ): Promise<UserCapabilityGrant[]>;

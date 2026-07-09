@@ -97,8 +97,19 @@ export type ReplaceRoleCapabilitiesBody = {
   capability_ids: string[];
 };
 
+/** One entry in a PUT /users/{id}/capabilities grant/deny override list (ADR-0037). */
+export type CapabilityOverrideInput = {
+  capability_id: string;
+  reason?: string | null;
+};
+
+/**
+ * PUT /users/{id}/capabilities body (ADR-0037). Full-replace of the user's grant/deny overrides.
+ * A capability in both lists resolves as deny (deny wins).
+ */
 export type ReplaceUserCapabilitiesBody = {
-  capability_ids: string[];
+  grant_overrides: CapabilityOverrideInput[];
+  deny_overrides: CapabilityOverrideInput[];
 };
 
 export type ApplyRoleTemplateBody = {
@@ -106,7 +117,8 @@ export type ApplyRoleTemplateBody = {
   role_template_capability_ids?: string[];
 };
 
-export type UserCapabilityGrantSource = 'manual' | 'role_template' | 'delegated' | 'system';
+/** A capability override pins a capability on ('grant') or off ('deny') for one user (ADR-0037). */
+export type CapabilityOverrideEffect = 'grant' | 'deny';
 
 export type AppliedRoleTemplate = {
   id: string;
@@ -117,6 +129,7 @@ export type AppliedRoleTemplate = {
   role: UmRole;
 };
 
+/** A single per-user capability override row (ADR-0037). */
 export type UserCapabilityGrant = {
   id: string;
   user_id: string;
@@ -127,17 +140,15 @@ export type UserCapabilityGrant = {
   action: string;
   display_name: string;
   description?: string | null;
-  grant_source: UserCapabilityGrantSource;
-  source_role_id: string | null;
+  effect: CapabilityOverrideEffect;
+  reason: string | null;
   granted_by_user_id: string | null;
   granted_at: string;
-  revoked_at: string | null;
-  revoked_by_user_id: string | null;
 };
 
 export type UserCapabilitiesSnapshot = {
-  direct_grants: UserCapabilityGrant[];
-  copied_grants: UserCapabilityGrant[];
+  grant_overrides: UserCapabilityGrant[];
+  deny_overrides: UserCapabilityGrant[];
   role_templates: AppliedRoleTemplate[];
 };
 

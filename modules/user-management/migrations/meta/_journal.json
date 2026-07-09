@@ -50,6 +50,13 @@
       "when": 1783448809959,
       "tag": "0006_platform_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783448909959,
+      "tag": "0007_user_capabilities_overrides",
+      "breakpoints": true
     }
   ]
 }

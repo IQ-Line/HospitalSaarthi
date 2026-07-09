@@ -2,7 +2,6 @@ import type { CreateUserInput, RecoveryTier, User } from "../domain/types.js";
 
 export type RoleTemplateGrantPlan = {
   roleId: string;
-  capabilityIds: string[];
 };
 
 export type ProvisionUserWithAccessInput = {
@@ -12,6 +11,7 @@ export type ProvisionUserWithAccessInput = {
   /** Derived recovery tier (authn spec §3.2): 'standard' when a real email exists, else 'admin_only'. */
   recoveryTier: RecoveryTier;
   authUserId: string;
+  /** Direct capability ids to persist as `effect='grant'` override rows at creation (ADR-0037). */
   manualCapabilityIds: string[];
   roleTemplateGrants: RoleTemplateGrantPlan[];
   actorId: string | null;

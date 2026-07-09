@@ -5,7 +5,6 @@ import {
   platform_admins,
   role_capabilities,
   roles,
-  user_capabilities,
   user_roles,
   users,
 } from "../../modules/user-management/src/schema/tables.ts";
@@ -192,6 +191,10 @@ export async function seedTenantUser(
       throw new Error(`No capabilities resolved for persona ${seedUser.persona}`);
     }
 
+    // ADR-0037: role capabilities are read live from `role_capabilities` at principal hydration.
+    // The dev seed writes the role composition + the user's membership only — no per-user
+    // capability rows. `user_capabilities` is now exclusively grant/deny overrides, which a dev
+    // persona does not need. A persona's effective access flows through its role membership.
     await db
       .insert(role_capabilities)
       .values(
@@ -209,36 +212,6 @@ export async function seedTenantUser(
         ],
       });
 
-    const grantedAt = new Date();
-    await db
-      .insert(user_capabilities)
-      .values(
-        granted.map((row) => ({
-          iq_tenant_id: context.tenantId,
-          user_id: platformUserId,
-          capability_id: row.id,
-          grant_source: "role_template" as const,
-          source_role_id: roleId,
-          granted_by_user_id: null,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [
-          user_capabilities.iq_tenant_id,
-          user_capabilities.user_id,
-          user_capabilities.capability_id,
-        ],
-        set: {
-          grant_source: "role_template",
-          source_role_id: roleId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        },
-      });
     grantedCount = granted.length;
   }
 

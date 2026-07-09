@@ -68,7 +68,10 @@ export async function resolveRoleTemplateGrantPlans(
       context,
     );
 
-    plans.push({ roleId, capabilityIds: capabilityIdsToApply });
+    // ADR-0037: role capabilities are read live from `role_capabilities`, never copied onto the
+    // user. The subset above is still validated (membership + tenant entitlement) as a guardrail,
+    // but only the membership (roleId) is materialized.
+    plans.push({ roleId });
   }
 
   return plans;

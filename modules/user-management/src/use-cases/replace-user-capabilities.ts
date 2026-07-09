@@ -2,13 +2,14 @@ import {
   CapabilityNotFoundError,
   UserNotFoundError,
   ValidationError,
+  type ValidationIssue,
 } from "../domain/errors.js";
 import {
   RUNTIME_AUTH_LIMITS,
   assertWithinLimit,
-  dedupeTrimmedIds,
 } from "../domain/runtime-authorization-limits.js";
 import type {
+  CapabilityOverrideInput,
   CapabilityRepository,
   MasterDataModuleCatalogPort,
   ReplaceUserCapabilitiesInput,
@@ -39,6 +40,41 @@ export type ReplaceUserCapabilitiesContext = {
   correlationId: string;
 };
 
+/**
+ * Validates one override list (grant or deny) into deduped, capability-id-keyed entries. Each entry
+ * must carry a UUID `capability_id` and an optional string `reason`. Deduped by capability_id
+ * (last wins for `reason`).
+ */
+function normalizeOverrideList(
+  value: unknown,
+  issue: ValidationIssue,
+): CapabilityOverrideInput[] {
+  if (!Array.isArray(value)) {
+    throw new ValidationError(issue);
+  }
+  const byCapabilityId = new Map<string, CapabilityOverrideInput>();
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) {
+      throw new ValidationError(issue);
+    }
+    const { capability_id: capabilityId, reason } = entry as {
+      capability_id?: unknown;
+      reason?: unknown;
+    };
+    if (typeof capabilityId !== "string" || !UUID_RE.test(capabilityId.trim())) {
+      throw new ValidationError(issue);
+    }
+    if (reason !== undefined && reason !== null && typeof reason !== "string") {
+      throw new ValidationError(issue);
+    }
+    byCapabilityId.set(capabilityId.trim(), {
+      capability_id: capabilityId.trim(),
+      reason: typeof reason === "string" ? reason : null,
+    });
+  }
+  return [...byCapabilityId.values()];
+}
+
 export async function replaceUserCapabilities(
   deps: ReplaceUserCapabilitiesDeps,
   ctx: ReplaceUserCapabilitiesContext,
@@ -51,28 +87,31 @@ export async function replaceUserCapabilities(
     throw new UserNotFoundError(userId);
   }
 
-  if (
-    !Array.isArray(input.capability_ids) ||
-    input.capability_ids.some((capabilityId) => typeof capabilityId !== "string" || !UUID_RE.test(capabilityId))
-  ) {
-    throw new ValidationError("replace_user_capabilities_invalid");
-  }
+  const grants = normalizeOverrideList(input.grant_overrides, "replace_user_capabilities_invalid");
+  const denies = normalizeOverrideList(input.deny_overrides, "replace_user_capabilities_invalid");
 
-  const capabilityIds = dedupeTrimmedIds(input.capability_ids);
+  const grantIds = grants.map((override) => override.capability_id);
+  const denyIds = denies.map((override) => override.capability_id);
+  // All referenced ids (grants and denies) count toward the per-request limit.
+  const allReferencedIds = [...new Set([...grantIds, ...denyIds])];
   assertWithinLimit(
-    capabilityIds.length,
+    allReferencedIds.length,
     RUNTIME_AUTH_LIMITS.maxCapabilityIdsPerRequest,
     "replace_user_capabilities_limit_exceeded",
   );
 
-  if (capabilityIds.length > 0) {
-    const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(capabilityIds);
-    if (capabilities.length !== capabilityIds.length) {
+  if (allReferencedIds.length > 0) {
+    const capabilities = await deps.capabilityRepository.listCapabilitiesByIds(allReferencedIds);
+    if (capabilities.length !== allReferencedIds.length) {
       const foundIds = new Set(capabilities.map((capability) => capability.id));
-      const missingCapabilityId = capabilityIds.find((capabilityId) => !foundIds.has(capabilityId));
+      const missingCapabilityId = allReferencedIds.find((capabilityId) => !foundIds.has(capabilityId));
       throw new CapabilityNotFoundError(missingCapabilityId);
     }
+  }
 
+  // Only grants can widen access, so only grants are entitlement-gated. A deny is subtractive and
+  // always permissible (denying a non-entitled capability is a harmless no-op).
+  if (grantIds.length > 0) {
     await assertRuntimeCapabilitiesEntitledForTenant(
       {
         capabilityRepository: deps.capabilityRepository,
@@ -80,7 +119,7 @@ export async function replaceUserCapabilities(
         masterDataModuleCatalogPort: deps.masterDataModuleCatalogPort,
       },
       ctx.tenantId,
-      capabilityIds,
+      grantIds,
       { cachePolicy: "bypass-cache", authorization: entitlementContext?.authorization },
     );
   }
@@ -91,9 +130,10 @@ export async function replaceUserCapabilities(
     ctx.actorId,
   );
 
-  await deps.userAccessRepository.replaceManualCapabilityGrants(ctx.tenantId, {
+  await deps.userAccessRepository.replaceCapabilityOverrides(ctx.tenantId, {
     userId,
-    capabilityIds,
+    grants,
+    denies,
     actorId: grantActorId,
   });
 

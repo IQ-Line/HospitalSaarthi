@@ -5,7 +5,7 @@ import { InMemoryUserRepository } from "../../../src/data-access/in-memory-user-
 import { InMemoryRoleRepository } from "../../../src/data-access/in-memory-role-repository.js";
 
 describe("InMemoryUserProvisioningRepository", () => {
-  it("preserves manual grants when role template overlaps during provisionUserWithAccess", async () => {
+  it("writes direct capabilities as grant overrides and role templates as membership only", async () => {
     const roleRepository = new InMemoryRoleRepository([
       {
         tenantId: "tenant-a",
@@ -40,27 +40,23 @@ describe("InMemoryUserProvisioningRepository", () => {
       recoveryTier: "standard",
       authUserId: "auth-1",
       manualCapabilityIds: ["shared-cap"],
-      roleTemplateGrants: [{ roleId: "role-1", capabilityIds: ["shared-cap", "template-cap"] }],
+      roleTemplateGrants: [{ roleId: "role-1" }],
       actorId: "admin-manual",
     });
 
-    const active = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", userId);
-    expect(active).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          capability_id: "shared-cap",
-          grant_source: "manual",
-          source_role_id: null,
-          granted_by_user_id: "admin-manual",
-        }),
-        expect.objectContaining({
-          capability_id: "template-cap",
-          grant_source: "role_template",
-          source_role_id: "role-1",
-          granted_by_user_id: "admin-manual",
-        }),
-      ]),
-    );
-    expect(active.filter((grant) => grant.capability_id === "shared-cap")).toHaveLength(1);
+    // ADR-0037: the direct capability lands as a grant OVERRIDE; the role template contributes only
+    // a membership (role capabilities are read live), so it writes NO user_capabilities rows.
+    const overrides = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", userId);
+    expect(overrides).toEqual([
+      expect.objectContaining({
+        capability_id: "shared-cap",
+        effect: "grant",
+        granted_by_user_id: "admin-manual",
+      }),
+    ]);
+    expect(overrides.some((override) => override.capability_id === "template-cap")).toBe(false);
+
+    const memberships = await userAccessRepository.listRoleTemplatesByUser("tenant-a", userId);
+    expect(memberships.map((m) => m.role_id)).toEqual(["role-1"]);
   });
 });

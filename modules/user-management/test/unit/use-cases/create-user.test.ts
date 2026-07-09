@@ -237,27 +237,27 @@ describe("createUser", () => {
         }),
       ]),
     );
-    await expect(
-      userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id),
-    ).resolves.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
-          grant_source: "manual",
-        }),
-        expect.objectContaining({
-          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-          grant_source: "role_template",
-        }),
-        expect.objectContaining({
-          capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d612",
-          grant_source: "role_template",
-        }),
-      ]),
+    // ADR-0037: the direct capability lands as a grant OVERRIDE; the role templates write only
+    // memberships (their capabilities are read live from role_capabilities, never copied here).
+    const overrides = await userAccessRepository.listActiveCapabilityGrantsByUser(
+      "tenant-a",
+      created.id,
     );
+    expect(overrides).toEqual([
+      expect.objectContaining({
+        capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
+        effect: "grant",
+      }),
+    ]);
+    expect(
+      overrides.some((o) => o.capability_id === "f47ac10b-58cc-4372-a567-0e02b2c3d611"),
+    ).toBe(false);
+    expect(
+      overrides.some((o) => o.capability_id === "f47ac10b-58cc-4372-a567-0e02b2c3d612"),
+    ).toBe(false);
   });
 
-  it("applies only selected role capabilities when role_template_capability_ids is set", async () => {
+  it("validates a role_template_capability_ids subset but materializes only the membership", async () => {
     const capCreate: Capability = {
       id: "f47ac10b-58cc-4372-a567-0e02b2c3d610",
       capability_key: "users:users:create",
@@ -348,12 +348,12 @@ describe("createUser", () => {
       },
     );
 
-    const grants = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id);
-    expect(grants).toHaveLength(1);
-    expect(grants[0]).toMatchObject({
-      capability_id: "f47ac10b-58cc-4372-a567-0e02b2c3d611",
-      grant_source: "role_template",
-    });
+    // The subset (d611) is validated as belonging to the role, but ADR-0037 no longer copies role
+    // capabilities onto the user — apply records only the membership, writing no override rows.
+    const overrides = await userAccessRepository.listActiveCapabilityGrantsByUser("tenant-a", created.id);
+    expect(overrides).toEqual([]);
+    const memberships = await userAccessRepository.listRoleTemplatesByUser("tenant-a", created.id);
+    expect(memberships.map((m) => m.role_id)).toEqual(["f47ac10b-58cc-4372-a567-0e02b2c3d621"]);
   });
 
   it("fails closed before user insert when direct capability entitlement lookup fails", async () => {

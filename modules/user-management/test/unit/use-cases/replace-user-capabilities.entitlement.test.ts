@@ -69,7 +69,7 @@ describe("replaceUserCapabilities entitlement", () => {
         deps,
         { tenantId: TENANT, actorId: "actor-1", correlationId: "c" },
         USER_ID,
-        { capability_ids: [CAP_OPD] },
+        { grant_overrides: [{ capability_id: CAP_OPD }], deny_overrides: [] },
       ),
     ).rejects.toMatchObject({ code: "CAPABILITY_NOT_ENTITLED_FOR_TENANT" });
   });
@@ -78,14 +78,14 @@ describe("replaceUserCapabilities entitlement", () => {
     const deps = buildDeps({
       configuratorError: new ModuleEntitlementLookupError("configurator"),
     });
-    const spy = vi.spyOn(deps.userAccessRepository, "replaceManualCapabilityGrants");
+    const spy = vi.spyOn(deps.userAccessRepository, "replaceCapabilityOverrides");
 
     await expect(
       replaceUserCapabilities(
         deps,
         { tenantId: TENANT, actorId: "actor-1", correlationId: "c" },
         USER_ID,
-        { capability_ids: [CAP_UM] },
+        { grant_overrides: [{ capability_id: CAP_UM }], deny_overrides: [] },
       ),
     ).rejects.toBeInstanceOf(ModuleEntitlementLookupError);
 

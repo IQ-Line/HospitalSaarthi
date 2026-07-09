@@ -78,6 +78,82 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sign in and return session, JWT, profile, and principal
+         * @description Single interactive login for SPAs and integrators. Verifies email or username + password via better-auth, issues access/refresh tokens, returns the platform user profile (`/auth/me` shape), and the enriched authorization principal (`/auth/principal` shape). Also returns `session_token` for better-auth session lifecycle. Browser clients may receive `Set-Cookie` headers from the underlying auth session.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Email (contains `@`) or username. */
+                        identifier: string;
+                        /** Format: password */
+                        password: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Authenticated session bundle. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InteractiveLoginResponse"];
+                    };
+                };
+                /** @description Invalid credentials. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                /** @description Auth user is not linked to a platform user row. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+                500: components["responses"]["InternalError"];
+                /** @description Interactive login is not configured on this service instance (`AUTH_LOGIN_UNAVAILABLE`). */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorMessage"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/change-password-complete": {
         parameters: {
             query?: never;
@@ -603,7 +679,7 @@ export interface paths {
                         /** @description Human-readable role label. */
                         display_name: string;
                         description?: string | null;
-                        /** @description System-managed role flag. */
+                        /** @description Platform-controlled system-role flag. Honored only when the request is made by the platform super-admin (e.g. tenant onboarding creating the tenant-admin role); for any other caller it is ignored and the role is created non-system. */
                         is_system?: boolean;
                         /** @enum {string} */
                         status?: "active" | "inactive";
@@ -820,6 +896,7 @@ export interface paths {
                         role_type?: string;
                         display_name?: string;
                         description?: string | null;
+                        /** @description Platform-controlled system-role flag. A change is honored only when the request is made by the platform super-admin; for any other caller it is dropped and the role's system flag is left unchanged. */
                         is_system?: boolean;
                         /** @enum {string} */
                         status?: "active" | "inactive";
@@ -1025,13 +1102,13 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List active providers (doctors) for billing and registration pickers
-         * @description Returns active platform users as a slim provider DTO. Optional filters narrow by department name or master-data department id (resolved to the persisted `users.department` name).
+         * List active providers for the tenant (lightweight picklist)
+         * @description Returns active users for the active tenant as a lightweight picklist (id, full_name, department, status) — used by the frontend to populate provider/doctor selectors. Tenant-scoped; optionally narrowed by `department` (name) or `department_id` (master-data uuid).
          */
         get: {
             parameters: {
                 query?: {
-                    /** @description Exact match on persisted `users.department` (department name). */
+                    /** @description Narrow the list to providers in this department (department name). */
                     department?: string;
                     /** @description Master-data department uuid — resolved to department name before filtering. */
                     department_id?: string;
@@ -1054,7 +1131,13 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["Provider"][];
+                        "application/json": {
+                            /** Format: uuid */
+                            id: string;
+                            full_name: string;
+                            department: string | null;
+                            status: string;
+                        }[];
                     };
                 };
                 /** @description Invalid department_id (not found in master-data catalog). */
@@ -1167,17 +1250,17 @@ export interface paths {
                     "application/json": {
                         /** @description Display name for the principal (required platform profile field). */
                         full_name: string;
+                        /** @description Username-primary login handle (lowercase letters/digits/`.`/`_`, 3-30 chars). The better-auth identity anchor is the synthetic `{username}@auth.internal`; real email is optional contact data, never the login credential. */
+                        username: string;
                         /**
                          * Format: email
-                         * @description Login email used to provision the current minimal better-auth account and retained as business contact email.
+                         * @description Optional business-contact email (not a login credential). When provided the user gets the `standard` recovery tier; when omitted the user is `admin_only` (admin-driven password reset).
                          */
-                        email: string;
+                        email?: string | null;
                         /** @description Initial login password for the linked better-auth account. */
                         password: string;
                         /** @description Business contact phone. */
                         phone?: string | null;
-                        /** @description Optional login handle; unique per tenant when set. */
-                        username?: string | null;
                         /**
                          * Format: uuid
                          * @description Organization scope (configurator organizations.id); logical reference only.
@@ -1407,7 +1490,7 @@ export interface paths {
         };
         /**
          * List applied role templates for a tenant-scoped user
-         * @description Returns the role templates applied to the specified user (`user_roles` associations). Runtime authorization resolves from active rows in `user_capabilities` (snapshot grants). See ADR-0031 for snapshot semantics; PEP may temporarily union live template capabilities until issue #60. Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
+         * @description Returns the role templates applied to the specified user (`user_roles` associations). Runtime authorization resolves role capabilities live from `role_capabilities` at principal hydration, plus this user's grant/deny overrides in `user_capabilities` (ADR-0037, supersedes the ADR-0031 snapshot). Integration callers may authenticate with `X-API-Key` (`opd_slip` tenant key).
          */
         get: {
             parameters: {
@@ -1470,7 +1553,7 @@ export interface paths {
         put?: never;
         /**
          * Apply a role template to a user
-         * @description Creates or updates a `user_roles` association and synchronizes the role-scoped capability snapshot in `user_capabilities` during the same write flow. Re-applying the same template narrows or widens the copied grants for that `source_role_id`. When `role_template_capability_ids` is present, only those capabilities (each belonging to the role) are included in the snapshot; omit the field to use the role's full composition. Later edits to the role template definition do not retroactively change existing user rows.
+         * @description Creates a `user_roles` membership (ADR-0037). Role capabilities are resolved live from `role_capabilities` at principal hydration — nothing is copied onto the user, so later edits to the role definition propagate immediately to every assigned user. `role_template_capability_ids`, when present, is still validated (each id must belong to the role and be tenant-entitled) but is no longer materialized; to grant this user a capability below/beyond the role composition, use PUT /users/{id}/capabilities grant/deny overrides.
          */
         post: {
             parameters: {
@@ -1569,7 +1652,7 @@ export interface paths {
         post?: never;
         /**
          * Remove a role-template association from a user
-         * @description Removes the `user_roles` association and soft-revokes active `user_capabilities` rows where `grant_source` is `role_template` and `source_role_id` matches the detached role. Manual, delegated, and system grants are not changed. Revoked rows retain audit fields (`revoked_at`, `revoked_by_user_id`).
+         * @description Removes the `user_roles` membership (ADR-0037). Because role capabilities are read live and never copied onto the user, no capability rows need cleanup — the role simply stops contributing to the user's effective capabilities on their next request. Any grant/deny overrides in `user_capabilities` are independent of role lifecycle and are left untouched.
          */
         delete: {
             parameters: {
@@ -1644,8 +1727,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get persisted user capability grants
-         * @description Returns the user's persisted base grants split into direct grants, copied template grants, and applied role-template associations. Delegated overlays are excluded from this endpoint.
+         * Get persisted user capability overrides
+         * @description Returns the user's persisted capability overrides split into `grant_overrides` and `deny_overrides`, plus applied role-template memberships (ADR-0037). Role-derived capabilities (resolved live from `role_capabilities`) and delegated overlays are excluded from this endpoint.
          */
         get: {
             parameters: {
@@ -1706,8 +1789,8 @@ export interface paths {
             };
         };
         /**
-         * Replace direct user capability grants
-         * @description Replaces the user's direct manual capability grants. Copied template grants remain untouched until an explicit capability edit changes them.
+         * Replace user capability overrides
+         * @description Full-replace of the user's grant/deny capability overrides (ADR-0037). `grant_overrides` pin capabilities on and `deny_overrides` pin them off, independent of the user's roles; role-derived capabilities are resolved live and are not edited here. A capability appearing in BOTH lists resolves as deny (deny wins) — the single override row per capability cannot hold both. To restrict a user below their role's composition, deny-override the capability.
          */
         put: {
             parameters: {
@@ -1728,12 +1811,13 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        capability_ids: string[];
+                        grant_overrides: components["schemas"]["CapabilityOverrideInput"][];
+                        deny_overrides: components["schemas"]["CapabilityOverrideInput"][];
                     };
                 };
             };
             responses: {
-                /** @description Direct user grants replaced; response returns the refreshed persisted grant snapshot. */
+                /** @description Overrides replaced; response returns the refreshed persisted override view. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1934,7 +2018,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/{id}/reset-password": {
+    "/users/{id}/activate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1944,8 +2028,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Admin reset a user's password
-         * @description Sets a temporary password via better-auth, revokes all sessions, and sets `must_change_password` so the user must choose a new password on next login. Cerbos action `user.update`. No email is sent — admin delivers the temp password in person.
+         * Reactivate a tenant-scoped platform user
+         * @description Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active. Uses Cerbos action `user.activate` (paired with `user.deactivate`).
          */
         post: {
             parameters: {
@@ -1958,20 +2042,14 @@ export interface paths {
                     iq_tenant_id?: components["parameters"]["IqTenantIdHeader"];
                 };
                 path: {
+                    /** @description Platform user id within the current tenant. */
                     id: string;
                 };
                 cookie?: never;
             };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** @description Temporary password the admin will share with the user. */
-                        password: string;
-                    };
-                };
-            };
+            requestBody?: never;
             responses: {
-                /** @description Password reset; user must change password on next login. */
+                /** @description User is now active (or was already active). */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -1980,7 +2058,7 @@ export interface paths {
                         "application/json": components["schemas"]["User"];
                     };
                 };
-                /** @description Validation error (e.g. password too short, no linked auth account). */
+                /** @description Request validation error. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2017,7 +2095,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/users/{id}/activate": {
+    "/users/{id}/reset-password": {
         parameters: {
             query?: never;
             header?: never;
@@ -2027,8 +2105,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Reactivate a tenant-scoped platform user
-         * @description Restores a soft-deactivated user by setting `status` to `active`. Idempotent when already active. Uses Cerbos action `user.activate` (paired with `user.deactivate`).
+         * Admin reset of a tenant-scoped user's password (recovery Flow A)
+         * @description Sets a new password for the target user's login account, revokes the user's existing sessions (authn spec §3.5 Flow A), and flags `must_change_password` so the user must choose a new password on next login. Uses Cerbos action `user.reset_password` — distinct from `user.update` so policies can separate account recovery from routine profile edits. The new password is delivered to the user out of band by the admin.
          */
         post: {
             parameters: {
@@ -2046,9 +2124,16 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description New login password for the target user's better-auth account. */
+                        new_password: string;
+                    };
+                };
+            };
             responses: {
-                /** @description User is now active (or was already active). */
+                /** @description Password reset; the target user's existing sessions were revoked. */
                 200: {
                     headers: {
                         [name: string]: unknown;
@@ -2143,6 +2228,14 @@ export interface components {
             assigned_at: string;
             role: components["schemas"]["Role"];
         };
+        /** @description One override entry in a PUT /users/{id}/capabilities grant/deny list (ADR-0037). */
+        CapabilityOverrideInput: {
+            /** Format: uuid */
+            capability_id: string;
+            /** @description Optional admin audit note for this deliberate exception. */
+            reason?: string | null;
+        };
+        /** @description A single per-user capability OVERRIDE row (ADR-0037). `effect` pins the capability on ('grant') or off ('deny') for this user, independent of any role; `reason` is the admin's audit note for the deliberate exception. */
         UserCapabilityGrant: {
             /** Format: uuid */
             id: string;
@@ -2157,21 +2250,19 @@ export interface components {
             display_name: string;
             description?: string | null;
             /** @enum {string} */
-            grant_source: "manual" | "role_template" | "delegated" | "system";
-            /** Format: uuid */
-            source_role_id: string | null;
+            effect: "grant" | "deny";
+            reason: string | null;
             /** Format: uuid */
             granted_by_user_id: string | null;
             /** Format: date-time */
             granted_at: string;
-            /** Format: date-time */
-            revoked_at: string | null;
-            /** Format: uuid */
-            revoked_by_user_id: string | null;
         };
+        /** @description A user's persisted capability OVERRIDES (grant/deny) plus applied role-template memberships (ADR-0037). Role-derived capabilities are resolved live from `role_capabilities` at principal hydration and are not listed here. */
         UserCapabilitiesSnapshot: {
-            direct_grants: components["schemas"]["UserCapabilityGrant"][];
-            copied_grants: components["schemas"]["UserCapabilityGrant"][];
+            /** @description Override rows with `effect='grant'` (this user gains the capability regardless of role). */
+            grant_overrides: components["schemas"]["UserCapabilityGrant"][];
+            /** @description Override rows with `effect='deny'` (this user is restricted from the capability; deny wins). */
+            deny_overrides: components["schemas"]["UserCapabilityGrant"][];
             role_templates: components["schemas"]["AppliedRoleTemplate"][];
         };
         UserEffectiveCapabilities: {
@@ -2234,6 +2325,22 @@ export interface components {
              * @enum {string}
              */
             recovery_tier?: "standard" | "admin_only" | "delegated" | "phone_recovery" | "federated";
+        };
+        InteractiveLoginResponse: {
+            /** @description Short-lived RS256 JWT for Authorization Bearer on HIMS APIs. */
+            access_token: string;
+            /** @enum {string} */
+            token_type: "Bearer";
+            /** @description access_token lifetime in seconds. */
+            expires_in: number;
+            refresh_token: string;
+            refresh_expires_in: number;
+            /** @description better-auth opaque session token (sign-out / JWT refresh via /api/auth/token). */
+            session_token: string;
+            /** Format: uuid */
+            tenant_id: string;
+            user: components["schemas"]["User"];
+            principal: components["schemas"]["Principal"];
         };
         /** @description Authorization snapshot for PDP alignment. Maps to Cerbos principal as `{ id, roles, attr: attributes }` after `request.user` is synced from this payload in the enrichment hook (see `@hims/user-management` principal enrichment plugin). */
         Principal: {

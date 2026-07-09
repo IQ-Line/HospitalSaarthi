@@ -1,30 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type {
   AppliedRoleTemplate,
+  CapabilityOverrideInput,
   Role,
   UserAccessRepository,
   UserCapabilityGrant,
 } from "../ports/index.js";
-import {
-  applyRoleTemplateCapabilitySyncToGrantMap,
-  planRoleTemplateCapabilitySync,
-} from "./role-template-grant-writes.js";
-
-function revokeRoleTemplateGrantsInMemory(
-  grants: Map<string, UserCapabilityGrant>,
-  input: { userId: string; roleId: string; actorId: string | null },
-): void {
-  const plan = planRoleTemplateCapabilitySync([], [...grants.values()], input.roleId);
-  const grantedAt = new Date().toISOString();
-  const grantsById = new Map([...grants.values()].map((grant) => [grant.id, grant]));
-  for (const grantId of plan.revokeGrantIds) {
-    const grant = grantsById.get(grantId);
-    if (grant && grant.revoked_at === null) {
-      grant.revoked_at = grantedAt;
-      grant.revoked_by_user_id = input.actorId;
-    }
-  }
-}
 
 function tenantUser(tenantId: string, userId: string): string {
   return `${tenantId}\0${userId}`;
@@ -32,6 +13,24 @@ function tenantUser(tenantId: string, userId: string): string {
 
 function tenantUserRole(tenantId: string, userId: string, roleId: string): string {
   return `${tenantUser(tenantId, userId)}\0${roleId}`;
+}
+
+/**
+ * Merges grant/deny override lists into one entry per capability. Deny wins (ADR-0037): a
+ * capability in both lists resolves as `deny`, mirroring the Drizzle single-row upsert.
+ */
+function mergeOverrides(
+  grants: CapabilityOverrideInput[],
+  denies: CapabilityOverrideInput[],
+): Array<{ capability_id: string; effect: "grant" | "deny"; reason: string | null }> {
+  const merged = new Map<string, { effect: "grant" | "deny"; reason: string | null }>();
+  for (const grant of grants) {
+    merged.set(grant.capability_id, { effect: "grant", reason: grant.reason ?? null });
+  }
+  for (const deny of denies) {
+    merged.set(deny.capability_id, { effect: "deny", reason: deny.reason ?? null });
+  }
+  return [...merged.entries()].map(([capability_id, value]) => ({ capability_id, ...value }));
 }
 
 export class InMemoryUserAccessRepository implements UserAccessRepository {
@@ -45,7 +44,6 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
     input: {
       userId: string;
       roleId: string;
-      capabilityIds: string[];
       actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate> {
@@ -68,39 +66,6 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
       this.roleTemplates.set(key, applied);
     }
 
-    const userKey = tenantUser(tenantId, input.userId);
-    const grants = this.capabilityGrants.get(userKey) ?? new Map<string, UserCapabilityGrant>();
-    this.capabilityGrants.set(userKey, grants);
-
-    const plan = planRoleTemplateCapabilitySync(
-      input.capabilityIds,
-      [...grants.values()],
-      input.roleId,
-    );
-
-    applyRoleTemplateCapabilitySyncToGrantMap(grants, plan, {
-      userId: input.userId,
-      roleId: input.roleId,
-      actorId: input.actorId,
-      createGrant: (capabilityId, existing, grantedAt): UserCapabilityGrant => ({
-        id: existing?.id ?? randomUUID(),
-        user_id: input.userId,
-        capability_id: capabilityId,
-        capability_key: capabilityId,
-        module: "user-management",
-        feature: "unknown",
-        action: "unknown",
-        display_name: capabilityId,
-        description: null,
-        grant_source: "role_template",
-        source_role_id: input.roleId,
-        granted_by_user_id: input.actorId,
-        granted_at: grantedAt,
-        revoked_at: null,
-        revoked_by_user_id: null,
-      }),
-    });
-
     return applied;
   }
 
@@ -119,13 +84,6 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
     }
 
     this.roleTemplates.delete(key);
-
-    const userKey = tenantUser(tenantId, input.userId);
-    const grants = this.capabilityGrants.get(userKey);
-    if (grants) {
-      revokeRoleTemplateGrantsInMemory(grants, input);
-    }
-
     return existing;
   }
 
@@ -140,55 +98,41 @@ export class InMemoryUserAccessRepository implements UserAccessRepository {
     tenantId: string,
     userId: string,
   ): Promise<UserCapabilityGrant[]> {
-    return [...(this.capabilityGrants.get(tenantUser(tenantId, userId))?.values() ?? [])].filter(
-      (grant) => grant.revoked_at === null,
-    );
+    return [...(this.capabilityGrants.get(tenantUser(tenantId, userId))?.values() ?? [])];
   }
 
-  async replaceManualCapabilityGrants(
+  async replaceCapabilityOverrides(
     tenantId: string,
     input: {
       userId: string;
-      capabilityIds: string[];
+      grants: CapabilityOverrideInput[];
+      denies: CapabilityOverrideInput[];
       actorId: string | null;
     },
   ): Promise<UserCapabilityGrant[]> {
     const key = tenantUser(tenantId, input.userId);
-    const grants = this.capabilityGrants.get(key) ?? new Map<string, UserCapabilityGrant>();
+    const grants = new Map<string, UserCapabilityGrant>();
     this.capabilityGrants.set(key, grants);
 
-    const desired = new Set(input.capabilityIds);
-    for (const [capabilityId, grant] of grants.entries()) {
-      if (grant.grant_source === "manual" && !desired.has(capabilityId)) {
-        grant.revoked_at = new Date().toISOString();
-        grant.revoked_by_user_id = input.actorId;
-      }
-    }
-
-    for (const capabilityId of desired) {
-      const existing = grants.get(capabilityId);
-      if (existing && existing.revoked_at === null) {
-        continue;
-      }
-      grants.set(capabilityId, {
-        id: existing?.id ?? randomUUID(),
+    const grantedAt = new Date().toISOString();
+    for (const override of mergeOverrides(input.grants, input.denies)) {
+      grants.set(override.capability_id, {
+        id: randomUUID(),
         user_id: input.userId,
-        capability_id: capabilityId,
-        capability_key: capabilityId,
+        capability_id: override.capability_id,
+        capability_key: override.capability_id,
         module: "user-management",
         feature: "unknown",
         action: "unknown",
-        display_name: capabilityId,
+        display_name: override.capability_id,
         description: null,
-        grant_source: "manual",
-        source_role_id: null,
+        effect: override.effect,
+        reason: override.reason,
         granted_by_user_id: input.actorId,
-        granted_at: new Date().toISOString(),
-        revoked_at: null,
-        revoked_by_user_id: null,
+        granted_at: grantedAt,
       });
     }
 
-    return [...grants.values()].filter((grant) => grant.revoked_at === null);
+    return [...grants.values()];
   }
 }

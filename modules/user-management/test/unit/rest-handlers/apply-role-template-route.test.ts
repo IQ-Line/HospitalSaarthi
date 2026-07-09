@@ -225,7 +225,7 @@ async function createTestApp(entitlement: {
 }
 
 describe("POST /users/:id/roles (apply role template)", () => {
-  it("accepts role_template_capability_ids subset and synchronizes only selected grants", async () => {
+  it("accepts a valid role_template_capability_ids subset but writes no override rows (ADR-0037)", async () => {
     const { app, userAccessRepository } = await createTestApp({});
 
     const response = await app.inject({
@@ -242,12 +242,16 @@ describe("POST /users/:id/roles (apply role template)", () => {
       expect.objectContaining({ user_id: USER_ID, role_id: ROLE_ID }),
     );
 
-    const grants = await userAccessRepository.listActiveCapabilityGrantsByUser(TENANT, USER_ID);
-    const roleTemplateGrants = grants.filter((grant) => grant.grant_source === "role_template");
-    expect(roleTemplateGrants.map((grant) => grant.capability_id).sort()).toEqual([CAP_UM]);
+    // The subset is validated (membership + entitlement) but NOT materialized: role capabilities
+    // are read live from role_capabilities, so apply writes only the user_roles membership.
+    const memberships = await userAccessRepository.listRoleTemplatesByUser(TENANT, USER_ID);
+    expect(memberships.map((m) => m.role_id)).toEqual([ROLE_ID]);
+    await expect(
+      userAccessRepository.listActiveCapabilityGrantsByUser(TENANT, USER_ID),
+    ).resolves.toEqual([]);
   });
 
-  it("applies full role composition when role_template_capability_ids is omitted", async () => {
+  it("records the membership when role_template_capability_ids is omitted (no capability copy)", async () => {
     const empiModuleId = "33333333-3333-4333-8333-333333333333";
     const { app, userAccessRepository } = await createTestApp({
       moduleIds: [empiModuleId],
@@ -262,11 +266,11 @@ describe("POST /users/:id/roles (apply role template)", () => {
 
     expect(response.statusCode).toBe(201);
 
-    const grants = await userAccessRepository.listActiveCapabilityGrantsByUser(TENANT, USER_ID);
-    const roleTemplateGrants = grants.filter((grant) => grant.grant_source === "role_template");
-    expect(roleTemplateGrants.map((grant) => grant.capability_id).sort()).toEqual(
-      [CAP_EMP, CAP_UM].sort(),
-    );
+    const memberships = await userAccessRepository.listRoleTemplatesByUser(TENANT, USER_ID);
+    expect(memberships.map((m) => m.role_id)).toEqual([ROLE_ID]);
+    await expect(
+      userAccessRepository.listActiveCapabilityGrantsByUser(TENANT, USER_ID),
+    ).resolves.toEqual([]);
   });
 
   it("rejects capability ids that are not on the role template", async () => {

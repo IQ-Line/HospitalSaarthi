@@ -44,7 +44,7 @@ class NoopUserAccessRepository implements UserAccessRepository {
   async listActiveCapabilityGrantsByUser(): Promise<UserCapabilityGrant[]> {
     return [];
   }
-  async replaceManualCapabilityGrants(): Promise<UserCapabilityGrant[]> {
+  async replaceCapabilityOverrides(): Promise<UserCapabilityGrant[]> {
     return [];
   }
 }
@@ -552,8 +552,10 @@ describe("OpenAPI/runtime coherence", () => {
     const applyRoleTemplateSection = spec.slice(spec.indexOf("Apply a role template to a user"));
     expect(applyRoleTemplateSection).toContain("role_template_capability_ids:");
     const detachRoleTemplateSection = spec.slice(spec.indexOf("Remove a role-template association from a user"));
-    expect(detachRoleTemplateSection).toContain("soft-revokes");
-    expect(detachRoleTemplateSection).not.toContain("remain untouched");
+    // ADR-0037: detach removes only the membership; role capabilities are read live and never
+    // copied, so there is nothing to "soft-revoke" (guard against regressing to snapshot language).
+    expect(detachRoleTemplateSection).toContain("read live");
+    expect(detachRoleTemplateSection).not.toContain("soft-revoke");
 
     const app = Fastify();
     const routes: Array<{ method: string; path: string; authMode?: string }> = [];

@@ -1,11 +1,10 @@
 import { isPostgresUniqueViolation, type DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   DuplicateUsernameError,
   UnexpectedPersistenceError,
 } from "../domain/errors.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
-import { syncRoleTemplateCapabilitySnapshot } from "./role-template-grant-writes.js";
 import type {
   ProvisionUserWithAccessInput,
   UserProvisioningRepository,
@@ -101,7 +100,7 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
         const userId = linked.id;
 
         if (input.manualCapabilityIds.length > 0) {
-          await replaceManualCapabilityGrantsInTx(tx, tenantId, {
+          await writeGrantOverridesInTx(tx, tenantId, {
             userId,
             capabilityIds: input.manualCapabilityIds,
             actorId: input.actorId,
@@ -112,7 +111,6 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
           await applyRoleTemplateInTx(tx, tenantId, {
             userId,
             roleId: grant.roleId,
-            capabilityIds: grant.capabilityIds,
             actorId: input.actorId,
           });
         }
@@ -130,7 +128,11 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
 
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
-async function replaceManualCapabilityGrantsInTx(
+/**
+ * Persists creation-time direct capabilities as `effect='grant'` override rows (ADR-0037).
+ * Idempotent per capability via the `UNIQUE(tenant,user,capability)` upsert.
+ */
+async function writeGrantOverridesInTx(
   tx: Tx,
   tenantId: string,
   input: {
@@ -140,77 +142,36 @@ async function replaceManualCapabilityGrantsInTx(
   },
 ): Promise<void> {
   const desiredIds = [...new Set(input.capabilityIds)];
-  const current = await tx
-    .select({
-      id: user_capabilities.id,
-      capability_id: user_capabilities.capability_id,
-      grant_source: user_capabilities.grant_source,
-    })
-    .from(user_capabilities)
-    .where(
-      and(
-        eq(user_capabilities.iq_tenant_id, tenantId),
-        eq(user_capabilities.user_id, input.userId),
-        isNull(user_capabilities.revoked_at),
-      ),
-    );
-
-  const activeByCapabilityId = new Set(current.map((row) => row.capability_id));
-  const manualGrantIdsToRevoke = current
-    .filter((row) => row.grant_source === "manual" && !desiredIds.includes(row.capability_id))
-    .map((row) => row.id);
-
-  if (manualGrantIdsToRevoke.length > 0) {
-    await tx
-      .update(user_capabilities)
-      .set({
-        revoked_at: new Date(),
-        revoked_by_user_id: input.actorId,
-      })
-      .where(
-        and(
-          eq(user_capabilities.iq_tenant_id, tenantId),
-          inArray(user_capabilities.id, manualGrantIdsToRevoke),
-        ),
-      );
+  if (desiredIds.length === 0) {
+    return;
   }
-
-  const missingCapabilityIds = desiredIds.filter(
-    (capabilityId) => !activeByCapabilityId.has(capabilityId),
-  );
-  if (missingCapabilityIds.length > 0) {
-    const grantedAt = new Date();
-    await tx
-      .insert(user_capabilities)
-      .values(
-        missingCapabilityIds.map((capabilityId) => ({
-          iq_tenant_id: tenantId,
-          user_id: input.userId,
-          capability_id: capabilityId,
-          grant_source: "manual" as const,
-          source_role_id: null,
-          granted_by_user_id: input.actorId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [
-          user_capabilities.iq_tenant_id,
-          user_capabilities.user_id,
-          user_capabilities.capability_id,
-        ],
-        set: {
-          grant_source: "manual",
-          source_role_id: null,
-          granted_by_user_id: input.actorId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        },
-      });
-  }
+  const grantedAt = new Date();
+  await tx
+    .insert(user_capabilities)
+    .values(
+      desiredIds.map((capabilityId) => ({
+        iq_tenant_id: tenantId,
+        user_id: input.userId,
+        capability_id: capabilityId,
+        effect: "grant" as const,
+        reason: null,
+        granted_by_user_id: input.actorId,
+        granted_at: grantedAt,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [
+        user_capabilities.iq_tenant_id,
+        user_capabilities.user_id,
+        user_capabilities.capability_id,
+      ],
+      set: {
+        effect: "grant",
+        reason: null,
+        granted_by_user_id: input.actorId,
+        granted_at: grantedAt,
+      },
+    });
 }
 
 async function applyRoleTemplateInTx(
@@ -219,7 +180,6 @@ async function applyRoleTemplateInTx(
   input: {
     userId: string;
     roleId: string;
-    capabilityIds: string[];
     actorId: string | null;
   },
 ): Promise<void> {
@@ -232,8 +192,6 @@ async function applyRoleTemplateInTx(
       assigned_by_user_id: input.actorId,
     })
     .onConflictDoNothing();
-
-  await syncRoleTemplateCapabilitySnapshot(tx, tenantId, input);
 
   const [roleRow] = await tx
     .select({ id: roles.id })

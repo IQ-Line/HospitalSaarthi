@@ -108,7 +108,7 @@ class NoopUserAccessRepository implements UserAccessRepository {
   async listActiveCapabilityGrantsByUser(): Promise<UserCapabilityGrant[]> {
     return [];
   }
-  async replaceManualCapabilityGrants(): Promise<UserCapabilityGrant[]> {
+  async replaceCapabilityOverrides(): Promise<UserCapabilityGrant[]> {
     return [];
   }
 }

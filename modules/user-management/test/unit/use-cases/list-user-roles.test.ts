@@ -53,19 +53,16 @@ describe("listUserRoles", () => {
     await userAccessRepository.applyRoleTemplate("tenant-a", {
       userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
       roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d501",
-      capabilityIds: [],
       actorId: null,
     });
     await userAccessRepository.applyRoleTemplate("tenant-a", {
       userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
       roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d500",
-      capabilityIds: [],
       actorId: null,
     });
     await userAccessRepository.applyRoleTemplate("tenant-b", {
       userId: "f47ac10b-58cc-4372-a567-0e02b2c3d510",
       roleId: "f47ac10b-58cc-4372-a567-0e02b2c3d502",
-      capabilityIds: [],
       actorId: null,
     });
 

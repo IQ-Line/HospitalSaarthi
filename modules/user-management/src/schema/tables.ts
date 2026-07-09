@@ -13,7 +13,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { RecoveryTier, RoleStatus, UserCapabilityGrantSource } from "../domain/types.js";
+import type { CapabilityOverrideEffect, RecoveryTier, RoleStatus } from "../domain/types.js";
 
 /** Capability-first authorization schema for the User Management module. */
 export const userManagementSchema = pgSchema("user_management");
@@ -214,6 +214,13 @@ export const user_roles = userManagementSchema.table(
   ],
 );
 
+/**
+ * Per-user capability OVERRIDES (ADR-0037). Exactly one row per (tenant, user, capability),
+ * pinning that user's effective access for the capability ON (`effect='grant'`) or OFF
+ * (`effect='deny'`), independent of any role. Role-derived capabilities are NOT stored here;
+ * they are read live from `role_capabilities` at principal hydration. Deny wins over grant and
+ * over delegation at read time.
+ */
 export const user_capabilities = userManagementSchema.table(
   "user_capabilities",
   {
@@ -221,12 +228,10 @@ export const user_capabilities = userManagementSchema.table(
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
     capability_id: uuid("capability_id").notNull(),
-    grant_source: text("grant_source").$type<UserCapabilityGrantSource>().notNull(),
-    source_role_id: uuid("source_role_id"),
+    effect: text("effect").$type<CapabilityOverrideEffect>().notNull(),
+    reason: text("reason"),
     granted_by_user_id: uuid("granted_by_user_id"),
     granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
-    revoked_at: timestamp("revoked_at", { withTimezone: true }),
-    revoked_by_user_id: uuid("revoked_by_user_id"),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
@@ -245,41 +250,19 @@ export const user_capabilities = userManagementSchema.table(
       .onDelete("restrict")
       .onUpdate("restrict"),
     foreignKey({
-      name: "fk_user_capabilities_tenant_source_role",
-      columns: [t.iq_tenant_id, t.source_role_id],
-      foreignColumns: [roles.iq_tenant_id, roles.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("restrict"),
-    foreignKey({
       name: "fk_user_capabilities_tenant_granted_by_user",
       columns: [t.iq_tenant_id, t.granted_by_user_id],
       foreignColumns: [users.iq_tenant_id, users.id],
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
-    foreignKey({
-      name: "fk_user_capabilities_tenant_revoked_by_user",
-      columns: [t.iq_tenant_id, t.revoked_by_user_id],
-      foreignColumns: [users.iq_tenant_id, users.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("restrict"),
-    check(
-      "user_capabilities_grant_source_chk",
-      sql`${t.grant_source} in ('manual', 'role_template', 'delegated', 'system')`,
-    ),
+    check("user_capabilities_effect_chk", sql`${t.effect} in ('grant', 'deny')`),
     unique("uq_user_capabilities_tenant_user_capability").on(
       t.iq_tenant_id,
       t.user_id,
       t.capability_id,
     ),
     index("idx_user_capabilities_tenant_user").on(t.iq_tenant_id, t.user_id),
-    index("idx_user_capabilities_tenant_user_revoked").on(
-      t.iq_tenant_id,
-      t.user_id,
-      t.revoked_at,
-    ),
     index("idx_user_capabilities_tenant_capability").on(t.iq_tenant_id, t.capability_id),
   ],
 );

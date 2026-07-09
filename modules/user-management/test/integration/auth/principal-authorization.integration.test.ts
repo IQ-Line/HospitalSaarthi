@@ -25,8 +25,12 @@ function principalService(
   });
 }
 
+// These assert the principal WIRE shape (sorted `capabilities` array on `principal.attributes`),
+// independent of the resolution recipe: the repository double returns the effective keys directly.
+// The recipe itself (live role JOIN + grant/deny overrides, ADR-0037) is proven on real Citus in
+// data-access/principal-authorization-recipe.integration.test.ts.
 describe("principal authorization (integration)", () => {
-  it("builds principal.attributes.capabilities from user_capabilities snapshot only", async () => {
+  it("puts the effective capability keys onto principal.attributes.capabilities, sorted", async () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId(TENANT, USER, {
       full_name: "Readonly User",
@@ -43,7 +47,7 @@ describe("principal authorization (integration)", () => {
     expect(principal.attributes.capabilities).toEqual(["users:users:create", "users:users:read"]);
   });
 
-  it("proves role_capabilities are not merged when only user_capabilities are seeded", async () => {
+  it("carries exactly the resolved effective keys, nothing more", async () => {
     const userRepository = new InMemoryUserRepository();
     userRepository.insertUserWithId(TENANT, USER, { full_name: "Readonly User" });
 
