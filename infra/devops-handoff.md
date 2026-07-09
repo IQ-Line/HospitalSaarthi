@@ -331,7 +331,7 @@ Measured (kaniko, same service, see `docs/architecture/cleanup/jenkins-demo/RESU
 
 | | Full in-image build (today) | Thin image (this section) |
 |---|---|---|
-| Per affected service | ~110–150 s, serial | **~18 s** (+ one shared ~8 s `nx build`) |
+| Per affected service | ~110–150 s, serial | **~18 s** (+ ONE shared `nx build` for the whole set — ~8 s warm, minutes on a cold agent; see notes) |
 | Kaniko cache flags alone | saves ~5 s/image — **not the fix** | n/a |
 
 **Replace the §6 `Build & push images` stage body with:**
