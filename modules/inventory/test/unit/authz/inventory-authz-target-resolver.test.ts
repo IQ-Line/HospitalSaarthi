@@ -128,11 +128,44 @@ describe("createInventoryAuthzTargetResolver — explicit mappings (every route)
       "t-1",
       "transfer.read",
     ],
+    [
+      "POST",
+      "/transfers/:transferId/dispatch",
+      { transferId: "t-1" },
+      "inventory_transfer",
+      "t-1",
+      "transfer.create",
+    ],
+    [
+      "POST",
+      "/transfers/:transferId/receive",
+      { transferId: "t-1" },
+      "inventory_transfer",
+      "t-1",
+      "transfer.create",
+    ],
+    [
+      "POST",
+      "/transfers/:transferId/cancel",
+      { transferId: "t-1" },
+      "inventory_transfer",
+      "t-1",
+      "transfer.create",
+    ],
+    // Indents
+    [
+      "GET",
+      "/indents/by-number/:indentNumber",
+      { indentNumber: "IND-1" },
+      "inventory_indent",
+      "IND-1",
+      "indent.read",
+    ],
   ];
 
   it("has one explicit test case per ROUTE_TABLE entry (no route left untested)", () => {
     expect(cases.length).toBe(INVENTORY_ROUTE_KEYS.length);
-    expect(INVENTORY_ROUTE_KEYS.length).toBe(32);
+    expect(INVENTORY_ROUTE_KEYS.length).toBe(36);
   });
 
   for (const [method, pattern, params, kind, id, action] of cases) {
@@ -200,7 +233,7 @@ describe("resolver covers every protected inventory route (PROBE_UUID completene
     const logicalKeys = new Set(
       protectedRouteKeys.map(({ method, url }) => `${method === "HEAD" ? "GET" : method} ${url}`),
     );
-    expect(logicalKeys.size).toBe(32);
+    expect(logicalKeys.size).toBe(36);
 
     const resolver = createInventoryAuthzTargetResolver();
     for (const { method, url } of protectedRouteKeys) {

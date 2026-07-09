@@ -65,7 +65,7 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
   }, 60_000);
 
   beforeEach(async () => {
-    await pool.query("TRUNCATE pharmacy.dispense_line_items, pharmacy.dispense_records CASCADE");
+    await pool.query("TRUNCATE pharmacy.dispense_line_items, pharmacy.dispense CASCADE");
   });
 
   afterAll(async () => {
@@ -100,8 +100,8 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
       patient_id: string;
     }>(
       `SELECT id, subtotal::text, discount::text, total_amount::text, dispense_status, patient_id
-         FROM pharmacy.dispense_records
-        WHERE iq_tenant_id = $1 AND visit_id = $2 AND walk_in_order = false`,
+         FROM pharmacy.dispense
+        WHERE iq_tenant_id = $1 AND visit_id = $2`,
       [tenantId, visitId],
     );
     return rows;
@@ -121,7 +121,7 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
               quantity_dispensed::text, unit_amount::text, line_discount::text,
               tax_percent::text, tax_amount::text, line_total::text
          FROM pharmacy.dispense_line_items
-        WHERE iq_tenant_id = $1 AND dispense_record_id = $2
+        WHERE iq_tenant_id = $1 AND dispense_id = $2
         ORDER BY created_at, id`,
       [tenantId, recordId],
     );
@@ -206,9 +206,9 @@ describeDb("DrizzleDispenseRecordRepo.upsertForVisit (real DB)", () => {
     try {
       await blocker.query("BEGIN");
       await blocker.query(
-        `INSERT INTO pharmacy.dispense_records
-           (id, iq_tenant_id, walk_in_order, visit_id, patient_id, subtotal, discount, total_amount, dispense_status)
-         VALUES (gen_random_uuid(), $1, false, $2, $3, '1', '0', '1', 'issued')`,
+        `INSERT INTO pharmacy.dispense
+           (id, iq_tenant_id, visit_id, patient_id, subtotal, discount, total_amount, dispense_status)
+         VALUES (gen_random_uuid(), $1, $2, $3, '1', '0', '1', 'issued')`,
         [TENANT_A, VISIT, PATIENT],
       );
 

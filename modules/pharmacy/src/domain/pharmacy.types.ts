@@ -4,20 +4,26 @@ export type DispenseFulfillmentStatus = "issued" | "partial_issue";
 
 export type PharmacyDispenseStatus = "pending" | DispenseFulfillmentStatus;
 
+export type DispensePriority = "stat" | "urgent" | "routine";
+
 export type DispenseRecord = {
   id: string;
   iq_tenant_id: string;
-  walk_in_order: boolean;
-  walk_in_patient_id: string | null;
-  visit_id: string | null;
-  patient_id: string | null;
+  visit_id: string;
+  patient_id: string;
   opd_prescription_id: string | null;
+  department_id: string | null;
+  branch_id: string | null;
+  inventory_store_id: string | null;
+  priority: DispensePriority;
   subtotal: string;
   discount: string;
   total_amount: string;
   notes: string | null;
   dispense_status: DispenseFulfillmentStatus;
+  dispense_draft_json: Record<string, unknown>;
   created_at: Date;
+  updated_at: Date;
   created_by: string | null;
 };
 
@@ -35,9 +41,11 @@ export type WalkInPatientRecord = {
 export type DispenseLineItemRecord = {
   id: string;
   iq_tenant_id: string;
-  dispense_record_id: string;
+  dispense_id: string;
   medicine_id: string | null;
   medicine_display_name: string;
+  opd_prescription_item_id: string | null;
+  opd_prescription_line_no: number | null;
   prescribed_quantity: string | null;
   quantity_dispensed: string;
   unit_amount: string;
@@ -45,7 +53,13 @@ export type DispenseLineItemRecord = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  stock_batch_id: string | null;
+  is_substitution: boolean;
+  substitute_of_line_id: string | null;
+  substitution_reason: string | null;
+  line_remarks: string | null;
   created_at: Date;
+  updated_at: Date;
 };
 
 /** Public API dispense line — excludes internal DB fields. */
@@ -85,15 +99,21 @@ export type OpdCompletedVisitSummary = {
   medicine_count: number;
 };
 
-export type OpdQueueProjectionRow = {
-  visit_id: string;
+export type PharmacyQueueSourceKind = "opd" | "ipd";
+
+export type QueueProjectionRow = {
+  queue_item_id: string;
   iq_tenant_id: string;
+  source_kind: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -103,17 +123,21 @@ export type OpdQueueProjectionRow = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json: Record<string, unknown>;
   last_synced_at: Date;
 };
 
-export type OpdQueueProjectionUpsertInput = {
-  visit_id: string;
+export type QueueProjectionUpsertInput = {
+  source_kind?: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority?: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -123,6 +147,7 @@ export type OpdQueueProjectionUpsertInput = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json?: Record<string, unknown>;
 };
 
 export type WalkInQueueSummary = {
@@ -255,7 +280,7 @@ export type DispenseForVisitResponse = {
   opd_prescription: OpdPrescriptionSnapshot | null;
   /** Catalog-backed medicines eligible for the dispense billing table. */
   dispensable_medicines: OpdPrescriptionMedicineLine[];
-  /** Denormalized from pharmacy.opd_queue_projection (no live EMPI read). */
+  /** Denormalized from pharmacy.queue_projection (no live EMPI read). */
   patient_name: string | null;
   uhid: string | null;
   age_years: number | null;

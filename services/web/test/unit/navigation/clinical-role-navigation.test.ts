@@ -73,7 +73,7 @@ describe('clinical role sidebar entries', () => {
     expect(filterForRoles(['frontdesk'], frontdeskCaps, enabled).find((n) => n.id === 'frontdesk')).toBeDefined();
   });
 
-  it('shows Pharmacy only for pharmacist role with dispense access', () => {
+  it('shows Pharmacy for pharmacist role', () => {
     const pharmacyCaps = new Set([PHARMACY_DISPENSE_READ, PHARMACY_DISPENSE_UPDATE]);
     const enabledWithPharmacy = new Set(['pharmacy']);
     expect(
@@ -81,11 +81,18 @@ describe('clinical role sidebar entries', () => {
     ).toBeDefined();
   });
 
-  it('hides Pharmacy for frontdesk even when pharmacy module is enabled', () => {
+  it('shows Pharmacy for frontdesk during phase 0 open nav (no dispense capabilities)', () => {
     const frontdeskCaps = new Set([FD_SHELL_ACCESS, 'registration:registration:read']);
-    const enabledWithPharmacy = new Set(['frontdesk', 'pharmacy']);
-    expect(
-      filterForRoles(['frontdesk'], frontdeskCaps, enabledWithPharmacy).find((n) => n.id === 'pharmacy'),
-    ).toBeUndefined();
+    const enabledModules = new Set(['frontdesk']);
+    const pharmacy = filterForRoles(['frontdesk'], frontdeskCaps, enabledModules).find(
+      (n) => n.id === 'pharmacy',
+    );
+    expect(pharmacy).toBeDefined();
+    expect(pharmacy?.children?.map((c) => c.id)).toEqual([
+      'pharmacy-dashboard',
+      'pharmacy-dispense',
+      'pharmacy-queue',
+      'pharmacy-replenishment',
+    ]);
   });
 });

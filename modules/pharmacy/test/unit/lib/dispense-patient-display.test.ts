@@ -4,29 +4,21 @@ import {
   formatDispenseVisitLabel,
   patientSummaryFromQueueProjection,
 } from "../../../src/lib/dispense-patient-display.js";
+import { mockQueueProjectionRow } from "../../../src/test-fixtures/queue-projection.js";
 
 describe("dispense-patient-display", () => {
   it("formats patient header from queue projection summary", () => {
-    const summary = patientSummaryFromQueueProjection({
-      visit_id: "visit-1",
-      iq_tenant_id: "tenant-1",
-      patient_id: "patient-1",
-      prescription_id: "rx-1",
-      doctor_id: null,
-      visit_status: "completed",
-      prescription_status: "final",
-      medicine_count: 1,
-      queued_at: new Date("2026-06-01T12:00:00.000Z"),
-      patient_name: "Deepa Patient18",
-      uhid: "260609000010000019",
-      phone: null,
-      age_years: 37,
-      gender: "female",
-      doctor_name: "demo doctor",
-      formatted_visit_id: "OP2606090000019",
-      dispense_status: "pending",
-      last_synced_at: new Date("2026-06-01T12:00:00.000Z"),
-    });
+    const summary = patientSummaryFromQueueProjection(
+      mockQueueProjectionRow({
+        patient_id: "patient-1",
+        patient_name: "Deepa Patient18",
+        uhid: "260609000010000019",
+        age_years: 37,
+        gender: "female",
+        doctor_name: "demo doctor",
+        formatted_visit_id: "OP2606090000019",
+      }),
+    );
 
     expect(formatDispensePatientHeader(summary, "patient-1")).toBe(
       "Deepa Patient18 · 260609000010000019 · 37y · Female",

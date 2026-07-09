@@ -263,6 +263,20 @@ export class DrizzleInventoryIndentRepository {
     return row ? mapIndentRow(row) : undefined;
   }
 
+  async findByIds(tenantId: string, indentIds: string[]): Promise<IndentRow[]> {
+    if (!indentIds.length) return [];
+    const rows = await this.db
+      .select()
+      .from(inventoryIndents)
+      .where(
+        and(
+          eq(inventoryIndents.iq_tenant_id, tenantId),
+          inArray(inventoryIndents.id, indentIds),
+        ),
+      );
+    return rows.map(mapIndentRow);
+  }
+
   async findByNumber(tenantId: string, indentNumber: string): Promise<IndentRow | undefined> {
     const normalized = indentNumber.trim();
     if (!normalized) return undefined;

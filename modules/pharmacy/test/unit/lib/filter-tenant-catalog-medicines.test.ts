@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { mockDispenseLine } from "../../../src/test-fixtures/dispense.js";
 import {
   extractPrescriptionMedicineId,
   filterDispenseLineRecordsForTenantCatalog,
@@ -94,36 +95,20 @@ describe("filter-tenant-catalog-medicines", () => {
       masterDataGateway,
       "tenant-1",
       [
-        {
+        mockDispenseLine({
           id: "line-1",
           iq_tenant_id: "tenant-1",
-          dispense_record_id: "rec-1",
+          dispense_id: "rec-1",
           medicine_id: "med-2",
           medicine_display_name: "Old label",
-          prescribed_quantity: null,
-          quantity_dispensed: "1",
-          unit_amount: "10",
-          line_discount: "0",
-          tax_percent: "0",
-          tax_amount: "0",
-          line_total: "10",
-          created_at: new Date(),
-        },
-        {
+        }),
+        mockDispenseLine({
           id: "line-2",
           iq_tenant_id: "tenant-1",
-          dispense_record_id: "rec-1",
+          dispense_id: "rec-1",
           medicine_id: null,
           medicine_display_name: "Free text",
-          prescribed_quantity: null,
-          quantity_dispensed: "1",
-          unit_amount: "10",
-          line_discount: "0",
-          tax_percent: "0",
-          tax_amount: "0",
-          line_total: "10",
-          created_at: new Date(),
-        },
+        }),
       ],
     );
 

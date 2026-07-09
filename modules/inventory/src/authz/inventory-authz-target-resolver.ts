@@ -97,6 +97,11 @@ const ROUTE_TABLE: Record<string, RouteHandler> = {
   "GET /indents/items": tenantScoped("inventory_indent", "items", "indent.read"),
   "GET /indents/active-check": tenantScoped("inventory_indent", "active-check", "indent.read"),
   "POST /indents": tenantScoped("inventory_indent", "new", "indent.create"),
+  "GET /indents/by-number/:indentNumber": pathIdScoped(
+    "inventory_indent",
+    "indent.read",
+    "indentNumber",
+  ),
   "GET /indents/:indentId": pathIdScoped("inventory_indent", "indent.read", "indentId"),
   "PATCH /indents/:indentId": pathIdScoped("inventory_indent", "indent.update", "indentId"),
   "POST /indents/:indentId/submit": pathIdScoped("inventory_indent", "indent.update", "indentId"),
@@ -109,6 +114,27 @@ const ROUTE_TABLE: Record<string, RouteHandler> = {
   "GET /transfers": tenantScoped("inventory_transfer", "list", "transfer.read"),
   "POST /transfers": tenantScoped("inventory_transfer", "new", "transfer.create"),
   "GET /transfers/:transferId": pathIdScoped("inventory_transfer", "transfer.read", "transferId"),
+  // dispatch/receive/cancel are state transitions on an existing transfer. The Cerbos
+  // inventory_transfer policy currently grants only transfer.read + transfer.create, so
+  // these mutations reuse transfer.create (the sole transfer mutation capability) — the
+  // same "all mutations share one capability" shape the indent routes use with indent.update.
+  // Finer-grained transfer.dispatch/receive/cancel capabilities can be split out later by
+  // adding them to the policy + capability catalog; until then this keeps the routes guarded.
+  "POST /transfers/:transferId/dispatch": pathIdScoped(
+    "inventory_transfer",
+    "transfer.create",
+    "transferId",
+  ),
+  "POST /transfers/:transferId/receive": pathIdScoped(
+    "inventory_transfer",
+    "transfer.create",
+    "transferId",
+  ),
+  "POST /transfers/:transferId/cancel": pathIdScoped(
+    "inventory_transfer",
+    "transfer.create",
+    "transferId",
+  ),
 };
 
 export function createInventoryAuthzTargetResolver(): AuthzTargetResolver {

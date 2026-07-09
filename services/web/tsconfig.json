@@ -9,7 +9,9 @@
     "paths": {
       "@/*": ["./src/*"],
       "@pulse/ui/*": ["../../packages/pulse-ui/src/*"],
+      "@pulse/blocks/*": ["../../packages/pulse-blocks/src/*"],
       "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"],
+      "@pulse/patterns/*": ["../../packages/pulse-patterns/src/*"],
       "@hims/dev-bootstrap": ["../../packages/dev-bootstrap/src/index.ts"],
       "@hims/ts-sdk-fhir": ["../../packages/ts-sdk-fhir/src/index.ts"]
     }

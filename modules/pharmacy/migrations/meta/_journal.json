@@ -5,22 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1782054055389,
+      "when": 1783618943387,
       "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1782054066442,
+      "when": 1783618952264,
       "tag": "0001_distribute_citus",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1782057222675,
-      "tag": "0002_restore_drifted_constraints",
       "breakpoints": true
     }
   ]

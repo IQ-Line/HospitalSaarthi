@@ -1,4 +1,4 @@
-import type { OpdQueueProjectionRow } from "../domain/pharmacy.types.js";
+import type { QueueProjectionRow } from "../domain/pharmacy.types.js";
 
 export type DispensePatientSummary = {
   patient_name: string | null;
@@ -9,7 +9,7 @@ export type DispensePatientSummary = {
 };
 
 export function patientSummaryFromQueueProjection(
-  row: OpdQueueProjectionRow | null | undefined,
+  row: QueueProjectionRow | null | undefined,
 ): DispensePatientSummary {
   if (row == null) {
     return {

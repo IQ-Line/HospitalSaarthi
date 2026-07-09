@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { PharmacyQueuePage } from '@/features/pharmacy/components/pharmacy-queue-page';
+import { PharmacyPrescriptionQueuePage } from '@/features/pharmacy/components/pharmacy-prescription-queue-page';
 
 export const Route = createFileRoute('/_authenticated/pharmacy/queue')({
-  component: PharmacyQueuePage,
+  component: PharmacyPrescriptionQueuePage,
 });

@@ -3,7 +3,7 @@ import type {
   DispenseRecordRepo,
   MasterDataGatewayPort,
   OpdGatewayPort,
-  OpdQueueProjectionRepo,
+  QueueProjectionRepo,
   UserLookupPort,
 } from "../ports.js";
 import {
@@ -30,7 +30,7 @@ export async function getDispenseForVisit(
     dispenseRecordRepo: DispenseRecordRepo;
     masterDataGateway: MasterDataGatewayPort;
     userLookup: UserLookupPort;
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
   },
   tenantId: string,
   input: GetDispenseForVisitInput,
@@ -61,7 +61,7 @@ export async function getDispenseForVisit(
       input.bearerToken,
     ),
     deps.dispenseRecordRepo.findByVisit(tenantId, input.visitId),
-    deps.opdQueueProjectionRepo.findByVisitId(tenantId, input.visitId),
+    deps.queueProjectionRepo.findByVisitId(tenantId, input.visitId),
   ]);
 
   const rawLines =
