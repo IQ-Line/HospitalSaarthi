@@ -1,0 +1,11 @@
+-- Custom SQL migration file, put your code below! --
+-- Citus: distribute billing.sequence_counters by iq_tenant_id, colocated with the
+-- other billing tables so the atomic INSERT ... ON CONFLICT allocation stays local
+-- to the tenant shard (same dist column + type => Citus colocates automatically).
+-- PK leads with iq_tenant_id (Citus requirement); no cross-table FKs.
+-- Journaled => runs exactly once.
+--
+-- Migrations are DISPOSABLE pre-prod: this table is new (billing previously wrote its
+-- counters into empi.sequence_counters). Dev boxes must `make db-reset` — there is no
+-- data to carry over, and old billing counters in empi's table are intentionally dropped.
+SELECT create_distributed_table('billing.sequence_counters', 'iq_tenant_id');

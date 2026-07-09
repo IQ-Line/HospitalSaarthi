@@ -22,6 +22,20 @@
       "when": 1782161349015,
       "tag": "0002_skinny_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783588637628,
+      "tag": "0003_striped_sugar_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1783588660366,
+      "tag": "0004_distribute_sequence_counters",
+      "breakpoints": true
     }
   ]
 }

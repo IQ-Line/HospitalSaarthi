@@ -1,0 +1,11 @@
+-- Custom SQL migration file, put your code below! --
+-- Citus: distribute registration.sequence_counters by iq_tenant_id, colocated with the
+-- other registration tables so the atomic INSERT ... ON CONFLICT allocation stays local
+-- to the tenant shard (same dist column + type => Citus colocates automatically).
+-- PK leads with iq_tenant_id (Citus requirement); no cross-table FKs.
+-- Journaled => runs exactly once.
+--
+-- Migrations are DISPOSABLE pre-prod: this table is new (registration previously wrote its
+-- op_visit counter into empi.sequence_counters). Dev boxes must `make db-reset` — there is
+-- no data to carry over, and the old op_visit counter in empi's table is intentionally dropped.
+SELECT create_distributed_table('registration.sequence_counters', 'iq_tenant_id');

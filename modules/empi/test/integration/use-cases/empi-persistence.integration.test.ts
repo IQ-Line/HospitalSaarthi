@@ -1,9 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, createPool, type DbInstance } from "@hims/ts-sdk-db";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
 import { applyEmpiSchemaMigration } from "../../../src/schema/apply-migration.js";
 import { DrizzlePatientRepo } from "../../../src/data-access/patient.repo.js";
 import { searchPatients } from "../../../src/use-cases/search-patients.js";
 import type { Patient } from "../../../src/domain/patient.types.js";
+
+function todayYYMMDD(): string {
+  const d = new Date();
+  return (
+    String(d.getFullYear()).slice(-2) +
+    String(d.getMonth() + 1).padStart(2, "0") +
+    String(d.getDate()).padStart(2, "0")
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Real-Postgres coverage for empi's repository layer (vet 2026-06-22, empi P4):
@@ -39,6 +49,7 @@ describeDb("empi persistence (real DB)", () => {
 
   beforeEach(async () => {
     await pool.query("TRUNCATE empi.patients CASCADE");
+    await pool.query("TRUNCATE empi.sequence_counters CASCADE");
     uhidSeq = 0;
   });
 
@@ -132,5 +143,36 @@ describeDb("empi persistence (real DB)", () => {
       expect(result.page.limit).toBe(2);
       expect(result.page.total_pages).toBe(2); // ceil(3 / 2)
     }
+  });
+
+  // patient_uhid allocation now runs against empi's OWN empi.sequence_counters
+  // (the SDK's cross-schema JOIN into configurator is gone; config is injected).
+  // Proves the composed format stays byte-identical and the counter increments.
+  it("allocates patient_uhid from empi.sequence_counters — byte-exact format, increments", async () => {
+    const cfg = { tenantNumericCode: "00042", identifierOverrides: {} };
+    const first = await allocateIdentifier(db, {
+      tenantId: TENANT_A,
+      identifierType: "patient_uhid",
+      counterSchema: "empi",
+      ...cfg,
+    });
+    const second = await allocateIdentifier(db, {
+      tenantId: TENANT_A,
+      identifierType: "patient_uhid",
+      counterSchema: "empi",
+      ...cfg,
+    });
+    // Default patient_uhid segments: date YYMMDD + tenant_code TTTTT + 7-digit sequence.
+    const day = todayYYMMDD();
+    expect(first).toBe(`${day}000420000001`);
+    expect(second).toBe(`${day}000420000002`);
+    // Counter is isolated per tenant: a different tenant restarts at 1.
+    const otherTenant = await allocateIdentifier(db, {
+      tenantId: TENANT_B,
+      identifierType: "patient_uhid",
+      counterSchema: "empi",
+      ...cfg,
+    });
+    expect(otherTenant).toBe(`${day}000420000001`);
   });
 });

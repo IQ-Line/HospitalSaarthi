@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createDb, createPool, type DbInstance } from "@hims/ts-sdk-db";
+import { allocateIdentifier } from "@hims/ts-sdk-sequence";
 import { applyRegistrationSchemaMigration } from "../../../src/schema/apply-migration.js";
 import { DrizzleVisitRepo } from "../../../src/data-access/visit.repo.js";
 import { DrizzleRegistrationRepo } from "../../../src/data-access/registration.repo.js";
@@ -56,6 +57,7 @@ describeDb("registration data-access (real DB)", () => {
     // default 10s hook timeout. No FK between the two tables, so order is free.
     await pool.query("DELETE FROM registration.visit");
     await pool.query("DELETE FROM registration.registration");
+    await pool.query("DELETE FROM registration.sequence_counters");
   });
 
   afterAll(async () => {
@@ -380,6 +382,51 @@ describeDb("registration data-access (real DB)", () => {
       expect(await registrationRepo.findPatientIdByAbhaAddress(TENANT_B, "asha@abdm")).toBeUndefined();
       expect(await registrationRepo.findPatientIdByAbhaAddress(TENANT_A, "nobody@abdm")).toBeUndefined();
       expect(await registrationRepo.findPatientIdByAbhaAddress(TENANT_A, "   ")).toBeUndefined();
+    });
+  });
+
+  // ─── op_visit allocation (registration.sequence_counters) ──────────────────
+  // registration-svc's allocateOpVisitId now increments registration's OWN
+  // counter table (no cross-schema write into empi.sequence_counters) with the
+  // seq config injected instead of SQL-JOINed. Proves byte-identical format,
+  // per-day increment, and per-tenant isolation of the op_visit stream.
+  describe("op_visit allocation", () => {
+    function today(): string {
+      const d = new Date();
+      return (
+        String(d.getFullYear()).slice(-2) +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        String(d.getDate()).padStart(2, "0")
+      );
+    }
+
+    it("composes op_visit numbers to the byte-exact format and increments per tenant", async () => {
+      const cfg = { tenantNumericCode: "00042", identifierOverrides: {} };
+      const first = await allocateIdentifier(db, {
+        tenantId: TENANT_A,
+        identifierType: "op_visit",
+        counterSchema: "registration",
+        ...cfg,
+      });
+      const second = await allocateIdentifier(db, {
+        tenantId: TENANT_A,
+        identifierType: "op_visit",
+        counterSchema: "registration",
+        ...cfg,
+      });
+      // Default op_visit segments: prefix "OP" + date YYMMDD + 7-digit sequence
+      // (tenant_code disabled — the numeric code never appears).
+      const day = today();
+      expect(first).toBe(`OP${day}0000001`);
+      expect(second).toBe(`OP${day}0000002`);
+      // Different tenant restarts at 1 (counter PK is (iq_tenant_id, sequence_name)).
+      const other = await allocateIdentifier(db, {
+        tenantId: TENANT_B,
+        identifierType: "op_visit",
+        counterSchema: "registration",
+        ...cfg,
+      });
+      expect(other).toBe(`OP${day}0000001`);
     });
   });
 });

@@ -1,4 +1,5 @@
 import {
+  bigint,
   boolean,
   date,
   jsonb,
@@ -144,4 +145,19 @@ export const payments = billingSchema.table(
       .on(t.iq_tenant_id, t.receipt_number)
       .where(sql`${t.receipt_number} IS NOT NULL`),
   ],
+);
+
+// ─── sequence_counters ───────────────────────────────────────────────────────
+// Billing owns its OWN counter table (op_bill / billing_payment / billing_receipt
+// streams) so no module writes into another module's schema. Shape mirrors
+// empi.sequence_counters exactly — the runtime allocator (ts-sdk-sequence) builds
+// an identical table instance targeting the "billing" schema.
+export const sequenceCounters = billingSchema.table(
+  "sequence_counters",
+  {
+    ...tenantColumn(),
+    sequence_name: text("sequence_name").notNull(),
+    current_value: bigint("current_value", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.sequence_name] })],
 );

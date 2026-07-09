@@ -19,6 +19,7 @@ import { ConfiguratorError } from "./errors.js";
 import { registerOrganizationsHandler } from "./rest-handlers/organizations.handler.js";
 import { registerTenantsHandler } from "./rest-handlers/tenants.handler.js";
 import { registerInternalTenantEntitlementHandler } from "./rest-handlers/internal-tenant-entitlement.handler.js";
+import { registerInternalSequenceConfigHandler } from "./rest-handlers/internal-sequence-config.handler.js";
 import { registerTenantModulesHandler } from "./rest-handlers/tenant-modules.handler.js";
 import { registerTenantIntegrationProfilesHandler } from "./rest-handlers/tenant-integration-profiles.handler.js";
 import { registerTenantOnboardingHandler } from "./rest-handlers/tenant-onboarding.handler.js";
@@ -94,6 +95,10 @@ async function configuratorRouter(
   registerInternalTenantEntitlementHandler(app, {
     db: options.db,
     platformModuleCatalog: options.platformModuleCatalog,
+  });
+  registerInternalSequenceConfigHandler(app, {
+    tenantRepo: options.tenantRepo,
+    sequenceConfigurationRepo: options.sequenceConfigurationRepo,
   });
   registerTenantIntegrationProfilesHandler(app, {
     tenantIntegrationProfilesRepo: options.tenantIntegrationProfilesRepo,

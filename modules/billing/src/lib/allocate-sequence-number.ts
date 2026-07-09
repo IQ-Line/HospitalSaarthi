@@ -20,7 +20,8 @@ async function allocateDailyNumber(
   counterName: string,
 ): Promise<string> {
   const day = dayKey();
-  const seq = await nextSequenceValue(db, tenantId, `${counterName}:${day}`, 1);
+  // Counter lives in billing's OWN schema (no longer the shared empi.sequence_counters).
+  const seq = await nextSequenceValue(db, tenantId, `${counterName}:${day}`, 1, "billing");
   return `${kind}-${tenantId.slice(0, 8)}-${day}-${pad(seq)}`;
 }
 

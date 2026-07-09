@@ -16,7 +16,7 @@ import {
   decodeBillListCursor,
   encodeBillListCursor,
 } from "../lib/bill-list-pagination.js";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, type SequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import {
   allocatePaymentNumber,
   allocateReceiptNumber,
@@ -26,7 +26,14 @@ import { toBillItemRow, toBillRow, toPaymentRow } from "../lib/bill-mappers.js";
 const isoDate = (v: string | null | undefined) => (v ? new Date(v) : null);
 
 class DrizzleBillingRepo implements BillingRepo {
-  constructor(private readonly db: DbInstance) {}
+  constructor(
+    private readonly db: DbInstance,
+    /**
+     * Resolves tenant sequence config (numeric code + custom formats) from configurator's own
+     * internal route — billing no longer reads configurator's schema. Injected at boot.
+     */
+    private readonly sequenceConfigLoader: SequenceConfigLoader,
+  ) {}
 
   async findItemByIdempotency(tenantId: string, key: string) {
     const [row] = await this.db
@@ -69,9 +76,13 @@ class DrizzleBillingRepo implements BillingRepo {
   }
 
   async createBill(input: NewBillRow) {
+    const cfg = await this.sequenceConfigLoader(input.iq_tenant_id);
     const bill_number = await allocateIdentifier(this.db, {
       tenantId: input.iq_tenant_id,
       identifierType: "op_bill",
+      counterSchema: "billing",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
     });
     const [row] = await this.db
       .insert(bills)
@@ -301,8 +312,11 @@ class InMemoryBillingRepo implements BillingRepo {
   }
 }
 
-export function createBillingRepo(db: DbInstance): BillingRepo {
-  return new DrizzleBillingRepo(db);
+export function createBillingRepo(
+  db: DbInstance,
+  sequenceConfigLoader: SequenceConfigLoader,
+): BillingRepo {
+  return new DrizzleBillingRepo(db, sequenceConfigLoader);
 }
 
 export function createInMemoryBillingRepo(): {

@@ -15,6 +15,20 @@
       "when": 1782054073212,
       "tag": "0001_distribute_citus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783588641902,
+      "tag": "0002_woozy_molten_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1783588661168,
+      "tag": "0003_distribute_sequence_counters",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { createDb, createPool, type DbInstance } from "@hims/ts-sdk-db";
+import type { SequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import { applyBillingSchemaMigration } from "../../../src/schema/apply-migration.js";
 import { createBillingRepo } from "../../../src/data-access/billing.repository.js";
 import { allocatePaymentNumber } from "../../../src/lib/allocate-sequence-number.js";
 import { syncBillTotals } from "../../../src/lib/use-case.js";
-import type { BillingRepo } from "../../../src/ports.js";
+import type { BillingRepo, NewBillRow } from "../../../src/ports.js";
 
 // ---------------------------------------------------------------------------
 // Real-Postgres coverage for billing (vet 2026-06-22, billing P1/P2):
@@ -13,6 +14,9 @@ import type { BillingRepo } from "../../../src/ports.js";
 //     the racy SELECT max()+1 it replaced would hand out duplicates here.
 //   - the UNIQUE(iq_tenant_id, payment_number) backstop actually bites (23505).
 //   - the PRE-TAX subtotal (P3) persists through the real Drizzle rollup.
+//   - op_bill numbers compose to the byte-exact format and increment per day —
+//     from billing's OWN billing.sequence_counters (no cross-schema reach into
+//     empi's table anymore; the seq config is injected, not SQL-JOINed).
 // Opt-in via TEST_DATABASE_URL pointing at a throwaway CITUS instance (:5444).
 // ---------------------------------------------------------------------------
 
@@ -21,6 +25,44 @@ const describeDb = TEST_DATABASE_URL ? describe : describe.skip;
 
 const TENANT = "c0000000-0000-4000-8000-0000000000c1";
 const PATIENT = "d0000000-0000-4000-8000-0000000000d1";
+
+// Stub for the HTTP loader billing-svc wires at boot: platform-default config
+// (custom formats off). op_bill disables the tenant_code segment, so the numeric
+// code never appears in the composed number — but we still pass a realistic one.
+const stubSequenceConfigLoader: SequenceConfigLoader = async () => ({
+  tenantNumericCode: "00042",
+  identifierOverrides: {},
+});
+
+function newBill(overrides: Partial<NewBillRow> = {}): NewBillRow {
+  return {
+    bill_number: "PLACEHOLDER", // overwritten by createBill's allocator
+    patient_id: PATIENT,
+    visit_id: null,
+    visit_type: null,
+    bill_type: "STANDALONE",
+    bill_date: "2026-07-09",
+    subtotal: "0",
+    discount_amount: "0",
+    discount_reason: null,
+    tax_amount: "0",
+    total_amount: "0",
+    round_off_amount: "0",
+    net_amount: "0",
+    paid_amount: "0",
+    outstanding_amount: "0",
+    status: "DRAFT",
+    notes: null,
+    cancellation_reason: null,
+    created_by: null,
+    approved_by: null,
+    cancelled_by: null,
+    approved_at: null,
+    cancelled_at: null,
+    iq_tenant_id: TENANT,
+    ...overrides,
+  };
+}
 
 describeDb("billing persistence (real DB)", () => {
   const url = TEST_DATABASE_URL as string;
@@ -31,37 +73,39 @@ describeDb("billing persistence (real DB)", () => {
   beforeAll(async () => {
     pool = createPool(url);
     await pool.query("DROP SCHEMA IF EXISTS billing CASCADE");
-    await pool.query("DROP SCHEMA IF EXISTS empi CASCADE");
     await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    // billing.sequence_counters is now billing's OWN table (created + distributed by
+    // the module's migrations) — the allocator no longer writes into empi's schema.
     await applyBillingSchemaMigration(url);
-    // Minimal stand-in for the shared empi.sequence_counters that nextSequenceValue
-    // (the atomic counter) writes to. Distributed by iq_tenant_id like production.
-    await pool.query("CREATE SCHEMA empi");
-    await pool.query(
-      `CREATE TABLE empi.sequence_counters (
-         iq_tenant_id uuid NOT NULL,
-         sequence_name text NOT NULL,
-         current_value bigint NOT NULL DEFAULT 0,
-         PRIMARY KEY (iq_tenant_id, sequence_name)
-       )`,
-    );
-    await pool.query("SELECT create_distributed_table('empi.sequence_counters', 'iq_tenant_id')");
     db = createDb(url);
-    repo = createBillingRepo(db);
+    repo = createBillingRepo(db, stubSequenceConfigLoader);
   }, 60_000);
 
   beforeEach(async () => {
     await pool.query("TRUNCATE billing.payments CASCADE");
     await pool.query("TRUNCATE billing.bills CASCADE");
     await pool.query("TRUNCATE billing.bill_items CASCADE");
-    await pool.query("TRUNCATE empi.sequence_counters CASCADE");
+    await pool.query("TRUNCATE billing.sequence_counters CASCADE");
   });
 
   afterAll(async () => {
     await pool.query("DROP SCHEMA IF EXISTS billing CASCADE");
-    await pool.query("DROP SCHEMA IF EXISTS empi CASCADE");
     await pool.query("DROP SCHEMA IF EXISTS drizzle CASCADE");
     await pool.end();
+  });
+
+  it("composes op_bill numbers to the byte-exact format and increments per day", async () => {
+    // Default op_bill segments: prefix "OPB" + date YYMMDD + 7-digit sequence
+    // (tenant_code disabled). For 2026-07-09 => OPB260709 + zero-padded seq.
+    const first = await repo.createBill(newBill());
+    const second = await repo.createBill(newBill());
+
+    expect(first.bill_number).toMatch(/^OPB\d{6}\d{7}$/);
+    const day = new Date().getFullYear().toString().slice(-2) +
+      String(new Date().getMonth() + 1).padStart(2, "0") +
+      String(new Date().getDate()).padStart(2, "0");
+    expect(first.bill_number).toBe(`OPB${day}0000001`);
+    expect(second.bill_number).toBe(`OPB${day}0000002`);
   });
 
   it("allocates payment numbers atomically — concurrent calls never collide", async () => {

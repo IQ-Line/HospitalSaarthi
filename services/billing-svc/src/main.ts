@@ -16,6 +16,7 @@ import {
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { createRouter, createBillingAuthzTargetResolver } from "@hims/billing";
+import { createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import { resolveBillingRequestTenantId } from "./resolve-billing-tenant-id.js";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
@@ -86,6 +87,14 @@ async function boot(app: FastifyInstance): Promise<void> {
 
   await assertCerbosReachable(CERBOS_URL);
 
+  // op_bill numbering config (numeric code + custom formats) comes from configurator's own internal
+  // route — billing no longer reads configurator's schema.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: configuratorUrl,
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+
   await app.register(async (api) => {
     api.addHook("onRequest", async (request) => {
       const tenant = resolveBillingRequestTenantId(request.headers, BILLING_DEV_TENANT_ID);
@@ -107,7 +116,7 @@ async function boot(app: FastifyInstance): Promise<void> {
       resolveTarget: createBillingAuthzTargetResolver(),
     });
 
-    await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));
+    await api.register(createRouter({ db, useMock: USE_MOCK_DATA, sequenceConfigLoader }));
   }, { prefix: "/api/billing/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });

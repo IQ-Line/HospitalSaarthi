@@ -9,7 +9,7 @@ import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -133,8 +133,23 @@ async function boot(app: FastifyInstance): Promise<void> {
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
   const visitRepo = new DrizzleVisitRepo(db);
-  const allocateOpVisitId = (tenantId: string) =>
-    allocateIdentifier(db, { tenantId, identifierType: "op_visit" });
+  // Tenant sequence config comes from configurator's own internal route — registration no longer
+  // reads configurator's schema, and the op_visit counter lives in registration's own schema.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: CONFIGURATOR_URL,
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+  const allocateOpVisitId = async (tenantId: string) => {
+    const cfg = await sequenceConfigLoader(tenantId);
+    return allocateIdentifier(db, {
+      tenantId,
+      identifierType: "op_visit",
+      counterSchema: "registration",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
+    });
+  };
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });

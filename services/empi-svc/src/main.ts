@@ -5,7 +5,7 @@ import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
 import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import {
@@ -90,8 +90,26 @@ async function boot(app: FastifyInstance): Promise<void> {
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
-  const allocatePatientUhid = (tenantId: string) =>
-    allocateIdentifier(db, { tenantId, identifierType: "patient_uhid" });
+  // Tenant sequence config (numeric code + custom formats) is fetched from configurator's own
+  // internal route — empi no longer reads configurator's schema. Degrades to the env fallback
+  // (EMPI_FALLBACK_TENANT_NUMERIC_CODE, default 00001) when configurator is unreachable.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: requirePepUpstreamBaseUrl("CONFIGURATOR_URL"),
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    fallbackTenantNumericCode: process.env["EMPI_FALLBACK_TENANT_NUMERIC_CODE"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+
+  const allocatePatientUhid = async (tenantId: string) => {
+    const cfg = await sequenceConfigLoader(tenantId);
+    return allocateIdentifier(db, {
+      tenantId,
+      identifierType: "patient_uhid",
+      counterSchema: "empi",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
+    });
+  };
 
   const empiRouter = createRouter({
     patientRepo: new DrizzlePatientRepo(db),

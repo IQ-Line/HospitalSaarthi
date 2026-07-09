@@ -20,12 +20,25 @@ import { seedMockBills } from "./lib/mock-bills.js";
 import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
 import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
+import type { SequenceConfigLoader } from "@hims/ts-sdk-sequence";
 
 export interface BillingRouterOptions {
   db?: DbInstance;
   /** Return in-memory sample rows (no DB). Default off; set BILLING_USE_MOCK_DATA=true in billing-svc. */
   useMock?: boolean;
+  /**
+   * Resolves tenant sequence config for `op_bill` numbering from configurator's internal route.
+   * Required for real-DB bill creation; billing-svc wires the HTTP loader. When absent, bill numbers
+   * compose from platform defaults (no custom formats).
+   */
+  sequenceConfigLoader?: SequenceConfigLoader;
 }
+
+/** Platform-default config used when no loader is wired (tenant_numeric_code "00001", no overrides). */
+const defaultSequenceConfigLoader: SequenceConfigLoader = async () => ({
+  tenantNumericCode: "00001",
+  identifierOverrides: {},
+});
 
 type ListQuery = {
   q?: string;
@@ -520,7 +533,7 @@ async function handleSingleCreate(
 
 async function billingRouter(
   app: FastifyInstance,
-  { db, useMock }: BillingRouterOptions,
+  { db, useMock, sequenceConfigLoader }: BillingRouterOptions,
 ): Promise<void> {
   app.get<{ Querystring: ListQuery }>(
     "/services",
@@ -631,7 +644,9 @@ async function billingRouter(
 
   const memoryBilling = useMock || !db ? createInMemoryBillingRepo() : null;
   if (memoryBilling && useMock) seedMockBills(memoryBilling.bills);
-  const billingRepo = memoryBilling?.repo ?? createBillingRepo(db!);
+  const billingRepo =
+    memoryBilling?.repo ??
+    createBillingRepo(db!, sequenceConfigLoader ?? defaultSequenceConfigLoader);
   registerBillingHandlers(app, { tariffRepo, billingRepo });
 }
 

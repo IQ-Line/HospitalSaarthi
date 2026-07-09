@@ -12,6 +12,7 @@
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
+    "@hims/ts-sdk-sequence": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/user-management": "workspace:*",
     "fastify": "catalog:",

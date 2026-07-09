@@ -19,3 +19,10 @@ export {
   allocateIdentifier,
   type AllocateIdentifierInput,
 } from "./allocate-identifier.js";
+
+export {
+  createHttpSequenceConfigLoader,
+  type SequenceConfigLoader,
+  type TenantSequenceConfig,
+  type HttpSequenceConfigLoaderOptions,
+} from "./sequence-config-loader.js";
