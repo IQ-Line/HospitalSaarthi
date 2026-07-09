@@ -6,6 +6,9 @@ import type {
   OpdPrescriptionSnapshot,
   OpdQueueProjectionRow,
   OpdQueueProjectionUpsertInput,
+  PharmacyQueueSourceKind,
+  QueueProjectionRow,
+  QueueProjectionUpsertInput,
   PharmacyDispenseStatus,
   SaveDispenseForVisitInput,
   SaveWalkInDispenseInput,
@@ -85,7 +88,7 @@ export interface WalkInDispenseRepo {
   ): Promise<WalkInDispenseDetail>;
 }
 
-export interface OpdQueueProjectionRepo {
+export interface QueueProjectionRepo {
   listForQueue(
     tenantId: string,
     options: {
@@ -95,25 +98,42 @@ export interface OpdQueueProjectionRepo {
       queued_to?: string;
       search?: string;
       status?: PharmacyQueueStatusFilter;
+      source_kind?: PharmacyQueueSourceKind | "all";
     },
-  ): Promise<{ items: OpdQueueProjectionRow[]; total: number }>;
+  ): Promise<{ items: QueueProjectionRow[]; total: number }>;
 
-  upsert(tenantId: string, input: OpdQueueProjectionUpsertInput): Promise<OpdQueueProjectionRow>;
+  upsert(tenantId: string, input: QueueProjectionUpsertInput): Promise<QueueProjectionRow>;
 
   updateDispenseStatus(
     tenantId: string,
-    visitId: string,
+    encounterId: string,
     dispenseStatus: PharmacyDispenseStatus,
+    sourceKind?: PharmacyQueueSourceKind,
+  ): Promise<void>;
+
+  deleteByEncounterId(
+    tenantId: string,
+    encounterId: string,
+    sourceKind?: PharmacyQueueSourceKind,
   ): Promise<void>;
 
   deleteByVisitId(tenantId: string, visitId: string): Promise<void>;
 
-  findByVisitId(tenantId: string, visitId: string): Promise<OpdQueueProjectionRow | undefined>;
+  findByEncounterId(
+    tenantId: string,
+    encounterId: string,
+    sourceKind?: PharmacyQueueSourceKind,
+  ): Promise<QueueProjectionRow | undefined>;
+
+  findByVisitId(tenantId: string, visitId: string): Promise<QueueProjectionRow | undefined>;
 }
+
+/** @deprecated Use `QueueProjectionRepo`. */
+export type OpdQueueProjectionRepo = QueueProjectionRepo;
 
 export type PharmacyRepos = {
   dispenseRecordRepo: DispenseRecordRepo;
-  opdQueueProjectionRepo: OpdQueueProjectionRepo;
+  queueProjectionRepo: QueueProjectionRepo;
 };
 
 export type PharmacyGatewayPorts = {

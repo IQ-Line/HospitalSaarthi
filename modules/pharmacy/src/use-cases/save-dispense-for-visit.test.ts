@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
 import { mockDispenseLine, mockDispenseRecord } from "../test-fixtures/dispense.js";
-import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, OpdQueueProjectionRepo, UserLookupPort } from "../ports.js";
+import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, QueueProjectionRepo, UserLookupPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import {
   DispensePatientMismatchError,
@@ -54,7 +54,7 @@ const userLookup: UserLookupPort = {
   resolveDoctorNames: vi.fn(async () => new Map()),
 };
 
-const opdQueueProjectionRepo: OpdQueueProjectionRepo = {
+const queueProjectionRepo: QueueProjectionRepo = {
   listForQueue: vi.fn(),
   upsert: vi.fn(),
   updateDispenseStatus: vi.fn(),
@@ -65,7 +65,7 @@ const opdQueueProjectionRepo: OpdQueueProjectionRepo = {
 const projectionDeps = {
   masterDataGateway,
   userLookup,
-  opdQueueProjectionRepo,
+  queueProjectionRepo,
 };
 
 describe("saveDispenseForVisit", () => {

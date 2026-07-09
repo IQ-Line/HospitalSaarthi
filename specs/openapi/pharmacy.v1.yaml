@@ -25,7 +25,7 @@ paths:
       operationId: listPharmacyQueue
       summary: List pharmacy queue rows (OPD prescriptions or walk-in orders)
       description: |
-        OPD prescriptions (`kind=opd`) are read from `pharmacy.opd_queue_projection` (rows pushed by
+        OPD prescriptions (`kind=opd`) are read from `pharmacy.queue_projection` (rows pushed by
         OPD on prescription finalize). Walk-in orders (`kind=walk_in`) are read from pharmacy
         dispense records.
       tags: [Queue]
@@ -494,7 +494,7 @@ components:
         patient_name:
           type: string
           nullable: true
-          description: Denormalized patient display name from pharmacy.opd_queue_projection.
+          description: Denormalized patient display name from pharmacy.queue_projection.
         uhid:
           type: string
           nullable: true

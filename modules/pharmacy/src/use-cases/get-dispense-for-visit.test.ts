@@ -84,7 +84,7 @@ const queueProjection = {
   last_synced_at: new Date("2026-06-01T12:00:00.000Z"),
 };
 
-const opdQueueProjectionRepo = {
+const queueProjectionRepo = {
   listForQueue: vi.fn(),
   upsert: vi.fn(),
   updateDispenseStatus: vi.fn(),
@@ -105,7 +105,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -159,7 +159,7 @@ describe("getDispenseForVisit", () => {
     };
 
     const result = await getDispenseForVisit(
-      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+      { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
       TENANT,
       { visitId: VISIT },
     );
@@ -183,7 +183,7 @@ describe("getDispenseForVisit", () => {
 
     await expect(
       getDispenseForVisit(
-        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, opdQueueProjectionRepo },
+        { opdGateway, dispenseRecordRepo, masterDataGateway, userLookup, queueProjectionRepo },
         TENANT,
         { visitId: VISIT },
       ),

@@ -99,15 +99,21 @@ export type OpdCompletedVisitSummary = {
   medicine_count: number;
 };
 
-export type OpdQueueProjectionRow = {
-  visit_id: string;
+export type PharmacyQueueSourceKind = "opd" | "ipd";
+
+export type QueueProjectionRow = {
+  queue_item_id: string;
   iq_tenant_id: string;
+  source_kind: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -117,17 +123,24 @@ export type OpdQueueProjectionRow = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json: Record<string, unknown>;
   last_synced_at: Date;
 };
 
-export type OpdQueueProjectionUpsertInput = {
-  visit_id: string;
+/** @deprecated Use `QueueProjectionRow`. */
+export type OpdQueueProjectionRow = QueueProjectionRow;
+
+export type QueueProjectionUpsertInput = {
+  source_kind?: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority?: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -137,7 +150,11 @@ export type OpdQueueProjectionUpsertInput = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json?: Record<string, unknown>;
 };
+
+/** @deprecated Use `QueueProjectionUpsertInput`. */
+export type OpdQueueProjectionUpsertInput = QueueProjectionUpsertInput;
 
 export type WalkInQueueSummary = {
   record_id: string;
@@ -269,7 +286,7 @@ export type DispenseForVisitResponse = {
   opd_prescription: OpdPrescriptionSnapshot | null;
   /** Catalog-backed medicines eligible for the dispense billing table. */
   dispensable_medicines: OpdPrescriptionMedicineLine[];
-  /** Denormalized from pharmacy.opd_queue_projection (no live EMPI read). */
+  /** Denormalized from pharmacy.queue_projection (no live EMPI read). */
   patient_name: string | null;
   uhid: string | null;
   age_years: number | null;

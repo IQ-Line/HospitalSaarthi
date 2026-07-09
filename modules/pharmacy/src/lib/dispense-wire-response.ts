@@ -6,6 +6,7 @@ import type {
   OpdPrescriptionMedicineLine,
   OpdPrescriptionSnapshot,
   OpdQueueProjectionRow,
+  QueueProjectionRow,
   PharmacyDispenseStatus,
   SaveDispenseLineInput,
   WalkInDispenseResponse,
@@ -98,7 +99,7 @@ export function buildVisitDispenseResponse(input: {
   dispensableMedicines: OpdPrescriptionMedicineLine[];
   record: DispenseRecord | null | undefined;
   rawLines: DispenseLineItemRecord[];
-  queueProjection?: OpdQueueProjectionRow | null;
+  queueProjection?: QueueProjectionRow | null;
 }): DispenseForVisitResponse {
   const wireLines = input.rawLines.map(mapDispenseLineToWire);
   const hasRecord = input.record != null;

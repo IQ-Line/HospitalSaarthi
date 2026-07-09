@@ -93,18 +93,22 @@ export const dispenseLineItems = pharmacySchema.table(
   ],
 );
 
-/** Denormalized OPD prescription queue — synced from OPD on Rx finalize. */
-export const opdQueueProjection = pharmacySchema.table(
-  "opd_queue_projection",
+/** Unified pharmacy queue — OPD + IPD producers push denormalized rows. */
+export const queueProjection = pharmacySchema.table(
+  "queue_projection",
   {
-    visit_id: uuid("visit_id").notNull(),
+    queue_item_id: uuid("queue_item_id").defaultRandom().notNull(),
     ...tenantColumn(),
+    source_kind: text("source_kind").notNull().default("opd"),
+    source_ref_id: uuid("source_ref_id").notNull(),
+    encounter_id: uuid("encounter_id").notNull(),
     patient_id: uuid("patient_id").notNull(),
     prescription_id: uuid("prescription_id").notNull(),
     doctor_id: uuid("doctor_id"),
     visit_status: text("visit_status").notNull(),
     prescription_status: text("prescription_status").notNull(),
     medicine_count: integer("medicine_count").notNull().default(0),
+    priority: text("priority").notNull().default("routine"),
     queued_at: timestamp("queued_at", { withTimezone: true }).notNull(),
     patient_name: text("patient_name"),
     uhid: text("uhid"),
@@ -114,7 +118,14 @@ export const opdQueueProjection = pharmacySchema.table(
     doctor_name: text("doctor_name"),
     formatted_visit_id: text("formatted_visit_id"),
     dispense_status: text("dispense_status").notNull().default("pending"),
+    context_json: jsonb("context_json")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
     last_synced_at: timestamp("last_synced_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.visit_id] })],
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.queue_item_id] })],
 );
+
+/** @deprecated Use `queueProjection` — renamed from opd_queue_projection in migration 0001. */
+export const opdQueueProjection = queueProjection;

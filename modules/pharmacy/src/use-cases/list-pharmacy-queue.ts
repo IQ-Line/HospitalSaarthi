@@ -1,6 +1,6 @@
 import type { PharmacyQueueItem } from "../domain/pharmacy.types.js";
-import type { OpdQueueProjectionRepo } from "../ports.js";
-import { mapOpdQueueProjectionToQueueItem } from "../lib/map-opd-queue-projection.js";
+import type { QueueProjectionRepo } from "../ports.js";
+import { mapQueueProjectionToQueueItem } from "../lib/map-queue-projection.js";
 import {
   normalizePharmacyQueueSearch,
   normalizePharmacyQueueStatus,
@@ -45,7 +45,7 @@ function normalizeQueueKind(_raw: string | null | undefined): PharmacyQueueKind 
 
 async function listOpdPharmacyQueue(
   deps: {
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
   },
   tenantId: string,
   input: {
@@ -57,17 +57,18 @@ async function listOpdPharmacyQueue(
     status: PharmacyQueueStatusFilter;
   },
 ): Promise<ListPharmacyQueueResult> {
-  const result = await deps.opdQueueProjectionRepo.listForQueue(tenantId, {
+  const result = await deps.queueProjectionRepo.listForQueue(tenantId, {
     page: input.page,
     limit: input.limit,
     queued_from: input.queued_from,
     queued_to: input.queued_to,
     search: input.search,
     status: input.status,
+    source_kind: "opd",
   });
 
   return {
-    items: result.items.map(mapOpdQueueProjectionToQueueItem),
+    items: result.items.map(mapQueueProjectionToQueueItem),
     total: result.total,
     page: input.page,
     limit: input.limit,
@@ -76,7 +77,7 @@ async function listOpdPharmacyQueue(
 
 export async function listPharmacyQueue(
   deps: {
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
   },
   tenantId: string,
   input: ListPharmacyQueueInput = {},

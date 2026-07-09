@@ -55,7 +55,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
       try {
         const result = await listPharmacyQueue(
           {
-            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
+            queueProjectionRepo: deps.queueProjectionRepo,
           },
           request.tenantId,
           {
@@ -88,7 +88,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
       try {
         const row = await applyOpdQueueProjectionUpsert(
           {
-            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
+            queueProjectionRepo: deps.queueProjectionRepo,
             dispenseRecordRepo: deps.dispenseRecordRepo,
             userLookup: deps.userLookup,
           },
@@ -117,7 +117,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
     async (request, reply) => {
       assertPharmacyInternalAccess(request);
       await removeOpdQueueProjection(
-        { opdQueueProjectionRepo: deps.opdQueueProjectionRepo },
+        { queueProjectionRepo: deps.queueProjectionRepo },
         request.tenantId,
         request.params.visitId,
       );
@@ -136,7 +136,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
             userLookup: deps.userLookup,
-            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
+            queueProjectionRepo: deps.queueProjectionRepo,
           },
           request.tenantId,
           {
@@ -174,7 +174,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
             userLookup: deps.userLookup,
-            opdQueueProjectionRepo: deps.opdQueueProjectionRepo,
+            queueProjectionRepo: deps.queueProjectionRepo,
           },
           request.tenantId,
           {

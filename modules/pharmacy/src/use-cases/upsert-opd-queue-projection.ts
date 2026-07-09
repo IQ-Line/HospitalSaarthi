@@ -1,14 +1,14 @@
 import type {
   OpdCompletedVisitSummary,
-  OpdQueueProjectionRow,
   PharmacyDispenseStatus,
+  QueueProjectionRow,
 } from "../domain/pharmacy.types.js";
 import { pharmacyDispenseStatusFromRecord } from "../lib/dispense-completion.js";
 import {
   isEligibleOpdQueueProjectionRow,
   resolveOpdQueueQueuedAt,
 } from "../lib/opd-queue-projection-eligibility.js";
-import type { DispenseRecordRepo, OpdQueueProjectionRepo, UserLookupPort } from "../ports.js";
+import type { DispenseRecordRepo, QueueProjectionRepo, UserLookupPort } from "../ports.js";
 
 export type QueueProjectionPatientFields = {
   patient_name: string | null;
@@ -66,16 +66,16 @@ async function resolveDispenseStatus(
 
 export async function upsertOpdQueueProjectionFromVisit(
   deps: {
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
     dispenseRecordRepo: DispenseRecordRepo;
     userLookup: UserLookupPort;
   },
   tenantId: string,
   input: UpsertOpdQueueProjectionFromVisitInput,
-): Promise<OpdQueueProjectionRow | null> {
+): Promise<QueueProjectionRow | null> {
   const { visit } = input;
   if (!isEligibleOpdQueueProjectionRow(visit)) {
-    await deps.opdQueueProjectionRepo.deleteByVisitId(tenantId, visit.visit_id);
+    await deps.queueProjectionRepo.deleteByVisitId(tenantId, visit.visit_id);
     return null;
   }
 
@@ -104,8 +104,10 @@ export async function upsertOpdQueueProjectionFromVisit(
     ),
   ]);
 
-  return deps.opdQueueProjectionRepo.upsert(tenantId, {
-    visit_id: visit.visit_id,
+  return deps.queueProjectionRepo.upsert(tenantId, {
+    source_kind: "opd",
+    source_ref_id: prescriptionId,
+    encounter_id: visit.visit_id,
     patient_id: visit.patient_id,
     prescription_id: prescriptionId,
     doctor_id: visit.doctor_id,
@@ -129,9 +131,13 @@ export async function upsertOpdQueueProjectionFromVisit(
   });
 }
 
-export function mapOpdQueueProjectionRowToWire(row: OpdQueueProjectionRow) {
+export function mapOpdQueueProjectionRowToWire(row: QueueProjectionRow) {
   return {
-    visit_id: row.visit_id,
+    queue_item_id: row.queue_item_id,
+    source_kind: row.source_kind,
+    source_ref_id: row.source_ref_id,
+    encounter_id: row.encounter_id,
+    visit_id: row.encounter_id,
     patient_id: row.patient_id,
     prescription_id: row.prescription_id,
     doctor_id: row.doctor_id,
@@ -153,14 +159,14 @@ export function mapOpdQueueProjectionRowToWire(row: OpdQueueProjectionRow) {
 
 export async function applyOpdQueueProjectionUpsert(
   deps: {
-    opdQueueProjectionRepo: OpdQueueProjectionRepo;
+    queueProjectionRepo: QueueProjectionRepo;
     dispenseRecordRepo: DispenseRecordRepo;
     userLookup: UserLookupPort;
   },
   tenantId: string,
   visitId: string,
   body: OpdQueueProjectionUpsertRequest,
-): Promise<OpdQueueProjectionRow | null> {
+): Promise<QueueProjectionRow | null> {
   const patientFields: QueueProjectionPatientFields | undefined =
     body.patient_name != null ||
     body.uhid != null ||
@@ -194,18 +200,18 @@ export async function applyOpdQueueProjectionUpsert(
 }
 
 export async function removeOpdQueueProjection(
-  deps: { opdQueueProjectionRepo: OpdQueueProjectionRepo },
+  deps: { queueProjectionRepo: QueueProjectionRepo },
   tenantId: string,
   visitId: string,
 ): Promise<void> {
-  await deps.opdQueueProjectionRepo.deleteByVisitId(tenantId, visitId);
+  await deps.queueProjectionRepo.deleteByVisitId(tenantId, visitId);
 }
 
 export async function updateOpdQueueProjectionDispenseStatus(
-  deps: { opdQueueProjectionRepo: OpdQueueProjectionRepo },
+  deps: { queueProjectionRepo: QueueProjectionRepo },
   tenantId: string,
   visitId: string,
   dispenseStatus: PharmacyDispenseStatus,
 ): Promise<void> {
-  await deps.opdQueueProjectionRepo.updateDispenseStatus(tenantId, visitId, dispenseStatus);
+  await deps.queueProjectionRepo.updateDispenseStatus(tenantId, visitId, dispenseStatus, "opd");
 }
