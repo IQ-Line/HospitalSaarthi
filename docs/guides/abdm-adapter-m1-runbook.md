@@ -1,8 +1,10 @@
 # ABDM Adapter — M1 runbook (local dev)
 
-This document describes **Milestone 1 (M1)** behaviour implemented in the `abdm-adapter` module and **`abdm-adapter-svc`** service: how to run it, which environment variables matter, how the database is used, and which HTTP APIs exist.
+> Paths/schema realigned with the integration-hub layout, 2026-07-10.
 
-**Authoritative API contract (spec-first):** [`specs/openapi/abdm-adapter.v1.yaml`](../../specs/openapi/abdm-adapter.v1.yaml).
+This document describes **Milestone 1 (M1)** behaviour implemented in the ABDM adapter (`modules/integration-hub/src/integrations/abdm`) and served by the **`integration-hub-svc`** service: how to run it, which environment variables matter, how the database is used, and which HTTP APIs exist.
+
+**Authoritative API contract (spec-first):** [`specs/openapi/integration-hub.v1.yaml`](../../specs/openapi/integration-hub.v1.yaml).
 
 **Full sandbox E2E (M1 → M2 link → consent → records) and production cutover:** [`abdm-adapter-e2e-and-production.md`](./abdm-adapter-e2e-and-production.md) — M1 steps in **§2**, env in **§0**, production in **§10**.
 
@@ -55,22 +57,22 @@ Verify response includes **`mobileVerifySkipped: true`** when steps 4–5 were b
 
 Always keep **`sessionId`** from step 1 across the chain.
 
-Session state is stored in **`abdm_adapter.abdm_sessions`** (`state`, `txn_id`, `x_token`, `t_token`, `context` JSON). Profile calls use the **per-session** `x_token` via merged headers (not a global adapter header).
+Session state is stored in **`integration_hub.abdm_sessions`** (`state`, `txn_id`, `x_token`, `t_token`, `context` JSON). Profile calls use the **per-session** `x_token` via merged headers (not a global adapter header).
 
 **Gateway behaviour:** idempotent **GET** calls retry **once** on **401** after refreshing the cached gateway bearer (and certificate fetch has an extra invalidation path). **POST** OTP/verify calls are **not** blindly retried on 401.
 
 ---
 
-## How to run `abdm-adapter-svc`
+## How to run `integration-hub-svc`
 
 ### Prerequisites
 
 1. **Node.js** matching repo expectations (see root `package.json` engines).
 2. **PostgreSQL** reachable with a URL in **`DATABASE_URL`** (same pattern as the rest of HIMS).
-3. **Schema applied** for the adapter (once per database):
+3. **Schema applied** for the adapter (once per database) — applies every migration in `modules/integration-hub/migrations/` in order:
 
    ```bash
-   psql "$DATABASE_URL" -f modules/abdm-adapter/migrations/0000_abdm_adapter_schema.sql
+   npx nx run integration-hub-svc:db-migrate
    ```
 
 4. **NHA sandbox credentials** in your **local** `.env` (never commit secrets):
@@ -83,46 +85,47 @@ From the monorepo root:
 
 ```bash
 pnpm install
-npx nx run abdm-adapter-svc:serve
+npx nx run integration-hub-svc:serve
 ```
 
-This runs `tsx watch src/main.ts` with `cwd` = `services/abdm-adapter-svc` (see `services/abdm-adapter-svc/project.json`).
+This runs `tsx watch src/main.ts` with `cwd` = `services/integration-hub-svc` (see `services/integration-hub-svc/project.json`).
 
-- **Default HTTP port:** `3007` (override with **`ABDM_ADAPTER_SVC_PORT`**).
+- **Default HTTP port:** `3007` (override with **`INTEGRATION_HUB_SVC_PORT`**; the legacy **`ABDM_ADAPTER_SVC_PORT`** is still accepted as an alias).
 - **Health:** `GET http://localhost:3007/healthz` or **`GET http://localhost:3007/api/abdm/v1/healthz`** (no tenant header).
 
 ### Environment file location
 
-**Configuration** follows the same layering as other TS services: repo root [`.env`](../../.env) (cross-cutting, via Nx `envFile`) plus [`services/abdm-adapter-svc/.env`](../../services/abdm-adapter-svc/.env) (service-specific, via [`load-env.ts`](../../services/abdm-adapter-svc/src/load-env.ts)).
+**Configuration** follows the same layering as other TS services: repo root [`.env`](../../.env) (cross-cutting, via Nx `envFile`) plus [`services/integration-hub-svc/.env`](../../services/integration-hub-svc/.env) (service-specific, via [`load-env.ts`](../../services/integration-hub-svc/src/load-env.ts)).
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `DATABASE_URL` | Yes* | Postgres for `abdm_adapter.abdm_sessions` (usually from root `.env`) |
+| `DATABASE_URL` | Yes* | Postgres for `integration_hub.abdm_sessions` (usually from root `.env`) |
 | `ABDM_DATA_DATABASE_URL` | No | Optional dedicated DB override (runtime + migrate prefer this when set) |
 | `ABDM_SANDBOX_CLIENT_ID` | Yes | NHA sandbox client id (alias: `clientId`) — service `.env` |
 | `ABDM_SANDBOX_CLIENT_SECRET` | Yes | NHA sandbox secret (alias: `clientSecret`) — service `.env` |
-| `ABDM_ADAPTER_SVC_PORT` | No | Default `3007` |
+| `INTEGRATION_HUB_SVC_PORT` | No | Default `3007` (legacy alias `ABDM_ADAPTER_SVC_PORT` still accepted) |
 | `ABDM_GATEWAY_BASE_URL` | No | Default `https://dev.abdm.gov.in` (Postman) |
 | `ABDM_ABHA_API_BASE_URL` | No | Default `https://abhasbx.abdm.gov.in/abha/api` (Postman) |
 
 \* Or set only `ABDM_DATA_DATABASE_URL` in service `.env` when using a dedicated ABDM Postgres.
 
-Reference template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example).
+Reference template: [`services/integration-hub-svc/.env.example`](../../services/integration-hub-svc/.env.example).
 
 ### Database migration
 
-From monorepo root (requires `psql` on PATH):
+From monorepo root — applies every migration in `modules/integration-hub/migrations/` in order (runs `scripts/apply-migration.ts`):
 
 ```bash
 pnpm install
-pnpm --filter @hims/abdm-adapter-svc db:migrate
+npx nx run integration-hub-svc:db-migrate
 ```
 
-Or manually (use a `postgresql://` URL — strip `+psycopg` if needed; add `?sslmode=require` for Azure):
+Or manually (use a `postgresql://` URL — strip `+psycopg` if needed; add `?sslmode=require` for Azure), applying each migration file in filename order:
 
 ```bash
-psql "postgresql://USER:PASS@HOST:6432/temp-abdm?sslmode=require" \
-  -f modules/abdm-adapter/migrations/0000_abdm_adapter_schema.sql
+for f in modules/integration-hub/migrations/*.sql; do
+  psql "postgresql://USER:PASS@HOST:6432/temp-abdm?sslmode=require" -f "$f"
+done
 ```
 
 ---
@@ -132,7 +135,7 @@ psql "postgresql://USER:PASS@HOST:6432/temp-abdm?sslmode=require" \
 ### Connection string
 
 The service reads **`ABDM_DATA_DATABASE_URL`** (if set in service `.env`) or root
-**`DATABASE_URL`** (see `load-env.ts`, `resolve-database-url.ts`, and `scripts/migrate.mjs`).
+**`DATABASE_URL`** (see `services/integration-hub-svc/src/load-env.ts`, `resolve-database-url.ts`, and `modules/integration-hub/scripts/apply-migration.ts`).
 SQLAlchemy-style `postgresql+psycopg://…` is normalised to `postgresql://…` for Node `pg`.
 
 For local docker-compose dev you can still use:
@@ -141,14 +144,14 @@ For local docker-compose dev you can still use:
 postgresql://hims:hims@localhost:5433/hims_dev
 ```
 
-That is **not** “added by M1” specifically — it is the **shared HIMS dev database** convention. Point `DATABASE_URL` at whichever Postgres instance has had the **`abdm_adapter`** migration applied.
+That is **not** “added by M1” specifically — it is the **shared HIMS dev database** convention. Point `DATABASE_URL` at whichever Postgres instance has had the **`integration_hub`** migration applied.
 
 ### Schema and table
 
 | Item | Value |
 |------|--------|
-| Schema | `abdm_adapter` |
-| Table | `abdm_adapter.abdm_sessions` |
+| Schema | `integration_hub` |
+| Table | `integration_hub.abdm_sessions` |
 | Primary key | `(iq_tenant_id, session_id)` |
 | M1 columns you care about | `flow_kind` (e.g. `abdm.m1.aadhaar-otp.v1`), `state`, `txn_id`, `x_token`, `t_token`, `context` (JSON) |
 
@@ -230,7 +233,7 @@ When docs are **enabled** (see below):
 | **Swagger UI** | `http://localhost:3007/docs` |
 | **OpenAPI JSON** | `http://localhost:3007/docs/json` |
 
-Swagger serves the **full Phase A M1 spec** from [`specs/openapi/abdm-adapter.v1.yaml`](../../specs/openapi/abdm-adapter.v1.yaml) (all enrolment + profile routes, ordered in the API description).
+Swagger serves the **full Phase A M1 spec** from [`specs/openapi/integration-hub.v1.yaml`](../../specs/openapi/integration-hub.v1.yaml) (all enrolment + profile routes, ordered in the API description).
 
 **Before trying M1 routes:** open **Authorize** and set **`x-tenant-id`** to your tenant UUID (e.g. `00000000-0000-4000-8000-0000000000aa`). Health routes do not need it.
 
@@ -245,18 +248,18 @@ From `@hims/ts-sdk-openapi` / `isApiDocsExposureEnabled`:
 In local dev, leave `NODE_ENV=development` (or set `ENABLE_API_DOCS=true`) to see `/docs`.
 
 **Important:** The **canonical** contract checked into git for reviews and codegen is  
-[`specs/openapi/abdm-adapter.v1.yaml`](../../specs/openapi/abdm-adapter.v1.yaml).  
+[`specs/openapi/integration-hub.v1.yaml`](../../specs/openapi/integration-hub.v1.yaml).  
 The live `/docs` view reflects what Fastify + `@fastify/swagger` expose from registered route schemas; keep the YAML and handlers aligned (spec-first rule).
 
 ---
 
 ## Gated sandbox tests (optional)
 
-From `modules/abdm-adapter/package.json`:
+From `modules/integration-hub/package.json`:
 
 ```bash
 pnpm -F @hims/ts-sdk-db build
-pnpm -F @hims/abdm-adapter test:sandbox
+pnpm -F @hims/integration-hub test:sandbox
 ```
 
 Requires `RUN_ABDM_SANDBOX_TESTS=1` and sandbox env vars (see root `.env.example`).

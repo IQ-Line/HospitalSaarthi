@@ -1,5 +1,7 @@
 # ABDM Adapter — Full E2E test guide (M1 → M2 → M3) and production cutover
 
+> Paths/schema realigned with the integration-hub layout, 2026-07-10.
+
 This is the **operator guide** for testing the complete ABDM journey on sandbox and for knowing **exactly what must change before live (production) traffic**.
 
 > **M2-only cheat sheet:** [abdm-adapter-m2-simple-reference.md](./abdm-adapter-m2-simple-reference.md) (link token, old LIMS vs adapter).  
@@ -15,12 +17,12 @@ This is the **operator guide** for testing the complete ABDM journey on sandbox 
 | [M2 hands-on walkthrough](./abdm-adapter-m2-hands-on-walkthrough.md) | ngrok + Postman + curl (HIP link) |
 | [M2 runbook](./abdm-adapter-m2-runbook.md) | M2 dev checklist, smoke scripts |
 | [M3 developer + TC-01–34](./abdm-adapter-m3-developer-and-e2e.md) | M3 mock harness, test catalogue, implementation phases |
-| [OpenAPI / Swagger](../../specs/openapi/abdm-adapter.v1.yaml) | Staff platform APIs only — `http://localhost:3007/docs` |
+| [OpenAPI / Swagger](../../specs/openapi/integration-hub.v1.yaml) | Staff platform APIs only — `http://localhost:3007/docs` |
 | [08-m3-flows.md](../architecture/lld/abdm-adapter/08-m3-flows.md) | M3 callback catalogue (not in Swagger) |
 | Postman `Milestone_2_16_02_2026_6e734af067 (1).postman_collection.json` | NHA sandbox examples |
 
-**Service:** `abdm-adapter-svc` — default port **3007**.  
-**Env template:** `services/abdm-adapter-svc/.env.example` (comments point back to this guide §0 and §10).
+**Service:** `integration-hub-svc` — default port **3007**.  
+**Env template:** `services/integration-hub-svc/.env.example` (comments point back to this guide §0 and §10).
 
 ---
 
@@ -45,13 +47,13 @@ This is the **operator guide** for testing the complete ABDM journey on sandbox 
 
 ## What is implemented vs still open
 
-| Area | Backend (`abdm-adapter`) | Frontend (`services/web`) |
+| Area | Backend (`integration-hub`) | Frontend (`services/web`) |
 |------|--------------------------|---------------------------|
 | M1 ABHA enrol / verify / profile | Done — `/m1/*` | Partial — register patient may use another BFF; align with **§2** |
 | M2 HIP link, add-contexts, SMS | Done — `/m2/*` + `/api/v3/*` callbacks | Not fully wired in web |
 | M3 HIU consent request + grant | Done — `/m3/hiu/consent/*` + callbacks | **Todo** — poll session in UI |
 | M3 HIU data transfer + bundle | Done — `/m3/hiu/data-request`, `/transfers/{id}` | **Todo** — show received FHIR |
-| OpenAPI / Swagger | Done — `specs/openapi/abdm-adapter.v1.yaml` | Consumers use generated client or fetch |
+| OpenAPI / Swagger | Done — `specs/openapi/integration-hub.v1.yaml` | Consumers use generated client or fetch |
 
 Types for M1–M3 live in `packages/ts-sdk-abha` (`protocol/m1`, `m2`, `m3`).
 
@@ -64,7 +66,7 @@ Types for M1–M3 live in `packages/ts-sdk-abha` (`protocol/m1`, `m2`, `m3`).
 ### 0.1 Copy environment
 
 ```bash
-cp services/abdm-adapter-svc/.env.example services/abdm-adapter-svc/.env
+cp services/integration-hub-svc/.env.example services/integration-hub-svc/.env
 ```
 
 Edit **`.env`** (never commit secrets or your personal mobile):
@@ -83,7 +85,7 @@ Edit **`.env`** (never commit secrets or your personal mobile):
 
 #### 0.1.1 Sandbox **live M3 E2E** (real NHA gateway + ngrok)
 
-Use this block in `services/abdm-adapter-svc/.env` when running the **verified** sandbox path (M2 link on your HIP → M3 consent → data fetch). Do **not** use these values in production.
+Use this block in `services/integration-hub-svc/.env` when running the **verified** sandbox path (M2 link on your HIP → M3 consent → data fetch). Do **not** use these values in production.
 
 | Variable | Sandbox live M3 value | Why |
 |----------|----------------------|-----|
@@ -104,7 +106,7 @@ Pick **one** profile. Mixing flags causes “no ngrok callbacks” or “transfe
 
 | Profile | `ABDM_M3_MOCK_GATEWAY` | `ABDM_M3_LOOPBACK_HIU` | `ABDM_DEV_INBOUND_SIMULATION` | `ABDM_ALLOW_INSECURE_CALLBACKS` | How to test |
 |---------|------------------------|-------------------------|--------------------------------|----------------------------------|-------------|
-| **Local mock loop** | `true` | `true` | optional `true` for curl inject | optional | `bash modules/abdm-adapter/scripts/m3/full-loop.sh` |
+| **Local mock loop** | `true` | `true` | optional `true` for curl inject | optional | `bash modules/integration-hub/scripts/m3/full-loop.sh` |
 | **Live sandbox M3** | **`false`** | **`false`** | **`false`** | **`true`** (dev only) | §6A + §12 + real PHR grant |
 | **Production** | **`false`** | **`false`** | unset | unset | §10.4 gate |
 
@@ -113,8 +115,8 @@ Also set `ABDM_X_HIU_ID` to your sandbox HIU (often **same as** `ABDM_X_HIP_ID` 
 ### 0.2 Migrate and start
 
 ```bash
-npx nx run abdm-adapter-svc:db-migrate
-npx nx run abdm-adapter-svc:serve
+npx nx run integration-hub-svc:db-migrate
+npx nx run integration-hub-svc:serve
 ```
 
 Verify: `GET http://localhost:3007/healthz` → `{ "status": "ok" }`.
@@ -256,7 +258,7 @@ In Postman (NHA, not our service):
 **Check:** Adapter logs show `on-generate-token`. DB:
 
 ```sql
-SELECT abha_address, expires_at FROM abdm_adapter.abdm_link_tokens
+SELECT abha_address, expires_at FROM integration_hub.abdm_link_tokens
 WHERE abha_address = '<your-abha@sbx>';
 ```
 
@@ -290,7 +292,7 @@ curl -sS -X POST "http://localhost:3007/api/abdm/v1/m2/hip/initiated-link/start"
 
 ```sql
 SELECT session_id, flow_kind, state, request_id
-FROM abdm_adapter.abdm_sessions
+FROM integration_hub.abdm_sessions
 WHERE flow_kind = 'abdm.m2.hip-initiated-link.v1'
 ORDER BY created_at DESC LIMIT 3;
 ```
@@ -367,7 +369,7 @@ Postman folder: **Data Transfer (HIP)**.
 **Check:**
 
 ```sql
-SELECT consent_id, patient_id, status FROM abdm_adapter.abdm_consent_artefacts
+SELECT consent_id, patient_id, status FROM integration_hub.abdm_consent_artefacts
 ORDER BY granted_at DESC LIMIT 5;
 ```
 
@@ -385,7 +387,7 @@ ORDER BY granted_at DESC LIMIT 5;
 1. Consent row exists for `consent.id` in the request.
 2. `RECORD_FOUNDATION` returns bundles (`fetchBundlesForConsent`) or mock returns sample bundle.
 3. **`dataPushUrl`** is reachable from the adapter (use webhook.site in Postman).
-4. Sandbox uses **Fidelius stub** (not real encryption) — see production section.
+4. Sandbox uses **real Fidelius encryption by default** (Curve25519 ECDH + HKDF-SHA256 + AES-256-GCM); the legacy base64 stub is opt-in via `ABDM_FIDELIUS_USE_STUB=true` — see production section.
 
 ---
 
@@ -534,7 +536,7 @@ Swagger: `http://localhost:3007/docs`.
 
 #### Why Swagger shows only 3 M2 APIs (not a bug)
 
-`/docs` is generated from [`specs/openapi/abdm-adapter.v1.yaml`](../../specs/openapi/abdm-adapter.v1.yaml) with prefix **`/api/abdm/v1`**. That file documents **staff/platform** endpoints only.
+`/docs` is generated from [`specs/openapi/integration-hub.v1.yaml`](../../specs/openapi/integration-hub.v1.yaml) with prefix **`/api/abdm/v1`**. That file documents **staff/platform** endpoints only.
 
 | Swagger (M2-HIP-Linking) | Who calls it |
 |--------------------------|--------------|
@@ -586,14 +588,14 @@ Use collection: `Milestone_2_16_02_2026_6e734af067 (1).postman_collection.json`.
 
 ```bash
 # Unit tests (CI-safe)
-npx nx run abdm-adapter:test
+npx nx run integration-hub:test
 
 # Sandbox integration (needs DATABASE_URL + credentials)
 RUN_ABDM_SANDBOX_TESTS=1 \
   DATABASE_URL=postgresql://... \
   ABDM_SANDBOX_CLIENT_ID=... \
   ABDM_SANDBOX_CLIENT_SECRET=... \
-  pnpm -F @hims/abdm-adapter test:sandbox
+  pnpm -F @hims/integration-hub test:sandbox
 ```
 
 ---
@@ -642,7 +644,7 @@ M3 developer guide and TC-01–TC-34 catalogue: [abdm-adapter-m3-developer-and-e
 | Fidelius | `FideliusEncryptor` — BC Weierstrass curve25519 (`@noble/curves`), Java interop test | **Unset** `ABDM_FIDELIUS_USE_STUB`; do not use legacy stub |
 | Gateway JWS | `verifyAbdmSignature` — RS256 + JWKS (`ABDM_GATEWAY_JWKS_URL`) | **Unset** `ABDM_ALLOW_INSECURE_CALLBACKS`; set production JWKS |
 | Consent signature | JCS (`canonicalize`) + `ABDM_CM_CONSENT_VERIFY_CERT_PEM` | CM signing cert from NHA |
-| Link OTP | `DrizzleLinkOtpsRepo` — `abdm_link_otps` table (SHA-256 hash) | Apply migration `0002_abdm_link_otps.sql`; multi-pod safe |
+| Link OTP | `DrizzleLinkOtpsRepo` — `abdm_link_otps` table (SHA-256 hash) | `abdm_link_otps` ships in `0000_init.sql` (applied by `db-migrate`); multi-pod safe |
 | User-initiated SMS | `createSmsClientFromEnv()` — `http` / `twilio` / `logging` | `ABDM_SMS_PROVIDER=twilio` or `http` with credentials |
 | EMPI discover | `EmpiClientError` → **502** on upstream failure (not “patient not found”) | `EMPI_BASE_URL` required |
 | In-process `InProcessEventBus` | OK for single instance | **Durable bus** (NATS/Kafka) when multiple replicas |
@@ -665,7 +667,7 @@ M3 developer guide and TC-01–TC-34 catalogue: [abdm-adapter-m3-developer-and-e
 
 - [ ] Callback URL registered in **production** HFR for production HIP
 - [ ] `ABDM_M2_MOCK_PLATFORM=false`, EMPI + RF URLs verified
-- [ ] Migration `0002_abdm_link_otps.sql` applied (multi-pod OTP)
+- [ ] Migrations applied via `db-migrate` (the `abdm_link_otps` multi-pod OTP table ships in `0000_init.sql`)
 - [ ] End-to-end on **staging** NHA: HIP link → consent → HI push with **real Fidelius** (Java interop vector passes in CI)
 - [ ] Gateway JWS + consent CM cert configured; `ABDM_ALLOW_INSECURE_CALLBACKS` unset
 - [ ] `ABDM_SMS_PROVIDER` delivers OTP to test handset
@@ -720,7 +722,7 @@ Use this checklist for a **clean demo** (new `sessionId`, `transferId`, care con
 ### 12.1 Before you start
 
 - [ ] `.env` matches **§0.1.1** (`ABDM_M3_MOCK_GATEWAY=false`, `ABDM_DEV_INBOUND_SIMULATION=false`, `ABDM_ALLOW_INSECURE_CALLBACKS=true`)
-- [ ] `npx nx run abdm-adapter-svc:serve` restarted after `.env` change
+- [ ] `npx nx run integration-hub-svc:serve` restarted after `.env` change
 - [ ] ngrok `http 3007` running; **Update Bridge URL** in Postman to ngrok HTTPS origin
 - [ ] Pick new care context id e.g. `VISIT-2026-002` (do not reuse an old consent’s visit if revoked)
 
@@ -771,7 +773,7 @@ Ngrok inspector: `http://127.0.0.1:4040` — export or screenshot callback list.
 ## 13. Local smoke script
 
 ```bash
-./services/abdm-adapter-svc/scripts/m2-local-smoke.sh
+./services/integration-hub-svc/scripts/m2-local-smoke.sh
 ```
 
 Simulates link-token callback + `initiated-link/start` without full Postman (still needs sandbox creds for outbound NHA).

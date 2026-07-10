@@ -936,9 +936,9 @@ Nx enforces dependency rules via project tags and `@nx/enforce-module-boundaries
 | Source | May depend on | Must NOT depend on |
 |--------|--------------|-------------------|
 | `modules/*` | `packages/ts-sdk-*`, `packages/openapi-clients` | Other `modules/*`, `services/*` |
-| `services/*` | `modules/*`, `packages/*` | Other `services/*` (except BFF → module services) |
+| `services/*` | `modules/*`, `packages/*` | Other `services/*` |
 | `packages/ts-sdk-*` | Other `packages/ts-sdk-*` (carefully) | `modules/*`, `services/*` |
-| `packages/openapi-clients` | `specs/` (generated from) | `modules/*`, `services/*`, `packages/ts-sdk-*` |
+| `packages/openapi-clients` *(planned — not yet created; only the `@hims/openapi-clients` tsconfig path stub exists)* | `specs/` (generated from) | `modules/*`, `services/*`, `packages/ts-sdk-*` |
 
 **The critical rule:** A module must never import from another module. Cross-module communication is via events (async) or generated OpenAPI clients (sync). This enforces the [no cross-schema foreign keys](../../analysis/03-database-principles.md#4-no-cross-schema-foreign-keys) principle at the code level.
 

@@ -125,9 +125,8 @@ resolver action must have both an **ALLOW** (capability present) and a **DENY** 
 missing) expectation. Compile + run the whole corpus:
 
 ```bash
-docker run --rm -v "$(pwd)/infra/cerbos:/work" \
-  ghcr.io/cerbos/cerbos:0.53.0 compile --tests=/work/tests /work/policies
-# → 274 tests executed [274 OK]
+npx nx run cerbos-policies:compile   # cerbos image pinned in infra/cerbos/project.json
+# → 279 tests executed [279 OK]
 ```
 
 ## 6. ABDM sandbox suites — manual only

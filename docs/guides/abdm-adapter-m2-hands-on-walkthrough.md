@@ -1,5 +1,7 @@
 # M2 hands-on walkthrough — ngrok, Postman, Swagger (beginner)
 
+> Paths/schema realigned with the integration-hub layout, 2026-07-10.
+
 Use this doc when you want **every click and curl** for sandbox M2.
 
 > **Easy overview first:** [abdm-adapter-m2-simple-reference.md](./abdm-adapter-m2-simple-reference.md)  
@@ -52,8 +54,8 @@ Your adapter is **one server** on port **3007**, but M2 uses **three different c
 
 ```bash
 # Terminal 1 — from repo root
-npx nx run abdm-adapter-svc:db-migrate   # once
-npx nx run abdm-adapter-svc:serve
+npx nx run integration-hub-svc:db-migrate   # once
+npx nx run integration-hub-svc:serve
 ```
 
 Check:
@@ -63,7 +65,7 @@ curl -sS http://localhost:3007/healthz
 # {"status":"ok"}
 ```
 
-### B.2 Environment (`services/abdm-adapter-svc/.env`)
+### B.2 Environment (`services/integration-hub-svc/.env`)
 
 | Variable | Your sandbox example |
 |----------|----------------------|
@@ -184,7 +186,7 @@ Update `.env`:
 ABDM_MOCK_ABHA_ADDRESS=kamalxxx@sbx
 ```
 
-Restart `abdm-adapter-svc:serve`.
+Restart `integration-hub-svc:serve`.
 
 Postman variable **`ABHA Address`** = same value.
 
@@ -239,7 +241,7 @@ Within a few seconds, **ngrok** should show `POST /api/v3/hip/token/on-generate-
 
 ```bash
 psql "postgresql://hims:hims@localhost:5433/hims_dev" -c \
-  "SELECT abha_address, expires_at IS NOT NULL AS has_token FROM abdm_adapter.abdm_link_tokens WHERE abha_address = 'your-abha@sbx';"
+  "SELECT abha_address, expires_at IS NOT NULL AS has_token FROM integration_hub.abdm_link_tokens WHERE abha_address = 'your-abha@sbx';"
 ```
 
 **Debug only:** Postman **HIP Initiated Linking → Link Token Generation** hits NHA directly (same callback path).
@@ -307,7 +309,7 @@ POST /api/v3/link/on_carecontext
 **Verify:**
 
 ```sql
-SELECT session_id, state FROM abdm_adapter.abdm_sessions
+SELECT session_id, state FROM integration_hub.abdm_sessions
 WHERE flow_kind = 'abdm.m2.hip-initiated-link.v1'
 ORDER BY created_at DESC LIMIT 1;
 -- state should be LINKED
@@ -371,7 +373,7 @@ curl -sS -X POST "$NGROK/api/v3/consent/request/hip/notify" \
 **Check:**
 
 ```sql
-SELECT consent_id, status FROM abdm_adapter.abdm_consent_artefacts ORDER BY granted_at DESC LIMIT 1;
+SELECT consent_id, status FROM integration_hub.abdm_consent_artefacts ORDER BY granted_at DESC LIMIT 1;
 ```
 
 Adapter also sends ack to NHA `consent/.../on-notify` (Door 2 outbound — check serve logs).
@@ -522,7 +524,7 @@ Base: `https://YOUR-NGROK.ngrok-free.app`
 
 ## Part J — Recommended test order (checklist)
 
-- [ ] Terminal 1: `abdm-adapter-svc:serve` healthy  
+- [ ] Terminal 1: `integration-hub-svc:serve` healthy  
 - [ ] Terminal 2: `ngrok http 3007`  
 - [ ] Postman: Session API → `accessToken`  
 - [ ] Postman: Update Bridge URL → your ngrok HTTPS URL  
