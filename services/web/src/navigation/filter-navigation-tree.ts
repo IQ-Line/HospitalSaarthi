@@ -158,15 +158,6 @@ function isPharmacyOpenNav(node: NavigationNode): boolean {
   return node.id === 'pharmacy' || (node.route?.startsWith('/pharmacy') ?? false);
 }
 
-/** Phase 0 inventory UI — show all operational submodules until Cerbos/tenant gates are wired. */
-function isInventoryOpenNav(node: NavigationNode): boolean {
-  if (node.id === 'inventory') {
-    return true;
-  }
-  const route = node.route;
-  return route === '/inventory' || (route?.startsWith('/inventory/') ?? false);
-}
-
 export function isNavigationNodeVisible(
   node: NavigationNode,
   ctx: NavFilterContext,
@@ -179,9 +170,6 @@ export function isNavigationNodeVisible(
     return false;
   }
   if (isPharmacyOpenNav(node)) {
-    return true;
-  }
-  if (isInventoryOpenNav(node)) {
     return true;
   }
   if (!passesRoleGate(node, ctx, parent)) {

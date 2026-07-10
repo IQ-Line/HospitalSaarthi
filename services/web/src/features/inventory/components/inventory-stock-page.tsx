@@ -122,7 +122,7 @@ export function InventoryStockPage({
 
   const { data, isLoading } = useInventoryStock({
     search: search || undefined,
-    store_id: storeId,
+    store_id: isExpiringView ? '' : storeId,
     status: 'all',
   });
   const { data: expiringLots = [], isLoading: expiringLoading } = useInventoryExpiringLots(
