@@ -175,8 +175,10 @@ const TRANSFER_STATUS_MAP: Record<
   InventoryTransferStatus
 > = {
   draft: 'Draft',
-  in_transit: 'In transit',
+  in_transit: 'Dispatched',
+  partially_received: 'Partially received',
   completed: 'Completed',
+  rejected: 'Rejected',
   cancelled: 'Cancelled',
 };
 
@@ -199,13 +201,21 @@ export function mapInventorySvcStockTransferRow(
     transfer_type: TRANSFER_TYPE_MAP[row.transfer_type],
     status: TRANSFER_STATUS_MAP[row.status],
     remarks: row.remarks ?? undefined,
+    inventory_indent_id: row.inventory_indent_id,
+    indent_number: row.indent_number ?? undefined,
+    line_count: row.line_count,
     lines: (row.lines ?? []).map((line) => ({
       id: line.id,
       item_id: line.item_id,
       item_code: line.item?.item_code ?? '',
       item_name: line.item?.name ?? '',
       uom: line.item?.unit_of_measure ?? '',
-      quantity: line.transfer_qty,
+      quantity: Number(line.transfer_qty),
+      dispatched_qty: Number(line.transfer_qty),
+      received_qty: line.received_qty != null ? Number(line.received_qty) : undefined,
+      accepted_qty: line.accepted_qty != null ? Number(line.accepted_qty) : undefined,
+      rejected_qty: line.rejected_qty != null ? Number(line.rejected_qty) : undefined,
+      rejection_reason: line.rejection_reason ?? undefined,
       line_remarks: line.line_remarks ?? undefined,
     })),
   };

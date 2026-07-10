@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import multipart from "@fastify/multipart";
-import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";import { tenantPlugin } from "@hims/ts-sdk-tenant";
+import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
+import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
 import {

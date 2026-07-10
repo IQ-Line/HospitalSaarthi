@@ -34,9 +34,11 @@ async function assertStoresActive(deps: SaveIndentDraftDeps, tenantId: string, i
     throw new IndentValidationError("Both stores must be active");
   }
 
-  if (fromStore.indent_authority && fromStore.indent_target_store_id) {
-    if (fromStore.indent_target_store_id !== input.to_store_id) {
-      throw new IndentValidationError("From store is not configured to indent to this target store");
+  if (toStore.indent_authority && toStore.indent_target_store_id) {
+    if (toStore.indent_target_store_id !== input.from_store_id) {
+      throw new IndentValidationError(
+        "Receiving store is not configured to request stock from this sending store",
+      );
     }
   }
 }

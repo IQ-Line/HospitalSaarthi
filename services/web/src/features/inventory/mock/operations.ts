@@ -5,6 +5,7 @@ import type {
   InventoryGrnListParams,
   InventoryIndentListData,
   InventoryIndentListParams,
+  InventoryIndentRow,
   InventoryItemOption,
   InventoryExpiringLot,
   InventoryLowStockItem,
@@ -174,6 +175,19 @@ export async function mockFetchInventoryIndents(
   const start = (page - 1) * limit;
   const slice = rows.slice(start, start + limit);
   return { data: slice, total: rows.length };
+}
+
+export async function mockFetchInventoryIndentByNumber(
+  indentNumber: string,
+): Promise<InventoryIndentRow> {
+  const normalized = indentNumber.trim().toLowerCase();
+  const match = MOCK_INDENTS.find(
+    (row) => row.indent_number.trim().toLowerCase() === normalized,
+  );
+  if (!match) {
+    throw new Error(`No indent found with number ${indentNumber.trim()}.`);
+  }
+  return match;
 }
 
 export async function mockFetchInventoryGrnLogs(

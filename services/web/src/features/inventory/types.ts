@@ -269,7 +269,13 @@ export type InventoryGrnFormValues = {
   lines: InventoryGrnLineDraft[];
 };
 
-export type InventoryTransferStatus = 'Draft' | 'In transit' | 'Completed' | 'Cancelled';
+export type InventoryTransferStatus =
+  | 'Draft'
+  | 'Dispatched'
+  | 'Partially received'
+  | 'Completed'
+  | 'Rejected'
+  | 'Cancelled';
 
 export type InventoryTransferType = 'normal' | 'emergency';
 
@@ -279,7 +285,15 @@ export type InventoryTransferLine = {
   item_code: string;
   item_name: string;
   uom: string;
+  requested_qty?: number;
+  approved_qty?: number;
+  available_qty?: number;
   quantity: number;
+  dispatched_qty?: number;
+  received_qty?: number;
+  accepted_qty?: number;
+  rejected_qty?: number;
+  rejection_reason?: string;
   line_remarks?: string;
 };
 
@@ -294,11 +308,18 @@ export type InventoryTransferRow = {
   transfer_type: InventoryTransferType;
   status: InventoryTransferStatus;
   remarks?: string;
+  inventory_indent_id?: string | null;
+  indent_number?: string | null;
+  line_count?: number;
   lines: InventoryTransferLine[];
 };
 
 export type InventoryTransferListParams = {
   search?: string;
+  status?: 'draft' | 'in_transit' | 'partially_received' | 'completed' | 'rejected' | 'cancelled';
+  statuses?: Array<'draft' | 'in_transit' | 'partially_received' | 'completed' | 'rejected' | 'cancelled'>;
+  from_store_id?: string;
+  to_store_id?: string;
   page?: number;
   limit?: number;
 };

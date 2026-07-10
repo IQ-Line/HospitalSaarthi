@@ -15,6 +15,38 @@ export async function listIndentStores(
   const stores = await deps.indentRepo.findStoresWithIndentMeta(tenantId);
 
   if (options.role === "from") {
+    // Sending / approving stores (typically hubs without indent authority).
+    return {
+      stores: stores
+        .filter((store) => !store.indent_authority)
+        .map((store) => ({
+          store_id: store.id,
+          store_code: store.store_code,
+          store_name: store.store_name,
+          indent_authority: store.indent_authority,
+          indent_target_store_id: store.indent_target_store_id,
+        })),
+    };
+  }
+
+  if (options.role === "to") {
+    // Receiving stores that can raise indents against a target hub.
+    if (options.from_store_id) {
+      return {
+        stores: stores
+          .filter(
+            (store) =>
+              store.indent_authority && store.indent_target_store_id === options.from_store_id,
+          )
+          .map((store) => ({
+            store_id: store.id,
+            store_code: store.store_code,
+            store_name: store.store_name,
+            indent_authority: store.indent_authority,
+            indent_target_store_id: store.indent_target_store_id,
+          })),
+      };
+    }
     return {
       stores: stores
         .filter((store) => store.indent_authority)
@@ -26,26 +58,6 @@ export async function listIndentStores(
           indent_target_store_id: store.indent_target_store_id,
         })),
     };
-  }
-
-  if (options.role === "to" && options.from_store_id) {
-    const fromStore = stores.find((store) => store.id === options.from_store_id);
-    if (fromStore?.indent_target_store_id) {
-      const target = stores.find((store) => store.id === fromStore.indent_target_store_id);
-      if (target) {
-        return {
-          stores: [
-            {
-              store_id: target.id,
-              store_code: target.store_code,
-              store_name: target.store_name,
-              indent_authority: target.indent_authority,
-              indent_target_store_id: target.indent_target_store_id,
-            },
-          ],
-        };
-      }
-    }
   }
 
   return {

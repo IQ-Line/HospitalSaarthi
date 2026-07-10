@@ -206,7 +206,13 @@ export type InventorySvcIndentStoreOption = {
   indent_target_store_id: string | null;
 };
 
-export type InventorySvcStockTransferStatus = 'draft' | 'in_transit' | 'completed' | 'cancelled';
+export type InventorySvcStockTransferStatus =
+  | 'draft'
+  | 'in_transit'
+  | 'partially_received'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled';
 
 export type InventorySvcStockTransferType = 'normal' | 'emergency';
 
@@ -214,6 +220,10 @@ export type InventorySvcStockTransferLine = {
   id: string;
   item_id: string;
   transfer_qty: number;
+  received_qty?: number | null;
+  accepted_qty?: number | null;
+  rejected_qty?: number | null;
+  rejection_reason?: string | null;
   line_remarks: string | null;
   item?: {
     id: string;
@@ -233,6 +243,8 @@ export type InventorySvcStockTransferRow = {
   status: InventorySvcStockTransferStatus;
   remarks: string | null;
   inventory_indent_id: string | null;
+  indent_number?: string | null;
+  line_count?: number;
   from_store?: { store_id: string; store_code: string; store_name: string } | null;
   to_store?: { store_id: string; store_code: string; store_name: string } | null;
   lines?: InventorySvcStockTransferLine[];

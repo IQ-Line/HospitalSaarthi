@@ -1,6 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
-import { Plus, Save, Send, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Loader2, Plus, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
@@ -21,13 +21,18 @@ import {
   useInventoryGrnUpdate,
 } from '../api/mutations';
 import { mapUiGrnTypeToApi } from '../api/mappers';
-import { useInventoryGrnDetail, useInventoryItems, useInventoryStores } from '../api/queries';
+import { useInventoryGrnDetail, useInventoryIndentByNumber, useInventoryItems, useInventoryStores } from '../api/queries';
 import { useManufacturerMasterLookup } from '@/features/inventory-masters/api/manufacturer-lookup';
 import {
   findUomMasterOption,
   useUomMasterLookup,
 } from '@/features/inventory-masters/api/uom-lookup';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
+import {
+  mapIndentToGrnPrefill,
+  validateIndentForGrnPrefill,
+} from '../lib/grn-indent-prefill';
 import {
   firstGrnValidationMessage,
   validateGrnForm,
@@ -47,6 +52,14 @@ import { InventoryPageShell } from './inventory-page-shell';
 import { GrnDocumentUploadField } from './grn-document-upload-field';
 
 const GRN_TYPES: InventoryGrnType[] = ['Purchase', 'Transfer'];
+
+const INDENT_NUMBER_PATTERN = /^IND-\d{6}-\d{5}$/i;
+const DRAFT_INDENT_NUMBER_PATTERN = /^DRAFT-IND-[A-Z0-9]+$/i;
+
+function isCompleteIndentNumber(value: string): boolean {
+  const trimmed = value.trim();
+  return INDENT_NUMBER_PATTERN.test(trimmed) || DRAFT_INDENT_NUMBER_PATTERN.test(trimmed);
+}
 
 function mapApiLinesToDraft(lines: InventorySvcGrnDetail['lines']): InventoryGrnLineDraft[] {
   if (!lines?.length) return [EMPTY_GRN_LINE()];
@@ -83,7 +96,7 @@ export function InventoryGrnFormPage() {
     isLoading: isLoadingUoms,
     isError: uomsError,
   } = useUomMasterLookup();
-  const { data: items = [] } = useInventoryItems();
+  const { data: items = [], isLoading: isLoadingItems } = useInventoryItems();
   const createGrn = useInventoryGrnCreate();
   const updateGrn = useInventoryGrnUpdate();
   const submitGrn = useInventoryGrnSubmit();
@@ -106,10 +119,19 @@ export function InventoryGrnFormPage() {
     header: {},
     lines: {},
   });
+  const lastAutofilledIndentRef = useRef<string | null>(null);
 
   const isSaving = createGrn.isPending || updateGrn.isPending || submitGrn.isPending;
   const isSubmitted = existingGrn?.status === 'submitted';
   const isReadOnly = isSubmitted;
+  const debouncedIndentNumber = useDebouncedValue(indentNumber.trim(), 400);
+  const {
+    data: indentLookup,
+    isLoading: isLookingUpIndent,
+    isError: indentLookupFailed,
+  } = useInventoryIndentByNumber(debouncedIndentNumber, {
+    enabled: !isReadOnly && isCompleteIndentNumber(debouncedIndentNumber),
+  });
   const headerErrors = validationErrors.header;
   const lineErrors = validationErrors.lines;
 
@@ -143,6 +165,7 @@ export function InventoryGrnFormPage() {
     grn_date: grnDate,
     store_id: storeId,
     vendor_id: resolveManufacturerIdForPayload(manufacturerId, manufacturers) ?? '',
+    indent_number: indentNumber,
     voucher_invoice_no: voucherNumber,
     remarks,
     register_page_no: registerPageNo,
@@ -183,7 +206,48 @@ export function InventoryGrnFormPage() {
     setShipmentDocumentPath(existingGrn.shipment_document_path ?? null);
     setVoucherDocumentPath(existingGrn.voucher_document_path ?? null);
     setLines(mapApiLinesToDraft(existingGrn.lines));
+    lastAutofilledIndentRef.current = existingGrn.indent_number?.trim() || null;
   }, [existingGrn]);
+
+  useEffect(() => {
+    if (isReadOnly || isLoadingUoms || isLoadingItems || !indentLookup) return;
+    if (indentLookup.indent_number.trim() !== debouncedIndentNumber) return;
+    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
+
+    const validation = validateIndentForGrnPrefill(indentLookup, grnId);
+    if (!validation.ok) {
+      toast.error(validation.message);
+      lastAutofilledIndentRef.current = debouncedIndentNumber;
+      return;
+    }
+
+    const prefill = mapIndentToGrnPrefill(validation.indent, uoms, items);
+    setGrnType(prefill.grnType);
+    setGrnDate(prefill.grnDate);
+    setStoreId(prefill.storeId);
+    setVoucherNumber(prefill.voucherNumber);
+    setRemarks(prefill.remarks);
+    setLines(prefill.lines);
+    lastAutofilledIndentRef.current = debouncedIndentNumber;
+    toast.success(`GRN details filled from indent ${debouncedIndentNumber}`);
+  }, [
+    debouncedIndentNumber,
+    grnId,
+    indentLookup,
+    isLoadingItems,
+    isLoadingUoms,
+    isReadOnly,
+    items,
+    uoms,
+  ]);
+
+  useEffect(() => {
+    if (!indentLookupFailed || !debouncedIndentNumber || isReadOnly) return;
+    if (!isCompleteIndentNumber(debouncedIndentNumber)) return;
+    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
+    toast.error(`No indent found with number ${debouncedIndentNumber}.`);
+    lastAutofilledIndentRef.current = debouncedIndentNumber;
+  }, [debouncedIndentNumber, indentLookupFailed, isReadOnly]);
 
   useEffect(() => {
     if (grnIdFromUrl) setGrnId(grnIdFromUrl);
@@ -456,22 +520,45 @@ export function InventoryGrnFormPage() {
             ) : null}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="indent-number">Purchase indent no. (optional)</Label>
-            <Input
-              id="indent-number"
-              value={indentNumber}
-              placeholder="e.g. IND-202606-00013"
-              onChange={(event) => setIndentNumber(event.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              When provided, this GRN will be linked to the purchase indent.
-            </p>
+            <Label htmlFor="indent-number">
+              Indent no. (procurement) <span className="text-destructive">*</span>
+            </Label>
+            <div className="relative">
+              <Input
+                id="indent-number"
+                value={indentNumber}
+                placeholder="e.g. IND-202606-00020"
+                disabled={isReadOnly}
+                aria-invalid={Boolean(headerErrors.indent_number)}
+                className={cn(
+                  isLookingUpIndent && 'pr-9',
+                  headerErrors.indent_number && 'border-destructive',
+                )}
+                onChange={(event) => {
+                  setIndentNumber(event.target.value);
+                  clearHeaderError('indent_number');
+                  if (event.target.value.trim() !== lastAutofilledIndentRef.current) {
+                    lastAutofilledIndentRef.current = null;
+                  }
+                }}
+              />
+              {isLookingUpIndent ? (
+                <Loader2
+                  className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+                  aria-hidden
+                />
+              ) : null}
+            </div>
+            {headerErrors.indent_number ? (
+              <p className="text-xs text-destructive">{headerErrors.indent_number}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Enter a procurement indent number to autofill GRN header and line items.
+              </p>
+            )}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="voucher-number">
-              Voucher / Invoice no.
-              {grnType === 'Purchase' ? <span className="text-destructive"> *</span> : null}
-            </Label>
+            <Label htmlFor="voucher-number">Voucher / Invoice no.</Label>
             <Input
               id="voucher-number"
               value={voucherNumber}

@@ -102,6 +102,56 @@ describe('operational inventory sidebar', () => {
     expect(inventory?.children?.some((c) => c.id === 'inventory-stock')).toBe(true);
   });
 
+  it('shows all operational inventory children for L1 inventory read only', () => {
+    const capabilityKeys = new Set(
+      capabilityKeysFromPrincipalAttributes({
+        iq_tenant_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d480',
+        capabilities: ['inventory:inventory:read'],
+      }),
+    );
+    const index = buildOperationalCatalogIndex();
+    const catalogSlugs = catalogSlugsFromTenantModules(index, [
+      { module_id: INVENTORY_L1_ID, is_active: true },
+    ]);
+    const enabledModuleSlugs = buildEnabledModuleSlugsFromCatalog(catalogSlugs);
+
+    const filtered = filterNavigationTree(
+      composeNavigationManifest(getRegisteredModuleManifests()),
+      {
+        hasCapability: (key) => capabilityKeys.has(key),
+        hasAnyCapability: (keys) => keys.some((key) => capabilityKeys.has(key)),
+        hasAllCapabilities: (keys) => keys.every((key) => capabilityKeys.has(key)),
+        hasAnyCapabilityForProduct: (slugs) =>
+          capabilityKeysGrantProductAccess(capabilityKeys, slugs, index),
+        navAccess: buildNavCapabilityAccessInput(
+          capabilityKeys,
+          index,
+          false,
+          (slugs) => capabilityKeysGrantProductAccess(capabilityKeys, slugs, index),
+        ),
+        enabledModuleSlugs,
+        bypassCapabilityGates: false,
+        isSuperAdmin: false,
+        isTenantAdmin: false,
+        catalogIndex: index,
+        principalRoles: ['inventory-clerk'],
+      },
+    );
+
+    const inventory = filtered.find((n) => n.id === 'inventory');
+    expect(inventory).toBeDefined();
+    const childIds = inventory?.children?.map((child) => child.id) ?? [];
+    expect(childIds).toEqual(
+      expect.arrayContaining([
+        'inventory-dashboard',
+        'inventory-stock',
+        'inventory-indents',
+        'inventory-transfers',
+        'inventory-grn-logs',
+      ]),
+    );
+  });
+
   it('shows Inventory for non-admin user with stock read', () => {
     const capabilityKeys = new Set(
       capabilityKeysFromPrincipalAttributes({

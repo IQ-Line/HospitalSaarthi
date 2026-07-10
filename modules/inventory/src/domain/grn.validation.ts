@@ -25,6 +25,15 @@ export function assertGrnDateNotFuture(grnDate: string): void {
   }
 }
 
+/** GRN must be linked to a procurement indent before submit. */
+export function assertIndentLinkedForSubmit(
+  inventoryIndentId: string | null | undefined,
+): void {
+  if (!inventoryIndentId?.trim()) {
+    throw new GrnValidationError("Indent number is required for GRN");
+  }
+}
+
 export function assertPurchaseHeader(
   grnType: "purchase" | "transfer",
   _manufacturerId: string | null | undefined,
