@@ -796,6 +796,6 @@ If A.1 through A.7 all pass on your machine, the Jenkinsfile in §6 should behav
 
 - **BuildKit must be enabled** on Jenkins agents (default on modern Docker; confirm via `docker version` showing BuildKit).
 - **ACR registry auth + push** instead of local `:local` image tags.
-- **Network access** to `ghcr.io/cerbos/cerbos:0.42.0` for the Cerbos base image pull.
+- **Network access** to `ghcr.io/cerbos/cerbos:0.53.0` for the Cerbos base image pull.
 
 If verification passes locally and breaks in Jenkins, the difference is almost always one of those three.
