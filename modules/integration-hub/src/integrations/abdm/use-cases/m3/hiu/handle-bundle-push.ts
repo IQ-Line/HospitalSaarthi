@@ -54,6 +54,12 @@ export async function handleBundlePush(
   });
   if (decryptedParts === null) return;
 
+  await deps.m3DataTransfers.patchWithSession({
+    iqTenantId: input.iqTenantId,
+    transferId: transfer.transferId,
+    transfer: { state: M3Hiu.BUNDLES_DECRYPTED },
+  });
+
   const bundleJson = {
     transactionId: input.body.transactionId,
     entries: decryptedParts.map((content, i) => ({

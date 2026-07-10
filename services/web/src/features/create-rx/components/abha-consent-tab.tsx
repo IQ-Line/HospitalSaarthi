@@ -39,6 +39,7 @@ interface ConsentFormState {
   fromDate: string;
   toDate: string;
   expiryDate: string;
+  hiTypes: string[];
   forAllHips: boolean;
   hipId: string;
 }
@@ -84,6 +85,7 @@ function defaultForm(requesterName: string): ConsentFormState {
     fromDate: defaultFromDate(),
     toDate: defaultToDate(),
     expiryDate: defaultExpiryDate(),
+    hiTypes: [...M3_HI_TYPES],
     forAllHips: true,
     hipId: '',
   };
@@ -229,11 +231,33 @@ function ConsentRequestForm({
         />
       </div>
 
-      <div className="flex items-center gap-2">
-        <Checkbox id="all-hi-types" checked disabled />
-        <Label htmlFor="all-hi-types" className="text-sm font-normal text-gray-600">
-          All Health Information Types
-        </Label>
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-gray-700">Health Information Types</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {M3_HI_TYPES.map((hiType) => (
+            <div key={hiType} className="flex items-center gap-2">
+              <Checkbox
+                id={`hi-type-${hiType}`}
+                checked={form.hiTypes.includes(hiType)}
+                onCheckedChange={(checked) =>
+                  patchForm({
+                    hiTypes:
+                      checked === true
+                        ? [...form.hiTypes, hiType]
+                        : form.hiTypes.filter((t) => t !== hiType),
+                  })
+                }
+                disabled={isReadOnly}
+              />
+              <Label htmlFor={`hi-type-${hiType}`} className="text-sm font-normal text-gray-600">
+                {hiType}
+              </Label>
+            </div>
+          ))}
+        </div>
+        {form.hiTypes.length === 0 ? (
+          <p className="text-xs text-red-600">Select at least one health information type.</p>
+        ) : null}
       </div>
 
       <div className="flex items-center gap-2">
@@ -368,6 +392,7 @@ export function AbhaConsentTab() {
 
   const isFormValid =
     form.requesterName.trim().length > 0 &&
+    form.hiTypes.length > 0 &&
     form.fromDate &&
     form.toDate &&
     form.expiryDate &&
@@ -383,7 +408,7 @@ export function AbhaConsentTab() {
         patientName: patientDisplayName(patient),
         patientAbhaNumber: patient.abhaNumber,
         purpose: form.purpose,
-        hiTypes: [...M3_HI_TYPES],
+        hiTypes: form.hiTypes,
         dateRange: {
           from: toIsoStartOfDay(form.fromDate),
           to: toIsoEndOfDay(form.toDate),
