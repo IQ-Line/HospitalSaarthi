@@ -383,13 +383,12 @@ system-role into UM `roles` + `role_capabilities`) is not built yet.
 ## The PDP: policy-as-code, decided by attributes not role names
 
 Cerbos runs as a sidecar. Policies live under `infra/cerbos/policies/<module>/`,
-one resource policy per resource. A defining trait: **the primary allow rule for
-each action is `roles: ["*"]`** — the real decision is the CEL `condition`. So this
-is capability/attribute-based (ABAC), not classic role-gating. (A parallel set of
-rules also carry a `roles: ["super-admin"]` selector for cross-tenant super-admin
-access, but they still require the capability in their CEL — the role name alone
-never grants authority; see the residual-string callout at the end of this chapter.)
-The policy header even forbids authorizing on the Cerbos `roles` field alone.
+one resource policy per resource. A defining trait: **every allow rule uses
+`roles: ["*"]`** — the real decision is the CEL `condition`. So this is
+capability/attribute-based (ABAC), not classic role-gating: since 2026-07-10 no
+policy rule selects on a role name at all (the last `"super-admin"` selector and
+`role_codes` string checks were removed — see the operator chapter). The policy
+header even forbids authorizing on the Cerbos `roles` field alone.
 
 ```code lang=yaml file=infra/cerbos/policies/user_management/user.yaml
 - actions: ["user.read"]
@@ -427,10 +426,11 @@ request:
 ```
 
 ```callout tone=info title="Policy test corpus, run in CI"
-`infra/cerbos/tests/` holds **22 test suites** asserting **both ALLOW and DENY**:
-158 named cases with 233 explicitly-pinned effects (124 `EFFECT_ALLOW` + 109
-`EFFECT_DENY`), which Cerbos expands to **279** individual principal×resource×action
-checks. They run via `cerbos compile --tests` in Docker — in CI
+`infra/cerbos/tests/` holds **22 test suites** asserting **both ALLOW and DENY**
+per surface, which Cerbos expands to **281** individual principal×resource×action
+checks (`281 tests executed [281 OK]`). Several suites deliberately pin the
+*absence* of removed authority: dead-string `super-admin` principals are asserted
+DENIED, so re-introducing a role-selector rule fails the build. They run via `cerbos compile --tests` in Docker — in CI
 (`.github/workflows/ci.yml`, which also boots a live PDP for PEP-wiring
 integration tests) and via an equivalent Nx/Make target. A policy change that
 breaks an expectation fails the build. Dedicated suites cover the hard edges:
@@ -521,9 +521,8 @@ sequenceDiagram
 
 ## RBAC vs ABAC — what's actually in the policies
 
-Because the standard rules use `roles: ["*"]`, the decision is (for those) entirely
-in the CEL conditions — the cross-tenant `super-admin`-selector rules still add a
-capability check on top. What those conditions actually reference (counted across
+Because every rule uses `roles: ["*"]`, the decision is entirely in the CEL
+conditions. What those conditions actually reference (counted across
 `infra/cerbos/policies`):
 
 | Attribute in conditions | Role it plays |
@@ -534,7 +533,7 @@ capability check on top. What those conditions actually reference (counted acros
 | `um_clearance_effective_tier` + `required_clearance` + `clearances` | **clearance tiers** — principal tier ≥ resource requirement |
 | `scopes` | **platform-operator** relaxation (below) |
 | `org_id` | org-scope on a few resources |
-| `role_codes` | residual role-string checks inside conditions (see caveat) |
+| `role_codes` | **zero authority** — informational only; the last string-based checks were removed 2026-07-10 |
 
 ## The platform operator: bounded, not god-mode (ADR-0035)
 
@@ -556,11 +555,13 @@ Its replacement is a **bounded `scope:platform`** claim:
   `identity-jwt-claims.ts` sets `scopes = isPlatformAdmin ? ["platform"] : []` by
   reading `platform_admins`. Because `PrincipalService` also re-reads it at
   enrichment, a de-listed operator loses the scope on the next request.
-- **The bound is the omission.** The platform scope additively allows exactly the
-  ~18 provisioning policies (Configurator, Master Data, User-Management). Clinical
-  policies (`opd`, `pharmacy`, `registration`, `empi`, `inventory`, `billing`)
-  carry **no** platform-scope rule — grepping `scopes` in those dirs returns
-  zero. An operator is powerful at provisioning and *powerless* over patient data.
+- **The bound is the omission.** The platform scope additively allows exactly
+  **16 provisioning policies** (Configurator 8, Master Data global catalogs 4,
+  User-Management 4) plus the operator's own `auth.read`. Clinical policies
+  (`opd`, `pharmacy`, `registration`, `empi`, `inventory`, `billing`,
+  `department`, `visitpad`) carry **no** platform-scope rule — grepping `scopes`
+  in those dirs returns zero. An operator is powerful at provisioning and
+  *powerless* over patient data.
 
 ```code lang=yaml file=infra/cerbos/policies/configurator/tenant.yaml
 - actions: ["create", "update"]
@@ -598,16 +599,14 @@ if (!showPanel) return null;   // UX gating only — the API still checks Cerbos
    UM `roles` + `role_capabilities`.
 ```
 
-```callout tone=risk title="Doc-vs-code discrepancy to track: the residual super-admin string"
-ADR-0035 says the `"super-admin"` string is now a *display label only* with
-authority removed. That is true for the 18 platform policies (authority moved to
-`scope:platform`). But `role_codes`-based `"super-admin"` checks still appear in
-some **cross-tenant User-Management** rules — e.g. `user.yaml`'s cross-tenant
-`user.create`/`user.update` rules test `"super-admin" in role_codes` *alongside*
-a tenant-inequality and a capability check. So "the string carries no authority"
-is not literally true everywhere. Worth confirming whether that is intended
-residual (cross-tenant provisioning still keyed partly on the role code) or drift
-to reconcile against ADR-0035.
+```callout tone=decision title="Resolved 2026-07-10: the super-admin string carries zero authority"
+This page originally flagged residual `"super-admin"` string authority as a
+doc-vs-code discrepancy. It has since been removed for real: 56 clinical
+cross-tenant `roles:["super-admin"]` selectors, 19 shadowed User-Management
+string rules, and the one unconditional `auth.read` rule (rewritten to
+`scope:platform`) are gone. ADR-0035's claim is now literally true — no policy
+rule keys on the role string, and the corpus pins the absence (dead-string
+principals are asserted DENIED; re-adding a selector fails the build).
 ```
 
 ```callout tone=info title="Source-of-truth note"

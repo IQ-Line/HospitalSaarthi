@@ -16,7 +16,7 @@ flowchart TB
   subgraph REAL["Real infrastructure"]
     I["Integration — Vitest<br/>REAL Citus per module<br/>no SQLite, no DB mocks"]
     PY["Python — pytest<br/>real PG, alembic drift gate"]
-    CB["Cerbos corpus<br/>279 YAML cases<br/>ALLOW and DENY each"]
+    CB["Cerbos corpus<br/>281 YAML cases<br/>ALLOW and DENY each"]
   end
   MANUAL["Sandbox suites<br/>ABDM live NHA<br/>documented, NOT in CI"]
   U --> I
@@ -72,7 +72,7 @@ Every command below exists today (verified against `project.json` / `Makefile` /
 | Start Citus + Cerbos (local, port **:5433**) | `make infra` |
 | One module's integration suite | `TEST_DATABASE_BASE_URL="postgresql://hims:hims@127.0.0.1:5433" npx nx run configurator:test:integration` |
 | Python integration (drift gate + pytest) | `bash modules/master-data/scripts/run-integration-tests.sh` |
-| Cerbos policy corpus | `docker run --rm -v "$(pwd)/infra/cerbos:/work" ghcr.io/cerbos/cerbos:0.42.0 compile --tests=/work/tests /work/policies` |
+| Cerbos policy corpus | `docker run --rm -v "$(pwd)/infra/cerbos:/work" ghcr.io/cerbos/cerbos:0.53.0 compile --tests=/work/tests /work/policies` |
 | Spec ↔ route coherence | `npx nx run user-management-svc:validate-spec` |
 | Typecheck (one-shot, never `--watch`) | `npx tsc -b modules/configurator` |
 
@@ -107,5 +107,5 @@ An assertion, config, or expectation is never softened for a green run. Tests pr
 ```
 
 ```callout tone=warning title="Adversarial review = mutation probes"
-To trust a test: change the code it covers and confirm the test **fails**. The Cerbos corpus builds this in — every resolver action carries **both** an ALLOW (capability present) and a DENY (capability absent) case, so `279 tests executed [279 OK]` can't be satisfied by an over-permissive policy. Fakes assert on real effects; integration tests assert on real DB rows.
+To trust a test: change the code it covers and confirm the test **fails**. The Cerbos corpus builds this in — every resolver action carries **both** an ALLOW (capability present) and a DENY (capability absent) case, so `281 tests executed [281 OK]` can't be satisfied by an over-permissive policy, and dead-string `super-admin` principals are pinned DENIED so a re-introduced role-selector rule fails the build. Fakes assert on real effects; integration tests assert on real DB rows.
 ```

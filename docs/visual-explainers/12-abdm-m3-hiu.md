@@ -186,19 +186,17 @@ stateDiagram-v2
   DATA_REQUESTED --> AWAITING_PUSH: on-request ok
   DATA_REQUESTED --> EXPIRED: on-request error
   AWAITING_PUSH --> BUNDLES_RECEIVED: HIP push arrives
-  BUNDLES_RECEIVED --> RECORDS_INGESTED: decrypt ok
+  BUNDLES_RECEIVED --> BUNDLES_DECRYPTED: Fidelius decrypt ok
   BUNDLES_RECEIVED --> EXPIRED: decrypt / key failure
+  BUNDLES_DECRYPTED --> RECORDS_INGESTED: write bundle_json + emit event
   RECORDS_INGESTED --> ACKNOWLEDGED: CM data-flow notify sent
   ACKNOWLEDGED --> [*]
   CONSENT_DENIED --> [*]
   EXPIRED --> [*]
 ```
 
-```callout tone=warning title="Two honest quirks in the state set"
-1. **`BUNDLES_DECRYPTED` is declared but never entered.** `handle-bundle-push.ts` jumps
-   `BUNDLES_RECEIVED` → `RECORDS_INGESTED` directly after decryption; the intermediate state
-   exists in `M3_HIU_STATES[8]` but no transition uses it.
-2. **`EXPIRED` is the catch-all failure sink.** `failTransfer()` in `handle-bundle-push.ts`
+```callout tone=warning title="One honest quirk in the state set"
+1. **`EXPIRED` is the catch-all failure sink.** `failTransfer()` in `handle-bundle-push.ts`
    parks missing-key and decrypt failures in `EXPIRED`, and a `REVOKED` notify lands in
    `CONSENT_DENIED` (with `error.code = "REVOKED"`), not a distinct `REVOKED` state — the FE
    re-derives "revoked" from that error code in `mapM3FsmToDisplayStatus`.
@@ -380,16 +378,17 @@ not"). **As of the current tree that is outdated.** Two real, routed surfaces ex
   `downloadM3Attachment` for the embedded reports.
 ```
 
-The residual, narrow gap: in the create-rx consent tab the HI-types are **hardcoded to all
-of them** (`hiTypes: [...M3_HI_TYPES]`, and the checkbox renders `checked disabled`) — the
-user cannot pick a subset when *requesting*. The list page can still *filter* by HI-type
+HI-types are **selectable per request** (since 2026-07-10): the tab renders one checkbox
+per `M3_HI_TYPES` entry, all checked by default, submit disabled at zero selected; the
+chosen subset flows through to `startConsentRequest` (the backend schema accepts any
+non-empty subset, `minItems: 1`). The list page can additionally *filter* by HI-type
 after the fact.
 
 ```wireframe surface=panel title="create-rx → ABHA consent tab"
 <div class="wf-row"><span class="wf-label">Requester</span><input class="wf-input" value="Dr. Rao"/></div>
 <div class="wf-row"><span class="wf-label">Purpose</span><select class="wf-input"><option>Care Management</option></select></div>
 <div class="wf-row"><span class="wf-label">From</span><input class="wf-input" value="2025-01-01"/><span class="wf-label">To</span><input class="wf-input" value="2026-05-21"/></div>
-<div class="wf-row"><input type="checkbox" checked disabled/> <span>All HI types (Prescription, OP Consultation, …)</span></div>
+<div class="wf-row"><input type="checkbox" checked/> <span>Prescription</span> <input type="checkbox" checked/> <span>OP Consultation</span> <input type="checkbox"/> <span>Discharge Summary</span> <span>…</span></div>
 <div class="wf-row"><button class="wf-btn wf-primary">Request Consent</button></div>
 <div class="wf-note">Then polls: CONSENT_INIT_REQUESTED → AWAITING_PATIENT_APPROVAL → GRANTED</div>
 ```

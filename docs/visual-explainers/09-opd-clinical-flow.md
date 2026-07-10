@@ -35,8 +35,7 @@ sequenceDiagram
   REG->>EMPI: registerPatient (HTTP) — UHID + patient_id
   EMPI-->>REG: patient_id, snapshot (or 409 duplicate)
   REG->>REG: write registration + visit rows, allocate OP visit no.
-  REG->>OPD: PUT /opd/visits/{id}/encounter (best-effort)
-  Note over REG,OPD: endpoint NOT implemented in OPD — logs warn, continues.<br/>OPD really learns the visit by reading registration.visit cross-schema
+  Note over REG,OPD: no push from registration to OPD —<br/>OPD learns the visit by reading registration.visit cross-schema
   REG->>BILL: create OP bill + items (HTTP billingWritePort)
   BILL-->>REG: bill_id
   REG--)REG: publish registration.visit.created (in-proc bus, 0 consumers)
@@ -82,10 +81,10 @@ reuse modules/pharmacy/src/use-cases/save-dispense-for-visit.ts — validates ag
 
 Three distinct mechanisms are in play. Knowing which is which is the whole point.
 
-```callout tone=warning title="Two doc-vs-code contradictions — code wins"
-**(1) The OPD encounter endpoint doesn't exist.** `registration`'s `create-visit.ts` calls `opdGateway.ensureEncounter` → `PUT /api/v1/opd/visits/{id}/encounter`. That route is **not** in `specs/openapi/opd.v1.yaml` and **not** implemented in `modules/opd/src/opd/http_handlers/`. The call is best-effort: on failure it logs a warn and still returns 201. OPD instead reads the visit **directly from the `registration.visit` table cross-schema** (`modules/opd/src/opd/models/registration_visit.py`).
+```callout tone=warning title="One doc-vs-code contradiction — code wins (and one resolved)"
+**Cross-schema reads happen, despite "no cross-schema FKs".** CLAUDE.md says modules own separate schemas and talk via events/API. OPD's patients-queue genuinely `SELECT`s from `registration.visit` (same Postgres, read-only, no FK). The model's own docstring calls it a stopgap "until an event projection or generated client replaces this coupling."
 
-**(2) Cross-schema reads happen, despite "no cross-schema FKs".** CLAUDE.md says modules own separate schemas and talk via events/API. OPD's patients-queue genuinely `SELECT`s from `registration.visit` (same Postgres, read-only, no FK). The model's own docstring calls it a stopgap "until an event projection or generated client replaces this coupling."
+**Resolved 2026-07-10:** registration used to fire a best-effort `ensureEncounter` → `PUT /api/v1/opd/visits/{id}/encounter` on every visit — a route OPD never implemented (warn-logged, returned 201 anyway). That dead call path (port, gateway, plumbing, tests) has been deleted; the cross-schema read above is, explicitly, how OPD learns of visits until reach-in #2 lands the real mechanism.
 ```
 
 The events that fire vs. what actually moves data:
@@ -94,7 +93,6 @@ The events that fire vs. what actually moves data:
 |---|---|---|---|
 | `registration.registration.created` | `registration` create-registration | **none** (in-proc bus) | — façade only |
 | `registration.visit.created` | `registration` create-visit | **none** (in-proc bus) | OPD **cross-schema read** of `registration.visit` |
-| visit → OPD encounter | `registration` `ensureEncounter` (HTTP PUT) | OPD (unimplemented) | falls back to cross-schema read |
 | patient identity | `registration` → EMPI (HTTP) | EMPI `registerPatient` | direct HTTP gateway |
 | OP bill | `registration` → billing (HTTP) | billing write port | direct HTTP gateway |
 | Rx → dispense queue | **OPD** `pharmacy_queue_notify.py` (HTTP) | pharmacy `upsert_queue_projection` | direct HTTP push on Rx finalize |

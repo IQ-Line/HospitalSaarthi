@@ -126,7 +126,7 @@ missing) expectation. Compile + run the whole corpus:
 
 ```bash
 npx nx run cerbos-policies:compile   # cerbos image pinned in infra/cerbos/project.json
-# → 279 tests executed [279 OK]
+# → 281 tests executed [281 OK]
 ```
 
 ## 6. ABDM sandbox suites — manual only

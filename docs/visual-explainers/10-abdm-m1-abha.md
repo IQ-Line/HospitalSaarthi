@@ -16,14 +16,14 @@ purely *synchronous* HTTP against the NHA (National Health Authority) gateway:
 > Callbacks (and their JWS verification) only appear in M2 linking and M3 consent/data.
 > That distinction drives half the architecture below, so it is called out explicitly.
 
-```callout tone=warning title="Doc drift — the runbook names a service and schema that no longer exist"
-`docs/guides/abdm-adapter-m1-runbook.md` describes a **standalone `abdm-adapter-svc`**
-on port **3007** with tables in schema **`abdm_adapter`**. Both are stale. Commit
-`45b33f40 refactor(integration-hub): migrate abdm-adapter to integration-hub` folded
-the adapter into **`modules/integration-hub`**, served by **`services/integration-hub-svc`**;
-`services/abdm-adapter-svc/` is now just an orphaned `.env`. The live schema constant is
-`INTEGRATION_HUB_SCHEMA_NAME = "integration_hub"` (`schema/tables.ts:37`), so the table is
-**`integration_hub.abdm_sessions`**. Trust the code paths in this page over the runbook.
+```callout tone=info title="History: the adapter used to be a standalone service"
+Commit `45b33f40 refactor(integration-hub): migrate abdm-adapter to integration-hub`
+folded the old standalone `abdm-adapter-svc` into **`modules/integration-hub`**, served
+by **`services/integration-hub-svc`** (which inherited port 3007 via env alias). The live
+schema constant is `INTEGRATION_HUB_SCHEMA_NAME = "integration_hub"` (`schema/tables.ts:37`),
+so the table is **`integration_hub.abdm_sessions`**. The runbooks under `docs/guides/` were
+realigned and the orphaned `services/abdm-adapter-svc/` husk removed on 2026-07-10 — this
+callout stays as the pointer for anyone holding an old checkout or old notes.
 ```
 
 <!-- chapter: Architecture -->
