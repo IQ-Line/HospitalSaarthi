@@ -1,10 +1,12 @@
 import type {
   InventoryDashboardData,
+  InventoryDashboardStats,
   InventoryGrnListData,
   InventoryGrnListParams,
   InventoryIndentListData,
   InventoryIndentListParams,
   InventoryItemOption,
+  InventoryLowStockItem,
   InventoryListParams,
   InventoryManufacturerOption,
   InventoryReconciliationRow,
@@ -57,6 +59,39 @@ export async function mockFetchInventoryManufacturers(): Promise<InventoryManufa
 
 export async function mockFetchInventoryDashboard(): Promise<InventoryDashboardData> {
   return MOCK_DASHBOARD;
+}
+
+export async function mockFetchInventoryDashboardStats(
+  storeId?: string,
+): Promise<InventoryDashboardStats> {
+  const resolvedStoreId = storeId || MOCK_INVENTORY_STORES[0]?.id;
+  const [items, stock, indents] = await Promise.all([
+    mockFetchInventoryItems(),
+    mockFetchInventoryStock({ store_id: resolvedStoreId, status: 'all' }),
+    mockFetchInventoryIndents({ status: 'submitted', limit: 1 }),
+  ]);
+  return {
+    active_items: items.length,
+    low_stock: stock.summary.critical + stock.summary.low,
+    expiring_soon: MOCK_DASHBOARD.stats.expiring_soon,
+    pending_approvals: indents.total,
+  };
+}
+
+export async function mockFetchInventoryLowStockItems(
+  storeId: string,
+): Promise<InventoryLowStockItem[]> {
+  const stock = await mockFetchInventoryStock({ store_id: storeId, status: 'all' });
+  return stock.data
+    .filter((row) => row.status === 'low' || row.status === 'critical')
+    .map((row) => ({
+      id: row.id,
+      item_name: row.item_name,
+      item_code: row.item_code,
+      quantity: row.quantity,
+      uom: row.uom,
+      reorder_at: row.reorder_at,
+    }));
 }
 
 export async function mockFetchInventoryStock(
