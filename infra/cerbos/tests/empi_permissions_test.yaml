@@ -4,7 +4,8 @@ name: empi_permissions_test
 description: >-
   EMPI golden-record patient authorization: capability-gated, tenant-isolated. Each action gates
   on its own empi:patient:{read,create,update,delete} capability (no cross-action grant); delegated
-  capabilities grant; cross-tenant is allowed only for super-admin holding the capability.
+  capabilities grant. Clinical surface: no platform-operator scope rule (ADR-0035), so the
+  "super-admin" role string grants nothing cross-tenant.
 
 principals:
   reader:
@@ -186,7 +187,10 @@ tests:
         resource: patient_a
         actions: { patient.delete: EFFECT_DENY }
 
-  - name: super-admin reads cross-tenant with capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — clinical surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin role_codes DENIED cross-tenant even with capability
     input:
       principals: [super_admin_reader]
       resources: [patient_b]
@@ -194,4 +198,4 @@ tests:
     expected:
       - principal: super_admin_reader
         resource: patient_b
-        actions: { patient.read: EFFECT_ALLOW }
+        actions: { patient.read: EFFECT_DENY }

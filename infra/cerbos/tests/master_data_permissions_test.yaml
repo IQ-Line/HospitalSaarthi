@@ -4,7 +4,8 @@ name: master_data_permissions_test
 description: >-
   Master Data catalog authorization: global catalogs (module/permission/system_role/
   module_permission) are capability-gated with NO tenant equality; the department catalog is
-  tenant-isolated (capability + iq_tenant_id equality) with a super-admin cross-tenant override.
+  tenant-isolated (capability + iq_tenant_id equality). As a clinical-reference catalog it omits the
+  platform-operator scope rule (ADR-0035), so the "super-admin" role string grants nothing cross-tenant.
 
 principals:
   module_creator:
@@ -214,7 +215,10 @@ tests:
         resource: dept_a
         actions: { update: EFFECT_DENY }
 
-  - name: super-admin creates a department cross-tenant with the capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the create capability is DENIED cross-tenant — department is a
+  # clinical-reference catalog that omits the platform-operator scope rule by design.
+  - name: dead string — super-admin DENIED cross-tenant department create even with capability
     input:
       principals: [super_admin_dept]
       resources: [dept_b]
@@ -222,4 +226,4 @@ tests:
     expected:
       - principal: super_admin_dept
         resource: dept_b
-        actions: { create: EFFECT_ALLOW }
+        actions: { create: EFFECT_DENY }

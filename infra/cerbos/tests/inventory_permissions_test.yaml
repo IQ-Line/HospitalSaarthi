@@ -3,8 +3,9 @@
 name: inventory_permissions_test
 description: >-
   Inventory PEP — every operation requires the matching inventory:<feature>:<action>
-  runtime capability AND tenant (iq_tenant_id) alignment. super-admin bypasses tenant
-  equality but still needs the capability. Delegated capabilities are honoured.
+  runtime capability AND tenant (iq_tenant_id) alignment. No platform-operator scope rule on this
+  inventory surface (ADR-0035), so the "super-admin" role string grants nothing cross-tenant.
+  Delegated capabilities are honoured.
 
 principals:
   inv_reader:
@@ -254,7 +255,10 @@ tests:
         resource: store_a
         actions: { store.read: EFFECT_ALLOW }
 
-  - name: super-admin — store.read allowed across tenants when capability held
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — inventory surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin DENIED store.read cross-tenant even with capability
     input:
       principals: [inv_superadmin]
       resources: [store_b]
@@ -262,7 +266,7 @@ tests:
     expected:
       - principal: inv_superadmin
         resource: store_b
-        actions: { store.read: EFFECT_ALLOW }
+        actions: { store.read: EFFECT_DENY }
 
   - name: super-admin — denied without the capability (role is not a grant)
     input:

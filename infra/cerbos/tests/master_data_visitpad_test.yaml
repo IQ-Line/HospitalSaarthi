@@ -3,8 +3,9 @@
 name: master_data_visitpad_test
 description: >-
   Visitpad catalogs (one shared master_data:visitpad resource) are tenant-isolated like
-  departments: writes need the visitpad create capability AND iq_tenant_id equality, with a
-  super-admin cross-tenant override. import shares the create cap. Both the current
+  departments: writes need the visitpad create capability AND iq_tenant_id equality. This is a
+  clinical-reference surface with NO platform-operator scope rule (ADR-0035), so the "super-admin"
+  role string grants nothing cross-tenant. import shares the create cap. Both the current
   visitpad-master: and legacy visitpad-templates: cap prefixes are accepted.
 
 principals:
@@ -149,7 +150,10 @@ tests:
           delete: EFFECT_DENY
           import: EFFECT_DENY
 
-  - name: super-admin with cap writes cross-tenant
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the create capability is DENIED cross-tenant — this
+  # clinical-reference catalog omits the platform-operator scope rule by design.
+  - name: dead string — super-admin DENIED cross-tenant writes even with capability
     input:
       principals: [vp_super]
       resources: [vp_b]
@@ -158,12 +162,12 @@ tests:
       - principal: vp_super
         resource: vp_b
         actions:
-          create: EFFECT_ALLOW
-          update: EFFECT_ALLOW
-          delete: EFFECT_ALLOW
-          import: EFFECT_ALLOW
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+          delete: EFFECT_DENY
+          import: EFFECT_DENY
 
-  - name: global scope (empty resource tenant) — non-super-admin denied, super-admin allowed
+  - name: global scope (empty resource tenant) — both writers denied cross-tenant (no scope rule)
     input:
       principals: [vp_writer, vp_super]
       resources: [vp_global]
@@ -174,7 +178,7 @@ tests:
         actions: { create: EFFECT_DENY }
       - principal: vp_super
         resource: vp_global
-        actions: { create: EFFECT_ALLOW }
+        actions: { create: EFFECT_DENY }
 
   - name: view gated on the view capability
     input:

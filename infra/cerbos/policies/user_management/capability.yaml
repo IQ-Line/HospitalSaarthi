@@ -18,18 +18,6 @@ resourcePolicy:
               "user-capabilities:user-capabilities:read" in request.principal.attr.delegated_capabilities
             )
 
-    - actions:
-        - "capability.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-capabilities:user-capabilities:read" in request.principal.attr.capabilities ||
-              "user-capabilities:user-capabilities:read" in request.principal.attr.delegated_capabilities
-            )
-
     # --- Bounded platform operator (scope:platform) — additive allow ---
     # Replaces the former god-mode super-admin: authority is the platform scope issued from
     # platform_admins membership (JWT `scopes` -> principal.attr.scopes), NOT a capability nor

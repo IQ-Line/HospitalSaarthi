@@ -10,7 +10,8 @@
 #
 # Tenant isolation: the target resolver attaches the caller's `iq_tenant_id` as the
 # resource tenant, so the `*`-role rules require principal.tenant == resource.tenant.
-# super-admin may act cross-tenant but still must hold the capability (no god-mode).
+# Clinical/PHI surface: no platform-operator (scope:platform) rule — the bounded operator is
+# intentionally out of scope here by omission (ADR-0035). Authority is always tenant + capability.
 # NHA gateway callbacks (/api/v3/*) are NOT covered here — they authenticate via
 # gateway signatures, not this PEP.
 apiVersion: api.cerbos.dev/v1
@@ -33,18 +34,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "care-context.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "abdm:care-context:create" in request.principal.attr.capabilities ||
-              "abdm:care-context:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "care-context.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -52,18 +41,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "abdm:care-context:read" in request.principal.attr.capabilities ||
-              "abdm:care-context:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "care-context.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "abdm:care-context:read" in request.principal.attr.capabilities ||
               "abdm:care-context:read" in request.principal.attr.delegated_capabilities
@@ -84,18 +61,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "consent.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "abdm:consent:create" in request.principal.attr.capabilities ||
-              "abdm:consent:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "consent.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -103,18 +68,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "abdm:consent:read" in request.principal.attr.capabilities ||
-              "abdm:consent:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "consent.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "abdm:consent:read" in request.principal.attr.capabilities ||
               "abdm:consent:read" in request.principal.attr.delegated_capabilities
@@ -135,18 +88,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "health-data.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "abdm:health-data:create" in request.principal.attr.capabilities ||
-              "abdm:health-data:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "health-data.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -154,18 +95,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "abdm:health-data:read" in request.principal.attr.capabilities ||
-              "abdm:health-data:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "health-data.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "abdm:health-data:read" in request.principal.attr.capabilities ||
               "abdm:health-data:read" in request.principal.attr.delegated_capabilities

@@ -19,15 +19,3 @@ resourcePolicy:
               "inventory:stock:read" in request.principal.attr.capabilities ||
               "inventory:stock:read" in request.principal.attr.delegated_capabilities
             )
-
-    - actions:
-        - "stock.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "inventory:stock:read" in request.principal.attr.capabilities ||
-              "inventory:stock:read" in request.principal.attr.delegated_capabilities
-            )

@@ -4,8 +4,9 @@ name: billing_account_permissions_test
 description: >-
   Billing account PEP — every action (read/create/update/delete) requires the matching
   billing-account:billing-account:<action> runtime capability AND tenant (iq_tenant_id)
-  alignment. Delegated capabilities grant. super-admin bypasses tenant equality but still
-  needs the capability. No capability => DENY; wrong tenant => DENY for non super-admin.
+  alignment. Delegated capabilities grant. No platform-operator scope rule on this billing surface
+  (ADR-0035), so the "super-admin" role string grants nothing cross-tenant. No capability => DENY;
+  wrong tenant => DENY.
 
 principals:
   ba_reader:
@@ -230,7 +231,10 @@ tests:
         actions:
           billing-account.delete: EFFECT_DENY
 
-  - name: billing-account.read — super-admin reads cross-tenant with capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — billing surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: billing-account.read — dead string super-admin DENIED cross-tenant even with capability
     input:
       principals: [ba_super_admin]
       resources: [account_other_tenant]
@@ -239,7 +243,7 @@ tests:
       - principal: ba_super_admin
         resource: account_other_tenant
         actions:
-          billing-account.read: EFFECT_ALLOW
+          billing-account.read: EFFECT_DENY
 
   - name: billing-account.read — super-admin without capability is denied (role alone grants nothing)
     input:

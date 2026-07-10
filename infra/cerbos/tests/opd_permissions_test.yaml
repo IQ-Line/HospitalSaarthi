@@ -4,7 +4,8 @@ name: opd_permissions_test
 description: >-
   OPD prescription + health-document authorization: capability-gated, tenant-isolated.
   finalize/cancel are update-class (gate on opd:prescription:update); delegated capabilities
-  grant; cross-tenant is allowed only for super-admin holding the capability.
+  grant. Clinical surface: no platform-operator scope rule (ADR-0035), so the "super-admin" role
+  string grants nothing cross-tenant.
 
 principals:
   rx_reader:
@@ -212,7 +213,10 @@ tests:
         resource: rx_a
         actions: { prescription.delete: EFFECT_ALLOW }
 
-  - name: super-admin reads cross-tenant with capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — clinical surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin role_codes DENIED cross-tenant even with capability
     input:
       principals: [super_admin_reader]
       resources: [rx_b]
@@ -220,7 +224,7 @@ tests:
     expected:
       - principal: super_admin_reader
         resource: rx_b
-        actions: { prescription.read: EFFECT_ALLOW }
+        actions: { prescription.read: EFFECT_DENY }
 
   - name: health-document create allowed same tenant, denied cross-tenant
     input:

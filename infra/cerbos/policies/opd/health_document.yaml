@@ -21,18 +21,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "health_document.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "opd:health-document:create" in request.principal.attr.capabilities ||
-              "opd:health-document:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "health_document.read"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -40,18 +28,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "opd:health-document:read" in request.principal.attr.capabilities ||
-              "opd:health-document:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "health_document.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "opd:health-document:read" in request.principal.attr.capabilities ||
               "opd:health-document:read" in request.principal.attr.delegated_capabilities

@@ -4,8 +4,9 @@ name: billing_invoice_permissions_test
 description: >-
   Billing invoice PEP — every action (read/create/update/delete) requires the matching
   invoice:invoice:<action> runtime capability AND tenant (iq_tenant_id) alignment.
-  Delegated capabilities grant. super-admin bypasses tenant equality but still needs
-  the capability. No capability => DENY; wrong tenant => DENY for non super-admin.
+  Delegated capabilities grant. No platform-operator scope rule on this billing surface
+  (ADR-0035), so the "super-admin" role string grants nothing cross-tenant. No capability => DENY;
+  wrong tenant => DENY.
 
 principals:
   inv_reader:
@@ -315,7 +316,10 @@ tests:
         actions:
           invoice.delete: EFFECT_DENY
 
-  - name: invoice.read — super-admin reads cross-tenant with capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — billing surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: invoice.read — dead string super-admin DENIED cross-tenant even with capability
     input:
       principals: [inv_super_admin]
       resources: [invoice_other_tenant]
@@ -324,7 +328,7 @@ tests:
       - principal: inv_super_admin
         resource: invoice_other_tenant
         actions:
-          invoice.read: EFFECT_ALLOW
+          invoice.read: EFFECT_DENY
 
   - name: invoice.read — super-admin without capability is denied (role alone grants nothing)
     input:

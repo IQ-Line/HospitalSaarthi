@@ -20,6 +20,41 @@ principals:
       clearances: {}
       um_clearance_effective_tier: 0
 
+  # Bounded platform operator: authority is scopes:["platform"] alone. Home tenant differs from the
+  # resource tenant to prove the scope (not tenant alignment) is what grants auth.read.
+  platform_operator_scope:
+    id: platform-operator
+    roles:
+      - "__hims_authenticated__"
+    attr:
+      iq_tenant_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      org_id: null
+      department: null
+      role_codes: []
+      scopes:
+        - "platform"
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Dead string: role/role_codes literally "super-admin" but NO platform scope. Must grant nothing.
+  fake_super_admin_no_scope:
+    id: tenant-impostor
+    roles:
+      - "super-admin"
+    attr:
+      iq_tenant_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+      org_id: null
+      department: null
+      role_codes:
+        - "super-admin"
+      scopes: []
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
 resources:
   auth_self_ok:
     id: self
@@ -56,6 +91,28 @@ tests:
       actions: [auth.read]
     expected:
       - principal: role_admin_only
+        resource: auth_self_wrong_tenant
+        actions:
+          auth.read: EFFECT_DENY
+
+  - name: auth.read — allowed for platform-scope operator regardless of tenant
+    input:
+      principals: [platform_operator_scope]
+      resources: [auth_self_wrong_tenant]
+      actions: [auth.read]
+    expected:
+      - principal: platform_operator_scope
+        resource: auth_self_wrong_tenant
+        actions:
+          auth.read: EFFECT_ALLOW
+
+  - name: DEAD STRING — role "super-admin" WITHOUT scope denied auth.read cross-tenant
+    input:
+      principals: [fake_super_admin_no_scope]
+      resources: [auth_self_wrong_tenant]
+      actions: [auth.read]
+    expected:
+      - principal: fake_super_admin_no_scope
         resource: auth_self_wrong_tenant
         actions:
           auth.read: EFFECT_DENY

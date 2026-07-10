@@ -4,7 +4,8 @@ name: abdm_permissions_test
 description: >-
   ABDM user-facing platform authorization: capability-gated, tenant-isolated. Each action gates on
   its own abdm:{care-context,consent,health-data}:{create,read} capability (no cross-action grant);
-  delegated capabilities grant; cross-tenant is allowed only for super-admin holding the capability.
+  delegated capabilities grant. Clinical/PHI surface: no platform-operator scope rule (ADR-0035),
+  so the "super-admin" role string grants nothing cross-tenant.
 
 principals:
   cc_creator:
@@ -174,7 +175,10 @@ tests:
         resource: abdm_b
         actions: { health-data.read: EFFECT_DENY }
 
-  - name: super-admin reads PHI cross-tenant with capability
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the PHI capability is DENIED cross-tenant — clinical/PHI surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin role_codes DENIED cross-tenant PHI even with capability
     input:
       principals: [super_admin_hd]
       resources: [abdm_b]
@@ -182,4 +186,4 @@ tests:
     expected:
       - principal: super_admin_hd
         resource: abdm_b
-        actions: { health-data.read: EFFECT_ALLOW }
+        actions: { health-data.read: EFFECT_DENY }

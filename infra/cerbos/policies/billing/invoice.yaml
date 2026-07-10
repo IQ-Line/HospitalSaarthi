@@ -20,18 +20,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "invoice.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "invoice:invoice:read" in request.principal.attr.capabilities ||
-              "invoice:invoice:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "invoice.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -39,18 +27,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "invoice:invoice:create" in request.principal.attr.capabilities ||
-              "invoice:invoice:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "invoice.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "invoice:invoice:create" in request.principal.attr.capabilities ||
               "invoice:invoice:create" in request.principal.attr.delegated_capabilities
@@ -70,18 +46,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "invoice.update"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "invoice:invoice:update" in request.principal.attr.capabilities ||
-              "invoice:invoice:update" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "invoice.delete"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -89,18 +53,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "invoice:invoice:delete" in request.principal.attr.capabilities ||
-              "invoice:invoice:delete" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "invoice.delete"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "invoice:invoice:delete" in request.principal.attr.capabilities ||
               "invoice:invoice:delete" in request.principal.attr.delegated_capabilities
@@ -116,18 +68,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "invoice:invoice:override-price" in request.principal.attr.capabilities ||
-              "invoice:invoice:override-price" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "invoice.override-price"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "invoice:invoice:override-price" in request.principal.attr.capabilities ||
               "invoice:invoice:override-price" in request.principal.attr.delegated_capabilities

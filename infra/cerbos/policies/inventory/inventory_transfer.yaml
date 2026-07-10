@@ -21,18 +21,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "transfer.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "inventory:transfer:read" in request.principal.attr.capabilities ||
-              "inventory:transfer:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "transfer.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -40,18 +28,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "inventory:transfer:create" in request.principal.attr.capabilities ||
-              "inventory:transfer:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "transfer.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "inventory:transfer:create" in request.principal.attr.capabilities ||
               "inventory:transfer:create" in request.principal.attr.delegated_capabilities

@@ -23,33 +23,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "role.assign"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-roles:role:assign" in request.principal.attr.capabilities ||
-              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "role.assign"
-      roles: ["*"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
-            has(request.principal.attr.role_codes) &&
-            "super-admin" in request.principal.attr.role_codes &&
-            (
-              "user-roles:role:assign" in request.principal.attr.capabilities ||
-              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "role.revoke"
       roles: ["*"]
       effect: EFFECT_ALLOW

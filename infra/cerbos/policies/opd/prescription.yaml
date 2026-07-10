@@ -24,18 +24,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "prescription.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "opd:prescription:read" in request.principal.attr.capabilities ||
-              "opd:prescription:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "prescription.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -43,18 +31,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "opd:prescription:create" in request.principal.attr.capabilities ||
-              "opd:prescription:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "prescription.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "opd:prescription:create" in request.principal.attr.capabilities ||
               "opd:prescription:create" in request.principal.attr.delegated_capabilities
@@ -76,20 +52,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "prescription.update"
-        - "prescription.finalize"
-        - "prescription.cancel"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "opd:prescription:update" in request.principal.attr.capabilities ||
-              "opd:prescription:update" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "prescription.delete"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -97,18 +59,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "opd:prescription:delete" in request.principal.attr.capabilities ||
-              "opd:prescription:delete" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "prescription.delete"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "opd:prescription:delete" in request.principal.attr.capabilities ||
               "opd:prescription:delete" in request.principal.attr.delegated_capabilities

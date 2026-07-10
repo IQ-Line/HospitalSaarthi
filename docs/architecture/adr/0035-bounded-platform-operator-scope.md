@@ -5,6 +5,11 @@
 - **Deciders:** Architect, Engineering Manager, Tech Lead
 - **Consulted:** User Management module owner, Configurator module owner
 - **Informed:** Whole engineering team
+- **Update (2026-07-10):** String-selector residue removed from the Cerbos policies — the dead
+  `roles:["super-admin"]` selector rules (and their `role_codes` CEL variants) were deleted from
+  every policy, and `auth.read` was re-gated on `scope:platform`. Authority now rides the scope
+  exclusively; the string is display-only. §4/Evidence corrected below: `department` + `visitpad`
+  are clinical-reference surfaces (scope-omitted, operator DENIED), not part of the platform surface.
 
 ## Context and problem statement
 
@@ -61,12 +66,12 @@ Chosen option: **Option 4 — a bounded `scope:platform` claim issued from a ten
            "platform" in request.principal.attr.scopes
    ```
 
-   (`infra/cerbos/policies/configurator/tenant.yaml:28-42`.) The capability rules above it are untouched, so delegated tenant-admins keep working. **The platform-scoped surface is exactly these 18 resource policies:**
+   (`infra/cerbos/policies/configurator/tenant.yaml:28-42`.) The capability rules above it are untouched, so delegated tenant-admins keep working. **The platform-scoped surface is exactly these 16 resource policies:**
    - **Configurator (8):** `branding`, `organization`, `sequence-configuration`, `tenant`, `tenant-api-key`, `tenant-integration-profile`, `tenant-module`, `tenant-onboarding`.
-   - **Master Data (6):** `department`, `module`, `module_permission`, `permission`, `system_role`, and `master_data_visitpad`.
+   - **Master Data (4):** `module`, `module_permission`, `permission`, `system_role` — the **global** catalogs.
    - **User Management (4):** `capability`, `role`, `user`, `user_role_template`.
 
-   **The bound is the omission:** the clinical / tenant-staff policies — `opd`, `pharmacy`, `registration`, `empi`, `inventory`, `billing`, `record-foundation` — **intentionally carry no platform-scope rule**. A `scope:platform` token is powerless against them. This omission is the first-class invariant of the model, asserted in `infra/cerbos/tests/platform_operator_scope_test.yaml`.
+   **The bound is the omission:** the clinical / tenant-staff policies — `opd`, `pharmacy`, `registration`, `empi`, `inventory`, `billing`, `record-foundation` — **and the TENANT clinical-reference catalogs `master_data:department` + `master_data:visitpad`** (referenced by encounters / visit templates) **intentionally carry no platform-scope rule**. A `scope:platform` token is powerless against them — the operator provisions the *global* catalog but cannot write a tenant's own department/visitpad rows. This omission is the first-class invariant of the model, asserted in `infra/cerbos/tests/platform_operator_scope_test.yaml` (which explicitly DENIES the operator on `department` + `visitpad`).
 
 **5. God-mode deleted (not demoted).** The seed no longer grants capabilities to the operator; it inserts one `platform_admins` row (`modules/user-management/src/dev/platform-data-bootstrap.ts:231-234`). The two god-mode mechanisms are removed from the tree:
    - `modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts` (granted *every* active catalog capability) — **deleted**.
@@ -115,7 +120,7 @@ Configurator / platform capabilities (e.g. `configurator:tenant-api-key:*`) **mu
 
 ### Option 4 — Bounded `scope:platform` from `platform_admins` (chosen)
 
-- *Good:* Bounded by construction — the operator can only touch the 18 platform-provisioning policies; clinical/PHI surfaces are unreachable.
+- *Good:* Bounded by construction — the operator can only touch the 16 platform-provisioning policies; clinical/PHI surfaces (and the tenant clinical-reference catalogs) are unreachable.
 - *Good:* Authority is a controlled membership row, not a string or an unbounded grant; the relaxation is scope-gated and signature-rooted.
 - *Good:* Additive — leaves the entire capability model (ADR-0031/0032) and delegated-admin flows intact.
 - *Bad:* The bound is a policy omission enforced by review + one test, not by a mechanism that makes over-grant impossible.
@@ -151,7 +156,7 @@ Configurator / platform capabilities (e.g. `configurator:tenant-api-key:*`) **mu
   - `modules/user-management/migrations/0006_platform_admins.sql` (Citus reference table)
   - `packages/ts-sdk-identity/src/verify.ts:42-50,153-165` (scope-gated tenant relaxation — the hard-to-reverse bet)
   - `modules/user-management/src/authn/identity-jwt-claims.ts`, `services/user-management-svc/src/auth/issue-access-jwt.ts:75-84`, `create-hims-better-auth.ts:163-168,222-232` (scope issuance + global username plugin)
-  - `infra/cerbos/policies/configurator/tenant.yaml:28-42` (additive rule) + the 18-policy platform surface; `infra/cerbos/tests/platform_operator_scope_test.yaml` (the bound, tested)
+  - `infra/cerbos/policies/configurator/tenant.yaml:28-42` (additive rule) + the 16-policy platform surface; `infra/cerbos/tests/platform_operator_scope_test.yaml` (the bound, tested — DENIES the operator on `department` + `visitpad`)
   - Deleted god-mode: `.../dev/sync-super-admin-capability-snapshots.ts`, `.../bootstrap/repair-platform-super-admin.ts`; `packages/dev-bootstrap/src/platform-operator-capability-keys.ts` (now empty)
   - `modules/user-management/src/domain/reserved-role-codes.ts:2-14` (super-admin string = display label only)
   - PEP fleet: commit `2b206f8c`; `services/configurator-svc/src/main.ts:147`

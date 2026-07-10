@@ -20,18 +20,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "billing-account.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "billing-account:billing-account:read" in request.principal.attr.capabilities ||
-              "billing-account:billing-account:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "billing-account.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -39,18 +27,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "billing-account:billing-account:create" in request.principal.attr.capabilities ||
-              "billing-account:billing-account:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "billing-account.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "billing-account:billing-account:create" in request.principal.attr.capabilities ||
               "billing-account:billing-account:create" in request.principal.attr.delegated_capabilities
@@ -70,18 +46,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "billing-account.update"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "billing-account:billing-account:update" in request.principal.attr.capabilities ||
-              "billing-account:billing-account:update" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "billing-account.delete"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -89,18 +53,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "billing-account:billing-account:delete" in request.principal.attr.capabilities ||
-              "billing-account:billing-account:delete" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "billing-account.delete"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "billing-account:billing-account:delete" in request.principal.attr.capabilities ||
               "billing-account:billing-account:delete" in request.principal.attr.delegated_capabilities

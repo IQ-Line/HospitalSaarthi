@@ -20,18 +20,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "role.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-roles:user-roles:read" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "role.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -39,34 +27,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "user-roles:user-roles:create" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "role.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-roles:user-roles:create" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
-            )
-
-    # Cross-tenant provisioning (tenant wizard): super-admin in principal.attr.role_codes + capability.
-    - actions:
-        - "role.create"
-      roles: ["*"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
-            has(request.principal.attr.role_codes) &&
-            "super-admin" in request.principal.attr.role_codes &&
             (
               "user-roles:user-roles:create" in request.principal.attr.capabilities ||
               "user-roles:user-roles:create" in request.principal.attr.delegated_capabilities
@@ -82,41 +42,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "user-roles:user-roles:update" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||
-              "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "role.update"
-        - "role.compose"
-        - "role.delete"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-roles:user-roles:update" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||
-              "user-roles:user-roles:delete" in request.principal.attr.capabilities ||
-              "user-roles:user-roles:delete" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "role.update"
-        - "role.compose"
-        - "role.delete"
-      roles: ["*"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
-            has(request.principal.attr.role_codes) &&
-            "super-admin" in request.principal.attr.role_codes &&
             (
               "user-roles:user-roles:update" in request.principal.attr.capabilities ||
               "user-roles:user-roles:update" in request.principal.attr.delegated_capabilities ||

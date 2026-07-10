@@ -32,26 +32,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "registration.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "registration:registration:read" in request.principal.attr.capabilities ||
-              "registration:registration:read" in request.principal.attr.delegated_capabilities ||
-              "registration:registration:create" in request.principal.attr.capabilities ||
-              "registration:registration:create" in request.principal.attr.delegated_capabilities ||
-              "registration:registration:update" in request.principal.attr.capabilities ||
-              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
-              "opd:patient:read" in request.principal.attr.capabilities ||
-              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
-              "opd:visit:read" in request.principal.attr.capabilities ||
-              "opd:visit:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "registration.create"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -59,18 +39,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "registration:registration:create" in request.principal.attr.capabilities ||
-              "registration:registration:create" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "registration.create"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "registration:registration:create" in request.principal.attr.capabilities ||
               "registration:registration:create" in request.principal.attr.delegated_capabilities
@@ -90,18 +58,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "registration.update"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "registration:registration:update" in request.principal.attr.capabilities ||
-              "registration:registration:update" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "registration.update_status"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -109,22 +65,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "registration:registration:update" in request.principal.attr.capabilities ||
-              "registration:registration:update" in request.principal.attr.delegated_capabilities ||
-              "opd:patient:read" in request.principal.attr.capabilities ||
-              "opd:patient:read" in request.principal.attr.delegated_capabilities ||
-              "opd:visit:read" in request.principal.attr.capabilities ||
-              "opd:visit:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "registration.update_status"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "registration:registration:update" in request.principal.attr.capabilities ||
               "registration:registration:update" in request.principal.attr.delegated_capabilities ||
