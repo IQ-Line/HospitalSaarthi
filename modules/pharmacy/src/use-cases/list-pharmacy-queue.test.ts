@@ -59,6 +59,7 @@ describe("listPharmacyQueue", () => {
       queued_to: undefined,
       search: "",
       status: "pending",
+      doctor_id: undefined,
       source_kind: "opd",
     });
     expect(result.total).toBe(1);

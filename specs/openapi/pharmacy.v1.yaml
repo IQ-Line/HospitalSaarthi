@@ -54,6 +54,10 @@ paths:
             enum: [all, pending, partial_issue, issued]
             default: all
           description: Filter by dispense status (pending = no saved dispense, partial_issue = incomplete fulfillment, issued = fully dispensed).
+        - name: doctor_id
+          in: query
+          schema: { type: string, format: uuid }
+          description: Filter by prescribing doctor id.
         - name: kind
           in: query
           schema:
@@ -235,6 +239,8 @@ components:
         - walk_in_order
         - visit_status
         - updated_at
+        - queued_at
+        - priority
         - has_dispense
         - dispense_status
         - medicine_count
@@ -264,7 +270,15 @@ components:
         visit_status: { type: string }
         prescription_status: { type: string, nullable: true }
         updated_at: { type: string, format: date-time }
+        queued_at:
+          type: string
+          format: date-time
+          description: When the prescription entered the pharmacy queue.
         finalized_at: { type: string, format: date-time, nullable: true }
+        priority:
+          type: string
+          enum: [routine, urgent, stat]
+          description: Dispense priority — stat maps to emergency in UI.
         medicine_count:
           type: integer
           minimum: 0

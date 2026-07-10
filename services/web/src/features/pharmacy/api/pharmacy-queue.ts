@@ -22,6 +22,9 @@ export async function fetchPharmacyQueue(
   if (params.status && params.status !== 'all') {
     search.set('status', params.status);
   }
+  if (params.doctor_id?.trim()) {
+    search.set('doctor_id', params.doctor_id.trim());
+  }
   if (params.kind && params.kind !== 'opd') {
     search.set('kind', params.kind);
   }

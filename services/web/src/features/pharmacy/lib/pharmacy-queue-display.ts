@@ -1,4 +1,4 @@
-import type { PharmacyDispenseStatus, PharmacyQueueItem } from '../types';
+import type { PharmacyDispenseStatus, PharmacyDispensePriority, PharmacyQueueItem } from '../types';
 
 export function formatPharmacyQueuedAt(isoDate: string): string {
   const date = new Date(isoDate);
@@ -90,9 +90,21 @@ export function formatPatientDisplay(row: PharmacyQueueItem): string {
 }
 
 export function pharmacyQueueStatusLabel(status: PharmacyDispenseStatus): string {
-  if (status === 'partial_issue') return 'Partial issue';
-  if (status === 'issued') return 'Issued';
+  if (status === 'partial_issue') return 'Partial';
+  if (status === 'issued') return 'Dispensed';
   return 'Pending';
+}
+
+export function pharmacyQueuePriorityLabel(priority: PharmacyDispensePriority): string {
+  if (priority === 'stat') return 'Emergency';
+  if (priority === 'urgent') return 'Urgent';
+  return 'Routine';
+}
+
+export function pharmacyQueuePriorityBadgeClass(priority: PharmacyDispensePriority): string {
+  if (priority === 'stat') return 'bg-red-100 text-red-800';
+  if (priority === 'urgent') return 'bg-amber-100 text-amber-900';
+  return 'bg-slate-100 text-slate-700';
 }
 
 export function pharmacyQueueStatusBadgeClass(status: PharmacyDispenseStatus): string {
@@ -140,7 +152,7 @@ export function matchesPharmacyQueueStatus(
 }
 
 export function dispenseSaveStatusLabel(status: PharmacyDispenseStatus): string {
-  if (status === 'partial_issue') return 'Partial issue';
-  if (status === 'issued') return 'Saved';
-  return 'Unsaved';
+  if (status === 'partial_issue') return 'Partial';
+  if (status === 'issued') return 'Dispensed';
+  return 'Pending';
 }

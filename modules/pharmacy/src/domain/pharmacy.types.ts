@@ -181,8 +181,10 @@ export type PharmacyQueueItem = {
   visit_status: string;
   prescription_status: string | null;
   updated_at: string;
+  queued_at: string;
   finalized_at: string | null;
   medicine_count: number;
+  priority: DispensePriority;
   patient_name: string | null;
   uhid: string | null;
   phone: string | null;

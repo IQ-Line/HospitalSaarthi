@@ -1,10 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import type { ColumnDef } from '@tanstack/react-table';
 import { Search } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
-import { Badge } from '@pulse/ui/badge';
 import { Input } from '@pulse/ui/input';
 import { Label } from '@pulse/ui/label';
 import {
@@ -14,32 +12,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { DataTable } from '@/components/data-table';
-import { fetchPrescriptionQueueMock } from '../api/pharmacy-ui-mock';
+import { useDebouncedValue } from '@/lib/use-debounced-value';
+import { fetchPharmacyQueue } from '../api/pharmacy-queue';
 import { pharmacyQueryKeys } from '../api/query-keys';
-import { DEMO_DOCTORS } from '../data/pharmacy-demo-data';
-import type {
-  PharmacyPrescriptionQueueRow,
-  PharmacyQueueDisplayStatus,
-  PharmacyVisitWorkflowStatus,
-} from '../types/queue-ui.types';
+import type { PharmacyQueueItem, PharmacyQueueStatusFilter } from '../types';
 import { PharmacyPageShell } from './pharmacy-page-shell';
+import { PharmacyQueueTable } from './pharmacy-queue-table';
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
-const VISIT_STATUS_OPTIONS: { value: PharmacyVisitWorkflowStatus; label: string }[] = [
-  { value: 'registered', label: 'Registered' },
-  { value: 'pre_consulted', label: 'Pre consulted' },
-  { value: 'consulted', label: 'Consulted' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'no_show', label: 'No show' },
-];
-
-const PHARMACY_STATUS_OPTIONS: { value: PharmacyQueueDisplayStatus; label: string }[] = [
+const PRESCRIPTION_STATUS_OPTIONS: { value: PharmacyQueueStatusFilter; label: string }[] = [
+  { value: 'all', label: 'All statuses' },
   { value: 'pending', label: 'Pending' },
-  { value: 'no_queued', label: 'No queued' },
-  { value: 'partial', label: 'Partial' },
-  { value: 'dispensed', label: 'Dispensed' },
+  { value: 'partial_issue', label: 'Partial' },
+  { value: 'issued', label: 'Dispensed' },
 ];
 
 function defaultDateRange(): { from: string; to: string } {
@@ -47,42 +34,17 @@ function defaultDateRange(): { from: string; to: string } {
   return { from: today, to: today };
 }
 
-function visitStatusLabel(status: PharmacyVisitWorkflowStatus): string {
-  return VISIT_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
-}
-
-function pharmacyStatusLabel(status: PharmacyQueueDisplayStatus): string {
-  return PHARMACY_STATUS_OPTIONS.find((o) => o.value === status)?.label ?? status;
-}
-
-function pharmacyStatusBadgeClass(status: PharmacyQueueDisplayStatus): string {
-  const map: Record<PharmacyQueueDisplayStatus, string> = {
-    pending: 'border-amber-500/60 text-amber-800',
-    no_queued: 'border-slate-400/60 text-slate-700',
-    partial: 'border-sky-500/60 text-sky-800',
-    dispensed: 'border-green-500/60 text-green-700',
-  };
-  return map[status];
-}
-
-function formatQueuedAt(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatVisitDateTime(date: string, time: string): string {
-  if (!date) return '—';
-  const [y, m, d] = date.split('-');
-  const ddMmYyyy = d && m && y ? `${d}/${m}/${y}` : date;
-  return time ? `${ddMmYyyy}, ${time}` : ddMmYyyy;
+function uniqueDoctorsFromItems(items: PharmacyQueueItem[]): { id: string; name: string }[] {
+  const byId = new Map<string, string>();
+  for (const item of items) {
+    const id = item.doctor_id?.trim();
+    if (!id) continue;
+    const name = item.doctor_name?.trim() || id.slice(0, 8);
+    byId.set(id, name);
+  }
+  return [...byId.entries()]
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function PharmacyPrescriptionQueuePage() {
@@ -90,123 +52,54 @@ export function PharmacyPrescriptionQueuePage() {
   const [dateFrom, setDateFrom] = useState(initialRange.from);
   const [dateTo, setDateTo] = useState(initialRange.to);
   const [doctorId, setDoctorId] = useState('__all__');
-  const [visitStatus, setVisitStatus] = useState<PharmacyVisitWorkflowStatus | '__all__'>(
-    '__all__',
-  );
-  const [pharmacyStatus, setPharmacyStatus] = useState<PharmacyQueueDisplayStatus | '__all__'>(
-    '__all__',
-  );
+  const [prescriptionStatus, setPrescriptionStatus] = useState<PharmacyQueueStatusFilter>('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const listParams = useMemo(
     () => ({
-      date_from: dateFrom,
-      date_to: dateTo,
-      doctor_id: doctorId === '__all__' ? undefined : doctorId,
-      visit_status: visitStatus === '__all__' ? undefined : visitStatus,
-      pharmacy_status: pharmacyStatus === '__all__' ? undefined : pharmacyStatus,
-      q: search.trim() || undefined,
+      kind: 'opd' as const,
       page,
-      page_size: PAGE_SIZE,
+      limit: pageSize,
+      queued_from: dateFrom || undefined,
+      queued_to: dateTo || undefined,
+      doctor_id: doctorId === '__all__' ? undefined : doctorId,
+      status: prescriptionStatus,
+      q: debouncedSearch.trim() || undefined,
     }),
-    [dateFrom, dateTo, doctorId, visitStatus, pharmacyStatus, search, page],
+    [dateFrom, dateTo, doctorId, prescriptionStatus, debouncedSearch, page, pageSize],
   );
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: pharmacyQueryKeys.prescriptionQueue(listParams),
-    queryFn: () => fetchPrescriptionQueueMock(listParams),
+    queryKey: pharmacyQueryKeys.queue(listParams),
+    queryFn: () => fetchPharmacyQueue(listParams),
     placeholderData: (prev) => prev,
+    refetchOnWindowFocus: true,
   });
 
-  const columns = useMemo<ColumnDef<PharmacyPrescriptionQueueRow>[]>(
-    () => [
-      {
-        id: 'visit_id',
-        header: 'Visit ID',
-        accessorKey: 'formatted_visit_id',
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-muted-foreground">
-            {row.original.formatted_visit_id}
-          </span>
-        ),
-      },
-      {
-        id: 'patient',
-        header: 'Patient',
-        accessorKey: 'patient_name',
-        cell: ({ row }) => (
-          <div className="min-w-[10rem]">
-            <p className="font-medium">{row.original.patient_name}</p>
-            <p className="text-xs text-muted-foreground">{row.original.uhid}</p>
-          </div>
-        ),
-      },
-      {
-        id: 'rx_number',
-        header: 'Rx #',
-        accessorKey: 'rx_number',
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">{row.original.rx_number}</span>
-        ),
-      },
-      {
-        id: 'pharmacy_status',
-        header: 'Pharmacy',
-        cell: ({ row }) => (
-          <Badge
-            variant="outline"
-            className={pharmacyStatusBadgeClass(row.original.pharmacy_status)}
-          >
-            {pharmacyStatusLabel(row.original.pharmacy_status)}
-          </Badge>
-        ),
-      },
-      {
-        id: 'visit_status',
-        header: 'Visit',
-        cell: ({ row }) => (
-          <Badge variant="secondary">{visitStatusLabel(row.original.visit_status)}</Badge>
-        ),
-      },
-      {
-        id: 'visit_datetime',
-        header: 'Date & time',
-        cell: ({ row }) => (
-          <span className="text-sm whitespace-nowrap text-muted-foreground">
-            {formatVisitDateTime(row.original.visit_date, row.original.visit_time)}
-          </span>
-        ),
-      },
-      {
-        id: 'doctor',
-        header: 'Doctor',
-        accessorKey: 'doctor_name',
-      },
-      {
-        id: 'queued_at',
-        header: 'Queued',
-        cell: ({ row }) => (
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {formatQueuedAt(row.original.queued_at)}
-          </span>
-        ),
-      },
-      {
-        id: 'priority',
-        header: 'Priority',
-        cell: ({ row }) => {
-          if (row.original.priority === 'stat') {
-            return <Badge variant="destructive">STAT</Badge>;
-          }
-          if (row.original.priority === 'routine') {
-            return <span className="text-xs text-muted-foreground">Routine</span>;
-          }
-          return <span className="text-xs text-muted-foreground">—</span>;
-        },
-      },
-    ],
-    [],
+  const doctorOptionsParams = useMemo(
+    () => ({
+      kind: 'opd' as const,
+      page: 1,
+      limit: 100,
+      queued_from: dateFrom || undefined,
+      queued_to: dateTo || undefined,
+      status: prescriptionStatus,
+    }),
+    [dateFrom, dateTo, prescriptionStatus],
+  );
+
+  const { data: doctorSourceData } = useQuery({
+    queryKey: pharmacyQueryKeys.queue({ ...doctorOptionsParams, scope: 'doctors' }),
+    queryFn: () => fetchPharmacyQueue(doctorOptionsParams),
+    staleTime: 60_000,
+  });
+
+  const doctorOptions = useMemo(
+    () => uniqueDoctorsFromItems(doctorSourceData?.items ?? []),
+    [doctorSourceData?.items],
   );
 
   const datePickers = (
@@ -282,12 +175,12 @@ export function PharmacyPrescriptionQueuePage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-9 w-full sm:w-[160px]">
+              <SelectTrigger className="h-9 w-full sm:w-[180px]">
                 <SelectValue placeholder="All doctors" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">All doctors</SelectItem>
-                {DEMO_DOCTORS.map((doc) => (
+                {doctorOptions.map((doc) => (
                   <SelectItem key={doc.id} value={doc.id}>
                     {doc.name}
                   </SelectItem>
@@ -296,38 +189,17 @@ export function PharmacyPrescriptionQueuePage() {
             </Select>
 
             <Select
-              value={visitStatus}
+              value={prescriptionStatus}
               onValueChange={(v) => {
-                setVisitStatus(v as PharmacyVisitWorkflowStatus | '__all__');
+                setPrescriptionStatus(v as PharmacyQueueStatusFilter);
                 setPage(1);
               }}
             >
-              <SelectTrigger className="h-9 w-full sm:w-[160px]">
-                <SelectValue placeholder="All Visit status" />
+              <SelectTrigger className="h-9 w-full sm:w-[180px]">
+                <SelectValue placeholder="Prescription status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all__">All Visit status</SelectItem>
-                {VISIT_STATUS_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={pharmacyStatus}
-              onValueChange={(v) => {
-                setPharmacyStatus(v as PharmacyQueueDisplayStatus | '__all__');
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 w-full sm:w-[160px]">
-                <SelectValue placeholder="All Pharmacy status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all__">All Pharmacy status</SelectItem>
-                {PHARMACY_STATUS_OPTIONS.map((opt) => (
+                {PRESCRIPTION_STATUS_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
@@ -336,7 +208,7 @@ export function PharmacyPrescriptionQueuePage() {
             </Select>
           </div>
 
-          <div className="relative w-full lg:max-w-[260px]">
+          <div className="relative w-full lg:max-w-[320px]">
             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
@@ -344,7 +216,7 @@ export function PharmacyPrescriptionQueuePage() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search or scan Rx code…"
+              placeholder="Rx #, visit ID, UHID, patient name…"
               className="h-9 pl-9"
             />
           </div>
@@ -356,20 +228,20 @@ export function PharmacyPrescriptionQueuePage() {
           </div>
         ) : null}
 
-        <DataTable
-          columns={columns}
-          data={data?.items ?? []}
+        <PharmacyQueueTable
+          rows={data?.items ?? []}
           isLoading={isLoading}
-          emptyTitle="No visits match your filters for this date range."
-          manualPagination={{
-            pageIndex: page - 1,
-            pageSize: PAGE_SIZE,
-            total: data?.total ?? 0,
-            onPageChange: (pageIndex) => setPage(pageIndex + 1),
-            onPageSizeChange: () => {
-              /* fixed page size for demo queue */
-            },
+          total={data?.total ?? 0}
+          page={page}
+          pageSize={pageSize}
+          pageSizeOptions={PAGE_SIZE_OPTIONS}
+          onPageChange={setPage}
+          onPageSizeChange={(nextSize) => {
+            setPageSize(nextSize);
+            setPage(1);
           }}
+          emptyTitle="No prescriptions in queue"
+          emptyDescription="Completed OPD visits with final prescriptions appear here."
         />
       </div>
     </PharmacyPageShell>

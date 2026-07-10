@@ -29,6 +29,7 @@ type QueueQuery = {
   q?: string;
   status?: string;
   kind?: string;
+  doctor_id?: string;
 };
 
 type VisitParams = {
@@ -66,6 +67,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             q: request.query.q,
             status: request.query.status,
             kind: request.query.kind,
+            doctor_id: request.query.doctor_id,
           },
         );
         return reply.send(result);

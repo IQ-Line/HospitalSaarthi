@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -14,7 +14,7 @@ import {
   formatDispenseDecimalInput,
   formatInrAmount,
 } from '../lib/dispense-billing';
-import { dispenseSaveStatusLabel, formatDispensePatientHeader, formatDispenseVisitLabel } from '../lib/pharmacy-queue-display';
+import { dispenseSaveStatusLabel } from '../lib/pharmacy-queue-display';
 import {
   buildSaveDispenseLinesFromDraft,
   firstDispenseValidationMessage,
@@ -23,6 +23,7 @@ import {
 } from '../lib/validate-dispense-draft';
 import type { DispenseLineDraft } from '../types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
+import { PharmacyDispenseVisitHeader } from './pharmacy-dispense-visit-header';
 import { PharmacyPrescriptionSidebar } from './pharmacy-prescription-sidebar';
 
 type PharmacyDispensePageProps = {
@@ -30,6 +31,7 @@ type PharmacyDispensePageProps = {
 };
 
 export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
+  const navigate = useNavigate();
   const { data, isLoading, isError, error } = useDispenseForVisit(visitId);
   const saveMutation = useSaveDispenseForVisit(visitId);
 
@@ -39,16 +41,6 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const [discount, setDiscount] = useState('0');
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(false);
-
-  const visitLabel = useMemo(
-    () => formatDispenseVisitLabel(visitId, data?.formatted_visit_id),
-    [visitId, data?.formatted_visit_id],
-  );
-
-  const patientLabel = useMemo(() => {
-    if (!data?.patient_id) return null;
-    return formatDispensePatientHeader(data);
-  }, [data]);
 
   useEffect(() => {
     if (!data || initialized) return;
@@ -108,7 +100,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
     });
   };
 
-  const handleSave = async () => {
+  const handleIssue = async () => {
     if (!data?.patient_id) return;
 
     const validation = validateDispenseDraft(lines, discount);
@@ -129,12 +121,16 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
         notes: notes.trim() || null,
         lines: payloadLines,
       });
-      toast.success('Dispense saved.');
+      toast.success('Medicines issued successfully.');
       setLineErrors({});
       setDiscountError(undefined);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save dispense.');
+      toast.error(err instanceof Error ? err.message : 'Failed to issue medicines.');
     }
+  };
+
+  const handleCancel = () => {
+    void navigate({ to: '/pharmacy/queue' });
   };
 
   if (isLoading) {
@@ -172,17 +168,14 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
         </Link>
       </div>
 
-      <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
-        <h1 className="text-xl font-semibold text-foreground">Issue medicines</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Visit {visitLabel} · {patientLabel ?? 'Loading patient…'}
-        </p>
+      <div className="mb-6">
+        <PharmacyDispenseVisitHeader visitId={visitId} data={data} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="rounded-lg bg-white p-4 shadow-sm">
           <h2 className="mb-4 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-            Dispense lines
+            Dispensing
           </h2>
           <PharmacyDispenseLinesTable
             lines={lines}
@@ -245,14 +238,24 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
             {' · '}
             {dispenseSaveStatusLabel(data.dispense_status)}
           </p>
-          <Button
-            type="button"
-            className="min-w-[160px]"
-            disabled={saveMutation.isPending}
-            onClick={() => void handleSave()}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save dispense'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saveMutation.isPending}
+              onClick={handleCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="min-w-[140px]"
+              disabled={saveMutation.isPending}
+              onClick={() => void handleIssue()}
+            >
+              {saveMutation.isPending ? 'Issuing…' : 'Issue Items'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -10,6 +10,8 @@ import {
   formatQueuePatientSecondaryId,
   formatQueueVisitDisplay,
   formatRxNumber,
+  pharmacyQueuePriorityBadgeClass,
+  pharmacyQueuePriorityLabel,
   pharmacyQueueStatusBadgeClass,
   pharmacyQueueStatusLabel,
 } from '../lib/pharmacy-queue-display';
@@ -21,7 +23,9 @@ interface PharmacyQueueTableProps {
   total: number;
   page: number;
   pageSize: number;
+  pageSizeOptions?: readonly number[];
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   emptyTitle?: string;
   emptyDescription?: string;
 }
@@ -39,13 +43,19 @@ function truncateCell(content: string, className = 'text-sm') {
   );
 }
 
+function canIssueMedicines(row: PharmacyQueueItem): boolean {
+  return row.dispense_status !== 'issued';
+}
+
 export function PharmacyQueueTable({
   rows,
   isLoading,
   total,
   page,
   pageSize,
+  pageSizeOptions,
   onPageChange,
+  onPageSizeChange,
   emptyTitle = 'No prescriptions in queue',
   emptyDescription = 'Completed OPD visits with prescriptions appear here.',
 }: PharmacyQueueTableProps) {
@@ -55,7 +65,7 @@ export function PharmacyQueueTable({
         id: 'rxNumber',
         meta: colMeta('w-[10.5rem]'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">RX #</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Rx #</span>
         ),
         cell: ({ row }) =>
           truncateCell(
@@ -67,7 +77,7 @@ export function PharmacyQueueTable({
         id: 'visitId',
         meta: colMeta('w-[11rem]'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">VISIT ID</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Visit ID</span>
         ),
         cell: ({ row }) => {
           const label = formatQueueVisitDisplay(row.original);
@@ -81,7 +91,9 @@ export function PharmacyQueueTable({
           cellClassName: 'min-w-[12rem] max-w-[16rem] px-3 py-2 overflow-hidden',
         },
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">PATIENT</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">
+            Patient Details
+          </span>
         ),
         cell: ({ row }) => {
           const secondaryId = formatQueuePatientSecondaryId(row.original);
@@ -99,19 +111,32 @@ export function PharmacyQueueTable({
         },
       },
       {
+        id: 'queued',
+        meta: colMeta('w-[10rem]'),
+        header: () => (
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">
+            Queued Date & Time
+          </span>
+        ),
+        cell: ({ row }) => (
+          <span className="text-sm tabular-nums">
+            {formatPharmacyQueuedAt(row.original.queued_at ?? row.original.updated_at)}
+          </span>
+        ),
+      },
+      {
         id: 'doctor',
         meta: colMeta('w-[9rem]'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">DOCTOR</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Doctor</span>
         ),
-        cell: ({ row }) =>
-          truncateCell(formatDoctorDisplay(row.original)),
+        cell: ({ row }) => truncateCell(formatDoctorDisplay(row.original)),
       },
       {
         id: 'status',
         meta: colMeta('w-[6.5rem]'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">STATUS</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Status</span>
         ),
         cell: ({ row }) => (
           <span
@@ -122,41 +147,51 @@ export function PharmacyQueueTable({
         ),
       },
       {
-        id: 'queued',
-        meta: colMeta('w-[10rem]'),
+        id: 'priority',
+        meta: colMeta('w-[7rem]'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">QUEUED</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Priority</span>
         ),
-        cell: ({ row }) => (
-          <span className="text-sm tabular-nums">{formatPharmacyQueuedAt(row.original.updated_at)}</span>
-        ),
+        cell: ({ row }) => {
+          const priority = row.original.priority ?? 'routine';
+          return (
+            <span
+              className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${pharmacyQueuePriorityBadgeClass(priority)}`}
+            >
+              {pharmacyQueuePriorityLabel(priority)}
+            </span>
+          );
+        },
       },
       {
         id: 'actions',
         meta: colMeta('w-[9.5rem]', 'text-right'),
         header: () => (
-          <span className="text-xs font-semibold tracking-wide text-muted-foreground">ACTIONS</span>
+          <span className="text-xs font-semibold tracking-wide text-muted-foreground">Actions</span>
         ),
-        cell: ({ row }) =>
-          row.original.walk_in_order && row.original.record_id ? (
+        cell: ({ row }) => {
+          if (row.original.walk_in_order && row.original.record_id) {
+            return (
+              <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 text-xs" asChild>
+                <Link
+                  to="/pharmacy/walk-in-orders/$recordId"
+                  params={{ recordId: row.original.record_id }}
+                >
+                  {row.original.has_dispense ? 'View dispense' : 'Issue Medicines'}
+                </Link>
+              </Button>
+            );
+          }
+          if (!row.original.visit_id) return null;
+          const label = canIssueMedicines(row.original) ? 'Issue Medicines' : 'View dispense';
+          return (
             <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 text-xs" asChild>
-              <Link
-                to="/pharmacy/walk-in-orders/$recordId"
-                params={{ recordId: row.original.record_id }}
-              >
-                {row.original.has_dispense ? 'View dispense' : 'Issue Medicines'}
+              <Link to="/pharmacy/visits/$visitId" params={{ visitId: row.original.visit_id }}>
+                {label}
               </Link>
             </Button>
-          ) : row.original.visit_id ? (
-            <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 text-xs" asChild>
-              <Link
-                to="/pharmacy/visits/$visitId"
-                params={{ visitId: row.original.visit_id }}
-              >
-                {row.original.has_dispense ? 'View dispense' : 'Issue Medicines'}
-              </Link>
-            </Button>
-          ) : null,
+          );
+        },
       },
     ],
     [],
@@ -165,7 +200,7 @@ export function PharmacyQueueTable({
   return (
     <DataTable
       tableClassName="w-full table-fixed"
-      className="overflow-x-auto [&_thead]:bg-[#F8FAFC]"
+      className="overflow-x-auto rounded-lg bg-white shadow-md [&_thead]:bg-[#F8FAFC]"
       columns={columns}
       data={rows}
       isLoading={isLoading}
@@ -175,8 +210,9 @@ export function PharmacyQueueTable({
         pageIndex: page - 1,
         pageSize,
         total,
+        pageSizeOptions,
         onPageChange: (pageIndex) => onPageChange(pageIndex + 1),
-        onPageSizeChange: () => {},
+        onPageSizeChange: onPageSizeChange ?? (() => {}),
       }}
     />
   );

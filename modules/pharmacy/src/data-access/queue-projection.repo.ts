@@ -83,6 +83,7 @@ export class DrizzleQueueProjectionRepo {
       queued_to?: string;
       search?: string;
       status?: PharmacyQueueStatusFilter;
+      doctor_id?: string;
       source_kind?: PharmacyQueueSourceKind | "all";
     },
   ): Promise<{ items: QueueProjectionRow[]; total: number }> {
@@ -104,6 +105,11 @@ export class DrizzleQueueProjectionRepo {
 
     if (options.status && options.status !== "all") {
       conditions.push(eq(queueProjection.dispense_status, options.status));
+    }
+
+    const doctorId = options.doctor_id?.trim();
+    if (doctorId) {
+      conditions.push(eq(queueProjection.doctor_id, doctorId));
     }
 
     const search = options.search?.trim().toLowerCase() ?? "";
