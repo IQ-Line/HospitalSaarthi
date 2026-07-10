@@ -6,9 +6,9 @@ export const inventoryModuleManifest: ModuleManifest = {
   name: 'Inventory',
   icon: 'package',
   routePrefix: '/inventory',
+  tenantScoped: false,
   sortOrder: 36,
   keepNavigationGroup: true,
-  requiredModulesAny: ['inventory'],
   navigation: [
     {
       id: 'inventory-dashboard',

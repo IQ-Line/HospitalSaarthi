@@ -47,7 +47,8 @@ const CLASSIFICATION_LABELS: Record<InventoryItemMaster['classification'], strin
 };
 
 type InventoryItemMasterTabProps = {
-  onRegisterAdd?: (openAdd: (() => void) | undefined) => void;
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
   search: string;
   onSearchChange: (value: string) => void;
   status: InventoryMasterListParams['status'];
@@ -59,7 +60,8 @@ type InventoryItemMasterTabProps = {
 };
 
 export function InventoryItemMasterTab({
-  onRegisterAdd,
+  createOpen,
+  onCreateOpenChange,
   search,
   onSearchChange,
   status,
@@ -70,7 +72,7 @@ export function InventoryItemMasterTab({
   onClassificationFilterChange,
 }: InventoryItemMasterTabProps) {
   const sidePanel = usePageSidePanelSafe();
-  const [panelMode, setPanelMode] = useState<'closed' | 'create'>('closed');
+  const panelMode = createOpen ? 'create' : 'closed';
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(INVENTORY_MASTERS_DEFAULT_PAGE_SIZE);
   const create = useInventoryItemCreate();
@@ -161,17 +163,8 @@ export function InventoryItemMasterTab({
   );
 
   const closePanel = useCallback(() => {
-    setPanelMode('closed');
-  }, []);
-
-  const openCreatePanel = useCallback(() => {
-    setPanelMode('create');
-  }, []);
-
-  useEffect(() => {
-    onRegisterAdd?.(openCreatePanel);
-    return () => onRegisterAdd?.(undefined);
-  }, [onRegisterAdd, openCreatePanel]);
+    onCreateOpenChange(false);
+  }, [onCreateOpenChange]);
 
   const handleSubmit = useCallback(
     async (payload: CreateItemMasterPayload) => {

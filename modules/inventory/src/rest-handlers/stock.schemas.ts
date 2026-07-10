@@ -10,6 +10,12 @@ export const listStockQuerySchema = z.object({
   page_size: z.coerce.number().int().min(1).max(500).optional().default(200),
 });
 
+export const listExpiringLotsQuerySchema = z.object({
+  store_id: z.string().uuid(),
+  within_days: z.coerce.number().int().min(1).max(365).optional().default(30),
+  page_size: z.coerce.number().int().min(1).max(200).optional().default(100),
+});
+
 export const stockBatchesQuerySchema = z.object({
   store_id: z.string().uuid(),
 });
