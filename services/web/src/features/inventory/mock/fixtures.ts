@@ -40,7 +40,7 @@ export const MOCK_DASHBOARD: InventoryDashboardData = {
   stats: {
     active_items: 17,
     low_stock: 2,
-    expiring_soon: 0,
+    expiring_soon: 1,
     pending_approvals: 0,
   },
   low_stock_items: [
@@ -129,6 +129,13 @@ export const MOCK_STOCK_ROWS: InventoryStockRow[] = [
 
 export const MOCK_STOCK_LOTS: Record<string, InventoryStockLot[]> = {
   'stk-3': [
+    {
+      id: 'lot-exp-soon',
+      lot_number: 'LOT-EXP-01',
+      expiry_date: '2026-07-20',
+      received_date: '2026-06-01',
+      quantity: 45,
+    },
     {
       id: 'lot-12',
       lot_number: 'Lot 12',

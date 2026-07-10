@@ -6,6 +6,7 @@ import type {
   InventoryIndentListData,
   InventoryIndentListParams,
   InventoryItemOption,
+  InventoryExpiringLot,
   InventoryLowStockItem,
   InventoryListParams,
   InventoryManufacturerOption,
@@ -16,6 +17,7 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
+import { INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS } from '../lib/inventory-dashboard-navigation';
 import {
   MOCK_DASHBOARD,
   MOCK_GRN_LOGS,
@@ -65,17 +67,51 @@ export async function mockFetchInventoryDashboardStats(
   storeId?: string,
 ): Promise<InventoryDashboardStats> {
   const resolvedStoreId = storeId || MOCK_INVENTORY_STORES[0]?.id;
-  const [items, stock, indents] = await Promise.all([
+  const [items, stock, indents, expiring] = await Promise.all([
     mockFetchInventoryItems(),
     mockFetchInventoryStock({ store_id: resolvedStoreId, status: 'all' }),
     mockFetchInventoryIndents({ status: 'submitted', limit: 1 }),
+    mockFetchInventoryExpiringLots(resolvedStoreId!),
   ]);
   return {
     active_items: items.length,
     low_stock: stock.summary.critical + stock.summary.low,
-    expiring_soon: MOCK_DASHBOARD.stats.expiring_soon,
+    expiring_soon: expiring.length,
     pending_approvals: indents.total,
   };
+}
+
+
+function mockExpiringLotsFromFixtures(storeId: string, withinDays: number) {
+  const today = new Date();
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() + withinDays);
+  const todayKey = today.toISOString().slice(0, 10);
+  const cutoffKey = cutoff.toISOString().slice(0, 10);
+  const lots: InventoryExpiringLot[] = [];
+
+  for (const row of MOCK_STOCK_ROWS.filter((entry) => entry.store_id === storeId)) {
+    for (const lot of MOCK_STOCK_LOTS[row.id] ?? []) {
+      if (!lot.expiry_date || lot.expiry_date < todayKey || lot.expiry_date > cutoffKey) continue;
+      lots.push({
+        id: lot.id,
+        item_name: row.item_name,
+        lot_number: lot.lot_number,
+        expiry_date: lot.expiry_date,
+        quantity: lot.quantity,
+        uom: row.uom,
+      });
+    }
+  }
+
+  return lots.sort((a, b) => a.expiry_date.localeCompare(b.expiry_date));
+}
+
+export async function mockFetchInventoryExpiringLots(
+  storeId: string,
+  withinDays: number = INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+): Promise<InventoryExpiringLot[]> {
+  return mockExpiringLotsFromFixtures(storeId, withinDays);
 }
 
 export async function mockFetchInventoryLowStockItems(

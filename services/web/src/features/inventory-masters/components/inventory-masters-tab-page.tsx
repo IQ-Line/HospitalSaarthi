@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
   useInventoryCategories,
@@ -66,7 +66,7 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
   const [status, setStatus] = useState<InventoryMasterListParams['status']>('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [classificationFilter, setClassificationFilter] = useState('all');
-  const [itemMasterAdd, setItemMasterAdd] = useState<(() => void) | undefined>();
+  const [itemMasterCreateOpen, setItemMasterCreateOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<InventoryMasterCrudRow | null>(null);
   const [deleting, setDeleting] = useState<DeleteTarget | null>(null);
@@ -311,11 +311,17 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
     [canDelete, canUpdate],
   );
 
+  useEffect(() => {
+    if (tabId !== 'item-master') {
+      setItemMasterCreateOpen(false);
+    }
+  }, [tabId]);
+
   const handleAddClick = useMemo(() => {
     if (!crudEnabled) return undefined;
-    if (tabId === 'item-master') return itemMasterAdd;
+    if (tabId === 'item-master') return () => setItemMasterCreateOpen(true);
     return () => setCreateOpen(true);
-  }, [crudEnabled, itemMasterAdd, tabId]);
+  }, [crudEnabled, tabId]);
 
   const tableProps = {
     search,
@@ -339,7 +345,8 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
       {tabId === 'item-master' ? (
         <InventoryItemMasterTabShell>
           <InventoryItemMasterTab
-            onRegisterAdd={setItemMasterAdd}
+            createOpen={itemMasterCreateOpen}
+            onCreateOpenChange={setItemMasterCreateOpen}
             search={search}
             onSearchChange={setSearch}
             status={status}

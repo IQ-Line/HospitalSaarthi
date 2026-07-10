@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   AlertTriangle,
   ArrowRight,
@@ -19,22 +19,29 @@ import {
 import { InventoryKpiCard, InventoryPanel } from './inventory-kpi-card';
 import { InventoryPageShell } from './inventory-page-shell';
 import {
+  INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+  type InventoryStockDashboardView,
+} from '../lib/inventory-dashboard-navigation';
+import {
   useInventoryDashboardStats,
+  useInventoryExpiringLots,
   useInventoryLowStockItems,
   useInventoryStores,
 } from '../api/queries';
 
 export function InventoryDashboardPage() {
-  const lowStockPanelRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
   const [storeId, setStoreId] = useState('');
-  const [lowStockExpanded, setLowStockExpanded] = useState(false);
 
   const { data: stores = [], isLoading: storesLoading } = useInventoryStores();
   const { data: stats, isLoading: statsLoading } = useInventoryDashboardStats(storeId || undefined);
-  const {
-    data: lowStockItems = [],
-    isLoading: lowStockLoading,
-  } = useInventoryLowStockItems(storeId || undefined, lowStockExpanded);
+  const { data: lowStockItems = [], isLoading: lowStockLoading } = useInventoryLowStockItems(
+    storeId || undefined,
+    Boolean(storeId),
+  );
+  const { data: expiringLots = [], isLoading: expiringLoading } = useInventoryExpiringLots(
+    storeId || undefined,
+  );
 
   const kpisLoading = statsLoading || (storesLoading && !storeId);
 
@@ -46,10 +53,22 @@ export function InventoryDashboardPage() {
 
   const storeName = stores.find((store) => store.id === storeId)?.name ?? 'Store';
 
-  const handleLowStockClick = () => {
-    setLowStockExpanded(true);
-    window.requestAnimationFrame(() => {
-      lowStockPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const goStock = (view: InventoryStockDashboardView) => {
+    if (!storeId) return;
+    void navigate({
+      to: '/inventory/stock',
+      search: { store_id: storeId, view },
+    });
+  };
+
+  const goPendingIndents = () => {
+    void navigate({
+      to: '/inventory/indents',
+      search: {
+        tab: 'incoming',
+        status: 'submitted',
+        ...(storeId ? { storeId } : {}),
+      },
     });
   };
 
@@ -57,7 +76,7 @@ export function InventoryDashboardPage() {
     <InventoryPageShell title="Inventory" breadcrumbLabel="Inventory">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          KPIs and stock alerts for the selected store.
+          KPIs and stock alerts for the selected store. Click a card to open the filtered list.
         </p>
         <div className="w-full min-w-[220px] sm:w-auto">
           <Select value={storeId || undefined} onValueChange={setStoreId}>
@@ -82,6 +101,7 @@ export function InventoryDashboardPage() {
           hint="Items in catalog"
           icon={Box}
           isLoading={kpisLoading}
+          onClick={() => goStock('active')}
         />
         <InventoryKpiCard
           label="Low Stock"
@@ -89,15 +109,15 @@ export function InventoryDashboardPage() {
           hint={`At or below reorder point · ${storeName}`}
           icon={AlertTriangle}
           isLoading={kpisLoading}
-          onClick={handleLowStockClick}
-          isActive={lowStockExpanded}
+          onClick={() => goStock('low_stock')}
         />
         <InventoryKpiCard
           label="Expiring Soon"
           value={stats?.expiring_soon ?? 0}
-          hint="Lots expiring within 30 days"
+          hint={`Lots expiring within ${INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS} days`}
           icon={CalendarClock}
           isLoading={kpisLoading}
+          onClick={() => goStock('expiring')}
         />
         <InventoryKpiCard
           label="Pending Approvals"
@@ -105,6 +125,7 @@ export function InventoryDashboardPage() {
           hint="Indents awaiting approval"
           icon={ShieldCheck}
           isLoading={kpisLoading}
+          onClick={goPendingIndents}
         />
       </div>
 
@@ -122,63 +143,92 @@ export function InventoryDashboardPage() {
       </InventoryPanel>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <div ref={lowStockPanelRef}>
-          <InventoryPanel
-            title="Low Stock Items"
-            action={
-              <Link
-                to="/inventory/stock"
-                search={{ status: 'low' as const }}
-                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-              >
-                View all
-                <ArrowRight className="size-3.5" aria-hidden />
-              </Link>
-            }
-          >
-            {!lowStockExpanded ? (
-              <p className="text-sm text-muted-foreground">
-                Click the <span className="font-medium text-foreground">Low Stock</span> card above to
-                load items for {storeName}.
-              </p>
-            ) : lowStockLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, index) => (
-                  <Skeleton key={index} className="h-12 w-full" />
-                ))}
-              </div>
-            ) : lowStockItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No low stock items at {storeName}. All stocked items are above their reorder points.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {lowStockItems.map((item) => (
-                  <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
-                    <div>
-                      <p className="font-medium">{item.item_name}</p>
-                      {item.item_code ? (
-                        <p className="text-xs text-muted-foreground">Code: {item.item_code}</p>
-                      ) : null}
-                      <p className="text-muted-foreground">
-                        {item.quantity} {item.uom} · reorder at {item.reorder_at}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </InventoryPanel>
-        </div>
+        <InventoryPanel
+          title="Low Stock Items"
+          action={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              onClick={() => goStock('low_stock')}
+            >
+              View all
+              <ArrowRight className="size-3.5" aria-hidden />
+            </button>
+          }
+        >
+          {!storeId ? (
+            <p className="text-sm text-muted-foreground">Select a store to preview low stock items.</p>
+          ) : lowStockLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : lowStockItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No low stock items at {storeName}. All stocked items are above their reorder points.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {lowStockItems.slice(0, 5).map((item) => (
+                <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium">{item.item_name}</p>
+                    {item.item_code ? (
+                      <p className="text-xs text-muted-foreground">Code: {item.item_code}</p>
+                    ) : null}
+                    <p className="text-muted-foreground">
+                      {item.quantity} {item.uom} · reorder at {item.reorder_at}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </InventoryPanel>
 
-        <InventoryPanel title="Expiring Lots (Next 30 Days)">
-          <p className="text-sm text-muted-foreground">
-            Expiring-lot alerts are not wired to inventory-svc yet. Open stock levels to review batch
-            expiry per item.
-          </p>
-          <Button type="button" variant="outline" size="sm" className="mt-3" asChild>
-            <Link to="/inventory/stock">Open stock levels</Link>
-          </Button>
+        <InventoryPanel
+          title={`Expiring Lots (Next ${INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS} Days)`}
+          action={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              onClick={() => goStock('expiring')}
+            >
+              View all
+              <ArrowRight className="size-3.5" aria-hidden />
+            </button>
+          }
+        >
+          {!storeId ? (
+            <p className="text-sm text-muted-foreground">Select a store to preview expiring lots.</p>
+          ) : expiringLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <Skeleton key={index} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : expiringLots.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No lots expiring within {INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS} days at {storeName}.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {expiringLots.slice(0, 5).map((lot) => (
+                <li key={lot.id} className="flex items-start justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium">{lot.item_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Lot {lot.lot_number} · expires {lot.expiry_date}
+                    </p>
+                  </div>
+                  <p className="tabular-nums text-muted-foreground">
+                    {lot.quantity} {lot.uom}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </InventoryPanel>
       </div>
 

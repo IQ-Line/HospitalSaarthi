@@ -88,9 +88,14 @@ const MOCK_INDENT_STORES: InventoryIndentStoreOption[] = [
 type InventoryIndentsPageProps = {
   direction?: IndentListDirection;
   storeId?: string;
+  initialStatus?: 'all' | InventoryIndentRow['status'];
 };
 
-export function InventoryIndentsPage({ direction: directionProp, storeId: storeIdProp }: InventoryIndentsPageProps) {
+export function InventoryIndentsPage({
+  direction: directionProp,
+  storeId: storeIdProp,
+  initialStatus = 'all',
+}: InventoryIndentsPageProps) {
   const navigate = useNavigate();
   const { data: liveIndentStores = [], isLoading: storesLoading } = useInventoryIndentStores();
   const { data: fallbackStores = [] } = useInventoryStores();
@@ -108,7 +113,7 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
 
   const [storeId, setStoreId] = useState(storeIdProp ?? '');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | InventoryIndentRow['status']>('all');
+  const [status, setStatus] = useState<'all' | InventoryIndentRow['status']>(initialStatus);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -124,6 +129,11 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
       setStoreId(indentStores[0]!.id);
     }
   }, [storeId, storeIdProp, indentStores]);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+    setPage(1);
+  }, [initialStatus]);
 
   const direction = directionProp ?? defaultIndentDirection(activeStore);
   const showOutgoing = canShowOutgoingTab(activeStore);
