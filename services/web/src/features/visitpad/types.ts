@@ -73,6 +73,7 @@ export interface VisitpadChiefComplaint {
   iq_tenant_id: string | null;
   code: string;
   display_name: string;
+  short_name?: string | null;
   body_system: string;
   triage_priority: string;
   synonyms?: string[];
@@ -96,6 +97,7 @@ export interface VisitpadDiagnosis {
   icd_version?: string;
   official_descriptor?: string;
   display_name: string;
+  short_name?: string | null;
   category: string;
   is_chronic_flag?: boolean;
   is_notifiable?: boolean;
@@ -132,6 +134,8 @@ export interface VisitpadAllergyReaction {
   iq_tenant_id: string | null;
   code: string;
   display_name: string;
+  short_name?: string | null;
+  snomed_code?: string | null;
   display_order: number;
   is_active: boolean;
   is_deleted: boolean;

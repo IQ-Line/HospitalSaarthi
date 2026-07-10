@@ -1,4 +1,11 @@
-import { and, eq, inArray, sql, type DbInstance } from "@hims/ts-sdk-db";
+import {
+  and,
+  eq,
+  inArray,
+  isPostgresUniqueViolation,
+  sql,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import { asc } from "drizzle-orm";
 import { buildDispenseLineRows } from "./build-dispense-line-rows.js";
 import type { DispenseLineItemRecord, DispenseRecord } from "../domain/pharmacy.types.js";
@@ -55,15 +62,6 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
   };
 }
 
-function isPgUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error != null &&
-    "code" in error &&
-    (error as { code: string }).code === "23505"
-  );
-}
-
 export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
   constructor(private readonly db: DbInstance) {}
 
@@ -107,7 +105,7 @@ export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
     try {
       return await this.upsertForVisitTx(tenantId, payload);
     } catch (error) {
-      if (isPgUniqueViolation(error)) {
+      if (isPostgresUniqueViolation(error)) {
         return this.upsertForVisitTx(tenantId, payload);
       }
       throw error;

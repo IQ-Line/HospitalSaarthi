@@ -5,7 +5,7 @@ function visitpadTrimLower(code: string): string {
 }
 
 /** Unified Visitpad catalog code: 3–9 alnum + underscore. */
-export const VISITPAD_CATALOG_CODE_REGEX = /^[A-Za-z0-9_]{3,9}$/;
+export const VISITPAD_CATALOG_CODE_REGEX = /^\w{3,9}$/;
 
 export const visitpadCatalogCodeSchema = z
   .string()
@@ -20,7 +20,7 @@ export const visitpadCatalogCodeSchema = z
 export const visitpadCatalogCodeLowerSchema = visitpadCatalogCodeSchema.transform(visitpadTrimLower);
 
 /** Rx column codes: 2–64 alnum + underscore (platform seed may use 2-char codes). */
-export const VISITPAD_RX_COLUMN_CODE_REGEX = /^[A-Za-z0-9_]{2,64}$/;
+export const VISITPAD_RX_COLUMN_CODE_REGEX = /^\w{2,64}$/;
 
 export const visitpadRxColumnCodeSchema = z
   .string()
@@ -33,7 +33,7 @@ export const visitpadRxColumnCodeSchema = z
   );
 
 /** Vital codes: 1–64 alnum + underscore (OPD integration slugs). */
-export const VISITPAD_VITAL_CODE_REGEX = /^[A-Za-z0-9_]{1,64}$/;
+export const VISITPAD_VITAL_CODE_REGEX = /^\w{1,64}$/;
 
 export const visitpadVitalCodeSchema = z
   .string()
@@ -610,3 +610,36 @@ export type VisitpadManufacturerCreateFormSchema = z.infer<
 >;
 export type VisitpadManufacturerEditFormSchema = z.infer<typeof visitpadManufacturerEditFormSchema>;
 export type VisitpadVitalEditFormSchema = z.infer<typeof visitpadVitalEditFormSchema>;
+
+/**
+ * Form-input aliases (pre-transform shape RHF holds in its fields).
+ * Schemas use `.default()` / `.coerce` / `.transform()`, so `z.input` ≠ `z.infer`.
+ * RHF v5 (`@hookform/resolvers@5`) types the resolver as `Resolver<Input, ctx, Output>`,
+ * so each page must declare `useForm<Input, unknown, Output>` to line the two up.
+ */
+export type VisitpadUnitCreateInput = z.input<typeof visitpadUnitCreateSchema>;
+export type VisitpadUnitEditFormInput = z.input<typeof visitpadUnitEditFormSchema>;
+export type VisitpadDiagnosisCreateFormInput = z.input<typeof visitpadDiagnosisCreateFormSchema>;
+export type VisitpadDiagnosisEditFormInput = z.input<typeof visitpadDiagnosisEditFormSchema>;
+export type VisitpadAllergenCreateFormInput = z.input<typeof visitpadAllergenCreateFormSchema>;
+export type VisitpadAllergenEditFormInput = z.input<typeof visitpadAllergenEditFormSchema>;
+export type VisitpadAllergyReactionCreateFormInput = z.input<
+  typeof visitpadAllergyReactionCreateFormSchema
+>;
+export type VisitpadAllergyReactionEditFormInput = z.input<
+  typeof visitpadAllergyReactionEditFormSchema
+>;
+export type VisitpadChiefComplaintCreateFormInput = z.input<
+  typeof visitpadChiefComplaintCreateFormSchema
+>;
+export type VisitpadChiefComplaintEditFormInput = z.input<
+  typeof visitpadChiefComplaintEditFormSchema
+>;
+export type VisitpadVaccineCreateFormInput = z.input<typeof visitpadVaccineCreateFormSchema>;
+export type VisitpadVaccineEditFormInput = z.input<typeof visitpadVaccineEditFormSchema>;
+export type VisitpadManufacturerCreateFormInput = z.input<
+  typeof visitpadManufacturerCreateFormSchema
+>;
+export type VisitpadManufacturerEditFormInput = z.input<typeof visitpadManufacturerEditFormSchema>;
+export type VisitpadRxColumnCreateFormInput = z.input<typeof visitpadRxColumnCreateFormSchema>;
+export type VisitpadRxColumnEditFormInput = z.input<typeof visitpadRxColumnEditFormSchema>;

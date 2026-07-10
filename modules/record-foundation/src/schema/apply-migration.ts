@@ -1,19 +1,23 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createDb, sql } from "@hims/ts-sdk-db";
+import { applyMigrations } from "@hims/ts-sdk-db";
 
-const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
+const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
-const MIGRATION_FILES = ["001_create_record_foundation.sql"] as const;
-
-/** Applies `record_foundation` schema DDL (idempotent — safe on every dev boot). */
+/**
+ * Apply pending `record-foundation` migrations using the drizzle-kit journal
+ * under `migrations/` (numbered SQL + meta/_journal.json), tracked in
+ * `drizzle.__drizzle_migrations_record_foundation`. Each migration runs exactly
+ * once.
+ *
+ * Replaces the legacy hand-written "re-run every .sql on every boot" path
+ * (no tracking table, idempotency-by-author-vigilance). Source of truth is
+ * `src/schema/tables.ts`; regenerate with `nx run record-foundation:db-generate`.
+ */
 export async function applyRecordFoundationSchemaMigration(
   connectionString: string,
 ): Promise<void> {
-  const db = createDb(connectionString);
-  for (const file of MIGRATION_FILES) {
-    const ddl = readFileSync(join(MIGRATIONS_DIR, file), "utf8");
-    await db.execute(sql.raw(ddl));
-  }
+  await applyMigrations(connectionString, MIGRATIONS_DIR, {
+    migrationsSchema: "drizzle",
+    migrationsTable: "__drizzle_migrations_record_foundation",
+  });
 }

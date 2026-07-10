@@ -586,23 +586,13 @@ export class DrizzleInventoryIndentRepository {
     return row ? mapIndentRow(row) : undefined;
   }
 
-  async approve(
+  private async applyApprovalLines(
     tenantId: string,
-    indentId: string,
     lines: ApproveIndentLineInput[],
-    actorId: string,
-    approvalRemarks?: string | null,
-  ): Promise<IndentRow | undefined> {
-    const existing = await this.findById(tenantId, indentId);
-    if (!existing) return undefined;
-    if (existing.status !== "submitted") {
-      throw new IndentValidationError("Only submitted indents can be approved");
-    }
-
-    const dbLines = await this.listLines(tenantId, indentId);
-    const lineMap = new Map(dbLines.map((line) => [line.id, line]));
-    let hasPartial = false;
+    lineMap: Map<string, IndentLineRow>,
+  ): Promise<{ hasApproved: boolean; hasPartial: boolean }> {
     let hasApproved = false;
+    let hasPartial = false;
 
     for (const input of lines) {
       const line = lineMap.get(input.line_id);
@@ -626,6 +616,26 @@ export class DrizzleInventoryIndentRepository {
           ),
         );
     }
+
+    return { hasApproved, hasPartial };
+  }
+
+  async approve(
+    tenantId: string,
+    indentId: string,
+    lines: ApproveIndentLineInput[],
+    actorId: string,
+    approvalRemarks?: string | null,
+  ): Promise<IndentRow | undefined> {
+    const existing = await this.findById(tenantId, indentId);
+    if (!existing) return undefined;
+    if (existing.status !== "submitted") {
+      throw new IndentValidationError("Only submitted indents can be approved");
+    }
+
+    const dbLines = await this.listLines(tenantId, indentId);
+    const lineMap = new Map(dbLines.map((line) => [line.id, line]));
+    const { hasApproved, hasPartial } = await this.applyApprovalLines(tenantId, lines, lineMap);
 
     if (!hasApproved) {
       throw new IndentValidationError("At least one line must have approved quantity > 0");

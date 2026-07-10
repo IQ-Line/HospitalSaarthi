@@ -15,7 +15,7 @@ export function activeVisitpadCatalogRows<T extends ActiveCatalogRow>(items: T[]
 }
 
 export function visitpadDisplayNameOptions(
-  items: Array<{ display_name: string }> | undefined,
+  items: Array<ActiveCatalogRow & { display_name: string }> | undefined,
 ): VisitpadSelectOption[] {
   return activeVisitpadCatalogRows(items).map((item) => ({
     label: item.display_name,
@@ -113,7 +113,7 @@ export function resolveMedicineStrengthDisplay(
   const unit = medicine.strength_unit?.trim();
   const value = coerceStrengthValue(medicine.strength_value);
   if (value != null && unit) {
-    const formattedValue = Number.isInteger(value) ? String(value) : String(value);
+    const formattedValue = String(value);
     return `${formattedValue} ${unit}`;
   }
   if (value != null) return String(value);
@@ -158,9 +158,10 @@ export function matchMethodStrengthOption(
   const caseInsensitive = rows.find((row) => formatted(row).toLowerCase() === lower);
   if (caseInsensitive) return formatted(caseInsensitive);
 
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   const parsed = trimmed.match(/^([\d.]+)\s*(.*)$/);
   if (parsed) {
-    const [, value, unitPart] = parsed;
+    const [, value, unitPart = ''] = parsed;
     const unit = unitPart.trim().toLowerCase();
     const match = rows.find((row) => {
       if (row.display_name.trim() !== value) return false;

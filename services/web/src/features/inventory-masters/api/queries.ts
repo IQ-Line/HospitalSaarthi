@@ -21,7 +21,6 @@ import type {
   PaginatedList,
 } from '../types';
 import type {
-  InventoryCategoryApiRow,
   InventoryHsnGstApiRow,
   InventoryItemApiRow,
   InventoryItemListResponse,

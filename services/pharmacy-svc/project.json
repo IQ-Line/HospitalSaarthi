@@ -1,15 +1,28 @@
 {
   "name": "pharmacy-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:pharmacy", "language:typescript", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:pharmacy",
+    "language:typescript",
+    "deploy:aks"
+  ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/pharmacy-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
         "command": "tsup --config tsup.config.ts",
         "cwd": "services/pharmacy-svc"
       },
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
     },
     "serve": {
@@ -18,7 +31,17 @@
         "cwd": "services/pharmacy-svc",
         "envFile": "{workspaceRoot}/.env"
       },
-      "dependsOn": ["pharmacy:db-migrate"]
+      "dependsOn": [
+        "pharmacy:db-migrate"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/pharmacy-svc/src/**/*.ts"
+        ]
+      }
     }
   }
 }

@@ -1,10 +1,13 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import type { FastifyInstance } from "fastify";
+import type { PlatformModuleCatalogPort } from "../ports.js";
 import { assertUmInternalServiceAccess } from "../http/assert-um-internal-service-access.js";
 import { listEntitlementEnabledModuleIds } from "../use-cases/list-entitlement-enabled-module-ids.js";
 
 export type InternalTenantEntitlementHandlerDeps = {
   db: DbInstance;
+  /** Master Data global module catalog (HTTP adapter) — drops orphaned/deleted tenant modules. */
+  platformModuleCatalog: PlatformModuleCatalogPort;
 };
 
 /**
@@ -21,6 +24,7 @@ export function registerInternalTenantEntitlementHandler(
       assertUmInternalServiceAccess(request);
       const modules = await listEntitlementEnabledModuleIds(
         deps.db,
+        deps.platformModuleCatalog,
         request.params.tenantId,
       );
       return {

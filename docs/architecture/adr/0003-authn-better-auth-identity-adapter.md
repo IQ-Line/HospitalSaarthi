@@ -1,7 +1,7 @@
 # ADR-0003: AuthN with better-auth and identity adapter pattern
 
-- **Status:** Proposed
-- **Date:** 2026-04-28
+- **Status:** Accepted — core-identity MVP implemented (2026-06-21); federation + BFF Token Handler deferred
+- **Date:** 2026-04-28 (implementation status appended 2026-06-21)
 - **Deciders:** [Engineering Manager], [Architect]
 
 ## Context and problem statement
@@ -35,6 +35,29 @@ Chosen option: **better-auth behind an IdentityProvider interface**, because it 
 - **Recovery tier model:** 5-tier recovery system (`standard`, `delegated`, `phone_recovery`, `admin_only`, `federated`) as a first-class platform workflow.
 - **AuthN provider replaceability:** The `IdentityProvider` interface contract is formalized. Synthetic emails make migration to Keycloak practical — they're meaningless internal keys that get discarded, not migrated. All platform-owned data (roles, capabilities, recovery tiers, identity links) survives a provider switch.
 
+### Implementation status (2026-06-21 — "core identity first" MVP)
+
+The username-primary identity flip shipped and is verified on real Citus + better-auth 1.6.10 (full provision → `signIn.username` → admin reset round-trip). What is live:
+
+- **Username-primary login.** `username()` + `admin()` plugins enabled; `signIn.username` on the web client; login + admin create-user forms are username-first. Create-user **requires** `username` (lowercase `^[a-z0-9._]{3,30}$`, matching better-auth's default validator — no hyphen) and makes **email optional** (contact data only). OpenAPI `POST /users` `required` flipped accordingly.
+- **Synthetic identity anchor.** `ba_users.email = {username}@auth.internal`, derived in exactly one place (`services/user-management-svc/src/auth/synthetic-email.ts`) and consumed by the provisioner, the dev seed, and the dev bootstrap. Real contact email lives only on `users.email`. Security invariant §15.1/§15.2 hold; the synthetic value is removed from the provider-agnostic `CreatePasswordAuthAccountInput` (it lives inside the better-auth boundary, spec §10.2).
+- **Recovery tier (MVP slice).** `users.recovery_tier` column (migration `0004`, distributed-table-safe CHECK) emitting only `standard` (real email present) or `admin_only` (no email), derived at creation. The other tiers and the `sendResetPassword` routing that *reads* the tier are Phase 2.
+- **Recovery Flow A.** `POST /users/{id}/reset-password` → Cerbos action **`user.reset_password`** (distinct from `user.update` so account recovery is separable; capability gate currently reuses `users:users:update`, task 9 may split a dedicated capability) → set password + revoke sessions (§15.8). Password is set via better-auth's own context (`auth.$context.password.hash` + `internalAdapter.updatePassword`) as a **trusted server-side call** — Cerbos is authoritative, so we deliberately bypass better-auth's `admin()` role gate rather than couple our authz to it (consistent with the existing session-revoker stance).
+
+**Replaceability boundary is realized as focused ports, not a monolithic interface.** The spec §10.4 `IdentityProvider` lists 8 methods; 4 of them (`verifyToken`/`getJWKS`/`issueToken`/`refreshToken`) belong to the deferred BFF Token Handler / verification path and have no callers today. Building them now would be dead surface (violates the simplicity doctrine). The boundary's purpose — *modules never touch better-auth directly* — is fully met by three narrow, single-responsibility ports, each independently swappable for a Keycloak adapter:
+
+| Concern | Port | better-auth adapter |
+|---------|------|---------------------|
+| Create credential account | `AuthAccountProvisioner` | `createPasswordAuthAccountProvisioner` |
+| Revoke sessions | `AuthSessionRevokerPort` | `DrizzleAuthSessionRevoker` |
+| Set/reset password | `AuthPasswordResetterPort` | `BetterAuthPasswordResetter` |
+
+The monolithic `IdentityProvider` interface (and its token-issue/verify methods) is deferred until the BFF Token Handler pass gives those methods real callers.
+
+**Explicitly deferred (with a gate):** BFF Token Handler (own pass; JWT lifetime stays 5 min until it ships — dropping to ≤2 min before then would force re-login every 2 min); recovery routing that reads `recovery_tier` (Phase 2); `must_change_password` login enforcement (column intentionally **not** added this pass — it is a transient flag with a safe default and no reader yet, so it lands with its enforcement in Phase 2, not pre-emptively); `delegated`/`phone_recovery`/`federated` tiers + `delegated_recovery_routes` + `auth_identity_links` (Phase 2/3, regenerable migrations); Flows B/C. **`recovery_tier` is write-only/internal this phase** — derived and persisted at creation but deliberately not surfaced in read APIs (OpenAPI `User` schema, `GET /users(/:id)`) or the admin UI until the recovery-routing UX lands; exposing it now would be speculative surface with no consumer.
+
+**Known deviation (gated):** Security invariant §15.10 (prefer `auth.api.*` over direct SQL for session revocation) — `DrizzleAuthSessionRevoker` deletes session rows directly (pre-existing) and Flow A reuses it. Not deepened here; to be reconciled in the Cerbos/Token-Handler passes (both `auth.api.revokeUserSessions` and `setUserPassword` sit behind the same admin middleware, so aligning them is one change once the trusted-call header strategy is settled).
+
 As of v1.5+, better-auth natively covers the federation capabilities that historically required a heavyweight IAM server like Keycloak:
 
 - **OIDC federation** via the SSO plugin — supports Entra ID, Okta, Keycloak, Auth0, and Google.
@@ -65,11 +88,11 @@ As of v1.5+, better-auth natively covers the federation capabilities that histor
 **Follow-up actions:**
 
 - [x] Define the `IdentityProvider` interface contract — see [design spec §10.4](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#104-the-identityprovider-interface-contract).
-- [ ] Implement the `BetterAuthIdentityProvider` as the default implementation.
+- [x] Implement the better-auth identity adapter — **realized as three focused ports** (`AuthAccountProvisioner`, `AuthSessionRevokerPort`, `AuthPasswordResetterPort`) rather than the monolithic §10.4 `IdentityProvider` interface; the token-issue/verify methods of that interface are deferred until the BFF Token Handler pass has callers (see Implementation status above).
 - [ ] Implement Entra ID / OIDC federation adapter as the first external IdP integration.
 - [ ] Define the JWT claim schema as a platform-level contract shared with PEP middleware SDK.
 - [x] Determine token refresh strategy — BFF Token Handler pattern (1-2 min JWTs + HttpOnly refresh cookie). See [design spec §5](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#5-bff-token-handler-pattern).
-- [ ] Implement the recovery tier model and admin recovery workflows (Flows A, B, C).
+- [~] Recovery tier model and admin recovery workflows — **Flow A (admin direct reset) + `recovery_tier` column (`standard`/`admin_only`) shipped 2026-06-21**; Flows B/C and the `delegated`/`phone_recovery`/`federated` tiers + recovery routing are deferred to Phase 2/3.
 - [ ] **Federation POC:** Verify SSO `provisionUser` hook can link a synthetic-email local user to an IdP account with a different email, end-to-end.
 - [ ] Implement the required better-auth configuration checklist from [design spec §14](../../superpowers/specs/2026-05-03-authn-authz-revision-design.md#14-required-better-auth-configuration).
 

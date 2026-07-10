@@ -1,13 +1,15 @@
 import "./load-env.js";
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
 import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import {
   DrizzleUserRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -26,7 +28,6 @@ import {
   HttpBillingWriteGateway,
   HttpEmpiGateway,
   HttpConfiguratorGateway,
-  HttpOpdGateway,
   HttpPicklistGateway,
   apiKeyAuthPlugin,
   createRegistrationAuthzTargetResolver,
@@ -41,7 +42,6 @@ const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
-const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
 const CONFIGURATOR_URL = process.env["CONFIGURATOR_URL"] ?? "http://localhost:3001";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
@@ -57,6 +57,21 @@ const fastifyAjv = {
 
 async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start registration-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route — healthz, docs, internal, api —
+  // gets an id bound to request.log and echoed on the response header.
+  await app.register(correlationIdPlugin);
+
+  // RFC 7807 problem+json for every error; the handler is inherited by all child scopes.
+  registerProblemErrorHandler(app);
 
   await app.register(cors, {
     credentials: true,
@@ -116,20 +131,34 @@ async function main() {
   const db = createDb(DATABASE_URL);
   const registrationRepo = new DrizzleRegistrationRepo(db);
   const visitRepo = new DrizzleVisitRepo(db);
-  const allocateOpVisitId = (tenantId: string) =>
-    allocateIdentifier(db, { tenantId, identifierType: "op_visit" });
+  // Tenant sequence config comes from configurator's own internal route — registration no longer
+  // reads configurator's schema, and the op_visit counter lives in registration's own schema.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: CONFIGURATOR_URL,
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+  const allocateOpVisitId = async (tenantId: string) => {
+    const cfg = await sequenceConfigLoader(tenantId);
+    return allocateIdentifier(db, {
+      tenantId,
+      identifierType: "op_visit",
+      counterSchema: "registration",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
+    });
+  };
   const empiGateway = new HttpEmpiGateway(EMPI_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
-  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL);
+  const configuratorGateway = new HttpConfiguratorGateway(CONFIGURATOR_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
   const billingReadPort = new HttpBillingGateway(BILLING_URL);
   const billingWritePort = new HttpBillingWriteGateway(BILLING_URL);
-  const opdGateway = new HttpOpdGateway(OPD_URL, {
-    warn: (detail, message) => app.log.warn(detail, message),
-  });
   const picklistReadPort = new HttpPicklistGateway(
     MASTER_DATA_URL,
     (detail, message) => app.log.warn(detail, message),
@@ -141,7 +170,6 @@ async function main() {
   app.log.info(
     {
       pdfPlatformUrl: PDF_PLATFORM_URL,
-      reportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
     },
     "Registration PDF platform configured",
   );
@@ -153,7 +181,6 @@ async function main() {
     empiGateway,
     configuratorGateway,
     eventBus,
-    opdGateway,
     picklistReadPort,
     billingWritePort,
     billingReadPort,
@@ -164,7 +191,6 @@ async function main() {
     visitRepo,
     billingReadPort,
     pdfRenderer,
-    defaultReportWebOrigin: process.env["REPORT_WEB_ORIGIN"] ?? "http://localhost:5173",
     defaultReportLogoUrl: process.env["REPORT_LOGO_URL"] ?? "/reportLogo.svg",
   };
 
@@ -217,7 +243,6 @@ async function main() {
       registrationRepo,
       allocateOpVisitId,
       eventBus,
-      opdGateway,
       configuratorGateway,
     });
     registerDocumentsHandler(api, documentDeps);
@@ -234,6 +259,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start registration-svc:", err);
   process.exit(1);
 });

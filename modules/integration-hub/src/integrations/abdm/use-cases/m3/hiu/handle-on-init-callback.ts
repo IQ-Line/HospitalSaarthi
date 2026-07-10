@@ -1,4 +1,4 @@
-import type { OnConsentInitCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
+import type { OnConsentInitCallback } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { resolveM3ConsentRequestRow } from "./resolve-m3-consent-row.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";

@@ -7,6 +7,18 @@ export type OpdRegistrationFollowUpState = {
   followUpFrom: RegistrationListItemResponse;
 };
 
+// Register the follow-up payload on router history state so `navigate({ state })` and
+// `location.state` are typed. HistoryState originates in @tanstack/history (router-core
+// augments it with its own optional fields); augmenting the same interface merges cleanly.
+// The bare type-import anchors module resolution so the augmentation target is found.
+import type {} from '@tanstack/history';
+
+declare module '@tanstack/history' {
+  interface HistoryState {
+    followUpFrom?: RegistrationListItemResponse;
+  }
+}
+
 export function applyFollowUpPrefill(
   row: RegistrationListItemResponse,
   form: UseFormReturn<CreateVisitRequestBody>,

@@ -30,7 +30,11 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=InventoryStorageConditionListResponse, summary="List storage conditions")
+@router.get(
+    "",
+    response_model=InventoryStorageConditionListResponse,
+    summary="List storage conditions",
+)
 def get_storage_conditions(
     repository: Annotated[
         InventoryStorageConditionRepository,

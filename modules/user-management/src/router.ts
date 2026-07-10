@@ -1,9 +1,9 @@
 /// <reference types="@fastify/sensible" />
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
-import type { AuthPasswordAdminPort } from "./ports/auth-password-admin.js";
+import type { AuthPasswordResetterPort } from "./ports/auth-password-resetter.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -17,14 +17,17 @@ import type {
   TenantEntitlementResolverPort,
   TenantModuleEntitlementPort,
   UserAccessRepository,
+  UserActivationStatusReaderPort,
   UserRepository,
 } from "./ports/index.js";
 import type { CachedTenantEntitlementResolver } from "./services/cached-tenant-entitlement-resolver.js";
 import { registerInternalEntitlementCacheHandlers } from "./rest-handlers/internal-entitlement-cache-handlers.js";
-import { TenantMismatchError } from "./domain/errors.js";
+import { registerInternalUserStatusHandlers } from "./rest-handlers/internal-user-status-handlers.js";
+import { TenantMismatchError, TenantTargetRequiredError } from "./domain/errors.js";
 import { replyWithUserManagementError } from "./http/map-user-management-error.js";
 import {
   assertTenantHeaderAllowedForPrincipal,
+  isPlatformSuperAdminRequest,
   resolveEffectiveTenantId,
 } from "./http/resolve-effective-tenant-id.js";
 import { registerAuthHandlers } from "./rest-handlers/auth-handlers.js";
@@ -74,17 +77,20 @@ export interface UserManagementPluginOptions {
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
   authAccountProvisioner: AuthAccountProvisioner;
-  authPasswordAdmin: AuthPasswordAdminPort;
   eventBus: EventBus;
   tenantModuleEntitlementPort: TenantModuleEntitlementPort;
   masterDataModuleCatalogPort: MasterDataModuleCatalogPort;
   departmentCatalogPort: DepartmentCatalogPort;
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   runtimeEntitlementIntersection?: boolean;
-  /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). */
+  /** For Configurator → UM cache bust HTTP hook (`x-um-internal-key`). Also gates the BFF ban-cutoff route. */
   internalEntitlementCacheApiKey?: string;
+  /** Backs the internal `GET /internal/users/:userId/active` route the BFF edge calls for the D13 ban/revocation cutoff. */
+  userActivationStatusReader?: UserActivationStatusReaderPort;
   accessTokenIssuer: AccessTokenIssuerPort;
   authSessionRevoker?: AuthSessionRevokerPort;
+  /** better-auth credential reset for admin recovery Flow A; pairs with authSessionRevoker. */
+  authPasswordResetter?: AuthPasswordResetterPort;
   principalService?: import("./ports/index.js").PrincipalService;
   interactiveSignIn?: {
     signIn(input: {
@@ -114,7 +120,6 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
-    authPasswordAdmin,
     eventBus,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
@@ -122,6 +127,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
     tenantEntitlementResolver,
     runtimeEntitlementIntersection,
     internalEntitlementCacheApiKey,
+    userActivationStatusReader,
     accessTokenIssuer,
   } = options;
 
@@ -132,8 +138,10 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const getActorId = getUserId;
 
   fastify.addHook("preHandler", async (request, reply) => {
-    const authMode = (request.routeOptions?.config as { authMode?: string } | undefined)?.authMode;
-    if (authMode === "public") {
+    const routeConfig = request.routeOptions?.config as
+      | { authMode?: string; identityScoped?: boolean }
+      | undefined;
+    if (routeConfig?.authMode === "public") {
       return;
     }
 
@@ -142,6 +150,25 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       return replyWithUserManagementError(
         reply,
         new TenantMismatchError(),
+        request.correlationId ?? request.id,
+      );
+    }
+
+    // Identity/self routes (`/auth/me`, `/auth/principal`, …) operate on the CALLER, not a
+    // tenant-scoped resource — a tenant-less platform operator legitimately has no tenant there.
+    if (routeConfig?.identityScoped === true) {
+      return;
+    }
+
+    // Invariant: a tenant-scoped resource operation requires a NON-empty effective tenant. The
+    // only principal that can resolve to "" here is a tenant-less operator (scope:platform) that
+    // supplied no target (no `iq_tenant_id` header) — normal users always carry a JWT tenant and
+    // the api-key path always sets a real tenantId. Reject before it flows into persistence
+    // (`tenantId=""` → orphan row / confusing 500).
+    if (resolveEffectiveTenantId(request).length === 0) {
+      return replyWithUserManagementError(
+        reply,
+        new TenantTargetRequiredError(),
         request.correlationId ?? request.id,
       );
     }
@@ -203,17 +230,21 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       authSessionRevoker: options.authSessionRevoker,
     },
     activateUserDeps: { userRepository, eventBus },
-    resetUserPasswordDeps: {
-      userRepository,
-      eventBus,
-      authPasswordAdmin,
-      authSessionRevoker: options.authSessionRevoker,
-    },
+    ...(options.authPasswordResetter && options.authSessionRevoker
+      ? {
+          resetUserPasswordDeps: {
+            userRepository,
+            authPasswordResetter: options.authPasswordResetter,
+            authSessionRevoker: options.authSessionRevoker,
+          },
+        }
+      : {}),
   });
 
   registerRoleHandlers(fastify, {
     getTenantId,
     getActorId,
+    getCanManageSystemFlag: isPlatformSuperAdminRequest,
     listCapabilitiesDeps: { capabilityRepository },
     listAssignableRuntimeCapabilitiesDeps: {
       capabilityRepository,
@@ -277,6 +308,13 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       tenantModuleEntitlementPort: tenantModuleEntitlementPort as TenantModuleEntitlementPort & {
         invalidateTenantModuleCache?(tenantId?: string): void;
       },
+      internalApiKey: internalEntitlementCacheApiKey,
+    });
+  }
+
+  if (userActivationStatusReader !== undefined) {
+    registerInternalUserStatusHandlers(fastify, {
+      userActivationStatusReader,
       internalApiKey: internalEntitlementCacheApiKey,
     });
   }

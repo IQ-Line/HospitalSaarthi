@@ -12,6 +12,10 @@ from app.models.module import ModulePublicModel, ModuleTenantModel
 from app.models.module_permission import ModulePermissionPublicModel, ModulePermissionTenantModel
 from app.models.permission import PermissionPublicModel, PermissionTenantModel
 from app.models.system_role import SystemRolePublicModel, SystemRoleTenantModel
+from app.models.system_role_permission import (
+    SystemRolePermissionPublicModel,
+    SystemRolePermissionTenantModel,
+)
 
 
 def department_model(scope: CatalogScope):
@@ -36,3 +40,7 @@ def system_role_model(scope: CatalogScope):
 
 def module_permission_model(scope: CatalogScope):
     return ModulePermissionTenantModel if scope.is_tenant else ModulePermissionPublicModel
+
+
+def system_role_permission_model(scope: CatalogScope):
+    return SystemRolePermissionTenantModel if scope.is_tenant else SystemRolePermissionPublicModel

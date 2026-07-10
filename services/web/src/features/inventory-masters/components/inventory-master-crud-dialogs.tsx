@@ -174,14 +174,12 @@ type InventoryMasterCrudDialogsProps = {
 function ActiveField({
   checked,
   onCheckedChange,
-  disabled,
 }: {
   checked: boolean;
   onCheckedChange: (value: boolean) => void;
-  disabled?: boolean;
 }) {
   return (
-    <CatalogActiveSwitch checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+    <CatalogActiveSwitch id="catalog-active" checked={checked} onCheckedChange={onCheckedChange} />
   );
 }
 
@@ -233,7 +231,6 @@ export function InventoryMasterCrudDialogs({
         }
         confirmLabel="Deactivate"
         destructive
-        loading={del.isPending}
         onConfirm={async () => {
           if (!deleting) return;
           try {
@@ -448,8 +445,9 @@ function NameOnlyCrudDialog<T extends { id: string; status: 'active' | 'inactive
         open={createOpen}
         onOpenChange={onCreateOpenChange}
         title={`Add ${title}`}
+        description=""
         submitLabel="Create"
-        loading={busy}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitCreate)}
       >
         <div className="flex flex-col gap-4">
@@ -472,8 +470,9 @@ function NameOnlyCrudDialog<T extends { id: string; status: 'active' | 'inactive
           if (!open) onEditingChange(null);
         }}
         title={`Edit ${title}`}
+        description=""
         submitLabel="Save"
-        loading={busy}
+        isSubmitting={busy}
         onSubmit={form.handleSubmit(submitEdit)}
       >
         <div className="flex flex-col gap-4">
@@ -965,12 +964,8 @@ function StoreTypeCrudDialog(props: {
     ...buildOperationalBody(values),
   });
 
-  const toPatchBody = (values: z.infer<typeof storeTypeSchema>) => ({
-    name: values.name.trim(),
-    description: values.description?.trim() ?? '',
-    is_active: values.is_active,
-    ...buildOperationalBody(values),
-  });
+  // Create and patch bodies are identical for store types.
+  const toPatchBody = toCreateBody;
 
   return (
     <CrudDialogPair

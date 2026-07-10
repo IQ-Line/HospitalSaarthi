@@ -1,5 +1,6 @@
 import type {
   CapabilityRepository,
+  PlatformAdminRepository,
   PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
   UserRepository,
@@ -17,6 +18,8 @@ export type CreatePepRuntimeAuthFromUrlsInput = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
+  /** Optional bounded `scope:platform` membership source; when omitted the principal emits `scopes: []`. */
+  platformAdminRepository?: PlatformAdminRepository;
   capabilityRepository: CapabilityRepository;
   log?: (event: Record<string, unknown>, message: string) => void;
   runtimeEntitlementIntersection?: boolean;
@@ -46,6 +49,7 @@ export function createPepRuntimeAuthFromUrls(
     userRepository: input.userRepository,
     principalRoleProjectionRepository: input.principalRoleProjectionRepository,
     principalAuthorizationRepository: input.principalAuthorizationRepository,
+    platformAdminRepository: input.platformAdminRepository,
     capabilityRepository: input.capabilityRepository,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
@@ -67,5 +71,6 @@ export function requirePepUpstreamBaseUrl(envKey: string): string {
       `${envKey} is required for tenant module entitlements and Master Data module catalog integration`,
     );
   }
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   return raw.replace(/\/+$/, "");
 }

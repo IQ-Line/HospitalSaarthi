@@ -184,12 +184,20 @@ export function printClinicalReportPdfBlob(blob: Blob): void {
   }, 2500);
 }
 
-/** Generate a paginated A4 PDF from report HTML with header/footer on every page. */
-export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string): Promise<Blob> {
-  if (!htmlContent.trim()) {
-    throw new Error('Report HTML content is empty');
-  }
+const SIGNATORY_CAPTURE_WIDTH_PX = 240;
+const PAGE_WIDTH_MM = 210;
+const PAGE_HEIGHT_MM = 297;
 
+const PAGE_NUMBER_FOOTER_CSS =
+  '.report-footer .report-page-number::after { content: none !important; }.report-footer .report-page-number { min-height: 0; overflow: hidden; }';
+
+type CaptureOpts = { scale: number; backgroundColor: string; timeout: number };
+type DomToCanvas = (el: HTMLElement, opts: Record<string, unknown>) => Promise<HTMLCanvasElement>;
+type Region = { sourceY: number; sourceH: number; destY: number };
+type ScaledBlock = { sourceY: number; sourceH: number };
+
+/** Create the off-screen iframe used to render the report HTML for capture. */
+function createCaptureIframe(htmlContent: string): { iframe: HTMLIFrameElement; iframeDoc: Document } {
   const iframe = document.createElement('iframe');
   iframe.setAttribute('data-pdf-capture', 'true');
   iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:auto;border:none;';
@@ -205,23 +213,21 @@ export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string)
   iframeDoc.write(htmlContent);
   iframeDoc.close();
 
-  const injectStyle = (css: string) => {
+  return { iframe, iframeDoc };
+}
+
+function makeStyleInjector(iframeDoc: Document): (css: string) => HTMLStyleElement {
+  return (css: string) => {
     const style = iframeDoc.createElement('style');
     style.setAttribute('data-pdf-capture', 'true');
     style.textContent = css;
     iframeDoc.head.appendChild(style);
     return style;
   };
+}
 
-  injectStyle(FORCE_REPORT_WIDTH_CSS);
-  injectStyle(FORCE_TABLE_ALIGN_CSS);
-  const signatoryCaptureWidthPx = 240;
-  injectStyle(SIGNATORY_HIGH_RES_CSS(signatoryCaptureWidthPx));
-  injectStyle(
-    '.report-footer .report-page-number::after { content: none !important; }.report-footer .report-page-number { min-height: 0; overflow: hidden; }',
-  );
-
-  await new Promise<void>((resolve) => {
+function waitForIframeLoad(iframe: HTMLIFrameElement, iframeDoc: Document): Promise<void> {
+  return new Promise<void>((resolve) => {
     if (iframe.contentWindow) {
       iframe.contentWindow.addEventListener('load', () => resolve(), { once: true });
       if (iframeDoc.readyState === 'complete') window.setTimeout(resolve, 0);
@@ -229,6 +235,293 @@ export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string)
       window.setTimeout(resolve, 300);
     }
   });
+}
+
+function hasRenderableSignatory(signatoryEl: HTMLElement | null): signatoryEl is HTMLElement {
+  return (
+    !!signatoryEl &&
+    signatoryEl.children.length > 0 &&
+    (!!signatoryEl.textContent?.trim() || !!signatoryEl.querySelector('img'))
+  );
+}
+
+/** Capture header/footer/signatory as separate canvases (each may be null). */
+async function captureChromeCanvases(
+  domToCanvas: DomToCanvas,
+  captureOpts: CaptureOpts,
+  els: {
+    captureEl: HTMLElement | null;
+    headerEl: HTMLElement | null;
+    footerEl: HTMLElement | null;
+    signatoryEl: HTMLElement | null;
+    hasSignatoryContent: boolean;
+  },
+): Promise<[HTMLCanvasElement | null, HTMLCanvasElement | null, HTMLCanvasElement | null]> {
+  const { captureEl, headerEl, footerEl, signatoryEl, hasSignatoryContent } = els;
+  const contentWidthForHeader = captureEl
+    ? Math.max(captureEl.scrollWidth || 0, captureEl.offsetWidth || 0, A4_WIDTH_PX)
+    : A4_WIDTH_PX;
+  const headerW = Math.max(headerEl?.offsetWidth ?? 0, contentWidthForHeader);
+  const headerH = Math.max(headerEl?.offsetHeight ?? 0, 90);
+  const footerW = Math.max(footerEl?.offsetWidth ?? 0, contentWidthForHeader);
+  const footerH = Math.max(footerEl?.offsetHeight ?? 0, 60);
+  const signatoryW = Math.max(signatoryEl?.offsetWidth ?? 0, SIGNATORY_CAPTURE_WIDTH_PX);
+  const signatoryH = Math.max(signatoryEl?.offsetHeight ?? 0, 96);
+
+  return Promise.all([
+    headerEl ? domToCanvas(headerEl, { ...captureOpts, width: headerW, height: headerH }) : null,
+    footerEl ? domToCanvas(footerEl, { ...captureOpts, width: footerW, height: footerH }) : null,
+    hasSignatoryContent && signatoryEl
+      ? domToCanvas(signatoryEl, { ...captureOpts, width: signatoryW, height: signatoryH })
+      : null,
+  ]);
+}
+
+/** Capture the main report content as a single tall canvas (null when no element). */
+async function captureContentCanvas(
+  domToCanvas: DomToCanvas,
+  captureOpts: CaptureOpts,
+  captureEl: HTMLElement | null,
+): Promise<HTMLCanvasElement | null> {
+  if (!captureEl) return null;
+  const captureW = Math.max(captureEl.scrollWidth || 0, captureEl.offsetWidth || 0, A4_WIDTH_PX);
+  const captureH = Math.max(captureEl.scrollHeight || 0, captureEl.offsetHeight || 0);
+  const contentWidth = Math.min(Math.max(captureW || 0, A4_WIDTH_PX), A4_WIDTH_PX);
+  const contentHeight = Math.max(captureH || 0, 1);
+  return domToCanvas(captureEl, {
+    ...captureOpts,
+    width: contentWidth,
+    height: contentHeight,
+    style: {
+      width: `${contentWidth}px`,
+      maxWidth: `${contentWidth}px`,
+      boxSizing: 'border-box',
+      paddingLeft: `${DEFAULT_REPORT_CONTENT_HPAD_MM}mm`,
+      paddingRight: `${DEFAULT_REPORT_CONTENT_HPAD_MM}mm`,
+    },
+  });
+}
+
+type Geometry = {
+  cw: number;
+  ch: number;
+  pageHeightPx: number;
+  headerHeightPx: number;
+  footerHeightPx: number;
+  contentStartY: number;
+  signatoryWidthPx: number;
+  signatoryHeightPx: number;
+  signatoryX: number;
+  signatoryY: number;
+  contentAreaHeightPx: number;
+};
+
+/** Derive all page/header/footer/signatory pixel geometry from the captured canvases. */
+function computeGeometry(
+  contentCanvas: HTMLCanvasElement,
+  headerCanvas: HTMLCanvasElement | null,
+  footerCanvas: HTMLCanvasElement | null,
+  signatoryCanvas: HTMLCanvasElement | null,
+): Geometry {
+  const cw = contentCanvas.width;
+  const ch = contentCanvas.height;
+  const pageHeightPx = (cw * PAGE_HEIGHT_MM) / PAGE_WIDTH_MM;
+  const headerHeightPx = headerCanvas ? headerCanvas.height * (cw / headerCanvas.width) : 0;
+  const footerHeightPx = footerCanvas ? footerCanvas.height * (cw / footerCanvas.width) : 0;
+  const contentStartY = headerHeightPx;
+
+  const signatoryRightPx = 0;
+  const signatoryWidthPx = (55 / PAGE_WIDTH_MM) * cw;
+  const signatoryHeightPx = signatoryCanvas
+    ? signatoryCanvas.height * (signatoryWidthPx / signatoryCanvas.width)
+    : 0;
+  const signatoryGapPx = (10 / PAGE_HEIGHT_MM) * pageHeightPx;
+  const signatoryReservedZonePx =
+    signatoryCanvas && signatoryHeightPx > 0 ? signatoryHeightPx + signatoryGapPx : 0;
+  const signatoryX = cw - signatoryRightPx - signatoryWidthPx;
+  const signatoryY = pageHeightPx - footerHeightPx - signatoryHeightPx - signatoryGapPx;
+  const contentAreaHeightPx =
+    pageHeightPx - contentStartY - footerHeightPx - signatoryReservedZonePx;
+
+  return {
+    cw,
+    ch,
+    pageHeightPx,
+    headerHeightPx,
+    footerHeightPx,
+    contentStartY,
+    signatoryWidthPx,
+    signatoryHeightPx,
+    signatoryX,
+    signatoryY,
+    contentAreaHeightPx,
+  };
+}
+
+/** Measure the report's logical blocks and map them onto content-canvas source rows. */
+function computeScaledBlocks(
+  captureEl: HTMLElement | null,
+  contentEl: HTMLElement | null,
+  contentCanvas: HTMLCanvasElement,
+  scale: number,
+): ScaledBlock[] {
+  if (!captureEl) return [];
+
+  const reportContent = contentEl?.querySelector('.report-content');
+  const patientInfoEl = reportContent?.querySelector('.patient-info-container');
+  const contentWrapper = reportContent?.querySelector('.content-wrapper');
+  const sectionEls = contentWrapper
+    ? contentWrapper.querySelectorAll(':scope > .content-section')
+    : (reportContent?.querySelectorAll('.content-section') ?? []);
+  const blockElements = [patientInfoEl, ...Array.from(sectionEls)].filter(Boolean) as HTMLElement[];
+  const containerRect = captureEl.getBoundingClientRect();
+  const blocks = blockElements.map((el) => {
+    const r = el.getBoundingClientRect();
+    return { top: r.top - containerRect.top, height: r.height };
+  });
+
+  const bufferBottomPx = 2;
+  return blocks.map((b, i) => {
+    const rawTop = Math.floor(b.top * scale);
+    const rawBottom = Math.ceil((b.top + b.height) * scale);
+    const nextBlock = blocks[i + 1];
+    const nextSourceY =
+      i < blocks.length - 1 && nextBlock ? Math.floor(nextBlock.top * scale) : contentCanvas.height;
+    const sourceY = i === 0 ? 0 : rawTop;
+    const sourceH = Math.min(
+      rawBottom - sourceY + bufferBottomPx,
+      nextSourceY - sourceY,
+      contentCanvas.height - sourceY,
+    );
+    return { sourceY, sourceH: Math.max(1, sourceH) };
+  });
+}
+
+/** Slice content into page regions when there are no measured blocks (simple height paging). */
+function paginateByHeight(ch: number, contentAreaH: number, contentStartY: number): Region[][] {
+  const totalPages = Math.max(1, Math.ceil(ch / contentAreaH));
+  const pageRegions: Region[][] = [];
+  for (let p = 0; p < totalPages; p++) {
+    const sliceY = p * contentAreaH;
+    const sliceH = Math.min(contentAreaH, ch - sliceY);
+    pageRegions.push([{ sourceY: sliceY, sourceH: sliceH, destY: contentStartY }]);
+  }
+  return pageRegions;
+}
+
+/** Pack measured blocks into pages, keeping blocks intact except when taller than a page. */
+function paginateByBlocks(
+  scaledBlocks: ScaledBlock[],
+  contentAreaH: number,
+  contentStartY: number,
+): Region[][] {
+  const pageRegions: Region[][] = [];
+  let remaining = contentAreaH;
+  let currentPage: Region[] = [];
+  let destY = contentStartY;
+
+  const flush = () => {
+    pageRegions.push(currentPage);
+    currentPage = [];
+    remaining = contentAreaH;
+    destY = contentStartY;
+  };
+
+  for (const { sourceY, sourceH } of scaledBlocks) {
+    const blockH = sourceH;
+    const moveToNextPage = blockH > remaining && remaining < contentAreaH;
+
+    if (moveToNextPage) flush();
+
+    if (blockH > contentAreaH) {
+      if (currentPage.length > 0) flush();
+      currentPage.push({ sourceY, sourceH, destY: contentStartY });
+      flush();
+    } else {
+      currentPage.push({ sourceY, sourceH, destY });
+      destY += blockH;
+      remaining -= blockH;
+    }
+  }
+  if (currentPage.length > 0) pageRegions.push(currentPage);
+  return pageRegions;
+}
+
+/** Composite header, content regions, footer, page number, and signatory onto one A4 page canvas. */
+function renderPageCanvas(
+  page: number,
+  totalPages: number,
+  regions: Region[],
+  contentCanvas: HTMLCanvasElement,
+  headerCanvas: HTMLCanvasElement | null,
+  footerCanvas: HTMLCanvasElement | null,
+  signatoryCanvas: HTMLCanvasElement | null,
+  geo: Geometry,
+  scale: number,
+): HTMLCanvasElement {
+  const { cw, pageHeightPx, headerHeightPx, footerHeightPx } = geo;
+  const pageCanvas = document.createElement('canvas');
+  pageCanvas.width = cw;
+  pageCanvas.height = pageHeightPx;
+  const ctx = pageCanvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, cw, pageHeightPx);
+
+  if (headerCanvas) {
+    ctx.drawImage(headerCanvas, 0, 0, headerCanvas.width, headerCanvas.height, 0, 0, cw, headerHeightPx);
+  }
+  for (const { sourceY, sourceH, destY: dy } of regions) {
+    ctx.drawImage(contentCanvas, 0, sourceY, cw, sourceH, 0, dy, cw, sourceH);
+  }
+  if (footerCanvas) {
+    ctx.drawImage(
+      footerCanvas,
+      0,
+      0,
+      footerCanvas.width,
+      footerCanvas.height,
+      0,
+      pageHeightPx - footerHeightPx,
+      cw,
+      footerHeightPx,
+    );
+  }
+  ctx.fillStyle = '#718096';
+  ctx.font = `${Math.round(9 * scale)}px Arial`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(`Page ${page + 1} of ${totalPages}`, cw - 20, pageHeightPx - 10);
+  if (signatoryCanvas && geo.signatoryHeightPx > 0 && geo.signatoryY >= 0) {
+    ctx.drawImage(
+      signatoryCanvas,
+      0,
+      0,
+      signatoryCanvas.width,
+      signatoryCanvas.height,
+      geo.signatoryX,
+      geo.signatoryY,
+      geo.signatoryWidthPx,
+      geo.signatoryHeightPx,
+    );
+  }
+  return pageCanvas;
+}
+
+/** Generate a paginated A4 PDF from report HTML with header/footer on every page. */
+export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string): Promise<Blob> {
+  if (!htmlContent.trim()) {
+    throw new Error('Report HTML content is empty');
+  }
+
+  const { iframe, iframeDoc } = createCaptureIframe(htmlContent);
+  const injectStyle = makeStyleInjector(iframeDoc);
+
+  injectStyle(FORCE_REPORT_WIDTH_CSS);
+  injectStyle(FORCE_TABLE_ALIGN_CSS);
+  injectStyle(SIGNATORY_HIGH_RES_CSS(SIGNATORY_CAPTURE_WIDTH_PX));
+  injectStyle(PAGE_NUMBER_FOOTER_CSS);
+
+  await waitForIframeLoad(iframe, iframeDoc);
 
   await inlineReportLogoForPdfCapture(iframeDoc);
   await replaceExternalReportImagesWithDataUrls(iframeDoc);
@@ -239,20 +532,13 @@ export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string)
     const { domToCanvas } = await import('modern-screenshot');
     const { jsPDF } = await import('jspdf');
     const scale = PDF_DOM_CAPTURE_SCALE;
-    const captureOpts = {
-      scale,
-      backgroundColor: '#ffffff',
-      timeout: 15000,
-    };
+    const captureOpts: CaptureOpts = { scale, backgroundColor: '#ffffff', timeout: 15000 };
 
     const contentEl = iframeDoc.querySelector('.report-print-root') as HTMLElement | null;
     const headerEl = iframeDoc.querySelector('.report-header') as HTMLElement | null;
     const footerEl = iframeDoc.querySelector('.report-footer') as HTMLElement | null;
     const signatoryEl = iframeDoc.querySelector('.report-signatory') as HTMLElement | null;
-    const hasSignatoryContent =
-      !!signatoryEl &&
-      signatoryEl.children.length > 0 &&
-      (!!signatoryEl.textContent?.trim() || !!signatoryEl.querySelector('img'));
+    const hasSignatoryContent = hasRenderableSignatory(signatoryEl);
 
     const contentElForCapture = contentEl?.querySelector('.report-content') as HTMLElement | null;
     const captureEl = contentElForCapture || contentEl;
@@ -263,228 +549,50 @@ export async function generateClinicalReportPdfBlobFromHtml(htmlContent: string)
 
     await new Promise((r) => window.setTimeout(r, 20));
 
-    const contentWidthForHeader = captureEl
-      ? Math.max(captureEl.scrollWidth || 0, captureEl.offsetWidth || 0, A4_WIDTH_PX)
-      : A4_WIDTH_PX;
-    const headerW = Math.max(headerEl?.offsetWidth ?? 0, contentWidthForHeader);
-    const headerH = Math.max(headerEl?.offsetHeight ?? 0, 90);
-    const footerW = Math.max(footerEl?.offsetWidth ?? 0, contentWidthForHeader);
-    const footerH = Math.max(footerEl?.offsetHeight ?? 0, 60);
-    const signatoryW = Math.max(signatoryEl?.offsetWidth ?? 0, signatoryCaptureWidthPx);
-    const signatoryH = Math.max(signatoryEl?.offsetHeight ?? 0, 96);
-
-    const [headerCanvas, footerCanvas, signatoryCanvas] = await Promise.all([
-      headerEl ? domToCanvas(headerEl, { ...captureOpts, width: headerW, height: headerH }) : null,
-      footerEl ? domToCanvas(footerEl, { ...captureOpts, width: footerW, height: footerH }) : null,
-      hasSignatoryContent && signatoryEl
-        ? domToCanvas(signatoryEl, { ...captureOpts, width: signatoryW, height: signatoryH })
-        : null,
-    ]);
+    const [headerCanvas, footerCanvas, signatoryCanvas] = await captureChromeCanvases(
+      domToCanvas,
+      captureOpts,
+      { captureEl, headerEl, footerEl, signatoryEl, hasSignatoryContent },
+    );
 
     injectStyle(CONTENT_NO_MARGIN_CSS);
     await new Promise((r) => window.setTimeout(r, 10));
 
-    const captureW = captureEl
-      ? Math.max(captureEl.scrollWidth || 0, captureEl.offsetWidth || 0, A4_WIDTH_PX)
-      : 0;
-    const captureH = captureEl
-      ? Math.max(captureEl.scrollHeight || 0, captureEl.offsetHeight || 0)
-      : 0;
-    const contentWidth = Math.min(Math.max(captureW || 0, A4_WIDTH_PX), A4_WIDTH_PX);
-    const contentHeight = Math.max(captureH || 0, 1);
-
-    const contentCanvas = captureEl
-      ? await domToCanvas(captureEl, {
-          ...captureOpts,
-          width: contentWidth,
-          height: contentHeight,
-          style: {
-            width: `${contentWidth}px`,
-            maxWidth: `${contentWidth}px`,
-            boxSizing: 'border-box',
-            paddingLeft: `${DEFAULT_REPORT_CONTENT_HPAD_MM}mm`,
-            paddingRight: `${DEFAULT_REPORT_CONTENT_HPAD_MM}mm`,
-          },
-        })
-      : null;
+    const contentCanvas = await captureContentCanvas(domToCanvas, captureOpts, captureEl);
 
     if (!contentCanvas || contentCanvas.width === 0 || contentCanvas.height === 0) {
       throw new Error('Report content not found or has zero size');
     }
 
-    const cw = contentCanvas.width;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
-    const pageWidthMm = 210;
-    const pageHeightMm = 297;
-    const ch = contentCanvas.height;
-    const pageHeightPx = (cw * pageHeightMm) / pageWidthMm;
-    const headerHeightPx = headerCanvas ? headerCanvas.height * (cw / headerCanvas.width) : 0;
-    const footerHeightPx = footerCanvas ? footerCanvas.height * (cw / footerCanvas.width) : 0;
-    const contentStartY = headerHeightPx;
+    const geo = computeGeometry(contentCanvas, headerCanvas, footerCanvas, signatoryCanvas);
 
-    const signatoryRightPx = 0;
-    const signatoryWidthPx = (55 / pageWidthMm) * cw;
-    const signatoryHeightPx = signatoryCanvas
-      ? signatoryCanvas.height * (signatoryWidthPx / signatoryCanvas.width)
-      : 0;
-    const signatoryGapPx = (10 / pageHeightMm) * pageHeightPx;
-    const signatoryReservedZonePx =
-      signatoryCanvas && signatoryHeightPx > 0 ? signatoryHeightPx + signatoryGapPx : 0;
-    const signatoryX = cw - signatoryRightPx - signatoryWidthPx;
-    const signatoryY = pageHeightPx - footerHeightPx - signatoryHeightPx - signatoryGapPx;
-    const contentAreaHeightPx =
-      pageHeightPx - contentStartY - footerHeightPx - signatoryReservedZonePx;
+    const scaledBlocks = computeScaledBlocks(captureEl, contentEl, contentCanvas, scale);
 
-    type Block = { top: number; height: number };
-    let scaledBlocks: { sourceY: number; sourceH: number }[] = [];
-    if (captureEl) {
-      const reportContent = contentEl?.querySelector('.report-content');
-      const patientInfoEl = reportContent?.querySelector('.patient-info-container');
-      const contentWrapper = reportContent?.querySelector('.content-wrapper');
-      const sectionEls = contentWrapper
-        ? contentWrapper.querySelectorAll(':scope > .content-section')
-        : (reportContent?.querySelectorAll('.content-section') ?? []);
-      const blockElements = [patientInfoEl, ...Array.from(sectionEls)].filter(Boolean) as HTMLElement[];
-      const containerRect = captureEl.getBoundingClientRect();
-      const blocks: Block[] = blockElements.map((el) => {
-        const r = el.getBoundingClientRect();
-        return { top: r.top - containerRect.top, height: r.height };
-      });
-      const bufferBottomPx = 2;
-      scaledBlocks = blocks.map((b, i) => {
-        const rawTop = Math.floor(b.top * scale);
-        const rawBottom = Math.ceil((b.top + b.height) * scale);
-        const nextSourceY =
-          i < blocks.length - 1 ? Math.floor(blocks[i + 1].top * scale) : contentCanvas.height;
-        const sourceY = i === 0 ? 0 : rawTop;
-        const sourceH = Math.min(
-          rawBottom - sourceY + bufferBottomPx,
-          nextSourceY - sourceY,
-          contentCanvas.height - sourceY,
-        );
-        return { sourceY, sourceH: Math.max(1, sourceH) };
-      });
-    }
-
-    const contentAreaH = contentAreaHeightPx;
-    let pageRegions: { sourceY: number; sourceH: number; destY: number }[][] = [];
-    let totalPages: number;
-
-    if (scaledBlocks.length === 0) {
-      totalPages = Math.max(1, Math.ceil(ch / contentAreaH));
-      for (let p = 0; p < totalPages; p++) {
-        const sliceY = p * contentAreaH;
-        const sliceH = Math.min(contentAreaH, ch - sliceY);
-        pageRegions.push([{ sourceY: sliceY, sourceH: sliceH, destY: contentStartY }]);
-      }
-    } else {
-      let remaining = contentAreaH;
-      let currentPage: { sourceY: number; sourceH: number; destY: number }[] = [];
-      let destY = contentStartY;
-
-      for (let i = 0; i < scaledBlocks.length; i++) {
-        const { sourceY, sourceH } = scaledBlocks[i];
-        const blockH = sourceH;
-        const fitsRemaining = blockH <= remaining;
-        const moveToNextPage = !fitsRemaining && remaining < contentAreaH;
-
-        if (moveToNextPage) {
-          pageRegions.push(currentPage);
-          currentPage = [];
-          remaining = contentAreaH;
-          destY = contentStartY;
-        }
-
-        if (blockH > contentAreaH) {
-          if (currentPage.length > 0) {
-            pageRegions.push(currentPage);
-            currentPage = [];
-            remaining = contentAreaH;
-            destY = contentStartY;
-          }
-          currentPage.push({ sourceY, sourceH, destY: contentStartY });
-          pageRegions.push(currentPage);
-          currentPage = [];
-          remaining = contentAreaH;
-          destY = contentStartY;
-        } else {
-          currentPage.push({ sourceY, sourceH, destY });
-          destY += blockH;
-          remaining -= blockH;
-        }
-      }
-      if (currentPage.length > 0) pageRegions.push(currentPage);
-      totalPages = Math.max(1, pageRegions.length);
-    }
+    const contentAreaH = geo.contentAreaHeightPx;
+    const pageRegions =
+      scaledBlocks.length === 0
+        ? paginateByHeight(geo.ch, contentAreaH, geo.contentStartY)
+        : paginateByBlocks(scaledBlocks, contentAreaH, geo.contentStartY);
+    const totalPages = Math.max(1, pageRegions.length);
 
     for (let page = 0; page < totalPages; page++) {
       const regions = pageRegions[page] ?? [];
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = cw;
-      pageCanvas.height = pageHeightPx;
-      const ctx = pageCanvas.getContext('2d')!;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, cw, pageHeightPx);
-
-      if (headerCanvas) {
-        ctx.drawImage(
-          headerCanvas,
-          0,
-          0,
-          headerCanvas.width,
-          headerCanvas.height,
-          0,
-          0,
-          cw,
-          headerHeightPx,
-        );
-      }
-      for (const { sourceY, sourceH, destY: dy } of regions) {
-        ctx.drawImage(contentCanvas, 0, sourceY, cw, sourceH, 0, dy, cw, sourceH);
-      }
-      if (footerCanvas) {
-        ctx.drawImage(
-          footerCanvas,
-          0,
-          0,
-          footerCanvas.width,
-          footerCanvas.height,
-          0,
-          pageHeightPx - footerHeightPx,
-          cw,
-          footerHeightPx,
-        );
-      }
-      ctx.fillStyle = '#718096';
-      ctx.font = `${Math.round(9 * scale)}px Arial`;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(
-        `Page ${page + 1} of ${totalPages}`,
-        cw - 20,
-        pageHeightPx - 10,
+      const pageCanvas = renderPageCanvas(
+        page,
+        totalPages,
+        regions,
+        contentCanvas,
+        headerCanvas,
+        footerCanvas,
+        signatoryCanvas,
+        geo,
+        scale,
       );
-      if (signatoryCanvas && signatoryHeightPx > 0 && signatoryY >= 0) {
-        ctx.drawImage(
-          signatoryCanvas,
-          0,
-          0,
-          signatoryCanvas.width,
-          signatoryCanvas.height,
-          signatoryX,
-          signatoryY,
-          signatoryWidthPx,
-          signatoryHeightPx,
-        );
-      }
 
       const pageImg = pageCanvas.toDataURL('image/png');
-      if (page === 0) {
-        pdf.addImage(pageImg, 'PNG', 0, 0, pageWidthMm, pageHeightMm);
-      } else {
-        pdf.addPage();
-        pdf.addImage(pageImg, 'PNG', 0, 0, pageWidthMm, pageHeightMm);
-      }
+      if (page > 0) pdf.addPage();
+      pdf.addImage(pageImg, 'PNG', 0, 0, PAGE_WIDTH_MM, PAGE_HEIGHT_MM);
     }
 
     return pdf.output('blob') as Blob;

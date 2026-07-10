@@ -1,12 +1,25 @@
-import Fastify from "fastify";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import Fastify, { type FastifyInstance } from "fastify";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
 import { InProcessEventBus } from "@hims/ts-sdk-events";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
+import { validateAuthConfig, identityPlugin } from "@hims/ts-sdk-identity";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
 import {
   createRouter,
+  createEmpiAuthzTargetResolver,
   DrizzlePatientRepo,
   DrizzleAddressRepo,
   DrizzleIdentifierRepo,
@@ -17,7 +30,10 @@ const PORT = Number(
   process.env["EMPI_PORT"] ?? process.env["EMPI_SVC_PORT"] ?? 3002,
 );
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
-const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
+const CERBOS_URL = process.env["CERBOS_URL"];
+/** Dev-only fallback when Swagger/curl omit tenant headers. */
+const EMPI_DEV_TENANT_ID =
+  process.env["EMPI_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
 
 const fastifyAjv = {
   customOptions: {
@@ -27,8 +43,38 @@ const fastifyAjv = {
   },
 };
 
+function resolveRequestTenantId(headers: Record<string, unknown>): string {
+  const fromHeader =
+    (typeof headers["iq_tenant_id"] === "string" ? headers["iq_tenant_id"].trim() : "") ||
+    (typeof headers["x-tenant-id"] === "string" ? headers["x-tenant-id"].trim() : "");
+  if (fromHeader) return fromHeader.toLowerCase();
+  if (process.env["NODE_ENV"] !== "production") return EMPI_DEV_TENANT_ID;
+  return "";
+}
+
 async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start empi-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
+  if (!CERBOS_URL) {
+    throw new Error("CERBOS_URL environment variable is required");
+  }
+  if (!DATABASE_URL.trim()) {
+    throw new Error("DATABASE_URL is required for empi-svc");
+  }
 
   await registerOpenApiDocs(app, {
     serviceId: "empi",
@@ -44,8 +90,26 @@ async function main() {
   const eventBus = new InProcessEventBus();
   await eventBus.connect();
 
-  const allocatePatientUhid = (tenantId: string) =>
-    allocateIdentifier(db, { tenantId, identifierType: "patient_uhid" });
+  // Tenant sequence config (numeric code + custom formats) is fetched from configurator's own
+  // internal route — empi no longer reads configurator's schema. Degrades to the env fallback
+  // (EMPI_FALLBACK_TENANT_NUMERIC_CODE, default 00001) when configurator is unreachable.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: requirePepUpstreamBaseUrl("CONFIGURATOR_URL"),
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    fallbackTenantNumericCode: process.env["EMPI_FALLBACK_TENANT_NUMERIC_CODE"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+
+  const allocatePatientUhid = async (tenantId: string) => {
+    const cfg = await sequenceConfigLoader(tenantId);
+    return allocateIdentifier(db, {
+      tenantId,
+      identifierType: "patient_uhid",
+      counterSchema: "empi",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
+    });
+  };
 
   const empiRouter = createRouter({
     patientRepo: new DrizzlePatientRepo(db),
@@ -56,22 +120,56 @@ async function main() {
     allocatePatientUhid,
   });
 
+  const identityAuth = validateAuthConfig();
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
+  });
+
+  await assertCerbosReachable(CERBOS_URL);
+
   await app.register(async (api) => {
-    if (ENABLE_AUTH) {
-      const { identityPlugin } = await import("@hims/ts-sdk-identity");
-      await api.register(identityPlugin, validateAuthConfig());
-    }
+    api.addHook("onRequest", async (request) => {
+      const tenant = resolveRequestTenantId(request.headers as Record<string, unknown>);
+      request.headers["iq_tenant_id"] = tenant;
+      request.headers["x-tenant-id"] = tenant;
+    });
     await api.register(tenantPlugin);
 
-    await api.register(async (scopedApp) => {
-      await scopedApp.register(empiRouter);
-    }, { prefix: "/empi/v1" });
-  }, { prefix: "/api" });
+    await api.register(identityPlugin, {
+      ...identityAuth,
+      skipPathPrefixes: ["/docs"],
+    });
+    await api.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await api.register(authzPlugin, {
+      cerbosUrl: CERBOS_URL,
+      resolveTarget: createEmpiAuthzTargetResolver(),
+    });
+
+    await api.register(empiRouter);
+  }, { prefix: "/api/empi/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start empi-svc:", err);
   process.exit(1);
 });

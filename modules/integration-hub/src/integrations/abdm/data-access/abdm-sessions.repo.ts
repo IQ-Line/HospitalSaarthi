@@ -3,7 +3,7 @@ import { and, desc, eq, sql } from "@hims/ts-sdk-db";
 import type { EventBus } from "@hims/ts-sdk-events";
 import { abdmSessions } from "../schema/tables.js";
 import type { AbdmSessionsPort } from "../ports.js";
-import type { AbdmSession } from "../domain/session.js";
+import type { AbdmFlowKind, AbdmSession, AbdmSessionShape } from "../domain/session.js";
 import { createSessionStateChangedEnvelope } from "../lib/abdm-envelope.js";
 import {
   createSessionTokenCryptoFromEnv,
@@ -14,10 +14,13 @@ type AbdmSessionRow = typeof abdmSessions.$inferSelect;
 
 function rowToSession(row: AbdmSessionRow, crypto: SessionTokenCrypto | null): AbdmSession {
   const decrypt = (v: string | null) => (crypto ? crypto.decrypt(v) : v);
-  return {
+  // Persisted rows carry flow_kind / state / context independently; reconstitute the
+  // widest single-flow shape, then narrow to the discriminated union. The DB is the
+  // source of truth for the flow<->state<->context correlation the type system enforces.
+  const shape: AbdmSessionShape<AbdmFlowKind> = {
     iqTenantId: row.iq_tenant_id,
     sessionId: row.session_id,
-    flowKind: row.flow_kind as AbdmSession["flowKind"],
+    flowKind: row.flow_kind as AbdmFlowKind,
     state: row.state as AbdmSession["state"],
     txnId: row.txn_id,
     requestId: row.request_id,
@@ -27,6 +30,7 @@ function rowToSession(row: AbdmSessionRow, crypto: SessionTokenCrypto | null): A
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+  return shape as AbdmSession;
 }
 
 export class DrizzleAbdmSessionsRepo implements AbdmSessionsPort {

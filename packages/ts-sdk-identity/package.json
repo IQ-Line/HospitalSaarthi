@@ -17,11 +17,11 @@
   },
   "dependencies": {
     "@hims/ts-sdk-http": "workspace:*",
-    "fastify-plugin": "^5.1.0",
+    "fastify-plugin": "catalog:",
     "jose": "^6.2.3"
   },
   "devDependencies": {
-    "fastify": "^5.0.0",
-    "vitest": "^4.1.5"
+    "fastify": "catalog:",
+    "vitest": "catalog:"
   }
 }

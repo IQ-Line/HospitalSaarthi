@@ -9,6 +9,7 @@ const auth = pgSchema("auth");
 export const authUser = auth.table("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  // AuthN identity anchor: synthetic "{username}@auth.internal" (never a real/contact email).
   email: text("email").notNull().unique(),
   emailVerified: boolean("emailVerified").notNull().default(false),
   image: text("image"),
@@ -16,9 +17,14 @@ export const authUser = auth.table("user", {
   updatedAt: timestamp("updatedAt", { withTimezone: true, mode: "date" }).notNull(),
   iq_tenant_id: text("iq_tenant_id").notNull(),
   platform_user_id: text("platform_user_id").unique(),
-  /** better-auth username plugin — globally unique login handle. */
+  // username plugin (primary login credential, globally unique, lowercased) + display casing.
   username: text("username").unique(),
   displayUsername: text("displayUsername"),
+  // admin plugin (managed via auth.api.* admin endpoints; input:false on the better-auth side).
+  role: text("role"),
+  banned: boolean("banned").notNull().default(false),
+  banReason: text("banReason"),
+  banExpires: timestamp("banExpires", { withTimezone: true, mode: "date" }),
 });
 
 export const authSession = auth.table("session", {
@@ -32,6 +38,8 @@ export const authSession = auth.table("session", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
+  // admin plugin: present when an admin impersonates this user.
+  impersonatedBy: text("impersonatedBy"),
 });
 
 export const authAccount = auth.table("account", {

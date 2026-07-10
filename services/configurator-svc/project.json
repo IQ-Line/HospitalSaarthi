@@ -1,24 +1,54 @@
 {
   "name": "configurator-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:configurator", "language:typescript", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:configurator",
+    "language:typescript",
+    "deploy:aks"
+  ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/configurator-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
         "command": "tsup --config tsup.config.ts",
         "cwd": "services/configurator-svc"
       },
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
+    },
+    "test": {
+      "command": "vitest run",
+      "options": {
+        "cwd": "services/configurator-svc"
+      }
     },
     "serve": {
       "executor": "nx:run-commands",
-      "dependsOn": ["configurator:db-migrate"],
+      "dependsOn": [
+        "configurator:db-migrate"
+      ],
       "options": {
         "command": "tsx src/main.ts",
         "cwd": "services/configurator-svc",
         "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/configurator-svc/src/**/*.ts",
+          "services/configurator-svc/test/**/*.ts"
+        ]
       }
     }
   }

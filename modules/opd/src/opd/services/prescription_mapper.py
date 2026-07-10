@@ -86,6 +86,7 @@ def prescription_to_detail(row: PrescriptionModel) -> PrescriptionDetailResponse
         clinical.medical_history = PrescriptionMedicalHistoryPayload(
             smoking_status=mh.smoking_status,
             alcohol_status=mh.alcohol_status,
+            diet_type=mh.diet_type,
             other_notes=mh.other_notes,
         )
 
@@ -161,6 +162,7 @@ def prescription_to_detail(row: PrescriptionModel) -> PrescriptionDetailResponse
             external_id=i.external_id,
             name=i.name,
             due_by=i.due_by,
+            when_text=i.when_text,
             instructions=i.instructions,
             status=i.status,
         )

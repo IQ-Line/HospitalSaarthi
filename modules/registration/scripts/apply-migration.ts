@@ -1,10 +1,5 @@
+import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
 import { applyRegistrationSchemaMigration } from "../src/schema/apply-migration.js";
 
-const url = process.env["DATABASE_URL"]?.trim();
-if (!url) {
-  console.error("DATABASE_URL is required (e.g. from repo root .env)");
-  process.exit(1);
-}
-
-await applyRegistrationSchemaMigration(url);
-console.log("Registration schema migration applied.");
+await applyRegistrationSchemaMigration(resolveDatabaseUrl());
+console.log("[registration] schema migration applied.");

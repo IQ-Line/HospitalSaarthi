@@ -5,7 +5,6 @@ import type {
   OrganizationFilters,
   UpdateOrganizationData,
 } from "../domain/organization.types.js";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import { createOrganization } from "../use-cases/create-organization.js";
 import { listOrganizations } from "../use-cases/list-organizations.js";
 import { getOrganizationById } from "../use-cases/get-organization-by-id.js";
@@ -34,6 +33,7 @@ export function registerOrganizationsHandler(
 
   app.get<{ Querystring: OrganizationsQuery }>(
     "/organizations",
+    { config: { authMode: "protected" } },
     async (request) => {
       const { status, type } = request.query;
       const filters: OrganizationFilters = {};
@@ -50,7 +50,7 @@ export function registerOrganizationsHandler(
     "/organizations",
     {
       schema: { body: postOrganizationBodySchema },
-      preHandler: (request) => { assertPlatformSuperAdmin(request); },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const created = await runConfiguratorTransaction((repos) =>
@@ -66,6 +66,7 @@ export function registerOrganizationsHandler(
       schema: {
         params: uuidParamSchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const row = await getOrganizationById(organizationRepo, request.params.id);
@@ -83,6 +84,7 @@ export function registerOrganizationsHandler(
         params: uuidParamSchema,
         body: patchOrganizationBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const updated = await updateOrganization(

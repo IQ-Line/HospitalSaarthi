@@ -1,10 +1,11 @@
-"""SQLAlchemy models for Visitpad ``chief_complaints`` — global_master vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``chief_complaints`` — master_global vs ``master_tenant``."""
 
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Index, Integer, JSON, String, Uuid, text
+from sqlalchemy import Boolean, Index, Integer, String, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -19,7 +20,6 @@ class VisitpadChiefComplaintPublicModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -30,7 +30,7 @@ class VisitpadChiefComplaintPublicModel(TimestampMixin, AuditActorMixin, Base):
     short_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     body_system: Mapped[str] = mapped_column(String(64), nullable=False)
     triage_priority: Mapped[str] = mapped_column(String(32), nullable=False)
-    synonyms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    synonyms: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     is_paediatric_relevant: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
@@ -47,7 +47,6 @@ class VisitpadChiefComplaintTenantModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )
@@ -59,7 +58,7 @@ class VisitpadChiefComplaintTenantModel(TimestampMixin, AuditActorMixin, Base):
     short_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     body_system: Mapped[str] = mapped_column(String(64), nullable=False)
     triage_priority: Mapped[str] = mapped_column(String(32), nullable=False)
-    synonyms: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    synonyms: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     is_paediatric_relevant: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     display_order: Mapped[int] = mapped_column(Integer(), nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)

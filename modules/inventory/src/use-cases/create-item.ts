@@ -111,7 +111,7 @@ export async function createItem(
     saleUomId,
     unitOfMeasure: input.unit_of_measure.trim(),
     conversionFactor: input.conversion_factor != null ? String(input.conversion_factor) : "1",
-    itemTracking: input.item_tracking ?? (classification === "medicine" ? "by-batch" : "by-batch"),
+    itemTracking: input.item_tracking ?? "by-batch",
     isExpirable: input.is_expirable,
     isShortExpiryMonitoring: input.is_short_expiry,
     looseSaleAllowed: input.loose_sale_allowed,

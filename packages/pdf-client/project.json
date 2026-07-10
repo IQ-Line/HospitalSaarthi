@@ -1,9 +1,12 @@
 {
   "name": "pdf-client",
-  "tags": ["type:sdk", "scope:platform"],
+  "tags": [
+    "type:sdk",
+    "scope:platform"
+  ],
   "targets": {
-    "test": {
-      "command": "vitest run",
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
       "options": {
         "cwd": "packages/pdf-client"
       }

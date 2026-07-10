@@ -5,7 +5,7 @@ import type { UserRepository } from "../ports/index.js";
  * Platform operators acting cross-tenant via Configurator may not have a `users` row in the target tenant.
  */
 export async function resolveGrantActorIdForTenant(
-  userRepository: UserRepository,
+  userRepository: Pick<UserRepository, "getUserById">,
   tenantId: string,
   actorId: string | null,
 ): Promise<string | null> {

@@ -21,7 +21,7 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadChiefComplaintDescriptor,
   useVisitpadChiefComplaints,
-  useVisitpadChiefComplaintsGlobalLibrary,
+  useVisitpadChiefComplaintsGlobalLibrary,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -43,10 +43,11 @@ import type { VisitpadChiefComplaint } from '@/features/visitpad/types';
 import {
   visitpadChiefComplaintCreateFormSchema,
   visitpadChiefComplaintEditFormSchema,
+  type VisitpadChiefComplaintCreateFormInput,
   type VisitpadChiefComplaintCreateFormSchema,
+  type VisitpadChiefComplaintEditFormInput,
   type VisitpadChiefComplaintEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -62,7 +63,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chief-complaints'
 
 function VisitpadChiefComplaintsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chief-complaints');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const [search, setSearch] = useState('');
   const [bodySystem, setBodySystem] = useState<string>('all');
   const [triage, setTriage] = useState<string>('all');
@@ -406,7 +407,6 @@ function VisitpadChiefComplaintsPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -432,7 +432,7 @@ function ChiefComplaintCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChiefComplaintCreateFormSchema>({
+  const form = useForm<VisitpadChiefComplaintCreateFormInput, unknown, VisitpadChiefComplaintCreateFormSchema>({
     resolver: zodResolver(visitpadChiefComplaintCreateFormSchema),
     defaultValues: {
       code: '',
@@ -651,7 +651,7 @@ function ChiefComplaintEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChiefComplaintEditFormSchema>({
+  const form = useForm<VisitpadChiefComplaintEditFormInput, unknown, VisitpadChiefComplaintEditFormSchema>({
     resolver: zodResolver(visitpadChiefComplaintEditFormSchema),
     defaultValues: {
       code: '',

@@ -1,5 +1,3 @@
-import type { EncryptedString } from "../../../lib/payload-encryptor.js";
-
 export interface M3HiuContext {
   /** Gateway REQUEST-ID on consent init (correlates on-init `response.requestId`). */
   outboundRequestId?: string;
@@ -9,7 +7,8 @@ export interface M3HiuContext {
   fetchedArtefactIds?: string[];
   consentId?: string;
   transferId?: string;
-  hiuPrivateKeyJwk?: EncryptedString;
+  /** Opaque AES-GCM ciphertext stored at rest (e.g. HIU private key JWK). */
+  hiuPrivateKeyJwk?: string;
   hiuPublicKeyBase64?: string;
   transferNonceBase64?: string;
   dateRange?: { from: string; to: string };

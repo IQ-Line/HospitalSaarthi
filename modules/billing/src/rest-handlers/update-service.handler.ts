@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { TariffMasterRepo } from "../ports.js";
+import type { UpdateTariffServiceInput } from "../domain/tariff-master.types.js";
 import { sendUseCaseResult } from "../lib/handler-result.js";
 import { updateTariffService } from "../use-cases/update-tariff-service.js";
 import { protectedRoute } from "../lib/fastify-helpers.js";
@@ -23,23 +24,25 @@ const bodySchema = {
   },
 } as const;
 
+const updateServiceRouteSchema = {
+  tags: ["billing"],
+  params: {
+    type: "object",
+    required: ["service_id"],
+    properties: { service_id: { type: "string", format: "uuid" } },
+  },
+  body: bodySchema,
+} as const;
+
 export function registerUpdateServiceHandler(
   app: FastifyInstance,
   tariffRepo: TariffMasterRepo,
 ): void {
-  app.patch<{ Params: { service_id: string } }>(
+  app.patch<{ Params: { service_id: string }; Body: UpdateTariffServiceInput }>(
     "/services/:service_id",
     {
       ...protectedRoute,
-      schema: {
-        tags: ["billing"],
-        params: {
-          type: "object",
-          required: ["service_id"],
-          properties: { service_id: { type: "string", format: "uuid" } },
-        },
-        body: bodySchema,
-      },
+      schema: updateServiceRouteSchema,
     },
     async (request, reply) =>
       sendUseCaseResult(

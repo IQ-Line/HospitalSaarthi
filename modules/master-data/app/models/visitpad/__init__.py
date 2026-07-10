@@ -1,1 +1,1 @@
-"""Visitpad SQLAlchemy models (public vs ``tenant_master`` tenant models)."""
+"""Visitpad SQLAlchemy models (public vs ``master_tenant`` tenant models)."""

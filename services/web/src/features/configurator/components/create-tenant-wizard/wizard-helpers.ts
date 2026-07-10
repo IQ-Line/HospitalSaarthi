@@ -1,5 +1,20 @@
 import { z } from 'zod';
 import type { Module } from '@/features/master-data/types';
+import type { Organization } from '@/features/configurator/types';
+import type { TenantOnboardingInput } from '@/features/configurator/api/tenant-onboarding';
+import {
+  createTenantStep0Schema,
+  createTenantStep1Schema,
+  createTenantStep2Schema,
+  NEW_ORGANISATION_VALUE,
+  type WizardFormValues,
+} from '@/features/configurator/create-tenant-wizard-schema';
+import { organisationEligibleForNewTenant } from './wizard-org-helpers';
+
+export const STANDALONE_HOSPITAL_TENANT_EXISTS_MESSAGE =
+  'This standalone hospital already has a tenant. Choose another organisation or create a new one.';
+
+export const DEFAULT_PLAN_SLUG = 'starter';
 
 /** First alphanumeric character of the name, lowercased — used as the initial slug seed. */
 export function firstSlugSeedFromTenantName(name: string): string {
@@ -131,5 +146,158 @@ export function moduleDescriptionLine(description: string | null | undefined): s
   if (!d || d.length < 2) return null;
   if (/^string$/i.test(d)) return null;
   return d;
+}
+
+export type WizardStepAdvance =
+  | { ok: true; nextStep: number }
+  | { ok: false; error: string }
+  | { ok: 'noop' };
+
+interface WizardStepValidationContext {
+  activeStep: number;
+  showOrganisationStep: boolean;
+  values: WizardFormValues;
+  organisations: Organization[];
+  tenantOrgIds: ReadonlySet<string>;
+  enabledModuleCount: number;
+}
+
+/** Re-used by the organisation step and the standalone-eligibility guard. */
+function organisationStepEligibilityError(
+  values: WizardFormValues,
+  organisations: Organization[],
+  tenantOrgIds: ReadonlySet<string>,
+): string | null {
+  const selectedOrgId = values.organisationSelectionId;
+  if (!selectedOrgId || selectedOrgId === NEW_ORGANISATION_VALUE) return null;
+  const org = organisations.find((o) => o.id === selectedOrgId);
+  if (org && !organisationEligibleForNewTenant(org, tenantOrgIds)) {
+    return STANDALONE_HOSPITAL_TENANT_EXISTS_MESSAGE;
+  }
+  return null;
+}
+
+/**
+ * Validates the active wizard step and returns the next step to advance to, or an
+ * error message to surface. Pure: the caller owns toast/state side effects.
+ */
+export function validateWizardStepAdvance(ctx: WizardStepValidationContext): WizardStepAdvance {
+  const { activeStep, showOrganisationStep, values } = ctx;
+
+  if (activeStep === 1 && showOrganisationStep) {
+    const parsed = createTenantStep0Schema.safeParse(values);
+    if (!parsed.success) return { ok: false, error: firstZodMessage(parsed.error) };
+    const eligibilityError = organisationStepEligibilityError(
+      values,
+      ctx.organisations,
+      ctx.tenantOrgIds,
+    );
+    if (eligibilityError) return { ok: false, error: eligibilityError };
+    return { ok: true, nextStep: 2 };
+  }
+
+  if (activeStep === 2) {
+    const parsed = createTenantStep1Schema.safeParse(values);
+    if (!parsed.success) return { ok: false, error: firstZodMessage(parsed.error) };
+    return { ok: true, nextStep: 3 };
+  }
+
+  if (activeStep === 3) {
+    const parsed = createTenantStep2Schema.safeParse(values);
+    if (!parsed.success) return { ok: false, error: firstZodMessage(parsed.error) };
+    if (ctx.enabledModuleCount === 0) {
+      return { ok: false, error: 'Enable at least one module for this tenant.' };
+    }
+    return { ok: true, nextStep: 4 };
+  }
+
+  return { ok: 'noop' };
+}
+
+interface BuildTenantOnboardingPayloadInput {
+  values: WizardFormValues;
+  showOrganisationStep: boolean;
+  scopedOrgId: string | undefined;
+  isExistingOrg: boolean;
+  organisationSlug: string;
+  tenantSlug: string;
+  enabledModuleIds: ReadonlySet<string>;
+  organisationLogoMetadata: Record<string, unknown> | undefined;
+  tenantLogoMetadata: Record<string, unknown> | undefined;
+}
+
+/** Pure construction of the onboarding payload; the caller owns uploads/validation. */
+export function buildTenantOnboardingPayload(
+  input: BuildTenantOnboardingPayloadInput,
+): TenantOnboardingInput {
+  const {
+    values,
+    showOrganisationStep,
+    scopedOrgId,
+    isExistingOrg,
+    organisationSlug,
+    tenantSlug,
+    enabledModuleIds,
+    organisationLogoMetadata,
+    tenantLogoMetadata,
+  } = input;
+
+  const orgName = values.organisationName?.trim() ?? '';
+
+  const parts = [
+    values.hqAddressLine1.trim(),
+    values.locality?.trim(),
+    values.block?.trim(),
+    values.district.trim(),
+    values.state.trim(),
+    values.pinCode.trim(),
+  ].filter(Boolean);
+
+  return {
+    organization: {
+      ...(isExistingOrg
+        ? { id: (showOrganisationStep ? values.organisationId : scopedOrgId)!.trim() }
+        : {}),
+      name: orgName,
+      slug: organisationSlug,
+      type: values.organisationType,
+      contact_email: values.organisationEmail?.trim() || null,
+      website: values.organisationWebsite?.trim() || null,
+      ...(organisationLogoMetadata ? { metadata: organisationLogoMetadata } : {}),
+    },
+    tenant: {
+      name: values.tenantName.trim(),
+      slug: tenantSlug,
+      metadata: {
+        gstin: values.gstin?.trim() || null,
+        pan: values.pan?.trim()?.toUpperCase() || null,
+        address_detail: {
+          hq_line1: values.hqAddressLine1.trim(),
+          locality: values.locality?.trim() || null,
+          block: values.block?.trim() || null,
+          district: values.district.trim(),
+          state: values.state.trim(),
+          pin_code: values.pinCode.trim(),
+        },
+        address: parts.join(', '),
+        ...(tenantLogoMetadata ?? {}),
+      },
+    },
+    plan: {
+      slug: DEFAULT_PLAN_SLUG,
+    },
+    modules: [...enabledModuleIds].map((module_id) => ({
+      module_id,
+      is_active: true,
+    })),
+    admin: {
+      first_name: values.adminFirstName.trim(),
+      last_name: values.adminLastName?.trim() || null,
+      username: values.adminUsername.trim().toLowerCase(),
+      email: values.adminEmail?.trim() ? values.adminEmail.trim().toLowerCase() : null,
+      password: values.password,
+      phone: values.adminMobile?.trim() || null,
+    },
+  };
 }
 

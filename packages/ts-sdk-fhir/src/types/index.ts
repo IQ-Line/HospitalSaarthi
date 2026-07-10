@@ -14,11 +14,17 @@
  * @see https://hl7.org/fhir/R4/
  */
 
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirDateTime = string; // ISO 8601, e.g. "2026-05-08T10:30:00+05:30"
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirDate = string; // "YYYY-MM-DD"
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirInstant = string; // ISO 8601 with timezone, millisecond precision
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirUri = string;
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirCode = string;
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name
 export type FhirId = string;
 
 export interface FhirCoding {

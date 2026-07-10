@@ -94,6 +94,198 @@ function formatReadOnlyCellValue<T extends { id: string }>(
   return value;
 }
 
+interface FormTableCellProps<T extends { id: string }> {
+  row: T;
+  col: FormTableColumn<T>;
+  index: number;
+  readOnly: boolean;
+  catalogLoading: boolean;
+  isCellInvalid: (rowId: string, field: string) => boolean;
+  onUpdate: (index: number, field: keyof T & string, value: string) => void;
+}
+
+function FormTableDosageManCell<T extends { id: string }>({
+  row,
+  index,
+  subKeys,
+  isCellInvalid,
+  onUpdate,
+}: {
+  row: T;
+  index: number;
+  subKeys: DosageManSubKeys<T>;
+  isCellInvalid: (rowId: string, field: string) => boolean;
+  onUpdate: (index: number, field: keyof T & string, value: string) => void;
+}) {
+  const parts = [
+    { key: subKeys.morning, placeholder: 'M' },
+    { key: subKeys.afternoon, placeholder: 'A' },
+    { key: subKeys.night, placeholder: 'N' },
+  ] as const;
+  return (
+    <div className="flex items-center gap-0.5">
+      {parts.map((part, partIndex) => (
+        <div key={part.key} className="flex items-center gap-0.5">
+          {partIndex > 0 ? (
+            <span className="text-sm text-muted-foreground">-</span>
+          ) : null}
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={(row[part.key] as string) ?? ''}
+            placeholder={part.placeholder}
+            onChange={(e) => onUpdate(index, part.key, e.target.value)}
+            aria-invalid={isCellInvalid(row.id, part.key)}
+            className={cn(
+              'h-8 w-10 px-1 text-center text-sm placeholder:text-muted-foreground/60',
+              isCellInvalid(row.id, part.key) &&
+                'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+            )}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FormTableSelectCell<T extends { id: string }>({
+  row,
+  col,
+  index,
+  catalogLoading,
+  isCellInvalid,
+  onUpdate,
+}: {
+  row: T;
+  col: FormTableColumn<T>;
+  index: number;
+  catalogLoading: boolean;
+  isCellInvalid: (rowId: string, field: string) => boolean;
+  onUpdate: (index: number, field: keyof T & string, value: string) => void;
+}) {
+  return (
+    <Select
+      value={(row[col.key] as string) || '__none__'}
+      onValueChange={(v) => onUpdate(index, col.key, v === '__none__' ? '' : v)}
+      disabled={catalogLoading}
+    >
+      <SelectTrigger
+        className={cn(
+          'h-8 text-sm',
+          isCellInvalid(row.id, col.key) &&
+            'border-red-500 ring-1 ring-red-500 focus:ring-red-500',
+        )}
+        aria-invalid={isCellInvalid(row.id, col.key)}
+      >
+        <SelectValue
+          placeholder={catalogLoading ? 'Loading catalog…' : col.placeholder}
+        />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__none__">{col.emptyOptionLabel ?? '—'}</SelectItem>
+        {(col.options ?? []).map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function FormTableInputCell<T extends { id: string }>({
+  row,
+  col,
+  index,
+  isCellInvalid,
+  onUpdate,
+}: {
+  row: T;
+  col: FormTableColumn<T>;
+  index: number;
+  isCellInvalid: (rowId: string, field: string) => boolean;
+  onUpdate: (index: number, field: keyof T & string, value: string) => void;
+}) {
+  return (
+    <Input
+      type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
+      value={(row[col.key] as string) ?? ''}
+      placeholder={col.placeholder}
+      onChange={(e) => onUpdate(index, col.key, e.target.value)}
+      aria-invalid={isCellInvalid(row.id, col.key)}
+      className={cn(
+        'h-8 text-sm',
+        col.width && 'w-full min-w-0',
+        col.type === 'number' && 'tabular-nums',
+        isCellInvalid(row.id, col.key) &&
+          'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
+      )}
+    />
+  );
+}
+
+function FormTableCell<T extends { id: string }>({
+  row,
+  col,
+  index,
+  readOnly,
+  catalogLoading,
+  isCellInvalid,
+  onUpdate,
+}: FormTableCellProps<T>) {
+  if (readOnly) {
+    return (
+      <span className="block min-h-8 py-1.5 text-sm text-gray-900">
+        {formatReadOnlyCellValue(row, col)}
+      </span>
+    );
+  }
+  if (col.type === 'dosage-man' && col.dosageManSubKeys) {
+    return (
+      <FormTableDosageManCell
+        row={row}
+        index={index}
+        subKeys={col.dosageManSubKeys}
+        isCellInvalid={isCellInvalid}
+        onUpdate={onUpdate}
+      />
+    );
+  }
+  if (col.type === 'creatable-select' && col.options) {
+    return (
+      <FormTableCreatableSelect
+        value={(row[col.key] as string) ?? ''}
+        onChange={(next) => onUpdate(index, col.key, next)}
+        options={col.options}
+        placeholder={catalogLoading ? 'Loading catalog…' : col.placeholder}
+        disabled={catalogLoading}
+        invalid={isCellInvalid(row.id, col.key)}
+      />
+    );
+  }
+  if (col.type === 'select' && col.options) {
+    return (
+      <FormTableSelectCell
+        row={row}
+        col={col}
+        index={index}
+        catalogLoading={catalogLoading}
+        isCellInvalid={isCellInvalid}
+        onUpdate={onUpdate}
+      />
+    );
+  }
+  return (
+    <FormTableInputCell
+      row={row}
+      col={col}
+      index={index}
+      isCellInvalid={isCellInvalid}
+      onUpdate={onUpdate}
+    />
+  );
+}
+
 export function FormTable<T extends { id: string }>({
   title,
   addButtonLabel,
@@ -198,99 +390,15 @@ export function FormTable<T extends { id: string }>({
                   <TableCell className="text-sm text-muted-foreground">{index + 1}</TableCell>
                   {columns.map((col) => (
                     <TableCell key={col.key} style={columnStyle(col.width)}>
-                      {readOnly ? (
-                        <span className="block min-h-8 py-1.5 text-sm text-gray-900">
-                          {formatReadOnlyCellValue(row, col)}
-                        </span>
-                      ) : col.type === 'dosage-man' && col.dosageManSubKeys ? (
-                        <div className="flex items-center gap-0.5">
-                          {(
-                            [
-                              { key: col.dosageManSubKeys.morning, placeholder: 'M' },
-                              { key: col.dosageManSubKeys.afternoon, placeholder: 'A' },
-                              { key: col.dosageManSubKeys.night, placeholder: 'N' },
-                            ] as const
-                          ).map((part, partIndex) => (
-                            <div key={part.key} className="flex items-center gap-0.5">
-                              {partIndex > 0 ? (
-                                <span className="text-sm text-muted-foreground">-</span>
-                              ) : null}
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={(row[part.key] as string) ?? ''}
-                                placeholder={part.placeholder}
-                                onChange={(e) => onUpdate(index, part.key, e.target.value)}
-                                aria-invalid={isCellInvalid(row.id, part.key)}
-                                className={cn(
-                                  'h-8 w-10 px-1 text-center text-sm placeholder:text-muted-foreground/60',
-                                  isCellInvalid(row.id, part.key) &&
-                                    'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
-                                )}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      ) : col.type === 'creatable-select' && col.options ? (
-                        <FormTableCreatableSelect
-                          value={(row[col.key] as string) ?? ''}
-                          onChange={(next) => onUpdate(index, col.key, next)}
-                          options={col.options}
-                          placeholder={
-                            catalogLoading ? 'Loading catalog…' : col.placeholder
-                          }
-                          disabled={catalogLoading}
-                          invalid={isCellInvalid(row.id, col.key)}
-                        />
-                      ) : col.type === 'select' && col.options ? (
-                        <Select
-                          value={(row[col.key] as string) || '__none__'}
-                          onValueChange={(v) =>
-                            onUpdate(index, col.key, v === '__none__' ? '' : v)
-                          }
-                          disabled={catalogLoading}
-                        >
-                          <SelectTrigger
-                            className={cn(
-                              'h-8 text-sm',
-                              isCellInvalid(row.id, col.key) &&
-                                'border-red-500 ring-1 ring-red-500 focus:ring-red-500',
-                            )}
-                            aria-invalid={isCellInvalid(row.id, col.key)}
-                          >
-                            <SelectValue
-                              placeholder={
-                                catalogLoading ? 'Loading catalog…' : col.placeholder
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">
-                              {col.emptyOptionLabel ?? '—'}
-                            </SelectItem>
-                            {col.options.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          type={col.type === 'number' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-                          value={(row[col.key] as string) ?? ''}
-                          placeholder={col.placeholder}
-                          onChange={(e) => onUpdate(index, col.key, e.target.value)}
-                          aria-invalid={isCellInvalid(row.id, col.key)}
-                          className={cn(
-                            'h-8 text-sm',
-                            col.width && 'w-full min-w-0',
-                            col.type === 'number' && 'tabular-nums',
-                            isCellInvalid(row.id, col.key) &&
-                              'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500',
-                          )}
-                        />
-                      )}
+                      <FormTableCell
+                        row={row}
+                        col={col}
+                        index={index}
+                        readOnly={readOnly}
+                        catalogLoading={catalogLoading}
+                        isCellInvalid={isCellInvalid}
+                        onUpdate={onUpdate}
+                      />
                     </TableCell>
                   ))}
                   {!readOnly ? (

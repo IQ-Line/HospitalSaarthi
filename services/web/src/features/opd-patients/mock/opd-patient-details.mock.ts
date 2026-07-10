@@ -28,12 +28,12 @@ function genderLabel(gender: OpdPatientVisitRow['gender']): string {
 function splitName(fullName: string): { first: string; middle: string; last: string } {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { first: '-', middle: '-', last: '-' };
-  if (parts.length === 1) return { first: parts[0], middle: '-', last: '-' };
-  if (parts.length === 2) return { first: parts[0], middle: '-', last: parts[1] };
+  if (parts.length === 1) return { first: parts[0] ?? '-', middle: '-', last: '-' };
+  if (parts.length === 2) return { first: parts[0] ?? '-', middle: '-', last: parts[1] ?? '-' };
   return {
-    first: parts[0],
+    first: parts[0] ?? '-',
     middle: parts.slice(1, -1).join(' ') || '-',
-    last: parts[parts.length - 1],
+    last: parts[parts.length - 1] ?? '-',
   };
 }
 

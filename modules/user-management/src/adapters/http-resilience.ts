@@ -68,6 +68,73 @@ export type FetchJsonWithResilienceOptions = {
   log?: (event: Record<string, unknown>, message: string) => void;
 };
 
+function isClassifiedUpstreamError(err: unknown): err is ClassifiedUpstreamError {
+  return (
+    typeof err === "object" && err !== null && "source" in err && "kind" in err
+  );
+}
+
+type AttemptOutcome<T> =
+  | { ok: true; value: T }
+  | { ok: false; failure: ClassifiedUpstreamError; retryable: boolean };
+
+/**
+ * Performs a single HTTP round-trip and classifies any failure. Failures are
+ * returned (never thrown) so the retry loop has one uniform decision point.
+ * `retryable` is only true for non-2xx responses whose classification is
+ * retryable — JSON parse failures and request-level errors are reported with
+ * `retryable: false`, matching the original throw-immediately behaviour.
+ */
+async function attemptFetchJson<T>(
+  options: FetchJsonWithResilienceOptions,
+  attempt: number,
+  maxAttempts: number,
+): Promise<AttemptOutcome<T>> {
+  try {
+    const response = await fetch(options.url, {
+      method: "GET",
+      headers: options.headers,
+      signal: AbortSignal.timeout(options.timeoutMs),
+    });
+
+    if (!response.ok) {
+      const failure = classifyUpstreamFailure(options.source, undefined, response.status);
+      options.log?.(
+        {
+          source: options.source,
+          attempt,
+          maxAttempts,
+          status: response.status,
+          kind: failure.kind,
+        },
+        "Upstream HTTP request failed",
+      );
+      return { ok: false, failure, retryable: isRetryableUpstreamFailure(failure) };
+    }
+
+    try {
+      return { ok: true, value: (await response.json()) as T };
+    } catch (err) {
+      const failure = classifyUpstreamFailure(options.source, err);
+      options.log?.(
+        { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
+        "Upstream JSON parse failed",
+      );
+      return { ok: false, failure, retryable: false };
+    }
+  } catch (err) {
+    if (isClassifiedUpstreamError(err)) {
+      return { ok: false, failure: err, retryable: false };
+    }
+    const failure = classifyUpstreamFailure(options.source, err);
+    options.log?.(
+      { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
+      "Upstream HTTP request error",
+    );
+    return { ok: false, failure, retryable: isRetryableUpstreamFailure(failure) };
+  }
+}
+
 export async function fetchJsonWithResilience<T>(
   options: FetchJsonWithResilienceOptions,
 ): Promise<T> {
@@ -75,65 +142,16 @@ export async function fetchJsonWithResilience<T>(
   let lastFailure: ClassifiedUpstreamError | undefined;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const response = await fetch(options.url, {
-        method: "GET",
-        headers: options.headers,
-        signal: AbortSignal.timeout(options.timeoutMs),
-      });
-
-      if (!response.ok) {
-        const failure = classifyUpstreamFailure(options.source, undefined, response.status);
-        lastFailure = failure;
-        options.log?.(
-          {
-            source: options.source,
-            attempt,
-            maxAttempts,
-            status: response.status,
-            kind: failure.kind,
-          },
-          "Upstream HTTP request failed",
-        );
-        if (isRetryableUpstreamFailure(failure) && attempt < maxAttempts) {
-          await sleep(50 * attempt);
-          continue;
-        }
-        throw failure;
-      }
-
-      try {
-        return (await response.json()) as T;
-      } catch (err) {
-        const failure = classifyUpstreamFailure(options.source, err);
-        lastFailure = failure;
-        options.log?.(
-          { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
-          "Upstream JSON parse failed",
-        );
-        throw failure;
-      }
-    } catch (err) {
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "source" in err &&
-        "kind" in err
-      ) {
-        throw err;
-      }
-      const failure = classifyUpstreamFailure(options.source, err);
-      lastFailure = failure;
-      options.log?.(
-        { source: options.source, attempt, maxAttempts, kind: failure.kind, err },
-        "Upstream HTTP request error",
-      );
-      if (isRetryableUpstreamFailure(failure) && attempt < maxAttempts) {
-        await sleep(50 * attempt);
-        continue;
-      }
-      throw failure;
+    const outcome = await attemptFetchJson<T>(options, attempt, maxAttempts);
+    if (outcome.ok) {
+      return outcome.value;
     }
+    lastFailure = outcome.failure;
+    if (outcome.retryable && attempt < maxAttempts) {
+      await sleep(50 * attempt);
+      continue;
+    }
+    throw outcome.failure;
   }
 
   throw lastFailure ?? classifyUpstreamFailure(options.source, new Error("exhausted_retries"));

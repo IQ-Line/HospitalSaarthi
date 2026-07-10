@@ -5,6 +5,7 @@ table declared under ``opd.models``.
 """
 
 from opd.models.base import Base
+from opd.models.health_document import HealthDocument  # noqa: F401
 from opd.models.prescription import (  # noqa: F401 — register tables for Alembic
     PrescriptionAdvisedProcedureModel,
     PrescriptionCarePlanModel,
@@ -26,7 +27,6 @@ from opd.models.prescription import (  # noqa: F401 — register tables for Alem
     PrescriptionVaccineRequiredModel,
     PrescriptionVitalObservationModel,
 )
-from opd.models.health_document import HealthDocument  # noqa: F401
 from opd.models.registration_patient_snapshot import RegistrationPatientSnapshot  # noqa: F401
 from opd.models.registration_visit import RegistrationVisit  # noqa: F401
 from opd.models.visit import Visit  # noqa: F401

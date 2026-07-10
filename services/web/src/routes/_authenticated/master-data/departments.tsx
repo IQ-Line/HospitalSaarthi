@@ -67,7 +67,7 @@ const DEPARTMENT_TYPE_LABELS: Record<DepartmentType, string> = {
 };
 
 function DepartmentsPage() {
-  const { canCreate, canUpdate } = useCatalogModuleCrud('departments', {
+  const { canUpdate } = useCatalogModuleCrud('departments', {
     productModuleSlug: 'master-data',
   });
   const { tenantCatalog } = useMasterDataTenantCatalog();
@@ -413,6 +413,7 @@ function DepartmentsPage() {
           onDraftChange: setLibrarySearchDraft,
         }}
       />
+
     </MasterDataPageShell>
   );
 }

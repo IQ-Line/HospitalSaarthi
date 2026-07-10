@@ -1,29 +1,60 @@
 {
   "name": "integration-hub-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:integration-hub", "language:typescript", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:integration-hub",
+    "language:typescript",
+    "deploy:aks"
+  ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/integration-hub-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
         "command": "tsup --config tsup.config.ts",
         "cwd": "services/integration-hub-svc"
       },
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
     },
     "serve": {
       "command": "tsx watch src/main.ts",
-      "dependsOn": ["ts-sdk-fhir:build", "ts-sdk-abha:build"],
+      "dependsOn": [
+        "ts-sdk-fhir:build",
+        "ts-sdk-abha:build"
+      ],
       "options": {
         "cwd": "services/integration-hub-svc"
       }
     },
-    "db:migrate": {
-      "dependsOn": ["integration-hub:db-migrate"]
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "services/integration-hub-svc"
+      }
     },
     "db-migrate": {
-      "dependsOn": ["integration-hub:db-migrate"]
+      "dependsOn": [
+        "integration-hub:db-migrate"
+      ]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/integration-hub-svc/src/**/*.ts",
+          "services/integration-hub-svc/test/**/*.ts"
+        ]
+      }
     }
   }
 }

@@ -3,7 +3,6 @@ import type {
   DispenseRecordRepo,
   MasterDataGatewayPort,
   OpdGatewayPort,
-  OpdQueueProjectionRepo,
   QueueProjectionRepo,
   UserLookupPort,
 } from "../ports.js";

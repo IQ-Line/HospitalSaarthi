@@ -18,7 +18,7 @@ export type {
   TenantApiKeyValidatorPort,
 } from "./ports/tenant-api-key-validator.js";
 export type { AuthSessionRevokerPort } from "./ports/auth-session-revoker.js";
-export type { AuthPasswordAdminPort } from "./ports/auth-password-admin.js";
+export type { AuthPasswordResetterPort } from "./ports/auth-password-resetter.js";
 export type {
   AuthAccountProvisioner,
   AppliedRoleTemplate,
@@ -41,6 +41,7 @@ export type {
   CreatePasswordAuthAccountInput,
   CreatePasswordAuthAccountResult,
   ListUsersOptions,
+  PlatformAdminRepository,
   PrincipalRoleProjectionRepository,
   PrincipalAuthorizationRepository,
   RoleCapabilityRepository,
@@ -48,6 +49,7 @@ export type {
   UserReadListResourceAbac,
   UserAccessRepository,
   UserProvisioningRepository,
+  UserRepository,
   ProvisionUserWithAccessInput,
   RoleTemplateGrantPlan,
   UserCapabilitiesSnapshot,
@@ -91,6 +93,7 @@ export {
   InvalidCapabilityKeyError,
   InvalidModuleSlugError,
   ModuleEntitlementLookupError,
+  AuthInvalidCredentialsError,
   TenantEntitlementLookupError,
   InvalidRoleSeedError,
   RbacIntegrityViolationError,
@@ -111,16 +114,15 @@ export {
 } from "./http/map-user-management-error.js";
 export {
   assertTenantHeaderAllowedForPrincipal,
-  isPlatformSuperAdminPrincipal,
-  isPlatformSuperAdminRole,
+  isPlatformSuperAdminRequest,
   resolveEffectiveTenantId,
   resolveJwtTenantIdFromRequest,
-  PLATFORM_SUPER_ADMIN_ROLE,
 } from "./http/resolve-effective-tenant-id.js";
 export {
-  syncSuperAdminCapabilitySnapshots,
-  type SyncSuperAdminCapabilitySnapshotsInput,
-} from "./dev/sync-super-admin-capability-snapshots.js";
+  PLATFORM_SUPER_ADMIN_ROLE,
+  RESERVED_ROLE_CODES,
+  isReservedRoleCode,
+} from "./domain/reserved-role-codes.js";
 export type {
   ResolvedUserManagementHttpError,
   UserManagementErrorBody,
@@ -130,8 +132,10 @@ export { DrizzleCapabilityRepository } from "./data-access/capability-repository
 export { DrizzleRoleCapabilityRepository } from "./data-access/role-capability-repository.js";
 export { DrizzleUserAccessRepository } from "./data-access/user-access-repository.js";
 export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-principal-role-projection-repository.js";
+export { DrizzlePlatformAdminRepository } from "./data-access/drizzle-platform-admin-repository.js";
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
+export { DrizzleUserActivationStatusReader } from "./data-access/user-activation-status-reader.js";
 export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
 export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
@@ -180,6 +184,7 @@ export { registerTenantEntitlementCacheEventConsumers } from "./events/consumers
 export {
   capabilities,
   delegated_capability_grants,
+  platform_admins,
   role_capabilities,
   roles,
   user_capabilities,
@@ -206,6 +211,12 @@ export { deactivateUser } from "./use-cases/deactivate-user.js";
 export type { DeactivateUserDeps } from "./use-cases/deactivate-user.js";
 export { activateUser } from "./use-cases/activate-user.js";
 export type { ActivateUserDeps } from "./use-cases/activate-user.js";
+export { resetUserPassword } from "./use-cases/reset-user-password.js";
+export type {
+  ResetUserPasswordDeps,
+  ResetUserPasswordContext,
+  ResetUserPasswordInput,
+} from "./use-cases/reset-user-password.js";
 export { deleteRole } from "./use-cases/delete-role.js";
 export type { DeleteRoleDeps } from "./use-cases/delete-role.js";
 export { detachRoleTemplate } from "./use-cases/detach-role-template.js";
@@ -279,22 +290,10 @@ export {
   loadMasterDataModulePermissions,
   syncCapabilitiesFromMasterDataCatalog,
 } from "./dev/sync-capabilities-from-master-data-catalog.js";
-export {
-  LEGACY_CAPABILITY_KEY_PREFIXES,
-  isLegacyCapabilityKey,
-} from "./dev/legacy-capability-key-prefixes.js";
-export {
-  listLegacyCapabilityKeys,
-  removeLegacyCapabilitiesFromCatalog,
-} from "./dev/remove-legacy-capabilities.js";
 export type {
   MasterDataModulePermissionRow,
   SyncCapabilitiesFromMasterDataResult,
 } from "./dev/sync-capabilities-from-master-data-catalog.js";
-export type {
-  RemoveLegacyCapabilitiesOptions,
-  RemoveLegacyCapabilitiesResult,
-} from "./dev/remove-legacy-capabilities.js";
 export type {
   MappedRuntimeCapability,
   MasterDataPermissionRef,

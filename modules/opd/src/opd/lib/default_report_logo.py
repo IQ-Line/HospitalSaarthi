@@ -13,7 +13,8 @@ from urllib.parse import quote
 logger = logging.getLogger(__name__)
 
 _EMBEDDED_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" role="img" aria-label="Hospital emblem">'
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" '
+    'role="img" aria-label="Hospital emblem">'
     '<rect fill="#9d174d" width="80" height="80" rx="8"/>'
     '<text x="40" y="52" font-family="Arial,sans-serif" font-size="28" '
     'font-weight="bold" fill="#ffffff" text-anchor="middle">H</text>'

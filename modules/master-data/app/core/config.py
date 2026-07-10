@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # `modules/master-data` — stable regardless of CWD.
@@ -46,8 +46,12 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description=(
             "SQLAlchemy database URL for the Master Data module. "
-            "Catalog lives in `global_master` and `tenant_master` schemas on `hims_dev`."
+            "Catalog lives in `master_global` and `master_tenant` schemas on `hims_dev`."
         ),
+        # Prefixed MASTER_DATA_DATABASE_URL wins; falls back to the shared
+        # DATABASE_URL (single hims_dev DB per ADR-0013). AliasChoices bypasses
+        # env_prefix for this one field; other fields still use env_prefix.
+        validation_alias=AliasChoices("MASTER_DATA_DATABASE_URL", "DATABASE_URL"),
     )
     api_prefix: str = "/api/v1/master-data"
     log_level: str = "INFO"
@@ -74,49 +78,32 @@ class Settings(BaseSettings):
         default="/docs,/redoc,/openapi.json,/favicon.ico",
         description="Comma-separated path prefixes excluded from request logging.",
     )
-    # Tests: ``require_superadmin`` skips bearer; audit actor stays null.
-    auth_disabled: bool = Field(
-        default=False,
-        description="If true, skip JWT in superadmin dep (tests); audit columns unset.",
-    )
-    jwt_secret: str | None = Field(
-        default=None,
+    internal_api_key: str = Field(
+        default="",
         description=(
-            "HS256 secret for validating JWTs; if unset, signatures are not verified (dev only)."
+            "Shared secret for internal service-to-service routes (sent in the "
+            "`x-master-data-internal-key` header). Empty ⇒ internal routes are disabled and "
+            "fail closed (503), never open. Set MASTER_DATA_INTERNAL_API_KEY in every env."
         ),
     )
-    # Local/dev only — never enable bypass or dev token in production.
-    auth_bypass: bool = Field(
-        default=False,
-        description=(
-            "If true, mutation routes accept requests without a bearer token (Swagger/local only)."
-        ),
-    )
-    dev_bearer_token: str | None = Field(
-        default=None,
-        description=(
-            "If set, Authorization: Bearer <exact value> passes superadmin check; "
-            "audit actor stays null until JWT ``sub`` is used."
-        ),
-    )
-
-    @field_validator("dev_bearer_token", mode="before")
-    @classmethod
-    def strip_dev_bearer(cls, value: object) -> str | None:
-        if value is None or value == "":
-            return None
-        if isinstance(value, str):
-            return value.strip()
-        return value  # pragma: no cover
+    # Authorization is enforced in-process by the hims_authz PEP (identity gate + per-route
+    # Cerbos guards, wired in app.main / app.core.authz). There are NO HS256 / bypass / dev-token
+    # escape hatches — see AuthEnvSettings below for the JWKS/issuer/audience/Cerbos/UM config.
 
 
 def _resolve_database_url_from_env_files() -> str | None:
-    """Read MASTER_DATA_DATABASE_URL from workspace `.env` when pydantic env_prefix skips it."""
+    """Read the DB URL from process env / workspace `.env`.
+
+    Prefixed ``MASTER_DATA_DATABASE_URL`` wins; falls back to the shared
+    ``DATABASE_URL`` (single hims_dev DB per ADR-0013). Mirrors the field's
+    ``AliasChoices`` precedence for the env-file path that ``env_prefix`` skips.
+    """
     import os
 
-    explicit = os.environ.get("MASTER_DATA_DATABASE_URL", "").strip()
-    if explicit:
-        return explicit
+    for key in ("MASTER_DATA_DATABASE_URL", "DATABASE_URL"):
+        explicit = os.environ.get(key, "").strip()
+        if explicit:
+            return explicit
 
     try:
         from dotenv import dotenv_values
@@ -127,7 +114,7 @@ def _resolve_database_url_from_env_files() -> str | None:
     resolved: str | None = None
     for path in _master_data_env_files() or ():
         values = dotenv_values(path)
-        url = (values.get("MASTER_DATA_DATABASE_URL") or "").strip()
+        url = (values.get("MASTER_DATA_DATABASE_URL") or values.get("DATABASE_URL") or "").strip()
         if url:
             resolved = url
     return resolved
@@ -141,9 +128,50 @@ def get_settings() -> Settings:
     return Settings()
 
 
+class AuthEnvSettings(BaseSettings):
+    """In-process PEP configuration — JWKS/issuer/audience + Cerbos + UM principal URL.
+
+    These are platform-wide auth values (not ``MASTER_DATA_``-prefixed): the edge JWKS, the
+    JWT issuer/audience, the Cerbos PDP, and the User Management ``/auth/principal`` endpoint.
+    Mirrors ``opd.core.config.AuthEnvSettings`` so one policy set governs both modules.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=_master_data_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    jwks_url: str = Field(
+        default="http://localhost:3000/api/auth/.well-known/jwks.json",
+        validation_alias="JWKS_URL",
+    )
+    jwt_issuer: str = Field(default="http://localhost:3000", validation_alias="JWT_ISSUER")
+    jwt_audience: str = Field(default="hims-platform", validation_alias="JWT_AUDIENCE")
+    cerbos_http_url: str = Field(
+        default="http://localhost:3592", validation_alias="CERBOS_HTTP_URL"
+    )
+    user_management_url: str = Field(
+        default="http://localhost:3005", validation_alias="USER_MANAGEMENT_URL"
+    )
+    principal_path: str = Field(
+        default="/api/user-management/auth/principal", validation_alias="UM_PRINCIPAL_PATH"
+    )
+    max_token_age_seconds: int = Field(
+        default=300, validation_alias="JWT_MAX_TOKEN_AGE_SECONDS"
+    )
+    clock_skew_seconds: int = Field(default=60, validation_alias="JWT_CLOCK_SKEW_SECONDS")
+
+
+@lru_cache
+def get_auth_env_settings() -> AuthEnvSettings:
+    return AuthEnvSettings()
+
+
 def reset_settings_cache_for_tests() -> None:
     """Clear cached settings (tests / after `.env` changes in long-lived shells)."""
     get_settings.cache_clear()
+    get_auth_env_settings.cache_clear()
     from app.core.database import reset_database_engine
 
     reset_database_engine()

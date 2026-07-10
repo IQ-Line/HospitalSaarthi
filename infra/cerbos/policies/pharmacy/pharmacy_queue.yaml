@@ -17,15 +17,3 @@ resourcePolicy:
               "dispense:dispense:read" in request.principal.attr.capabilities ||
               "dispense:dispense:read" in request.principal.attr.delegated_capabilities
             )
-
-    - actions:
-        - "pharmacy.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "dispense:dispense:read" in request.principal.attr.capabilities ||
-              "dispense:dispense:read" in request.principal.attr.delegated_capabilities
-            )

@@ -33,7 +33,7 @@ export const createBranchStep1Schema = z
     block: z.string().optional(),
     district: z.string().min(1, 'District is required'),
     state: z.string().min(1, 'State is required'),
-    pinCode: z.string().regex(/^[0-9]{6}$/, 'PIN code must be 6 digits'),
+    pinCode: z.string().regex(/^\d{6}$/, 'PIN code must be 6 digits'),
   })
   .superRefine((d, ctx) => {
     const g = d.gstin?.trim().toUpperCase();
@@ -45,7 +45,7 @@ export const createBranchStep1Schema = z
       });
     }
     const p = d.pan?.trim().toUpperCase();
-    if (p && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(p)) {
+    if (p && !/^[A-Z]{5}\d{4}[A-Z]$/.test(p)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Invalid PAN format (e.g. ABCDE1234F)',

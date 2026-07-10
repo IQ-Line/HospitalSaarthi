@@ -1,0 +1,25 @@
+{
+  "name": "ts-sdk-india",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/ts-sdk-india/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:sdk"],
+  "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-india"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "packages/ts-sdk-india"
+      }
+    }
+  }
+}

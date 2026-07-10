@@ -1,4 +1,4 @@
 """Schema constants for Alembic revisions (mirror of app.core.catalog_schemas)."""
 
-GLOBAL_SCHEMA = "global_master"
-TENANT_SCHEMA = "tenant_master"
+GLOBAL_SCHEMA = "master_global"
+TENANT_SCHEMA = "master_tenant"

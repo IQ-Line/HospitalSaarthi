@@ -24,7 +24,7 @@ import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadAllergens,
-  useVisitpadAllergensGlobalLibrary,
+  useVisitpadAllergensGlobalLibrary,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -44,10 +44,11 @@ import type { VisitpadAllergen } from '@/features/visitpad/types';
 import {
   visitpadAllergenCreateFormSchema,
   visitpadAllergenEditFormSchema,
+  type VisitpadAllergenCreateFormInput,
   type VisitpadAllergenCreateFormSchema,
+  type VisitpadAllergenEditFormInput,
   type VisitpadAllergenEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -65,7 +66,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/allergens')({
 
 function VisitpadAllergensPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-allergens');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [allergenType, setAllergenType] = useState<string>('all');
@@ -338,7 +339,6 @@ function VisitpadAllergensPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -357,7 +357,7 @@ function AllergenCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergenCreateFormSchema>({
+  const form = useForm<VisitpadAllergenCreateFormInput, unknown, VisitpadAllergenCreateFormSchema>({
     resolver: zodResolver(visitpadAllergenCreateFormSchema),
     defaultValues: {
       code: '',
@@ -529,7 +529,7 @@ function AllergenEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadAllergenEditFormSchema>({
+  const form = useForm<VisitpadAllergenEditFormInput, unknown, VisitpadAllergenEditFormSchema>({
     resolver: zodResolver(visitpadAllergenEditFormSchema),
     defaultValues: {
       display_name: '',

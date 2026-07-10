@@ -7,7 +7,7 @@
 #
 # Build context: repo root.
 
-FROM ghcr.io/cerbos/cerbos:0.42.0
+FROM ghcr.io/cerbos/cerbos:0.53.0
 
 COPY infra/cerbos/policies /policies
 COPY infra/cerbos/cerbos.yaml /config/cerbos.yaml

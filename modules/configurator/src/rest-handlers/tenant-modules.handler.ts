@@ -1,8 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import {
-  assertPlatformSuperAdmin,
-  getRequestAuthContext,
-} from "../http/request-auth-context.js";
+import { getRequestActorId } from "../http/request-actor.js";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type { TenantModuleRepo, TenantRepo } from "../ports.js";
 import type {
@@ -58,8 +55,8 @@ async function notifyTenantModuleLifecycle(
       "string"
         ? (request as FastifyRequest & { correlationId?: string }).correlationId
         : undefined;
-    const actorId = getRequestAuthContext(request).userId ?? undefined;
-    void publishTenantModuleLifecycleEvent(deps.eventBus, {
+    const actorId = getRequestActorId(request) ?? undefined;
+    publishTenantModuleLifecycleEvent(deps.eventBus, {
       eventType,
       iqTenantId: row.iq_tenant_id,
       moduleId: row.module_id,
@@ -75,7 +72,11 @@ async function notifyTenantModuleLifecycle(
 
   // Do not block PATCH/POST/DELETE on UM cache bust (avoids up to 5s wait when UM is slow/down).
   if ((becameEnabled || becameDisabled) && deps.entitlementCacheInvalidator !== undefined) {
-    void deps.entitlementCacheInvalidator.invalidateTenantEntitlementCache(row.iq_tenant_id);
+    deps.entitlementCacheInvalidator
+      .invalidateTenantEntitlementCache(row.iq_tenant_id)
+      .catch((err) => {
+        request.log.warn({ err }, "tenant entitlement cache invalidation failed");
+      });
   }
 }
 
@@ -120,6 +121,7 @@ export function registerTenantModulesHandler(
         },
         body: postTenantModuleBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const created = await createTenantModule(tenantModuleRepo, tenantRepo, {
@@ -137,6 +139,7 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const row = await getTenantModuleByKey(tenantModuleRepo, {
@@ -160,10 +163,9 @@ export function registerTenantModulesHandler(
         params: tenantModuleParamsSchema,
         body: patchTenantModuleBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      // Auth after schema validation: sync preHandler + PATCH body schema can stall Fastify 5.
-      assertPlatformSuperAdmin(request);
       const key = {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,
@@ -188,9 +190,9 @@ export function registerTenantModulesHandler(
       schema: {
         params: tenantModuleParamsSchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      assertPlatformSuperAdmin(request);
       const key = {
         iq_tenant_id: request.params.tenantId,
         module_id: request.params.moduleId,

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_diagnosis_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
 from app.schemas.visitpad.diagnosis import (
     VisitpadDiagnosisCategory,
@@ -33,6 +34,13 @@ from app.services.visitpad.diagnoses import (
 from app.services.visitpad.platform_bulk_import import import_visitpad_diagnoses_from_platform
 
 router = APIRouter(prefix="/visitpad/diagnoses", tags=["Visitpad — Diagnoses"])
+
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
 
 @router.get("", response_model=VisitpadDiagnosisListResponse, summary="List diagnoses")
@@ -63,6 +71,7 @@ def get_diagnoses(
     response_model=VisitpadDiagnosisSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create diagnosis",
+    dependencies=[_GUARD_CREATE],
 )
 def post_diagnosis(
     payload: VisitpadDiagnosisCreate,
@@ -78,6 +87,7 @@ def post_diagnosis(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import diagnoses from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_diagnoses_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -109,7 +119,11 @@ def get_diagnosis_import_keys(
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Get diagnosis")
+@router.get(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Get diagnosis",
+)
 def get_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],
@@ -120,7 +134,12 @@ def get_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.patch("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Update diagnosis")
+@router.patch(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Update diagnosis",
+    dependencies=[_GUARD_UPDATE],
+)
 def patch_diagnosis(
     diagnosis_id: UUID,
     payload: VisitpadDiagnosisUpdate,
@@ -138,7 +157,12 @@ def patch_diagnosis(
     return VisitpadDiagnosisSingleResponse(data=VisitpadDiagnosisResponse.model_validate(row))
 
 
-@router.delete("/{diagnosis_id}", response_model=VisitpadDiagnosisSingleResponse, summary="Soft-delete diagnosis")
+@router.delete(
+    "/{diagnosis_id}",
+    response_model=VisitpadDiagnosisSingleResponse,
+    summary="Soft-delete diagnosis",
+    dependencies=[_GUARD_DELETE],
+)
 def delete_diagnosis(
     diagnosis_id: UUID,
     repository: Annotated[VisitpadDiagnosisRepository, Depends(get_visitpad_diagnosis_repository)],

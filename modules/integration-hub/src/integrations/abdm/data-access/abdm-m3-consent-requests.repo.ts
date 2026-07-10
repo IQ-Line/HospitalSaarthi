@@ -153,8 +153,9 @@ export class DrizzleM3ConsentRequestsRepo implements M3ConsentRequestsPort {
 
     const drName = input.drName?.trim();
     if (drName) {
+      const drNamePattern = `%${drName}%`;
       conditions.push(
-        sql`${abdmM3ConsentRequests.context}->>'requesterName' ILIKE ${`%${drName}%`}`,
+        sql`${abdmM3ConsentRequests.context}->>'requesterName' ILIKE ${drNamePattern}`,
       );
     }
 

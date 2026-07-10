@@ -1,0 +1,534 @@
+{
+  "id": "9b8c882e-2830-4fd7-904b-9d1a262e9570",
+  "prevId": "dde219d9-19b3-4204-bb3d-008d0ca44d88",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "registration.registration": {
+      "name": "registration",
+      "schema": "registration",
+      "columns": {
+        "registration_id": {
+          "name": "registration_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_uhid": {
+          "name": "patient_uhid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_abha_number": {
+          "name": "patient_abha_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_abha_address": {
+          "name": "patient_abha_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_full_name": {
+          "name": "patient_full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_phone_number": {
+          "name": "patient_phone_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_gender": {
+          "name": "patient_gender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_date_of_birth": {
+          "name": "patient_date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_year_of_birth": {
+          "name": "patient_year_of_birth",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_source_record_id": {
+          "name": "patient_source_record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_registration_patient": {
+          "name": "idx_registration_patient",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_registration_uhid": {
+          "name": "idx_registration_uhid",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_uhid",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_registration_phone": {
+          "name": "idx_registration_phone",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_phone_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "uq_registration_idempotency": {
+          "name": "uq_registration_idempotency",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"registration\".\"registration\".\"idempotency_key\" is not null",
+          "concurrently": false
+        },
+        "uq_registration_patient": {
+          "name": "uq_registration_patient",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "registration_iq_tenant_id_registration_id_pk": {
+          "name": "registration_iq_tenant_id_registration_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "registration_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "registration.sequence_counters": {
+      "name": "sequence_counters",
+      "schema": "registration",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence_name": {
+          "name": "sequence_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_value": {
+          "name": "current_value",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "sequence_counters_iq_tenant_id_sequence_name_pk": {
+          "name": "sequence_counters_iq_tenant_id_sequence_name_pk",
+          "columns": [
+            "iq_tenant_id",
+            "sequence_name"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "registration.visit": {
+      "name": "visit",
+      "schema": "registration",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_type": {
+          "name": "visit_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "facility_id": {
+          "name": "facility_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "appointment_id": {
+          "name": "appointment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consultation_type": {
+          "name": "consultation_type",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'new'"
+        },
+        "is_free_follow_up": {
+          "name": "is_free_follow_up",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "free_follow_up_visit_count": {
+          "name": "free_follow_up_visit_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "free_follow_up_valid_till": {
+          "name": "free_follow_up_valid_till",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "free_follow_up_details": {
+          "name": "free_follow_up_details",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_visit_id": {
+          "name": "parent_visit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "uq_visit_tenant_visit_id": {
+          "name": "uq_visit_tenant_visit_id",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "visit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_visit_patient": {
+          "name": "idx_visit_patient",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "idx_visit_status": {
+          "name": "idx_visit_status",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "uq_visit_idempotency": {
+          "name": "uq_visit_idempotency",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "where": "\"registration\".\"visit\".\"idempotency_key\" is not null",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "visit_iq_tenant_id_id_pk": {
+          "name": "visit_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "registration": "registration"
+  },
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -2,10 +2,11 @@ import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import { EmpiClientError } from "../lib/empi-client-error.js";
 import { parseEmpiPatientDetail } from "../lib/parse-empi-m2-patient.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type { EmpiClient, M2PatientProfile } from "../ports.js";
 
 const EMPI_API_PREFIX =
-  process.env["EMPI_API_PREFIX"]?.trim().replace(/\/+$/, "") || "/api/empi/v1";
+  stripTrailingSlashes(process.env["EMPI_API_PREFIX"]?.trim() ?? "") || "/api/empi/v1";
 
 function isClientError(status: number): boolean {
   return status >= 400 && status < 500;
@@ -13,6 +14,43 @@ function isClientError(status: number): boolean {
 
 function isServerOrUnavailable(status: number): boolean {
   return status >= 500;
+}
+
+function buildDemographicsQuery(input: {
+  identifiers?: Array<{ type: string; value: string }>;
+  first_name?: string;
+  gender?: string;
+  phone_number?: string;
+  year_of_birth?: number;
+}): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (input.identifiers?.length) body.identifiers = input.identifiers;
+  if (input.first_name?.trim()) body.first_name = input.first_name.trim();
+  if (input.gender) body.gender = input.gender;
+  if (input.phone_number?.trim()) body.phone_number = input.phone_number.trim();
+  if (typeof input.year_of_birth === "number") body.year_of_birth = input.year_of_birth;
+  return body;
+}
+
+async function interpretDemographicsResponse(
+  res: Awaited<ReturnType<typeof fetchWithTimeout>>,
+): Promise<{ patientId: string; score: number } | null> {
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    abdmWarn("abdm.empi.find_by_demographics_failed", { status: res.status });
+    if (isServerOrUnavailable(res.status)) {
+      throw new EmpiClientError(`EMPI find-by-demographics failed: HTTP ${res.status}`, res.status);
+    }
+    return null;
+  }
+  const json = (await res.json()) as {
+    patientId?: string;
+    id?: string;
+    score?: number;
+  };
+  const patientId = json.patientId ?? json.id;
+  if (!patientId) return null;
+  return { patientId, score: json.score ?? 0 };
 }
 
 export class HttpEmpiClient implements EmpiClient {
@@ -23,7 +61,7 @@ export class HttpEmpiClient implements EmpiClient {
     abhaAddress: string;
   }): Promise<{ patientId: string; demographics: Record<string, unknown> } | null> {
     if (!this.baseUrl) return null;
-    const url = new URL(`${EMPI_API_PREFIX}/patients/find`, this.baseUrl.replace(/\/+$/, ""));
+    const url = new URL(`${EMPI_API_PREFIX}/patients/find`, stripTrailingSlashes(this.baseUrl));
     url.searchParams.set("abha_address", input.abhaAddress);
     try {
       const res = await fetchWithTimeout(url.toString(), {
@@ -70,17 +108,12 @@ export class HttpEmpiClient implements EmpiClient {
     year_of_birth?: number;
   }): Promise<{ patientId: string; score: number } | null> {
     if (!this.baseUrl) return null;
+    const body = buildDemographicsQuery(input);
+    if (Object.keys(body).length === 0) return null;
     const url = new URL(
       `${EMPI_API_PREFIX}/patients/find-by-demographics`,
-      this.baseUrl.replace(/\/+$/, ""),
+      stripTrailingSlashes(this.baseUrl),
     );
-    const body: Record<string, unknown> = {};
-    if (input.identifiers?.length) body.identifiers = input.identifiers;
-    if (input.first_name?.trim()) body.first_name = input.first_name.trim();
-    if (input.gender) body.gender = input.gender;
-    if (input.phone_number?.trim()) body.phone_number = input.phone_number.trim();
-    if (typeof input.year_of_birth === "number") body.year_of_birth = input.year_of_birth;
-    if (Object.keys(body).length === 0) return null;
     try {
       const res = await fetchWithTimeout(url.toString(), {
         method: "POST",
@@ -91,26 +124,7 @@ export class HttpEmpiClient implements EmpiClient {
         },
         body: JSON.stringify(body),
       });
-      if (res.status === 404) return null;
-      if (!res.ok) {
-        abdmWarn("abdm.empi.find_by_demographics_failed", { status: res.status });
-        if (isClientError(res.status)) return null;
-        if (isServerOrUnavailable(res.status)) {
-          throw new EmpiClientError(
-            `EMPI find-by-demographics failed: HTTP ${res.status}`,
-            res.status,
-          );
-        }
-        return null;
-      }
-      const json = (await res.json()) as {
-        patientId?: string;
-        id?: string;
-        score?: number;
-      };
-      const patientId = json.patientId ?? json.id;
-      if (!patientId) return null;
-      return { patientId, score: json.score ?? 0 };
+      return await interpretDemographicsResponse(res);
     } catch (e) {
       if (e instanceof EmpiClientError) throw e;
       abdmWarn("abdm.empi.find_by_demographics_error", {
@@ -135,7 +149,7 @@ export class HttpEmpiClient implements EmpiClient {
     abhaNumber: string;
   }): Promise<{ patientId: string } | null> {
     if (!this.baseUrl) return null;
-    const url = new URL(`${EMPI_API_PREFIX}/patients`, this.baseUrl.replace(/\/+$/, ""));
+    const url = new URL(`${EMPI_API_PREFIX}/patients`, stripTrailingSlashes(this.baseUrl));
     url.searchParams.set("abha_number", input.abhaNumber);
     url.searchParams.set("limit", "1");
     try {
@@ -185,7 +199,7 @@ export class HttpEmpiClient implements EmpiClient {
     patientId: string;
   }): Promise<M2PatientProfile | null> {
     if (!this.baseUrl) return null;
-    const url = `${this.baseUrl.replace(/\/+$/, "")}${EMPI_API_PREFIX}/patients/${input.patientId}`;
+    const url = `${stripTrailingSlashes(this.baseUrl)}${EMPI_API_PREFIX}/patients/${input.patientId}`;
     try {
       const res = await fetchWithTimeout(url, {
         method: "GET",

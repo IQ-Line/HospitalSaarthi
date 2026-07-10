@@ -16,7 +16,10 @@ import type {
   InventoryUom,
 } from '@/features/inventory-masters/types';
 import { ItemMasterDetailPanel } from '@/features/inventory-masters/items/item-master-detail-panel';
-import { previewNextItemCode } from '@/features/inventory-masters/items/item-master-api';
+import {
+  previewNextItemCode,
+  type ItemCodePreview,
+} from '@/features/inventory-masters/items/item-master-api';
 import {
   buildFormularyMedicineOptions,
   type FormularyMedicineOption,
@@ -94,6 +97,962 @@ function hsnRowToSnapshot(row: InventoryHsnGst): ItemMasterHsnSnapshot {
 
 function formatHsnRowLabel(row: InventoryHsnGst): string {
   return `${row.hsn_code} · CGST ${row.cgst_percent}% / SGST ${row.sgst_percent}% / IGST ${row.igst_percent}%`;
+}
+
+function parseDim(s: string): number | null {
+  const n = Number.parseFloat(s.trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+function optionalTrimmed(value: string): string | undefined {
+  return value.trim() || undefined;
+}
+
+function deriveSaleName(activeUoms: InventoryUom[], saleUomId: string): string {
+  const su = activeUoms.find((u) => u.id === saleUomId);
+  return su?.abbreviation ?? su?.name ?? 'Each';
+}
+
+function computeExpiryFlags(
+  isMedicine: boolean,
+  effectiveTracking: ItemTrackingMode,
+  batchExpirable: 'yes' | 'no',
+  batchShortExpiry: 'yes' | 'no',
+): { isExpirable: boolean; isShortExpiry: boolean } {
+  const isExpirable = isMedicine ? true : effectiveTracking === 'by-batch' ? batchExpirable === 'yes' : false;
+  const isShortExpiry = effectiveTracking === 'by-batch' ? batchShortExpiry === 'yes' : false;
+  return { isExpirable, isShortExpiry };
+}
+
+type ValidateBasicsInput = {
+  itemName: string;
+  parentCategoryId: string;
+  subCategories: InventoryCategory[];
+  subCategoryId: string;
+  departmentSelectedIds: Set<string>;
+};
+
+function validateBasics(i: ValidateBasicsInput): string | null {
+  const name = i.itemName.trim();
+  if (!name) {
+    return 'Enter an item name.';
+  }
+  if (!i.parentCategoryId) {
+    return 'Select a category.';
+  }
+  if (i.subCategories.length > 0 && !i.subCategoryId) {
+    return 'Select a sub category.';
+  }
+  if (i.departmentSelectedIds.size === 0) {
+    return 'Select at least one department.';
+  }
+  return null;
+}
+
+type ValidateStockInput = {
+  reorderStr: string;
+  activeStorage: InventoryStorageCondition[];
+  storageConditionId: string;
+  isMedicine: boolean;
+  itemTracking: '' | ItemTrackingMode;
+  itemTypeId: string;
+  purchaseUomId: string;
+  consumptionUomId: string;
+  saleUomId: string;
+  activeHsnRows: InventoryHsnGst[];
+  hsnSelectedIds: Set<string>;
+  conversionStr: string;
+};
+
+function validateStockFields(i: ValidateStockInput): string | null {
+  const reorderParsed = Number.parseInt(i.reorderStr.trim(), 10);
+  if (!Number.isFinite(reorderParsed) || i.reorderStr.trim() === '') {
+    return 'Enter a valid reorder level.';
+  }
+  if (i.activeStorage.length > 0 && !i.storageConditionId) {
+    return 'Select a storage condition.';
+  }
+  const effectiveTracking: ItemTrackingMode = i.isMedicine ? 'by-batch' : (i.itemTracking as ItemTrackingMode);
+  if (!effectiveTracking) {
+    return 'Select item tracking mode.';
+  }
+  if (!i.itemTypeId) {
+    return 'Select an item type.';
+  }
+  if (!i.purchaseUomId || !i.consumptionUomId || !i.saleUomId) {
+    return 'Select purchase, consumption, and sale units.';
+  }
+  if (i.activeHsnRows.length > 0 && i.hsnSelectedIds.size === 0) {
+    return 'Select at least one HSN row.';
+  }
+  const conv = Number.parseFloat(i.conversionStr.trim() || '1');
+  if (!Number.isFinite(conv) || conv <= 0) {
+    return 'Enter a valid conversion factor (> 0).';
+  }
+  return null;
+}
+
+type PharmacyInput = {
+  isMedicine: boolean;
+  formularyOptionId: string;
+  genericName: string;
+  strength: string;
+  dosageForm: string;
+  minDispensingUomId: string;
+  activeUoms: InventoryUom[];
+  mrpStr: string;
+  drugClass: string;
+  scheduleType: string;
+  prescriptionRequired: boolean;
+};
+
+function buildPharmacyAttributes(
+  i: PharmacyInput,
+): { error: string } | { pharmacy: ItemMasterPharmacyAttributes | undefined } {
+  if (i.isMedicine && !i.formularyOptionId) {
+    return { error: 'Select a tenant formulary medicine for medicine items.' };
+  }
+  if (!i.isMedicine) {
+    return { pharmacy: undefined };
+  }
+  if (!i.genericName.trim() || !i.strength.trim() || !i.dosageForm) {
+    return { error: 'Medicine requires generic name, strength, and dosage form.' };
+  }
+  if (!i.minDispensingUomId) {
+    return { error: 'Select minimum dispensing unit.' };
+  }
+  const minU = i.activeUoms.find((u) => u.id === i.minDispensingUomId);
+  const mrp = Number.parseFloat(i.mrpStr.trim());
+  if (!Number.isFinite(mrp) || mrp <= 0) {
+    return { error: 'MRP must be greater than 0.' };
+  }
+  return {
+    pharmacy: {
+      genericName: i.genericName.trim(),
+      strength: i.strength.trim(),
+      dosageForm: i.dosageForm,
+      prescriptionRequired: i.prescriptionRequired,
+      minDispensingUomId: i.minDispensingUomId,
+      minDispensingUomName: minU?.name ?? '—',
+      drugClass: i.drugClass.trim() || undefined,
+      scheduleType: i.scheduleType.trim() || undefined,
+      mrp,
+    },
+  };
+}
+
+type BuildPayloadInput = {
+  itemName: string;
+  displayName: string;
+  itemClassification: ItemClassification;
+  itemTypeId: string;
+  parentCategoryId: string;
+  subCategoryId: string;
+  isMedicine: boolean;
+  formularyOptionId: string;
+  departmentSelectedIds: Set<string>;
+  manufacturerId: string;
+  manufacturerCode: string;
+  purchaseUomId: string;
+  consumptionUomId: string;
+  saleUomId: string;
+  activeUoms: InventoryUom[];
+  conversionStr: string;
+  itemTracking: '' | ItemTrackingMode;
+  batchExpirable: 'yes' | 'no';
+  batchShortExpiry: 'yes' | 'no';
+  looseQualitySale: 'yes' | 'no';
+  activeHsnRows: InventoryHsnGst[];
+  hsnSelectedIds: Set<string>;
+  catalogNo: string;
+  reorderStr: string;
+  storageConditionId: string;
+  packSize: string;
+  lengthStr: string;
+  widthStr: string;
+  heightStr: string;
+  weightStr: string;
+  description: string;
+  pharmacy: ItemMasterPharmacyAttributes | undefined;
+  statusActive: boolean;
+};
+
+function buildItemMasterPayload(i: BuildPayloadInput): CreateItemMasterPayload {
+  const name = i.itemName.trim();
+  const effectiveTracking: ItemTrackingMode = i.isMedicine ? 'by-batch' : (i.itemTracking as ItemTrackingMode);
+  const categoryId = i.subCategoryId || i.parentCategoryId;
+  const { isExpirable, isShortExpiry } = computeExpiryFlags(
+    i.isMedicine,
+    effectiveTracking,
+    i.batchExpirable,
+    i.batchShortExpiry,
+  );
+  const hsnSelections = i.activeHsnRows
+    .filter((row) => i.hsnSelectedIds.has(row.id))
+    .map(hsnRowToSnapshot);
+  const primaryHsnId = hsnSelections[0]?.id ?? null;
+  const reorderParsed = Number.parseInt(i.reorderStr.trim(), 10);
+  const conv = Number.parseFloat(i.conversionStr.trim() || '1');
+  const saleName = deriveSaleName(i.activeUoms, i.saleUomId);
+
+  return {
+    name,
+    display_name: i.displayName.trim() || name,
+    item_classification: i.itemClassification,
+    item_type_id: i.itemTypeId,
+    category_id: categoryId,
+    sub_category_id: i.subCategoryId || null,
+    tenant_formulary_id: i.isMedicine ? i.formularyOptionId : null,
+    department_ids: Array.from(i.departmentSelectedIds),
+    manufacturer_id: i.manufacturerId || null,
+    manufacturer_item_code: optionalTrimmed(i.manufacturerCode),
+    purchase_uom_id: i.purchaseUomId,
+    consumption_uom_id: i.consumptionUomId,
+    sale_uom_id: i.saleUomId,
+    unit_of_measure: saleName,
+    conversion_factor: conv,
+    item_tracking: effectiveTracking,
+    is_expirable: isExpirable,
+    is_short_expiry: isShortExpiry,
+    loose_sale_allowed: i.looseQualitySale === 'yes',
+    hsn_gst_id: primaryHsnId,
+    hsn_selections: hsnSelections.length > 0 ? hsnSelections : undefined,
+    catalog_number: optionalTrimmed(i.catalogNo),
+    reorder_level: reorderParsed,
+    storage_condition_id: i.storageConditionId || null,
+    pack_size: optionalTrimmed(i.packSize),
+    length_cm: parseDim(i.lengthStr),
+    width_cm: parseDim(i.widthStr),
+    height_cm: parseDim(i.heightStr),
+    weight_kg: parseDim(i.weightStr),
+    description: optionalTrimmed(i.description),
+    pharmacy: i.pharmacy,
+    is_active: i.statusActive,
+  };
+}
+
+function ItemNameField({
+  isMedicine,
+  formularyPickerOpen,
+  setFormularyPickerOpen,
+  selectedFormularyOption,
+  formularySearch,
+  setFormularySearch,
+  filteredFormularyOptions,
+  formularyOptions,
+  formularyOptionId,
+  applyFormularySelection,
+  itemName,
+  setItemName,
+}: {
+  isMedicine: boolean;
+  formularyPickerOpen: boolean;
+  setFormularyPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedFormularyOption: FormularyMedicineOption | null;
+  formularySearch: string;
+  setFormularySearch: React.Dispatch<React.SetStateAction<string>>;
+  filteredFormularyOptions: FormularyMedicineOption[];
+  formularyOptions: FormularyMedicineOption[];
+  formularyOptionId: string;
+  applyFormularySelection: (opt: FormularyMedicineOption) => void;
+  itemName: string;
+  setItemName: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  return (
+    <Field
+      label="Item name"
+      htmlFor="imf-item-name"
+      required
+      hint={
+        isMedicine
+          ? 'Select from tenant formulary — strength, dosage, and related fields fill automatically.'
+          : undefined
+      }
+    >
+      {isMedicine ? (
+        <Popover open={formularyPickerOpen} onOpenChange={setFormularyPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id="imf-item-name"
+              type="button"
+              variant="outline"
+              className="h-9 w-full justify-between font-normal"
+            >
+              <span className="truncate text-left">
+                {selectedFormularyOption?.displayName ?? 'Select formulary medicine…'}
+              </span>
+              <ChevronDown className="size-4 shrink-0 opacity-50" aria-hidden />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
+            <Input
+              className="mb-2 h-9"
+              placeholder="Search formulary…"
+              value={formularySearch}
+              onChange={(e) => setFormularySearch(e.target.value)}
+            />
+            <div className="max-h-56 overflow-y-auto">
+              {filteredFormularyOptions.length === 0 ? (
+                <p className="px-2 py-3 text-xs text-muted-foreground">
+                  {formularyOptions.length
+                    ? 'No matches — try another search.'
+                    : 'No formulary medicines. Add rows in Admin → Medicines.'}
+                </p>
+              ) : (
+                filteredFormularyOptions.map((o) => (
+                  <button
+                    key={o.formularyId}
+                    type="button"
+                    className={cn(
+                      'flex w-full flex-col gap-0.5 rounded-md px-2 py-2 text-left text-sm hover:bg-muted',
+                      formularyOptionId === o.formularyId && 'bg-muted',
+                    )}
+                    onClick={() => {
+                      applyFormularySelection(o);
+                      setFormularyPickerOpen(false);
+                    }}
+                  >
+                    <span className="font-medium leading-snug">{o.displayName}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {[o.genericName, o.strength, o.dosageForm].filter(Boolean).join(' · ')}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      ) : (
+        <Input
+          id="imf-item-name"
+          className="h-9"
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+        />
+      )}
+    </Field>
+  );
+}
+
+function ExpirableBatchFields({
+  isMedicine,
+  itemTracking,
+  batchExpirable,
+  setBatchExpirable,
+  batchShortExpiry,
+  setBatchShortExpiry,
+}: {
+  isMedicine: boolean;
+  itemTracking: '' | ItemTrackingMode;
+  batchExpirable: 'yes' | 'no';
+  setBatchExpirable: React.Dispatch<React.SetStateAction<'yes' | 'no'>>;
+  batchShortExpiry: 'yes' | 'no';
+  setBatchShortExpiry: React.Dispatch<React.SetStateAction<'yes' | 'no'>>;
+}) {
+  if (!(isMedicine || itemTracking === 'by-batch')) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-3 pt-1 md:col-span-2">
+      <div className="flex flex-col gap-3">
+        <Label className="text-sm font-medium text-foreground">Is expirable?</Label>
+        {isMedicine ? (
+          <Input className="h-9 max-w-[120px] bg-muted/40" readOnly value="Yes" />
+        ) : (
+          <RadioGroup
+            value={batchExpirable}
+            onValueChange={(v) => setBatchExpirable(v as 'yes' | 'no')}
+            className="flex flex-row flex-wrap gap-x-12 gap-y-2"
+          >
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="yes" />
+              Yes
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="no" />
+              No
+            </label>
+          </RadioGroup>
+        )}
+      </div>
+      <div className="flex flex-col gap-3">
+        <Label className="text-sm font-medium text-foreground">Is short expiry?</Label>
+        <RadioGroup
+          value={batchShortExpiry}
+          onValueChange={(v) => setBatchShortExpiry(v as 'yes' | 'no')}
+          className="flex flex-row flex-wrap gap-x-12 gap-y-2"
+        >
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <RadioGroupItem value="yes" />
+            Yes
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <RadioGroupItem value="no" />
+            No
+          </label>
+        </RadioGroup>
+      </div>
+    </div>
+  );
+}
+
+type GeneralSectionProps = {
+  itemClassification: ItemClassification;
+  handleClassificationChange: (value: ItemClassification) => void;
+  isMedicine: boolean;
+  formularyPickerOpen: boolean;
+  setFormularyPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedFormularyOption: FormularyMedicineOption | null;
+  formularySearch: string;
+  setFormularySearch: React.Dispatch<React.SetStateAction<string>>;
+  filteredFormularyOptions: FormularyMedicineOption[];
+  formularyOptions: FormularyMedicineOption[];
+  formularyOptionId: string;
+  applyFormularySelection: (opt: FormularyMedicineOption) => void;
+  itemName: string;
+  setItemName: React.Dispatch<React.SetStateAction<string>>;
+  displayName: string;
+  setDisplayName: React.Dispatch<React.SetStateAction<string>>;
+  departments: Department[];
+  departmentSelectedIds: Set<string>;
+  activeDepartments: Department[];
+  toggleDepartment: (id: string, checked: boolean) => void;
+  parentCategoryId: string;
+  setParentCategoryId: React.Dispatch<React.SetStateAction<string>>;
+  parentCategories: InventoryCategory[];
+  subCategoryId: string;
+  setSubCategoryId: React.Dispatch<React.SetStateAction<string>>;
+  subCategories: InventoryCategory[];
+  itemTracking: '' | ItemTrackingMode;
+  setItemTracking: React.Dispatch<React.SetStateAction<'' | ItemTrackingMode>>;
+  manufacturerId: string;
+  setManufacturerId: React.Dispatch<React.SetStateAction<string>>;
+  activeManufacturers: InventoryManufacturer[];
+  manufacturerCode: string;
+  setManufacturerCode: React.Dispatch<React.SetStateAction<string>>;
+  batchExpirable: 'yes' | 'no';
+  setBatchExpirable: React.Dispatch<React.SetStateAction<'yes' | 'no'>>;
+  batchShortExpiry: 'yes' | 'no';
+  setBatchShortExpiry: React.Dispatch<React.SetStateAction<'yes' | 'no'>>;
+};
+
+function GeneralSection(props: GeneralSectionProps) {
+  const departmentSummary = departmentLabelFromIds(
+    Array.from(props.departmentSelectedIds),
+    props.departments,
+  );
+  const brandDisplay =
+    props.selectedFormularyOption?.brandNames?.[0]?.trim() ||
+    props.selectedFormularyOption?.manufacturer?.trim() ||
+    '—';
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">General</CardTitle>
+        <CardDescription>Names, category, tracking, manufacturer.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <Field label="Item classification" htmlFor="imf-classification" required>
+          <Select
+            value={props.itemClassification}
+            onValueChange={(v) => props.handleClassificationChange(v as ItemClassification)}
+          >
+            <SelectTrigger id="imf-classification" className="h-9 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inventory">{itemClassificationLabel('inventory')}</SelectItem>
+              <SelectItem value="medicine">{itemClassificationLabel('medicine')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        <ItemNameField
+          isMedicine={props.isMedicine}
+          formularyPickerOpen={props.formularyPickerOpen}
+          setFormularyPickerOpen={props.setFormularyPickerOpen}
+          selectedFormularyOption={props.selectedFormularyOption}
+          formularySearch={props.formularySearch}
+          setFormularySearch={props.setFormularySearch}
+          filteredFormularyOptions={props.filteredFormularyOptions}
+          formularyOptions={props.formularyOptions}
+          formularyOptionId={props.formularyOptionId}
+          applyFormularySelection={props.applyFormularySelection}
+          itemName={props.itemName}
+          setItemName={props.setItemName}
+        />
+        <Field label="Display name" htmlFor="imf-display-name" hint="Optional; defaults to item name when empty.">
+          <Input
+            id="imf-display-name"
+            className="h-9"
+            value={props.displayName}
+            onChange={(e) => props.setDisplayName(e.target.value)}
+          />
+        </Field>
+        <Field label="Brand (read-only)" htmlFor="imf-brand">
+          <Input id="imf-brand" className="h-9 bg-muted/40" readOnly value={brandDisplay} />
+        </Field>
+        <Field label="Departments" htmlFor="imf-dept" required>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="imf-dept"
+                type="button"
+                variant="outline"
+                className="h-9 w-full justify-start font-normal"
+              >
+                <span className="truncate">{departmentSummary}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-3" align="start">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Select one or more departments
+              </p>
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {props.activeDepartments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No active departments available.</p>
+                ) : (
+                  props.activeDepartments.map((d) => (
+                    <label key={d.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={props.departmentSelectedIds.has(d.id)}
+                        onCheckedChange={(c) => props.toggleDepartment(d.id, c === true)}
+                      />
+                      <span>{d.name}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </Field>
+        <Field label="Category" htmlFor="imf-cat" required>
+          <Select
+            value={props.parentCategoryId || undefined}
+            onValueChange={(value) => {
+              props.setParentCategoryId(value);
+              props.setSubCategoryId('');
+            }}
+          >
+            <SelectTrigger id="imf-cat" className="h-9 w-full">
+              <SelectValue placeholder={props.parentCategories.length ? 'Select category' : 'Add categories first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.parentCategories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.category_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field
+          label="Sub category"
+          htmlFor="imf-sub-cat"
+          required={props.subCategories.length > 0}
+          hint={props.subCategories.length === 0 && props.parentCategoryId ? 'No sub categories for this parent.' : undefined}
+        >
+          <Select
+            value={props.subCategoryId || undefined}
+            onValueChange={props.setSubCategoryId}
+            disabled={!props.parentCategoryId || props.subCategories.length === 0}
+          >
+            <SelectTrigger id="imf-sub-cat" className="h-9 w-full">
+              <SelectValue
+                placeholder={
+                  !props.parentCategoryId
+                    ? 'Select category first'
+                    : props.subCategories.length
+                      ? 'Select sub category'
+                      : 'None available'
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {props.subCategories.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.category_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field
+          label="Item tracking"
+          htmlFor="imf-tracking"
+          required
+          hint={props.isMedicine ? 'Batch tracking is required for medicine items.' : undefined}
+        >
+          {props.isMedicine ? (
+            <Input id="imf-tracking" className="h-9 bg-muted/40" readOnly value="By batch" />
+          ) : (
+            <Select
+              value={props.itemTracking || undefined}
+              onValueChange={(v) => props.setItemTracking(v as ItemTrackingMode)}
+            >
+              <SelectTrigger id="imf-tracking" className="h-9 w-full">
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="by-batch">By batch</SelectItem>
+                <SelectItem value="by-serial">By unique serial number</SelectItem>
+                <SelectItem value="no-tracking">No tracking</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+        <Field label="Manufacturer" htmlFor="imf-mfg">
+          <Select value={props.manufacturerId || undefined} onValueChange={props.setManufacturerId}>
+            <SelectTrigger id="imf-mfg" className="h-9 w-full">
+              <SelectValue placeholder={props.activeManufacturers.length ? 'Select manufacturer' : 'Add manufacturers'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeManufacturers.map((m) => (
+                <SelectItem key={m.id} value={m.id}>
+                  {m.manufacturer}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Manufacturer code" htmlFor="imf-mfg-code">
+          <Input
+            id="imf-mfg-code"
+            className="h-9 font-mono text-xs"
+            value={props.manufacturerCode}
+            onChange={(e) => props.setManufacturerCode(e.target.value)}
+          />
+        </Field>
+        <ExpirableBatchFields
+          isMedicine={props.isMedicine}
+          itemTracking={props.itemTracking}
+          batchExpirable={props.batchExpirable}
+          setBatchExpirable={props.setBatchExpirable}
+          batchShortExpiry={props.batchShortExpiry}
+          setBatchShortExpiry={props.setBatchShortExpiry}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+type ItemTypeSaleSectionProps = {
+  itemTypeId: string;
+  setItemTypeId: React.Dispatch<React.SetStateAction<string>>;
+  activeItemTypes: InventoryItemType[];
+  codePreview: ItemCodePreview | undefined;
+  selectedType: InventoryItemType | undefined;
+  saleUomId: string;
+  setSaleUomId: React.Dispatch<React.SetStateAction<string>>;
+  activeUoms: InventoryUom[];
+  looseQualitySale: 'yes' | 'no';
+  setLooseQualitySale: React.Dispatch<React.SetStateAction<'yes' | 'no'>>;
+};
+
+function ItemTypeSaleSection(props: ItemTypeSaleSectionProps) {
+  const itemCodeDisplay = props.itemTypeId ? (props.codePreview?.item_code ?? 'Generating…') : 'Select item type';
+  const itemCodeHint = props.selectedType
+    ? `Indicative preview only — the saved code is allocated when you save (format: ITM-#####, sequence per item type "${props.selectedType.item_type}").`
+    : 'Select an item type to preview the next code.';
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">Item type and sale unit</CardTitle>
+        <CardDescription>Item code is generated from the selected item type, not from classification.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-3">
+        <Field label="Item type" htmlFor="imf-itype" required>
+          <Select value={props.itemTypeId || undefined} onValueChange={props.setItemTypeId}>
+            <SelectTrigger id="imf-itype" className="h-9 w-full">
+              <SelectValue placeholder={props.activeItemTypes.length ? 'Select' : 'Add item types first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeItemTypes.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.item_type} ({itemTypeCodePrefix(t.item_type)})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Item code" htmlFor="imf-item-code" hint={itemCodeHint}>
+          <Input id="imf-item-code" className="h-9 bg-muted/40 font-mono text-sm" readOnly value={itemCodeDisplay} />
+        </Field>
+        <Field label="Sale unit" htmlFor="imf-su" required={props.activeUoms.length > 0}>
+          <Select value={props.saleUomId || undefined} onValueChange={props.setSaleUomId}>
+            <SelectTrigger id="imf-su" className="h-9 w-full">
+              <SelectValue placeholder={props.activeUoms.length ? 'Select' : 'Add UOMs first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeUoms.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <div className="flex flex-col gap-3">
+          <Label className="text-sm font-medium text-foreground">Loose sale allowed</Label>
+          <RadioGroup
+            value={props.looseQualitySale}
+            onValueChange={(v) => props.setLooseQualitySale(v as 'yes' | 'no')}
+            className="flex flex-row flex-wrap gap-x-8 gap-y-2"
+          >
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="yes" />
+              Yes
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 text-sm">
+              <RadioGroupItem value="no" />
+              No
+            </label>
+          </RadioGroup>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+type MedicineAttributesSectionProps = {
+  genericName: string;
+  strength: string;
+  dosageForm: string;
+  prescriptionRequired: boolean;
+  minDispensingUomId: string;
+  setMinDispensingUomId: React.Dispatch<React.SetStateAction<string>>;
+  activeUoms: InventoryUom[];
+  mrpStr: string;
+  setMrpStr: React.Dispatch<React.SetStateAction<string>>;
+  drugClass: string;
+  scheduleType: string;
+};
+
+function MedicineAttributesSection(props: MedicineAttributesSectionProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">Medicine attributes</CardTitle>
+        <CardDescription>
+          Pulled from tenant formulary when you select item name. Set MRP and dispensing unit for this SKU.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <Field label="Generic name" htmlFor="imf-generic" required>
+          <Input id="imf-generic" className="h-9 bg-muted/40" readOnly value={props.genericName} />
+        </Field>
+        <Field label="Strength" htmlFor="imf-strength" required>
+          <Input id="imf-strength" className="h-9 bg-muted/40" readOnly value={props.strength} />
+        </Field>
+        <Field label="Dosage form" htmlFor="imf-dosage" required>
+          <Input id="imf-dosage" className="h-9 bg-muted/40" readOnly value={props.dosageForm || '—'} />
+        </Field>
+        <Field label="Prescription required" htmlFor="imf-rx">
+          <Input id="imf-rx" className="h-9 bg-muted/40" readOnly value={props.prescriptionRequired ? 'Yes' : 'No'} />
+        </Field>
+        <Field label="Minimum dispensing unit" htmlFor="imf-min-uom" required>
+          <Select value={props.minDispensingUomId || undefined} onValueChange={props.setMinDispensingUomId}>
+            <SelectTrigger id="imf-min-uom" className="h-9 w-full">
+              <SelectValue placeholder="UOM" />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeUoms.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="MRP" htmlFor="imf-mrp" required>
+          <Input
+            id="imf-mrp"
+            className="h-9 tabular-nums"
+            inputMode="decimal"
+            value={props.mrpStr}
+            onChange={(e) => props.setMrpStr(e.target.value)}
+          />
+        </Field>
+        <Field label="Drug class" htmlFor="imf-drug-class">
+          <Input id="imf-drug-class" className="h-9 bg-muted/40" readOnly value={props.drugClass || '—'} />
+        </Field>
+        <Field label="Schedule type" htmlFor="imf-schedule">
+          <Input id="imf-schedule" className="h-9 bg-muted/40" readOnly value={props.scheduleType || '—'} />
+        </Field>
+      </CardContent>
+    </Card>
+  );
+}
+
+type DimensionsUnitsSectionProps = {
+  isMedicine: boolean;
+  lengthStr: string;
+  setLengthStr: React.Dispatch<React.SetStateAction<string>>;
+  widthStr: string;
+  setWidthStr: React.Dispatch<React.SetStateAction<string>>;
+  heightStr: string;
+  setHeightStr: React.Dispatch<React.SetStateAction<string>>;
+  weightStr: string;
+  setWeightStr: React.Dispatch<React.SetStateAction<string>>;
+  purchaseUomId: string;
+  setPurchaseUomId: React.Dispatch<React.SetStateAction<string>>;
+  activeUoms: InventoryUom[];
+  consumptionUomId: string;
+  setConsumptionUomId: React.Dispatch<React.SetStateAction<string>>;
+  conversionStr: string;
+  setConversionStr: React.Dispatch<React.SetStateAction<string>>;
+};
+
+function DimensionsUnitsSection(props: DimensionsUnitsSectionProps) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">Dimensions and units</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        {!props.isMedicine ? (
+          <>
+            <Field label="Length" htmlFor="imf-len">
+              <Input id="imf-len" className="h-9" inputMode="decimal" value={props.lengthStr} onChange={(e) => props.setLengthStr(e.target.value)} />
+            </Field>
+            <Field label="Width" htmlFor="imf-w">
+              <Input id="imf-w" className="h-9" inputMode="decimal" value={props.widthStr} onChange={(e) => props.setWidthStr(e.target.value)} />
+            </Field>
+            <Field label="Height" htmlFor="imf-h">
+              <Input id="imf-h" className="h-9" inputMode="decimal" value={props.heightStr} onChange={(e) => props.setHeightStr(e.target.value)} />
+            </Field>
+          </>
+        ) : null}
+        <Field label="Weight (kg)" htmlFor="imf-wt">
+          <Input id="imf-wt" className="h-9" inputMode="decimal" value={props.weightStr} onChange={(e) => props.setWeightStr(e.target.value)} />
+        </Field>
+        <Field label="Purchase unit" htmlFor="imf-pu" required={props.activeUoms.length > 0}>
+          <Select value={props.purchaseUomId || undefined} onValueChange={props.setPurchaseUomId}>
+            <SelectTrigger id="imf-pu" className="h-9 w-full">
+              <SelectValue placeholder={props.activeUoms.length ? 'Select' : 'Add UOMs first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeUoms.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Consumption unit" htmlFor="imf-cu" required={props.activeUoms.length > 0}>
+          <Select value={props.consumptionUomId || undefined} onValueChange={props.setConsumptionUomId}>
+            <SelectTrigger id="imf-cu" className="h-9 w-full">
+              <SelectValue placeholder={props.activeUoms.length ? 'Select' : 'Add UOMs first'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeUoms.map((u) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Conversion factor" htmlFor="imf-conv" required>
+          <Input id="imf-conv" className="h-9 tabular-nums" inputMode="decimal" value={props.conversionStr} onChange={(e) => props.setConversionStr(e.target.value)} />
+        </Field>
+      </CardContent>
+    </Card>
+  );
+}
+
+type FinancialRegulatorySectionProps = {
+  activeHsnRows: InventoryHsnGst[];
+  hsnSelectedIds: Set<string>;
+  toggleHsn: (id: string, checked: boolean) => void;
+  catalogNo: string;
+  setCatalogNo: React.Dispatch<React.SetStateAction<string>>;
+  reorderStr: string;
+  setReorderStr: React.Dispatch<React.SetStateAction<string>>;
+  storageConditionId: string;
+  setStorageConditionId: React.Dispatch<React.SetStateAction<string>>;
+  activeStorage: InventoryStorageCondition[];
+  packSize: string;
+  setPackSize: React.Dispatch<React.SetStateAction<string>>;
+};
+
+function FinancialRegulatorySection(props: FinancialRegulatorySectionProps) {
+  const hsnSummary =
+    props.hsnSelectedIds.size === 0
+      ? props.activeHsnRows.length
+        ? 'Select HSN…'
+        : 'Add HSN rows first'
+      : `${props.hsnSelectedIds.size} HSN row(s)`;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-medium">Financial and regulatory</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2">
+        <Field label="HSN / GST rows" htmlFor="imf-hsn-pop" required={props.activeHsnRows.length > 0}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="imf-hsn-pop"
+                type="button"
+                variant="outline"
+                className="h-9 w-full justify-start font-normal"
+              >
+                <span className="truncate">{hsnSummary}</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-3" align="start">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Select one or more HSN rows
+              </p>
+              <div className="max-h-56 space-y-2 overflow-y-auto">
+                {props.activeHsnRows.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Add HSN/GST in Masters.</p>
+                ) : (
+                  props.activeHsnRows.map((row) => (
+                    <label key={row.id} className="flex cursor-pointer items-start gap-2 text-sm">
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={props.hsnSelectedIds.has(row.id)}
+                        onCheckedChange={(checked) => props.toggleHsn(row.id, checked === true)}
+                      />
+                      <span className="font-mono text-xs leading-snug">{formatHsnRowLabel(row)}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </Field>
+        <Field label="Catalog number" htmlFor="imf-catalog">
+          <Input id="imf-catalog" className="h-9" value={props.catalogNo} onChange={(e) => props.setCatalogNo(e.target.value)} />
+        </Field>
+        <Field label="Reorder level" htmlFor="imf-reorder" required>
+          <Input id="imf-reorder" className="h-9 tabular-nums" inputMode="numeric" value={props.reorderStr} onChange={(e) => props.setReorderStr(e.target.value)} />
+        </Field>
+        <Field label="Storage condition" htmlFor="imf-storage" required={props.activeStorage.length > 0}>
+          <Select value={props.storageConditionId || undefined} onValueChange={props.setStorageConditionId}>
+            <SelectTrigger id="imf-storage" className="h-9 w-full">
+              <SelectValue placeholder={props.activeStorage.length ? 'Select' : 'Add storage conditions'} />
+            </SelectTrigger>
+            <SelectContent>
+              {props.activeStorage.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.storage_condition}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Pack size" htmlFor="imf-pack">
+          <Input id="imf-pack" className="h-9" value={props.packSize} onChange={(e) => props.setPackSize(e.target.value)} />
+        </Field>
+      </CardContent>
+    </Card>
+  );
 }
 
 export type ItemMasterFormPanelProps = {
@@ -313,11 +1272,6 @@ export function ItemMasterFormPanel({
     setFormularySearch('');
   }, [open]);
 
-  const parseDim = (s: string): number | null => {
-    const n = Number.parseFloat(s.trim());
-    return Number.isFinite(n) ? n : null;
-  };
-
   const toggleDepartment = (id: string, checked: boolean) => {
     setDepartmentSelectedIds((prev) => {
       const next = new Set(prev);
@@ -338,670 +1292,199 @@ export function ItemMasterFormPanel({
 
   const handleSave = () => {
     void (async () => {
-      const name = itemName.trim();
-      if (!name) {
-        toast.error('Enter an item name.');
-        return;
-      }
-      if (!parentCategoryId) {
-        toast.error('Select a category.');
-        return;
-      }
-      if (subCategories.length > 0 && !subCategoryId) {
-        toast.error('Select a sub category.');
-        return;
-      }
-      if (departmentSelectedIds.size === 0) {
-        toast.error('Select at least one department.');
-        return;
-      }
-      const reorderParsed = Number.parseInt(reorderStr.trim(), 10);
-      if (!Number.isFinite(reorderParsed) || reorderStr.trim() === '') {
-        toast.error('Enter a valid reorder level.');
-        return;
-      }
-      if (activeStorage.length > 0 && !storageConditionId) {
-        toast.error('Select a storage condition.');
-        return;
-      }
-      const effectiveTracking: ItemTrackingMode = isMedicine ? 'by-batch' : (itemTracking as ItemTrackingMode);
-      if (!effectiveTracking) {
-        toast.error('Select item tracking mode.');
-        return;
-      }
-      if (!itemTypeId) {
-        toast.error('Select an item type.');
-        return;
-      }
-      if (!purchaseUomId || !consumptionUomId || !saleUomId) {
-        toast.error('Select purchase, consumption, and sale units.');
-        return;
-      }
-      if (activeHsnRows.length > 0 && hsnSelectedIds.size === 0) {
-        toast.error('Select at least one HSN row.');
-        return;
-      }
-
-      const su = activeUoms.find((u) => u.id === saleUomId);
-      const saleName = su?.abbreviation ?? su?.name ?? 'Each';
-
-      const conv = Number.parseFloat(conversionStr.trim() || '1');
-      if (!Number.isFinite(conv) || conv <= 0) {
-        toast.error('Enter a valid conversion factor (> 0).');
-        return;
-      }
-
-      if (isMedicine && !formularyOptionId) {
-        toast.error('Select a tenant formulary medicine for medicine items.');
-        return;
-      }
-
-      let pharmacy: ItemMasterPharmacyAttributes | undefined;
-      if (isMedicine) {
-        if (!genericName.trim() || !strength.trim() || !dosageForm) {
-          toast.error('Medicine requires generic name, strength, and dosage form.');
-          return;
-        }
-        if (!minDispensingUomId) {
-          toast.error('Select minimum dispensing unit.');
-          return;
-        }
-        const minU = activeUoms.find((u) => u.id === minDispensingUomId);
-        const mrp = Number.parseFloat(mrpStr.trim());
-        if (!Number.isFinite(mrp) || mrp <= 0) {
-          toast.error('MRP must be greater than 0.');
-          return;
-        }
-        pharmacy = {
-          genericName: genericName.trim(),
-          strength: strength.trim(),
-          dosageForm,
-          prescriptionRequired,
-          minDispensingUomId,
-          minDispensingUomName: minU?.name ?? '—',
-          drugClass: drugClass.trim() || undefined,
-          scheduleType: scheduleType.trim() || undefined,
-          mrp,
-        };
-      }
-
-      const categoryId = subCategoryId || parentCategoryId;
-      const isExpirable = isMedicine ? true : effectiveTracking === 'by-batch' ? batchExpirable === 'yes' : false;
-      const isShortExpiry = effectiveTracking === 'by-batch' ? batchShortExpiry === 'yes' : false;
-
-      const hsnSelections = activeHsnRows
-        .filter((row) => hsnSelectedIds.has(row.id))
-        .map(hsnRowToSnapshot);
-      const primaryHsnId = hsnSelections[0]?.id ?? null;
-
-      await onSubmit({
-        name,
-        display_name: displayName.trim() || name,
-        item_classification: itemClassification,
-        item_type_id: itemTypeId,
-        category_id: categoryId,
-        sub_category_id: subCategoryId || null,
-        tenant_formulary_id: isMedicine ? formularyOptionId : null,
-        department_ids: Array.from(departmentSelectedIds),
-        manufacturer_id: manufacturerId || null,
-        manufacturer_item_code: manufacturerCode.trim() || undefined,
-        purchase_uom_id: purchaseUomId,
-        consumption_uom_id: consumptionUomId,
-        sale_uom_id: saleUomId,
-        unit_of_measure: saleName,
-        conversion_factor: conv,
-        item_tracking: effectiveTracking,
-        is_expirable: isExpirable,
-        is_short_expiry: isShortExpiry,
-        loose_sale_allowed: looseQualitySale === 'yes',
-        hsn_gst_id: primaryHsnId,
-        hsn_selections: hsnSelections.length > 0 ? hsnSelections : undefined,
-        catalog_number: catalogNo.trim() || undefined,
-        reorder_level: reorderParsed,
-        storage_condition_id: storageConditionId || null,
-        pack_size: packSize.trim() || undefined,
-        length_cm: parseDim(lengthStr),
-        width_cm: parseDim(widthStr),
-        height_cm: parseDim(heightStr),
-        weight_kg: parseDim(weightStr),
-        description: description.trim() || undefined,
-        pharmacy,
-        is_active: statusActive,
+      const basicsError = validateBasics({
+        itemName,
+        parentCategoryId,
+        subCategories,
+        subCategoryId,
+        departmentSelectedIds,
       });
+      if (basicsError) {
+        toast.error(basicsError);
+        return;
+      }
+      const stockError = validateStockFields({
+        reorderStr,
+        activeStorage,
+        storageConditionId,
+        isMedicine,
+        itemTracking,
+        itemTypeId,
+        purchaseUomId,
+        consumptionUomId,
+        saleUomId,
+        activeHsnRows,
+        hsnSelectedIds,
+        conversionStr,
+      });
+      if (stockError) {
+        toast.error(stockError);
+        return;
+      }
+      const pharmacyResult = buildPharmacyAttributes({
+        isMedicine,
+        formularyOptionId,
+        genericName,
+        strength,
+        dosageForm,
+        minDispensingUomId,
+        activeUoms,
+        mrpStr,
+        drugClass,
+        scheduleType,
+        prescriptionRequired,
+      });
+      if ('error' in pharmacyResult) {
+        toast.error(pharmacyResult.error);
+        return;
+      }
+
+      const payload = buildItemMasterPayload({
+        itemName,
+        displayName,
+        itemClassification,
+        itemTypeId,
+        parentCategoryId,
+        subCategoryId,
+        isMedicine,
+        formularyOptionId,
+        departmentSelectedIds,
+        manufacturerId,
+        manufacturerCode,
+        purchaseUomId,
+        consumptionUomId,
+        saleUomId,
+        activeUoms,
+        conversionStr,
+        itemTracking,
+        batchExpirable,
+        batchShortExpiry,
+        looseQualitySale,
+        activeHsnRows,
+        hsnSelectedIds,
+        catalogNo,
+        reorderStr,
+        storageConditionId,
+        packSize,
+        lengthStr,
+        widthStr,
+        heightStr,
+        weightStr,
+        description,
+        pharmacy: pharmacyResult.pharmacy,
+        statusActive,
+      });
+
+      await onSubmit(payload);
     })();
   };
 
   if (!open) return null;
 
-  const itemCodeDisplay = itemTypeId ? (codePreview?.item_code ?? 'Generating…') : 'Select item type';
-  const itemCodeHint = selectedType
-    ? `Indicative preview only — the saved code is allocated when you save (format: ITM-#####, sequence per item type "${selectedType.item_type}").`
-    : 'Select an item type to preview the next code.';
-  const departmentSummary = departmentLabelFromIds(Array.from(departmentSelectedIds), departments);
-  const brandDisplay =
-    selectedFormularyOption?.brandNames?.[0]?.trim() ||
-    selectedFormularyOption?.manufacturer?.trim() ||
-    '—';
-
-  const hsnSummary =
-    hsnSelectedIds.size === 0
-      ? activeHsnRows.length
-        ? 'Select HSN…'
-        : 'Add HSN rows first'
-      : `${hsnSelectedIds.size} HSN row(s)`;
-
   const formBody = (
     <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">General</CardTitle>
-          <CardDescription>Names, category, tracking, manufacturer.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <Field label="Item classification" htmlFor="imf-classification" required>
-            <Select
-              value={itemClassification}
-              onValueChange={(v) => handleClassificationChange(v as ItemClassification)}
-            >
-              <SelectTrigger id="imf-classification" className="h-9 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inventory">{itemClassificationLabel('inventory')}</SelectItem>
-                <SelectItem value="medicine">{itemClassificationLabel('medicine')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field
-            label="Item name"
-            htmlFor="imf-item-name"
-            required
-            hint={
-              isMedicine
-                ? 'Select from tenant formulary — strength, dosage, and related fields fill automatically.'
-                : undefined
-            }
-          >
-            {isMedicine ? (
-              <Popover open={formularyPickerOpen} onOpenChange={setFormularyPickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="imf-item-name"
-                    type="button"
-                    variant="outline"
-                    className="h-9 w-full justify-between font-normal"
-                  >
-                    <span className="truncate text-left">
-                      {selectedFormularyOption?.displayName ?? 'Select formulary medicine…'}
-                    </span>
-                    <ChevronDown className="size-4 shrink-0 opacity-50" aria-hidden />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
-                  <Input
-                    className="mb-2 h-9"
-                    placeholder="Search formulary…"
-                    value={formularySearch}
-                    onChange={(e) => setFormularySearch(e.target.value)}
-                  />
-                  <div className="max-h-56 overflow-y-auto">
-                    {filteredFormularyOptions.length === 0 ? (
-                      <p className="px-2 py-3 text-xs text-muted-foreground">
-                        {formularyOptions.length
-                          ? 'No matches — try another search.'
-                          : 'No formulary medicines. Add rows in Admin → Medicines.'}
-                      </p>
-                    ) : (
-                      filteredFormularyOptions.map((o) => (
-                        <button
-                          key={o.formularyId}
-                          type="button"
-                          className={cn(
-                            'flex w-full flex-col gap-0.5 rounded-md px-2 py-2 text-left text-sm hover:bg-muted',
-                            formularyOptionId === o.formularyId && 'bg-muted',
-                          )}
-                          onClick={() => {
-                            applyFormularySelection(o);
-                            setFormularyPickerOpen(false);
-                          }}
-                        >
-                          <span className="font-medium leading-snug">{o.displayName}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {[o.genericName, o.strength, o.dosageForm].filter(Boolean).join(' · ')}
-                          </span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            ) : (
-              <Input
-                id="imf-item-name"
-                className="h-9"
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="Display name" htmlFor="imf-display-name" hint="Optional; defaults to item name when empty.">
-            <Input
-              id="imf-display-name"
-              className="h-9"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </Field>
-          <Field label="Brand (read-only)" htmlFor="imf-brand">
-            <Input id="imf-brand" className="h-9 bg-muted/40" readOnly value={brandDisplay} />
-          </Field>
-          <Field label="Departments" htmlFor="imf-dept" required>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="imf-dept"
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full justify-start font-normal"
-                >
-                  <span className="truncate">{departmentSummary}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-3" align="start">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  Select one or more departments
-                </p>
-                <div className="max-h-56 space-y-2 overflow-y-auto">
-                  {activeDepartments.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No active departments available.</p>
-                  ) : (
-                    activeDepartments.map((d) => (
-                      <label key={d.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                        <Checkbox
-                          checked={departmentSelectedIds.has(d.id)}
-                          onCheckedChange={(c) => toggleDepartment(d.id, c === true)}
-                        />
-                        <span>{d.name}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </Field>
-          <Field label="Category" htmlFor="imf-cat" required>
-            <Select
-              value={parentCategoryId || undefined}
-              onValueChange={(value) => {
-                setParentCategoryId(value);
-                setSubCategoryId('');
-              }}
-            >
-              <SelectTrigger id="imf-cat" className="h-9 w-full">
-                <SelectValue placeholder={parentCategories.length ? 'Select category' : 'Add categories first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {parentCategories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.category_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field
-            label="Sub category"
-            htmlFor="imf-sub-cat"
-            required={subCategories.length > 0}
-            hint={subCategories.length === 0 && parentCategoryId ? 'No sub categories for this parent.' : undefined}
-          >
-            <Select
-              value={subCategoryId || undefined}
-              onValueChange={setSubCategoryId}
-              disabled={!parentCategoryId || subCategories.length === 0}
-            >
-              <SelectTrigger id="imf-sub-cat" className="h-9 w-full">
-                <SelectValue
-                  placeholder={
-                    !parentCategoryId
-                      ? 'Select category first'
-                      : subCategories.length
-                        ? 'Select sub category'
-                        : 'None available'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {subCategories.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.category_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field
-            label="Item tracking"
-            htmlFor="imf-tracking"
-            required
-            hint={isMedicine ? 'Batch tracking is required for medicine items.' : undefined}
-          >
-            {isMedicine ? (
-              <Input id="imf-tracking" className="h-9 bg-muted/40" readOnly value="By batch" />
-            ) : (
-              <Select
-                value={itemTracking || undefined}
-                onValueChange={(v) => setItemTracking(v as ItemTrackingMode)}
-              >
-                <SelectTrigger id="imf-tracking" className="h-9 w-full">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="by-batch">By batch</SelectItem>
-                  <SelectItem value="by-serial">By unique serial number</SelectItem>
-                  <SelectItem value="no-tracking">No tracking</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          </Field>
-          <Field label="Manufacturer" htmlFor="imf-mfg">
-            <Select value={manufacturerId || undefined} onValueChange={setManufacturerId}>
-              <SelectTrigger id="imf-mfg" className="h-9 w-full">
-                <SelectValue placeholder={activeManufacturers.length ? 'Select manufacturer' : 'Add manufacturers'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeManufacturers.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.manufacturer}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Manufacturer code" htmlFor="imf-mfg-code">
-            <Input
-              id="imf-mfg-code"
-              className="h-9 font-mono text-xs"
-              value={manufacturerCode}
-              onChange={(e) => setManufacturerCode(e.target.value)}
-            />
-          </Field>
-          {isMedicine || itemTracking === 'by-batch' ? (
-            <div className="flex flex-col gap-3 pt-1 md:col-span-2">
-              <div className="flex flex-col gap-3">
-                <Label className="text-sm font-medium text-foreground">Is expirable?</Label>
-                {isMedicine ? (
-                  <Input className="h-9 max-w-[120px] bg-muted/40" readOnly value="Yes" />
-                ) : (
-                  <RadioGroup
-                    value={batchExpirable}
-                    onValueChange={(v) => setBatchExpirable(v as 'yes' | 'no')}
-                    className="flex flex-row flex-wrap gap-x-12 gap-y-2"
-                  >
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <RadioGroupItem value="yes" />
-                      Yes
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm">
-                      <RadioGroupItem value="no" />
-                      No
-                    </label>
-                  </RadioGroup>
-                )}
-              </div>
-              <div className="flex flex-col gap-3">
-                <Label className="text-sm font-medium text-foreground">Is short expiry?</Label>
-                <RadioGroup
-                  value={batchShortExpiry}
-                  onValueChange={(v) => setBatchShortExpiry(v as 'yes' | 'no')}
-                  className="flex flex-row flex-wrap gap-x-12 gap-y-2"
-                >
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <RadioGroupItem value="yes" />
-                    Yes
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <RadioGroupItem value="no" />
-                    No
-                  </label>
-                </RadioGroup>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+      <GeneralSection
+        itemClassification={itemClassification}
+        handleClassificationChange={handleClassificationChange}
+        isMedicine={isMedicine}
+        formularyPickerOpen={formularyPickerOpen}
+        setFormularyPickerOpen={setFormularyPickerOpen}
+        selectedFormularyOption={selectedFormularyOption}
+        formularySearch={formularySearch}
+        setFormularySearch={setFormularySearch}
+        filteredFormularyOptions={filteredFormularyOptions}
+        formularyOptions={formularyOptions}
+        formularyOptionId={formularyOptionId}
+        applyFormularySelection={applyFormularySelection}
+        itemName={itemName}
+        setItemName={setItemName}
+        displayName={displayName}
+        setDisplayName={setDisplayName}
+        departments={departments}
+        departmentSelectedIds={departmentSelectedIds}
+        activeDepartments={activeDepartments}
+        toggleDepartment={toggleDepartment}
+        parentCategoryId={parentCategoryId}
+        setParentCategoryId={setParentCategoryId}
+        parentCategories={parentCategories}
+        subCategoryId={subCategoryId}
+        setSubCategoryId={setSubCategoryId}
+        subCategories={subCategories}
+        itemTracking={itemTracking}
+        setItemTracking={setItemTracking}
+        manufacturerId={manufacturerId}
+        setManufacturerId={setManufacturerId}
+        activeManufacturers={activeManufacturers}
+        manufacturerCode={manufacturerCode}
+        setManufacturerCode={setManufacturerCode}
+        batchExpirable={batchExpirable}
+        setBatchExpirable={setBatchExpirable}
+        batchShortExpiry={batchShortExpiry}
+        setBatchShortExpiry={setBatchShortExpiry}
+      />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Item type and sale unit</CardTitle>
-          <CardDescription>Item code is generated from the selected item type, not from classification.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <Field label="Item type" htmlFor="imf-itype" required>
-            <Select value={itemTypeId || undefined} onValueChange={setItemTypeId}>
-              <SelectTrigger id="imf-itype" className="h-9 w-full">
-                <SelectValue placeholder={activeItemTypes.length ? 'Select' : 'Add item types first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeItemTypes.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.item_type} ({itemTypeCodePrefix(t.item_type)})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Item code" htmlFor="imf-item-code" hint={itemCodeHint}>
-            <Input id="imf-item-code" className="h-9 bg-muted/40 font-mono text-sm" readOnly value={itemCodeDisplay} />
-          </Field>
-          <Field label="Sale unit" htmlFor="imf-su" required={activeUoms.length > 0}>
-            <Select value={saleUomId || undefined} onValueChange={setSaleUomId}>
-              <SelectTrigger id="imf-su" className="h-9 w-full">
-                <SelectValue placeholder={activeUoms.length ? 'Select' : 'Add UOMs first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUoms.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <div className="flex flex-col gap-3">
-            <Label className="text-sm font-medium text-foreground">Loose sale allowed</Label>
-            <RadioGroup
-              value={looseQualitySale}
-              onValueChange={(v) => setLooseQualitySale(v as 'yes' | 'no')}
-              className="flex flex-row flex-wrap gap-x-8 gap-y-2"
-            >
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <RadioGroupItem value="yes" />
-                Yes
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm">
-                <RadioGroupItem value="no" />
-                No
-              </label>
-            </RadioGroup>
-          </div>
-        </CardContent>
-      </Card>
+      <ItemTypeSaleSection
+        itemTypeId={itemTypeId}
+        setItemTypeId={setItemTypeId}
+        activeItemTypes={activeItemTypes}
+        codePreview={codePreview}
+        selectedType={selectedType}
+        saleUomId={saleUomId}
+        setSaleUomId={setSaleUomId}
+        activeUoms={activeUoms}
+        looseQualitySale={looseQualitySale}
+        setLooseQualitySale={setLooseQualitySale}
+      />
 
       {isMedicine ? (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Medicine attributes</CardTitle>
-            <CardDescription>
-              Pulled from tenant formulary when you select item name. Set MRP and dispensing unit for this SKU.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <Field label="Generic name" htmlFor="imf-generic" required>
-              <Input id="imf-generic" className="h-9 bg-muted/40" readOnly value={genericName} />
-            </Field>
-            <Field label="Strength" htmlFor="imf-strength" required>
-              <Input id="imf-strength" className="h-9 bg-muted/40" readOnly value={strength} />
-            </Field>
-            <Field label="Dosage form" htmlFor="imf-dosage" required>
-              <Input id="imf-dosage" className="h-9 bg-muted/40" readOnly value={dosageForm || '—'} />
-            </Field>
-            <Field label="Prescription required" htmlFor="imf-rx">
-              <Input id="imf-rx" className="h-9 bg-muted/40" readOnly value={prescriptionRequired ? 'Yes' : 'No'} />
-            </Field>
-            <Field label="Minimum dispensing unit" htmlFor="imf-min-uom" required>
-              <Select value={minDispensingUomId || undefined} onValueChange={setMinDispensingUomId}>
-                <SelectTrigger id="imf-min-uom" className="h-9 w-full">
-                  <SelectValue placeholder="UOM" />
-                </SelectTrigger>
-                <SelectContent>
-                  {activeUoms.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="MRP" htmlFor="imf-mrp" required>
-              <Input
-                id="imf-mrp"
-                className="h-9 tabular-nums"
-                inputMode="decimal"
-                value={mrpStr}
-                onChange={(e) => setMrpStr(e.target.value)}
-              />
-            </Field>
-            <Field label="Drug class" htmlFor="imf-drug-class">
-              <Input id="imf-drug-class" className="h-9 bg-muted/40" readOnly value={drugClass || '—'} />
-            </Field>
-            <Field label="Schedule type" htmlFor="imf-schedule">
-              <Input id="imf-schedule" className="h-9 bg-muted/40" readOnly value={scheduleType || '—'} />
-            </Field>
-          </CardContent>
-        </Card>
+        <MedicineAttributesSection
+          genericName={genericName}
+          strength={strength}
+          dosageForm={dosageForm}
+          prescriptionRequired={prescriptionRequired}
+          minDispensingUomId={minDispensingUomId}
+          setMinDispensingUomId={setMinDispensingUomId}
+          activeUoms={activeUoms}
+          mrpStr={mrpStr}
+          setMrpStr={setMrpStr}
+          drugClass={drugClass}
+          scheduleType={scheduleType}
+        />
       ) : null}
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Dimensions and units</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          {!isMedicine ? (
-            <>
-              <Field label="Length" htmlFor="imf-len">
-                <Input id="imf-len" className="h-9" inputMode="decimal" value={lengthStr} onChange={(e) => setLengthStr(e.target.value)} />
-              </Field>
-              <Field label="Width" htmlFor="imf-w">
-                <Input id="imf-w" className="h-9" inputMode="decimal" value={widthStr} onChange={(e) => setWidthStr(e.target.value)} />
-              </Field>
-              <Field label="Height" htmlFor="imf-h">
-                <Input id="imf-h" className="h-9" inputMode="decimal" value={heightStr} onChange={(e) => setHeightStr(e.target.value)} />
-              </Field>
-            </>
-          ) : null}
-          <Field label="Weight (kg)" htmlFor="imf-wt">
-            <Input id="imf-wt" className="h-9" inputMode="decimal" value={weightStr} onChange={(e) => setWeightStr(e.target.value)} />
-          </Field>
-          <Field label="Purchase unit" htmlFor="imf-pu" required={activeUoms.length > 0}>
-            <Select value={purchaseUomId || undefined} onValueChange={setPurchaseUomId}>
-              <SelectTrigger id="imf-pu" className="h-9 w-full">
-                <SelectValue placeholder={activeUoms.length ? 'Select' : 'Add UOMs first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUoms.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Consumption unit" htmlFor="imf-cu" required={activeUoms.length > 0}>
-            <Select value={consumptionUomId || undefined} onValueChange={setConsumptionUomId}>
-              <SelectTrigger id="imf-cu" className="h-9 w-full">
-                <SelectValue placeholder={activeUoms.length ? 'Select' : 'Add UOMs first'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeUoms.map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Conversion factor" htmlFor="imf-conv" required>
-            <Input id="imf-conv" className="h-9 tabular-nums" inputMode="decimal" value={conversionStr} onChange={(e) => setConversionStr(e.target.value)} />
-          </Field>
-        </CardContent>
-      </Card>
+      <DimensionsUnitsSection
+        isMedicine={isMedicine}
+        lengthStr={lengthStr}
+        setLengthStr={setLengthStr}
+        widthStr={widthStr}
+        setWidthStr={setWidthStr}
+        heightStr={heightStr}
+        setHeightStr={setHeightStr}
+        weightStr={weightStr}
+        setWeightStr={setWeightStr}
+        purchaseUomId={purchaseUomId}
+        setPurchaseUomId={setPurchaseUomId}
+        activeUoms={activeUoms}
+        consumptionUomId={consumptionUomId}
+        setConsumptionUomId={setConsumptionUomId}
+        conversionStr={conversionStr}
+        setConversionStr={setConversionStr}
+      />
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium">Financial and regulatory</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          <Field label="HSN / GST rows" htmlFor="imf-hsn-pop" required={activeHsnRows.length > 0}>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="imf-hsn-pop"
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full justify-start font-normal"
-                >
-                  <span className="truncate">{hsnSummary}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-3" align="start">
-                <p className="mb-2 text-xs font-medium text-muted-foreground">
-                  Select one or more HSN rows
-                </p>
-                <div className="max-h-56 space-y-2 overflow-y-auto">
-                  {activeHsnRows.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Add HSN/GST in Masters.</p>
-                  ) : (
-                    activeHsnRows.map((row) => (
-                      <label key={row.id} className="flex cursor-pointer items-start gap-2 text-sm">
-                        <Checkbox
-                          className="mt-0.5"
-                          checked={hsnSelectedIds.has(row.id)}
-                          onCheckedChange={(checked) => toggleHsn(row.id, checked === true)}
-                        />
-                        <span className="font-mono text-xs leading-snug">{formatHsnRowLabel(row)}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </Field>
-          <Field label="Catalog number" htmlFor="imf-catalog">
-            <Input id="imf-catalog" className="h-9" value={catalogNo} onChange={(e) => setCatalogNo(e.target.value)} />
-          </Field>
-          <Field label="Reorder level" htmlFor="imf-reorder" required>
-            <Input id="imf-reorder" className="h-9 tabular-nums" inputMode="numeric" value={reorderStr} onChange={(e) => setReorderStr(e.target.value)} />
-          </Field>
-          <Field label="Storage condition" htmlFor="imf-storage" required={activeStorage.length > 0}>
-            <Select value={storageConditionId || undefined} onValueChange={setStorageConditionId}>
-              <SelectTrigger id="imf-storage" className="h-9 w-full">
-                <SelectValue placeholder={activeStorage.length ? 'Select' : 'Add storage conditions'} />
-              </SelectTrigger>
-              <SelectContent>
-                {activeStorage.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.storage_condition}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Pack size" htmlFor="imf-pack">
-            <Input id="imf-pack" className="h-9" value={packSize} onChange={(e) => setPackSize(e.target.value)} />
-          </Field>
-        </CardContent>
-      </Card>
+      <FinancialRegulatorySection
+        activeHsnRows={activeHsnRows}
+        hsnSelectedIds={hsnSelectedIds}
+        toggleHsn={toggleHsn}
+        catalogNo={catalogNo}
+        setCatalogNo={setCatalogNo}
+        reorderStr={reorderStr}
+        setReorderStr={setReorderStr}
+        storageConditionId={storageConditionId}
+        setStorageConditionId={setStorageConditionId}
+        activeStorage={activeStorage}
+        packSize={packSize}
+        setPackSize={setPackSize}
+      />
 
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
         <Card>

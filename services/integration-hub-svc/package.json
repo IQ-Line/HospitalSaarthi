@@ -5,20 +5,22 @@
   "type": "module",
   "dependencies": {
     "@hims/integration-hub": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
-    "dotenv": "^16.6.1",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
+    "@hims/user-management": "workspace:*",
+    "dotenv": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
     "jose": "^6.2.3"
   },
-  "scripts": {
-    "db:migrate": "pnpm exec tsx ../../modules/integration-hub/scripts/apply-migration.ts"
-  },
   "devDependencies": {
-    "tsx": "^4.20.5"
+    "tsx": "catalog:",
+    "vitest": "catalog:"
   }
 }

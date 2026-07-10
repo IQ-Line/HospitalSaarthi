@@ -13,6 +13,7 @@ from app.api.deps import (
 )
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
 from app.repositories.visitpad.unit import VisitpadUnitRepository
 from app.schemas.visitpad.platform_import import (
@@ -56,6 +57,13 @@ conversions_router = APIRouter(
     tags=["Visitpad — Unit conversions"],
 )
 
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
+
 
 @units_router.get("", response_model=VisitpadUnitListResponse, summary="List units")
 def get_visitpad_units(
@@ -95,6 +103,7 @@ def get_visitpad_unit_import_keys(
     response_model=VisitpadUnitSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create unit",
+    dependencies=[_GUARD_CREATE],
 )
 def post_visitpad_unit(
     payload: VisitpadUnitCreate,
@@ -110,6 +119,7 @@ def post_visitpad_unit(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import units from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_visitpad_units_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -148,6 +158,7 @@ def get_visitpad_unit(
     "/{unit_id}",
     response_model=VisitpadUnitSingleResponse,
     summary="Update unit",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_visitpad_unit(
     unit_id: UUID,
@@ -175,6 +186,7 @@ def patch_visitpad_unit(
     "/{unit_id}",
     response_model=VisitpadUnitSingleResponse,
     summary="Soft-delete unit",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_visitpad_unit(
     unit_id: UUID,
@@ -242,6 +254,7 @@ def get_visitpad_unit_conversion_import_keys(
     response_model=VisitpadUnitConversionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create unit conversion",
+    dependencies=[_GUARD_CREATE],
 )
 def post_visitpad_unit_conversion(
     payload: VisitpadUnitConversionCreate,
@@ -266,6 +279,7 @@ def post_visitpad_unit_conversion(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import unit conversions from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_visitpad_unit_conversions_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -316,6 +330,7 @@ def get_visitpad_unit_conversion(
     "/{conversion_id}",
     response_model=VisitpadUnitConversionSingleResponse,
     summary="Update unit conversion",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_visitpad_unit_conversion(
     conversion_id: UUID,
@@ -344,6 +359,7 @@ def patch_visitpad_unit_conversion(
     "/{conversion_id}",
     response_model=VisitpadUnitConversionSingleResponse,
     summary="Soft-delete unit conversion",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_visitpad_unit_conversion(
     conversion_id: UUID,

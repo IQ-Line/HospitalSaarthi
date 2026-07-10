@@ -1,4 +1,4 @@
-"""SQLAlchemy models for the module registry: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for the module registry: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class ModulePublicModel(TimestampMixin, Base):
-    """Platform-wide module tree in ``global_master``."""
+    """Platform-wide module tree in ``master_global``."""
 
     __tablename__ = "modules"
     __table_args__ = (
@@ -44,14 +44,12 @@ class ModulePublicModel(TimestampMixin, Base):
             "name",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "modules_slug_active_key",
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -83,7 +81,7 @@ class ModulePublicModel(TimestampMixin, Base):
 
 
 class ModuleTenantModel(TimestampMixin, Base):
-    """Tenant-scoped module tree in ``tenant_master``."""
+    """Tenant-scoped module tree in ``master_tenant``."""
 
     __tablename__ = "modules"
     __table_args__ = (
@@ -106,7 +104,6 @@ class ModuleTenantModel(TimestampMixin, Base):
             "name",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_modules_slug_active_key",
@@ -114,7 +111,6 @@ class ModuleTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

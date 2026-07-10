@@ -16,17 +16,15 @@ class InventoryUomPublicModel(TimestampMixin, AuditActorMixin, Base):
     __table_args__ = (
         Index(
             "inventory_uoms_name_active_key",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "inventory_uoms_abbreviation_active_key",
-            text("lower(btrim(abbreviation))"),
+            text("lower(trim(abbreviation))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -44,18 +42,16 @@ class InventoryUomTenantModel(TimestampMixin, AuditActorMixin, Base):
         Index(
             "tm_inventory_uoms_name_active_key",
             "iq_tenant_id",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_inventory_uoms_abbreviation_active_key",
             "iq_tenant_id",
-            text("lower(btrim(abbreviation))"),
+            text("lower(trim(abbreviation))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

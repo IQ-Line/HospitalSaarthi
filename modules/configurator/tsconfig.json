@@ -3,6 +3,6 @@
   "compilerOptions": {
     "outDir": "../../dist/modules/configurator"
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts"],
-  "exclude": ["src/**/*.test.ts", "vitest.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "test/**/*.ts"],
+  "exclude": ["vitest.config.ts"]
 }

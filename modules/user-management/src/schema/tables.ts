@@ -13,6 +13,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import type { CapabilityOverrideEffect, RecoveryTier, RoleStatus } from "../domain/types.js";
 
 /** Capability-first authorization schema for the User Management module. */
 export const userManagementSchema = pgSchema("user_management");
@@ -38,9 +39,15 @@ export const users = userManagementSchema.table(
     status: text("status").notNull().default("active"),
     /** Login handle; unique per tenant when set (multiple NULLs allowed). */
     username: text("username"),
-    /** Governs self-service vs admin-only password recovery (Phase 1 MVP). */
-    recovery_tier: text("recovery_tier").notNull().default("standard"),
-    /** When true, user must change password on next successful login. */
+    /**
+     * Account-recovery tier (authn spec §3.2). MVP emits only 'standard' (user has a real email →
+     * self-serve reset later) or 'admin_only' (no real email → admin-driven reset). The other tiers
+     * (delegated/phone_recovery/federated) arrive with their Phase-2/3 recovery flows; the CHECK
+     * widens then. Derived at creation from whether a real email was supplied (not honestly
+     * backfillable afterwards, hence written now even though no reader exists this pass).
+     */
+    recovery_tier: text("recovery_tier").$type<RecoveryTier>().notNull().default("standard"),
+    /** When true, user must change password on next successful login (admin reset flow). */
     must_change_password: boolean("must_change_password").notNull().default(false),
     /** Configurator `organizations.id` — logical reference only (no FK). */
     org_id: uuid("org_id"),
@@ -59,11 +66,11 @@ export const users = userManagementSchema.table(
       "users_clearance_tier_chk",
       sql`${t.clearance_tier_required} >= 0 and ${t.clearance_tier_required} <= 3`,
     ),
+    check("users_recovery_tier_chk", sql`${t.recovery_tier} in ('standard', 'admin_only')`),
     unique("uq_users_tenant_username").on(t.iq_tenant_id, t.username),
-    check(
-      "users_recovery_tier_chk",
-      sql`${t.recovery_tier} in ('standard', 'admin_only', 'delegated', 'phone_recovery', 'federated')`,
-    ),
+    index("idx_users_api_key_prefix")
+      .on(t.api_key_prefix)
+      .where(sql`${t.api_key_prefix} is not null and ${t.status} = 'active'`),
   ],
 );
 
@@ -115,7 +122,7 @@ export const roles = userManagementSchema.table(
     display_name: text("display_name").notNull(),
     description: text("description"),
     is_system: boolean("is_system").notNull().default(false),
-    status: text("status").notNull().default("active"),
+    status: text("status").$type<RoleStatus>().notNull().default("active"),
     created_at: createdAt(),
     updated_at: updatedAt(),
   },
@@ -207,6 +214,13 @@ export const user_roles = userManagementSchema.table(
   ],
 );
 
+/**
+ * Per-user capability OVERRIDES (ADR-0037). Exactly one row per (tenant, user, capability),
+ * pinning that user's effective access for the capability ON (`effect='grant'`) or OFF
+ * (`effect='deny'`), independent of any role. Role-derived capabilities are NOT stored here;
+ * they are read live from `role_capabilities` at principal hydration. Deny wins over grant and
+ * over delegation at read time.
+ */
 export const user_capabilities = userManagementSchema.table(
   "user_capabilities",
   {
@@ -214,12 +228,10 @@ export const user_capabilities = userManagementSchema.table(
     id: uuid("id").notNull().defaultRandom(),
     user_id: uuid("user_id").notNull(),
     capability_id: uuid("capability_id").notNull(),
-    grant_source: text("grant_source").notNull(),
-    source_role_id: uuid("source_role_id"),
+    effect: text("effect").$type<CapabilityOverrideEffect>().notNull(),
+    reason: text("reason"),
     granted_by_user_id: uuid("granted_by_user_id"),
     granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
-    revoked_at: timestamp("revoked_at", { withTimezone: true }),
-    revoked_by_user_id: uuid("revoked_by_user_id"),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
@@ -238,41 +250,19 @@ export const user_capabilities = userManagementSchema.table(
       .onDelete("restrict")
       .onUpdate("restrict"),
     foreignKey({
-      name: "fk_user_capabilities_tenant_source_role",
-      columns: [t.iq_tenant_id, t.source_role_id],
-      foreignColumns: [roles.iq_tenant_id, roles.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("restrict"),
-    foreignKey({
       name: "fk_user_capabilities_tenant_granted_by_user",
       columns: [t.iq_tenant_id, t.granted_by_user_id],
       foreignColumns: [users.iq_tenant_id, users.id],
     })
       .onDelete("restrict")
       .onUpdate("restrict"),
-    foreignKey({
-      name: "fk_user_capabilities_tenant_revoked_by_user",
-      columns: [t.iq_tenant_id, t.revoked_by_user_id],
-      foreignColumns: [users.iq_tenant_id, users.id],
-    })
-      .onDelete("restrict")
-      .onUpdate("restrict"),
-    check(
-      "user_capabilities_grant_source_chk",
-      sql`${t.grant_source} in ('manual', 'role_template', 'delegated', 'system')`,
-    ),
+    check("user_capabilities_effect_chk", sql`${t.effect} in ('grant', 'deny')`),
     unique("uq_user_capabilities_tenant_user_capability").on(
       t.iq_tenant_id,
       t.user_id,
       t.capability_id,
     ),
     index("idx_user_capabilities_tenant_user").on(t.iq_tenant_id, t.user_id),
-    index("idx_user_capabilities_tenant_user_revoked").on(
-      t.iq_tenant_id,
-      t.user_id,
-      t.revoked_at,
-    ),
     index("idx_user_capabilities_tenant_capability").on(t.iq_tenant_id, t.capability_id),
   ],
 );
@@ -364,3 +354,28 @@ export const user_clearances = userManagementSchema.table(
     index("idx_user_clearances_tenant_user").on(t.iq_tenant_id, t.user_id),
   ],
 );
+
+/**
+ * Platform operators — the bounded `scope:platform` membership table.
+ *
+ * Tenant-LESS by design: membership is a platform fact keyed by the operator's GLOBAL platform
+ * user id (`users.id`), not scoped to any tenant. A row here is the ONLY source of the JWT
+ * `scopes:["platform"]` claim (issuance) and the Cerbos `principal.attr.scopes` enrichment. It
+ * carries no capabilities — authority is expressed purely as an additive PDP scope allow on the
+ * platform-provisioning surfaces (configurator + master_data global catalog); clinical resources
+ * remain out of reach. Replaces the former god-mode super-admin (a seed granting every catalog
+ * capability). No FK to `users` — `users` is Citus-distributed by `iq_tenant_id`, so a tenant-less
+ * table cannot reference it; membership integrity is enforced by the seed/admin write path.
+ *
+ * Citus: a reference table (replicated to all nodes), matching `capabilities`. It is a small,
+ * globally-read, tenant-less lookup — the canonical Citus shape for this — and is never joined to
+ * distributed tables in a shard-local way.
+ */
+export const platform_admins = userManagementSchema.table("platform_admins", {
+  /** Global platform user id (`user_management.users.id`). Tenant-less. */
+  user_id: uuid("user_id").primaryKey(),
+  granted_at: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  /** Global platform user id of the granting operator, when known. */
+  granted_by: uuid("granted_by"),
+  note: text("note"),
+});

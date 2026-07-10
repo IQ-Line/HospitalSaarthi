@@ -1,4 +1,3 @@
-import type { AbdmSession } from "../../../domain/session.js";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 
 export interface AbdmSessionStatusView {

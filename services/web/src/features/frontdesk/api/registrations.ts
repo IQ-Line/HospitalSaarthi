@@ -78,8 +78,9 @@ export async function listRegistrations(
   if (params.abha_number?.trim()) sp.set('abha_number', params.abha_number.trim());
   if (params.abha_address?.trim()) sp.set('abha_address', params.abha_address.trim());
   const qs = sp.toString();
+  const queryString = qs ? `?${qs}` : '';
   return apiClient<RegistrationListPageResponse>(
-    `${registrationApiBase()}/registrations${qs ? `?${qs}` : ''}`,
+    `${registrationApiBase()}/registrations${queryString}`,
   );
 }
 
@@ -98,8 +99,9 @@ export async function listRegistrationVisits(
   if (params.updated_from?.trim()) sp.set('updated_from', params.updated_from.trim());
   if (params.updated_to?.trim()) sp.set('updated_to', params.updated_to.trim());
   const qs = sp.toString();
+  const queryString = qs ? `?${qs}` : '';
   return apiClient<RegistrationVisitListPageResponse>(
-    `${registrationApiBase()}/visits${qs ? `?${qs}` : ''}`,
+    `${registrationApiBase()}/visits${queryString}`,
   );
 }
 

@@ -2,9 +2,9 @@ import type { FastifyInstance, FastifyPluginOptions } from "fastify";
 import fp from "fastify-plugin";
 import { tenantStorage } from "./context.js";
 
-function asSingleHeaderValue(
-  value: string | string[] | undefined,
-): string | undefined {
+type HeaderValue = string | string[] | undefined;
+
+function asSingleHeaderValue(value: HeaderValue): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
 }
@@ -68,12 +68,8 @@ function tenantPluginImpl(
       | undefined;
 
     const headerTenantId =
-      asSingleHeaderValue(
-        request.headers["iq_tenant_id"] as string | string[] | undefined,
-      ) ??
-      asSingleHeaderValue(
-        request.headers["x-tenant-id"] as string | string[] | undefined,
-      );
+      asSingleHeaderValue(request.headers["iq_tenant_id"] as HeaderValue) ??
+      asSingleHeaderValue(request.headers["x-tenant-id"] as HeaderValue);
 
     const tenantId =
       headerTenantId ?? ((user?.iq_tenant_id as string) || undefined);

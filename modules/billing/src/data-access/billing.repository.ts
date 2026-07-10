@@ -16,18 +16,24 @@ import {
   decodeBillListCursor,
   encodeBillListCursor,
 } from "../lib/bill-list-pagination.js";
-import { allocateIdentifier } from "@hims/ts-sdk-sequence";
+import { allocateIdentifier, type SequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import {
   allocatePaymentNumber,
   allocateReceiptNumber,
 } from "../lib/allocate-sequence-number.js";
 import { toBillItemRow, toBillRow, toPaymentRow } from "../lib/bill-mappers.js";
-import { nextBillNumber } from "../lib/bill-numbers.js";
 
 const isoDate = (v: string | null | undefined) => (v ? new Date(v) : null);
 
 class DrizzleBillingRepo implements BillingRepo {
-  constructor(private readonly db: DbInstance) {}
+  constructor(
+    private readonly db: DbInstance,
+    /**
+     * Resolves tenant sequence config (numeric code + custom formats) from configurator's own
+     * internal route — billing no longer reads configurator's schema. Injected at boot.
+     */
+    private readonly sequenceConfigLoader: SequenceConfigLoader,
+  ) {}
 
   async findItemByIdempotency(tenantId: string, key: string) {
     const [row] = await this.db
@@ -70,11 +76,23 @@ class DrizzleBillingRepo implements BillingRepo {
   }
 
   async createBill(input: NewBillRow) {
+    const cfg = await this.sequenceConfigLoader(input.iq_tenant_id);
     const bill_number = await allocateIdentifier(this.db, {
       tenantId: input.iq_tenant_id,
       identifierType: "op_bill",
+      counterSchema: "billing",
+      tenantNumericCode: cfg.tenantNumericCode,
+      identifierOverrides: cfg.identifierOverrides,
     });
-    const [row] = await this.db.insert(bills).values({ ...input, bill_number }).returning();
+    const [row] = await this.db
+      .insert(bills)
+      .values({
+        ...input,
+        bill_number,
+        approved_at: isoDate(input.approved_at),
+        cancelled_at: isoDate(input.cancelled_at),
+      })
+      .returning();
     if (!row) throw new Error("createBill insert failed");
     return toBillRow(row);
   }
@@ -223,7 +241,11 @@ class InMemoryBillingRepo implements BillingRepo {
 
   async createBill(input: NewBillRow) {
     const now = new Date().toISOString();
-    const row: BillRow = { ...input, id: randomUUID(), created_at: now, updated_at: now };
+    // The Drizzle repo allocates bill_number via the atomic sequence; the in-memory
+    // double assigns a deterministic placeholder when the caller leaves it blank.
+    const bill_number =
+      input.bill_number || `B-MEM-${String(this.bills.length + 1).padStart(6, "0")}`;
+    const row: BillRow = { ...input, bill_number, id: randomUUID(), created_at: now, updated_at: now };
     this.bills.push(row);
     return row;
   }
@@ -290,8 +312,11 @@ class InMemoryBillingRepo implements BillingRepo {
   }
 }
 
-export function createBillingRepo(db: DbInstance): BillingRepo {
-  return new DrizzleBillingRepo(db);
+export function createBillingRepo(
+  db: DbInstance,
+  sequenceConfigLoader: SequenceConfigLoader,
+): BillingRepo {
+  return new DrizzleBillingRepo(db, sequenceConfigLoader);
 }
 
 export function createInMemoryBillingRepo(): {
@@ -316,7 +341,8 @@ export function newDraftBill(
   const today = new Date().toISOString().slice(0, 10);
   return {
     iq_tenant_id: tenantId,
-    bill_number: nextBillNumber(tenantId),
+    // Allocated by the repo on create (Drizzle: atomic sequence; in-memory: placeholder).
+    bill_number: "",
     patient_id: patientId,
     visit_id: visitId,
     visit_type: visitType,

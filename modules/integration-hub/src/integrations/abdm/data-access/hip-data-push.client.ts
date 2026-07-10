@@ -68,6 +68,7 @@ export class HttpHipDataPushClient implements HipDataPushClient {
       const text = await res.text().catch(() => "");
       abdmWarn("abdm.m3.hip_data_push.failed", {
         status: res.status,
+        // eslint-disable-next-line sonarjs/slow-regex -- linear — single `[^@]+` quantifier with `@` excluded from the class, no nested quantifier; runs on a config targetUrl for log redaction, not ReDoS
         url: targetUrl.replace(/\/\/[^@]+@/, "//***@"),
         bodyPreview: text.slice(0, 500),
       });
@@ -84,6 +85,7 @@ export function checksumForContent(content: string): string {
 
 /** ABDM HIP push: MD5 hex of UTF-8 plaintext FHIR JSON. */
 export function checksumMd5Plaintext(plainUtf8: string): string {
+  // eslint-disable-next-line sonarjs/hashing -- ABDM HIP data-push protocol checksum (integrity, not a security/auth context); algorithm is protocol-mandated, configurable via mode (literal/md5/sha256)
   return createHash("md5").update(plainUtf8, "utf8").digest("hex");
 }
 

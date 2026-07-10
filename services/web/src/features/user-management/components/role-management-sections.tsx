@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { CapabilityGate } from '@/components/capability-gate';
 import { useCapability } from '@/hooks/use-capability';
@@ -13,7 +13,6 @@ import { Checkbox } from '@pulse/ui/checkbox';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,6 +28,7 @@ import {
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { useRoleTypePicklistValues } from '@/features/master-data/api';
+import type { PicklistValue } from '@/features/master-data/types';
 import type { Capability, UmRole } from '../types';
 import { MasterDataCapabilityPermissionTree } from './master-data-capability-permission-tree';
 import { PermissionSelectionScrollRegion } from './permission-selection-scroll-region';
@@ -143,11 +143,16 @@ export type CapabilityTreeNode =
       capabilityIds: string[];
     };
 
+/** Capability leaf as it appears in the finalized tree (and in the mutable builder's child map). */
+type CapabilityTreeLeaf = Extract<CapabilityTreeNode, { kind: 'capability' }>;
+
 type MutableCapabilityTreeBranch = {
   id: string;
+  kind: 'branch';
   label: string;
   path: string[];
-  children: Map<string, MutableCapabilityTreeBranch | CapabilityTreeNode>;
+  /** Only intermediate branches or capability leaves are ever stored here — never finalized branches. */
+  children: Map<string, MutableCapabilityTreeBranch | CapabilityTreeLeaf>;
 };
 
 function getCapabilityModuleSegments(moduleId: string): string[] {
@@ -165,6 +170,7 @@ function getCapabilityModuleSegments(moduleId: string): string[] {
 function createBranch(path: string[]): MutableCapabilityTreeBranch {
   return {
     id: `branch:${path.join('/')}`,
+    kind: 'branch',
     label: path[path.length - 1] ?? 'module',
     path,
     children: new Map(),
@@ -266,20 +272,7 @@ export function treeBranchIds(nodes: CapabilityTreeNode[]): string[] {
   );
 }
 
-export function CapabilityTreeNodeRow({
-  node,
-  depth,
-  capabilitiesEditable,
-  selectedCapabilityIds,
-  expandedBranchIds,
-  forceExpanded,
-  onBranchToggle,
-  onSetSelectedCapabilityIds,
-  onToggleCapability,
-  showCapabilityProvenance = false,
-  plainLanguage = false,
-  assignedCapabilityIds,
-}: {
+type CapabilityTreeNodeRowProps = {
   node: CapabilityTreeNode;
   depth: number;
   capabilitiesEditable: boolean;
@@ -292,64 +285,102 @@ export function CapabilityTreeNodeRow({
   onBranchToggle: (nodeId: string) => void;
   onSetSelectedCapabilityIds: (capabilityIds: string[]) => void;
   onToggleCapability: (capabilityId: string) => void;
+};
+
+function capabilityProvenanceLine(capability: Capability): string {
+  return [
+    capability.source_catalog,
+    capability.source_module_slug,
+    capability.source_permission_slug,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function CapabilityLeafRow({
+  capability,
+  depth,
+  capabilitiesEditable,
+  selectedCapabilityIds,
+  assignedCapabilityIds,
+  onToggleCapability,
+  showCapabilityProvenance,
+  plainLanguage,
+}: {
+  capability: Capability;
+  depth: number;
+  capabilitiesEditable: boolean;
+  selectedCapabilityIds: Set<string>;
+  assignedCapabilityIds?: Set<string>;
+  onToggleCapability: (capabilityId: string) => void;
+  showCapabilityProvenance: boolean;
+  plainLanguage: boolean;
 }) {
-  if (node.kind === 'capability') {
-    const capability = node.capability;
-    const checked = selectedCapabilityIds.has(capability.id);
-    const onRole = assignedCapabilityIds?.has(capability.id) ?? false;
-    return (
-      <div className="space-y-2" style={{ marginLeft: depth * 20 }}>
-        <label
-          className={`flex items-start gap-3 rounded-md border p-3 ${
-            onRole ? 'border-primary/40 bg-primary/5' : ''
-          }`}
-        >
-          <Checkbox
-            checked={checked}
-            disabled={!capabilitiesEditable}
-            onCheckedChange={() => onToggleCapability(capability.id)}
-          />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">{capability.display_name}</span>
-              {onRole ? (
-                <Badge variant="secondary" className="text-xs font-normal">
-                  On this role
-                </Badge>
-              ) : null}
-            </div>
-            {!plainLanguage ? (
-              <>
-                <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {capability.feature} / {capability.action}
-                </p>
-              </>
-            ) : null}
-            {capability.description ? (
-              <p className="mt-1 text-sm text-muted-foreground">{capability.description}</p>
-            ) : null}
-            {showCapabilityProvenance &&
-            (capability.source_module_slug ||
-              capability.source_permission_slug ||
-              capability.source_catalog) ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Provenance:{' '}
-                {[
-                  capability.source_catalog,
-                  capability.source_module_slug,
-                  capability.source_permission_slug,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </p>
+  const checked = selectedCapabilityIds.has(capability.id);
+  const onRole = assignedCapabilityIds?.has(capability.id) ?? false;
+  const hasProvenance =
+    capability.source_module_slug ||
+    capability.source_permission_slug ||
+    capability.source_catalog;
+  return (
+    <div className="space-y-2" style={{ marginLeft: depth * 20 }}>
+      <label
+        className={`flex items-start gap-3 rounded-md border p-3 ${
+          onRole ? 'border-primary/40 bg-primary/5' : ''
+        }`}
+      >
+        <Checkbox
+          checked={checked}
+          disabled={!capabilitiesEditable}
+          onCheckedChange={() => onToggleCapability(capability.id)}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium">{capability.display_name}</span>
+            {onRole ? (
+              <Badge variant="secondary" className="text-xs font-normal">
+                On this role
+              </Badge>
             ) : null}
           </div>
-        </label>
-      </div>
-    );
-  }
+          {!plainLanguage ? (
+            <>
+              <code className="text-xs text-muted-foreground">{capability.capability_key}</code>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {capability.feature} / {capability.action}
+              </p>
+            </>
+          ) : null}
+          {capability.description ? (
+            <p className="mt-1 text-sm text-muted-foreground">{capability.description}</p>
+          ) : null}
+          {showCapabilityProvenance && hasProvenance ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Provenance: {capabilityProvenanceLine(capability)}
+            </p>
+          ) : null}
+        </div>
+      </label>
+    </div>
+  );
+}
 
+function CapabilityBranchRow({
+  node,
+  depth,
+  capabilitiesEditable,
+  selectedCapabilityIds,
+  assignedCapabilityIds,
+  expandedBranchIds,
+  forceExpanded,
+  onBranchToggle,
+  onSetSelectedCapabilityIds,
+  onToggleCapability,
+  showCapabilityProvenance,
+  plainLanguage,
+}: CapabilityTreeNodeRowProps & {
+  node: Extract<CapabilityTreeNode, { kind: 'branch' }>;
+}) {
   const checkedState = getNodeCheckedState(node, selectedCapabilityIds);
   const expanded = forceExpanded || expandedBranchIds.has(node.id);
   const onRoleCount = assignedCapabilityIds
@@ -430,6 +461,53 @@ export function CapabilityTreeNodeRow({
   );
 }
 
+export function CapabilityTreeNodeRow({
+  node,
+  depth,
+  capabilitiesEditable,
+  selectedCapabilityIds,
+  expandedBranchIds,
+  forceExpanded,
+  onBranchToggle,
+  onSetSelectedCapabilityIds,
+  onToggleCapability,
+  showCapabilityProvenance = false,
+  plainLanguage = false,
+  assignedCapabilityIds,
+}: CapabilityTreeNodeRowProps) {
+  if (node.kind === 'capability') {
+    return (
+      <CapabilityLeafRow
+        capability={node.capability}
+        depth={depth}
+        capabilitiesEditable={capabilitiesEditable}
+        selectedCapabilityIds={selectedCapabilityIds}
+        assignedCapabilityIds={assignedCapabilityIds}
+        onToggleCapability={onToggleCapability}
+        showCapabilityProvenance={showCapabilityProvenance}
+        plainLanguage={plainLanguage}
+      />
+    );
+  }
+
+  return (
+    <CapabilityBranchRow
+      node={node}
+      depth={depth}
+      capabilitiesEditable={capabilitiesEditable}
+      selectedCapabilityIds={selectedCapabilityIds}
+      assignedCapabilityIds={assignedCapabilityIds}
+      expandedBranchIds={expandedBranchIds}
+      forceExpanded={forceExpanded}
+      onBranchToggle={onBranchToggle}
+      onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
+      onToggleCapability={onToggleCapability}
+      showCapabilityProvenance={showCapabilityProvenance}
+      plainLanguage={plainLanguage}
+    />
+  );
+}
+
 type RoleEditorDialogProps = {
   open: boolean;
   mode: 'create' | 'edit' | 'view';
@@ -468,7 +546,454 @@ type RoleEditorDialogProps = {
   showCapabilityProvenance?: boolean;
   /** When true, only product modules are shown in the permission tree (excludes platform modules). */
   productOnly?: boolean;
+  /** Edit-mode destructive delete affordance. When omitted, no Delete button is shown. */
+  onDelete?: () => void;
+  /** True while a role delete request is in flight (disables the Delete button). */
+  deletePending?: boolean;
 };
+
+function roleEditorTitle(isCreate: boolean, isView: boolean): string {
+  if (isCreate) {
+    return 'New role template';
+  }
+  return isView ? 'View role' : 'Edit role';
+}
+
+function resolvePermissionsPending(args: {
+  showFullCatalog: boolean;
+  isCreate: boolean;
+  assignedCapabilitiesPending: boolean;
+  assignableCatalogPending: boolean;
+}): boolean {
+  const { showFullCatalog, isCreate, assignedCapabilitiesPending, assignableCatalogPending } = args;
+  if (!showFullCatalog) {
+    return assignedCapabilitiesPending;
+  }
+  if (isCreate) {
+    return assignableCatalogPending;
+  }
+  return assignedCapabilitiesPending || assignableCatalogPending;
+}
+
+function resolvePermissionsError(args: {
+  showFullCatalog: boolean;
+  isCreate: boolean;
+  assignedCapabilitiesError: boolean;
+  assignableCatalogError: boolean;
+}): boolean {
+  const { showFullCatalog, isCreate, assignedCapabilitiesError, assignableCatalogError } = args;
+  if (!showFullCatalog) {
+    return assignedCapabilitiesError;
+  }
+  if (isCreate) {
+    return assignableCatalogError;
+  }
+  return assignedCapabilitiesError || assignableCatalogError;
+}
+
+function roleEditorSaveLabel(savePending: boolean, isCreate: boolean): string {
+  if (savePending) {
+    return isCreate ? 'Creating...' : 'Saving...';
+  }
+  return isCreate ? 'Create role' : 'Save changes';
+}
+
+function permissionsHelpText(showFullCatalog: boolean, isCreate: boolean): string {
+  if (!showFullCatalog) {
+    return 'Permissions saved on this role.';
+  }
+  return isCreate
+    ? 'Expand a product and feature, then tick individual permissions for this role.'
+    : 'Expand modules to review permissions. Selected items are what this role will include.';
+}
+
+function RoleEditorDetailsSection({
+  role,
+  isCreate,
+  roleType,
+  code,
+  displayName,
+  description,
+  isDirty,
+  roleFormEditable,
+  roleTypeOptions,
+  roleTypesLoading,
+  onRoleTypeChange,
+  onCodeChange,
+  onDisplayNameChange,
+  onDescriptionChange,
+}: {
+  role: UmRole | null;
+  isCreate: boolean;
+  roleType: string;
+  code: string;
+  displayName: string;
+  description: string;
+  isDirty: boolean;
+  roleFormEditable: boolean;
+  roleTypeOptions: PicklistValue[] | undefined;
+  roleTypesLoading: boolean;
+  onRoleTypeChange: (value: string) => void;
+  onCodeChange: (value: string) => void;
+  onDisplayNameChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+}) {
+  return (
+    <section className="shrink-0 space-y-4 rounded-md border p-4 lg:w-[22rem] lg:max-h-full lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {!isCreate && role ? (
+            <>
+              <Badge variant={role.status === 'active' ? 'default' : 'secondary'}>
+                {role.status}
+              </Badge>
+              {role.is_system ? <Badge variant="secondary">System role</Badge> : null}
+            </>
+          ) : (
+            <Badge variant="secondary">New Role Template</Badge>
+          )}
+          {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="role-editor-type">Role type</Label>
+        <Select
+          value={roleType || undefined}
+          onValueChange={(value) => {
+            onRoleTypeChange(value);
+            const match = roleTypeOptions?.find((opt) => opt.value === value);
+            if (match && isCreate) {
+              onDisplayNameChange(match.label);
+            }
+          }}
+          disabled={!roleFormEditable || roleTypesLoading}
+        >
+          <SelectTrigger id="role-editor-type">
+            <SelectValue
+              placeholder={roleTypesLoading ? 'Loading…' : 'Select role type'}
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {(roleTypeOptions ?? []).map((opt) => (
+              <SelectItem key={opt.id} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Role type can be shared by many templates. The short ID below must be unique per
+          tenant{isCreate ? '; it is suggested from the name' : ''}. Platform operators see
+          global types; hospital admins see clinical and staff types.
+        </p>
+      </div>
+
+
+      <div className="space-y-2">
+        <Label htmlFor="role-editor-name">Role name</Label>
+        <Input
+          id="role-editor-name"
+          placeholder="Clinical administrator"
+          value={displayName}
+          disabled={!roleFormEditable}
+          onChange={(event) => onDisplayNameChange(event.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="role-editor-description">Description</Label>
+        <Textarea
+          id="role-editor-description"
+          placeholder="Summarize who should receive this role."
+          value={description}
+          disabled={!roleFormEditable}
+          onChange={(event) => onDescriptionChange(event.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="role-editor-code">Short ID</Label>
+        <Input
+          id="role-editor-code"
+          placeholder="e.g. clinical-admin"
+          value={code}
+          disabled={!roleFormEditable}
+          onChange={(event) => onCodeChange(event.target.value)}
+        />
+      </div>
+
+      {!roleFormEditable ? (
+        <p className="text-sm text-muted-foreground">
+          This editor is read-only for your account.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function RoleEditorAssignedTree({
+  capabilityTree,
+  roleFormEditable,
+  selectedCapabilityIdSet,
+  assignedCapabilityIdSet,
+  expandedBranchIds,
+  forceExpanded,
+  onBranchToggle,
+  onSetSelectedCapabilityIds,
+  onToggleCapability,
+  showCapabilityProvenance,
+}: {
+  capabilityTree: CapabilityTreeNode[];
+  roleFormEditable: boolean;
+  selectedCapabilityIdSet: Set<string>;
+  /** Capability ids already saved on the role; drives the "On this role" provenance markers. */
+  assignedCapabilityIdSet: Set<string>;
+  expandedBranchIds: Set<string>;
+  forceExpanded: boolean;
+  onBranchToggle: (nodeId: string) => void;
+  onSetSelectedCapabilityIds: (capabilityIds: string[]) => void;
+  onToggleCapability: (capabilityId: string) => void;
+  showCapabilityProvenance: boolean;
+}) {
+  return (
+    <div className="space-y-5">
+      {capabilityTree.map((node) => (
+        <CapabilityTreeNodeRow
+          key={node.id}
+          node={node}
+          depth={0}
+          capabilitiesEditable={roleFormEditable}
+          selectedCapabilityIds={selectedCapabilityIdSet}
+          expandedBranchIds={expandedBranchIds}
+          forceExpanded={forceExpanded}
+          onBranchToggle={onBranchToggle}
+          onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
+          onToggleCapability={onToggleCapability}
+          showCapabilityProvenance={showCapabilityProvenance}
+          plainLanguage
+          assignedCapabilityIds={assignedCapabilityIdSet}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RoleEditorAssignedOnlyPanel({
+  assignedCapabilitiesPending,
+  assignedCapabilitiesError,
+  totalCapabilityCount,
+  tree,
+}: {
+  assignedCapabilitiesPending: boolean;
+  assignedCapabilitiesError: boolean;
+  totalCapabilityCount: number;
+  tree: ReactNode;
+}) {
+  if (assignedCapabilitiesPending) {
+    return <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>;
+  }
+  if (assignedCapabilitiesError) {
+    return (
+      <p className="text-sm text-destructive">
+        Could not load permissions for this role. Try again.
+      </p>
+    );
+  }
+  if (totalCapabilityCount === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This role has no permissions set up yet.
+      </p>
+    );
+  }
+  return <>{tree}</>;
+}
+
+function RoleEditorCatalogPanel({
+  capabilitySearch,
+  visibleCount,
+  roleFormEditable,
+  capabilities,
+  selectedCapabilityIds,
+  productOnly,
+  onCapabilitySearchChange,
+  onSetSelectedCapabilityIds,
+}: {
+  capabilitySearch: string;
+  visibleCount: number;
+  roleFormEditable: boolean;
+  capabilities: Capability[];
+  selectedCapabilityIds: string[];
+  productOnly: boolean;
+  onCapabilitySearchChange: (value: string) => void;
+  onSetSelectedCapabilityIds: (capabilityIds: string[]) => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="shrink-0 space-y-3 rounded-md border bg-muted/30 p-3">
+        <div className="space-y-2">
+          <Label htmlFor="role-editor-capability-search">Search permissions</Label>
+          <Input
+            id="role-editor-capability-search"
+            placeholder="Search by name or area"
+            value={capabilitySearch}
+            onChange={(event) => onCapabilitySearchChange(event.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            {visibleCount} permission{visibleCount === 1 ? '' : 's'} shown.
+          </p>
+          {roleFormEditable ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  onSetSelectedCapabilityIds(capabilities.map((capability) => capability.id))
+                }
+              >
+                Select all shown
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onSetSelectedCapabilityIds([])}
+              >
+                Clear all
+              </Button>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {visibleCount === 0 ? (
+        <p className="shrink-0 text-sm text-muted-foreground">
+          No permissions match your search.
+        </p>
+      ) : (
+        <PermissionSelectionScrollRegion>
+          <MasterDataCapabilityPermissionTree
+            capabilities={capabilities}
+            selectedCapabilityIds={selectedCapabilityIds}
+            onSelectedCapabilityIdsChange={onSetSelectedCapabilityIds}
+            editable={roleFormEditable}
+            productOnly={productOnly}
+          />
+        </PermissionSelectionScrollRegion>
+      )}
+    </div>
+  );
+}
+
+function RoleEditorPermissionsBody({
+  useAssignedOnly,
+  assignedOnlyPanel,
+  permissionsPending,
+  permissionsError,
+  totalCapabilityCount,
+  catalogPanel,
+  onRetryAssignableCatalog,
+}: {
+  useAssignedOnly: boolean;
+  assignedOnlyPanel: ReactNode;
+  permissionsPending: boolean;
+  permissionsError: boolean;
+  totalCapabilityCount: number;
+  catalogPanel: ReactNode;
+  onRetryAssignableCatalog: () => void;
+}) {
+  if (useAssignedOnly) {
+    return <>{assignedOnlyPanel}</>;
+  }
+  if (permissionsPending) {
+    return <p className="text-sm text-muted-foreground">Loading permissions...</p>;
+  }
+  if (permissionsError) {
+    return (
+      <div className="space-y-3 rounded-md border border-destructive/35 bg-destructive/5 p-3">
+        <p className="text-sm text-destructive">
+          Could not load the permission list. Check your connection and try again.
+        </p>
+        <Button type="button" size="sm" variant="outline" onClick={onRetryAssignableCatalog}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+  if (totalCapabilityCount === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No permissions are available to assign for this organization yet.
+      </p>
+    );
+  }
+  return <>{catalogPanel}</>;
+}
+
+function RoleEditorFooter({
+  isView,
+  roleFormEditable,
+  isDirty,
+  saveDisabled,
+  savePending,
+  isCreate,
+  deletePending,
+  onOpenChange,
+  onReset,
+  onSave,
+  onDelete,
+}: {
+  isView: boolean;
+  roleFormEditable: boolean;
+  isDirty: boolean;
+  saveDisabled: boolean;
+  savePending: boolean;
+  isCreate: boolean;
+  deletePending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onReset: () => void;
+  onSave: () => void;
+  onDelete?: () => void;
+}) {
+  // Delete only applies to an existing role being edited — not while creating or viewing.
+  const showDelete = Boolean(onDelete) && !isCreate && !isView;
+  return (
+    <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-between border-t px-4 py-3">
+      <div>
+        {showDelete ? (
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={deletePending}
+            onClick={onDelete}
+          >
+            {deletePending ? 'Deleting...' : 'Delete role'}
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+          {isView ? 'Close' : 'Cancel'}
+        </Button>
+        {roleFormEditable ? (
+          <>
+            <Button type="button" variant="outline" disabled={!isDirty} onClick={onReset}>
+              Reset
+            </Button>
+            <Button type="button" disabled={saveDisabled} onClick={onSave}>
+              {roleEditorSaveLabel(savePending, isCreate)}
+            </Button>
+          </>
+        ) : null}
+      </div>
+    </DialogFooter>
+  );
+}
 
 export function RoleEditorDialog({
   open,
@@ -505,6 +1030,8 @@ export function RoleEditorDialog({
   onSave,
   showCapabilityProvenance = false,
   productOnly = false,
+  onDelete,
+  deletePending = false,
 }: RoleEditorDialogProps) {
   const umRoleCreate = useCapability(UM_ROLE_CREATE);
   const umRoleUpdate = useCapability(UM_ROLE_UPDATE);
@@ -524,16 +1051,19 @@ export function RoleEditorDialog({
   );
   /** Create-role uses the assignable catalog + accordion tree whenever capabilities can be loaded. */
   const showFullCatalog = umCapabilityRead || isCreate;
-  const permissionsPending = showFullCatalog
-    ? isCreate
-      ? assignableCatalogPending
-      : assignedCapabilitiesPending || assignableCatalogPending
-    : assignedCapabilitiesPending;
-  const permissionsError = showFullCatalog
-    ? isCreate
-      ? assignableCatalogError
-      : assignedCapabilitiesError || assignableCatalogError
-    : assignedCapabilitiesError;
+  const permissionsPending = resolvePermissionsPending({
+    showFullCatalog,
+    isCreate,
+    assignedCapabilitiesPending,
+    assignableCatalogPending,
+  });
+  const permissionsError = resolvePermissionsError({
+    showFullCatalog,
+    isCreate,
+    assignedCapabilitiesError,
+    assignableCatalogError,
+  });
+  const useAssignedOnly = !showFullCatalog && !isCreate && (isView || !umCapabilityRead);
   const [expandedBranchIds, setExpandedBranchIds] = useState<Set<string>>(new Set());
   const forceExpanded = capabilitySearch.trim() !== '';
 
@@ -581,114 +1111,34 @@ export function RoleEditorDialog({
       <DialogContent className="flex max-h-[min(88dvh,960px)] w-full max-w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-6xl">
         <div className="shrink-0 space-y-2 border-b p-4 pb-3">
           <DialogHeader>
-            <DialogTitle>
-              {isCreate ? 'New role template' : isView ? 'View role' : 'Edit role'}
-            </DialogTitle>
+            <DialogTitle>{roleEditorTitle(isCreate, isView)}</DialogTitle>
           </DialogHeader>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 lg:flex-row lg:overflow-hidden lg:items-stretch">
-            <section className="shrink-0 space-y-4 rounded-md border p-4 lg:w-[22rem] lg:max-h-full lg:shrink-0 lg:overflow-y-auto lg:overscroll-contain">
-              <div className="space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {!isCreate && role ? (
-                    <>
-                      <Badge variant={role.status === 'active' ? 'default' : 'secondary'}>
-                        {role.status}
-                      </Badge>
-                      {role.is_system ? <Badge variant="secondary">System role</Badge> : null}
-                    </>
-                  ) : (
-                    <Badge variant="secondary">New Role Template</Badge>
-                  )}
-                  {isDirty ? <Badge variant="outline">Unsaved changes</Badge> : null}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-type">Role type</Label>
-                <Select
-                  value={roleType || undefined}
-                  onValueChange={(value) => {
-                    onRoleTypeChange(value);
-                    const match = roleTypeOptions?.find((opt) => opt.value === value);
-                    if (match && isCreate) {
-                      onDisplayNameChange(match.label);
-                    }
-                  }}
-                  disabled={!roleFormEditable || roleTypesLoading}
-                >
-                  <SelectTrigger id="role-editor-type">
-                    <SelectValue
-                      placeholder={roleTypesLoading ? 'Loading…' : 'Select role type'}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(roleTypeOptions ?? []).map((opt) => (
-                      <SelectItem key={opt.id} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Role type can be shared by many templates. The short ID below must be unique per
-                  tenant{isCreate ? '; it is suggested from the name' : ''}. Platform operators see
-                  global types; hospital admins see clinical and staff types.
-                </p>
-              </div>
-
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-name">Role name</Label>
-                <Input
-                  id="role-editor-name"
-                  placeholder="Clinical administrator"
-                  value={displayName}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onDisplayNameChange(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-description">Description</Label>
-                <Textarea
-                  id="role-editor-description"
-                  placeholder="Summarize who should receive this role."
-                  value={description}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onDescriptionChange(event.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role-editor-code">Short ID</Label>
-                <Input
-                  id="role-editor-code"
-                  placeholder="e.g. clinical-admin"
-                  value={code}
-                  disabled={!roleFormEditable}
-                  onChange={(event) => onCodeChange(event.target.value)}
-                />
-              </div>
-
-              {!roleFormEditable ? (
-                <p className="text-sm text-muted-foreground">
-                  This editor is read-only for your account.
-                </p>
-              ) : null}
-            </section>
+            <RoleEditorDetailsSection
+              role={role}
+              isCreate={isCreate}
+              roleType={roleType}
+              code={code}
+              displayName={displayName}
+              description={description}
+              isDirty={isDirty}
+              roleFormEditable={roleFormEditable}
+              roleTypeOptions={roleTypeOptions}
+              roleTypesLoading={roleTypesLoading}
+              onRoleTypeChange={onRoleTypeChange}
+              onCodeChange={onCodeChange}
+              onDisplayNameChange={onDisplayNameChange}
+              onDescriptionChange={onDescriptionChange}
+            />
 
             <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden rounded-md border p-4">
               <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
                 <div>
                   <h4 className="font-medium">Permissions</h4>
                   <p className="text-sm text-muted-foreground">
-                    {showFullCatalog
-                      ? isCreate
-                        ? 'Expand a product and feature, then tick individual permissions for this role.'
-                        : 'Expand modules to review permissions. Selected items are what this role will include.'
-                      : 'Permissions saved on this role.'}
+                    {permissionsHelpText(showFullCatalog, isCreate)}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -702,138 +1152,62 @@ export function RoleEditorDialog({
                 </div>
               </div>
 
-              {!showFullCatalog && !isCreate && (isView || !umCapabilityRead) ? (
-                assignedCapabilitiesPending ? (
-                  <p className="text-sm text-muted-foreground">Loading permissions for this role...</p>
-                ) : assignedCapabilitiesError ? (
-                  <p className="text-sm text-destructive">
-                    Could not load permissions for this role. Try again.
-                  </p>
-                ) : totalCapabilityCount === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    This role has no permissions set up yet.
-                  </p>
-                ) : (
-                  <div className="space-y-5">
-                    {capabilityTree.map((node) => (
-                      <CapabilityTreeNodeRow
-                        key={node.id}
-                        node={node}
-                        depth={0}
-                        capabilitiesEditable={roleFormEditable}
-                        selectedCapabilityIds={selectedCapabilityIdSet}
+              <RoleEditorPermissionsBody
+                useAssignedOnly={useAssignedOnly}
+                assignedOnlyPanel={
+                  <RoleEditorAssignedOnlyPanel
+                    assignedCapabilitiesPending={assignedCapabilitiesPending}
+                    assignedCapabilitiesError={assignedCapabilitiesError}
+                    totalCapabilityCount={totalCapabilityCount}
+                    tree={
+                      <RoleEditorAssignedTree
+                        capabilityTree={capabilityTree}
+                        roleFormEditable={roleFormEditable}
+                        selectedCapabilityIdSet={selectedCapabilityIdSet}
+                        assignedCapabilityIdSet={assignedCapabilityIdSet}
                         expandedBranchIds={expandedBranchIds}
                         forceExpanded={forceExpanded}
                         onBranchToggle={handleToggleBranch}
                         onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
                         onToggleCapability={onToggleCapability}
                         showCapabilityProvenance={showCapabilityProvenance}
-                        plainLanguage
-                        assignedCapabilityIds={undefined}
                       />
-                    ))}
-                  </div>
-                )
-              ) : permissionsPending ? (
-                <p className="text-sm text-muted-foreground">Loading permissions...</p>
-              ) : permissionsError ? (
-                <div className="space-y-3 rounded-md border border-destructive/35 bg-destructive/5 p-3">
-                  <p className="text-sm text-destructive">
-                    Could not load the permission list. Check your connection and try again.
-                  </p>
-                  <Button type="button" size="sm" variant="outline" onClick={onRetryAssignableCatalog}>
-                    Try again
-                  </Button>
-                </div>
-              ) : totalCapabilityCount === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No permissions are available to assign for this organization yet.
-                </p>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col gap-3">
-                  <div className="shrink-0 space-y-3 rounded-md border bg-muted/30 p-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="role-editor-capability-search">Search permissions</Label>
-                      <Input
-                        id="role-editor-capability-search"
-                        placeholder="Search by name or area"
-                        value={capabilitySearch}
-                        onChange={(event) => onCapabilitySearchChange(event.target.value)}
-                      />
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm text-muted-foreground">
-                        {visibleCount} permission{visibleCount === 1 ? '' : 's'} shown.
-                      </p>
-                      {roleFormEditable ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              onSetSelectedCapabilityIds(capabilities.map((capability) => capability.id))
-                            }
-                          >
-                            Select all shown
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onSetSelectedCapabilityIds([])}
-                          >
-                            Clear all
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  {visibleCount === 0 ? (
-                    <p className="shrink-0 text-sm text-muted-foreground">
-                      No permissions match your search.
-                    </p>
-                  ) : (
-                    <PermissionSelectionScrollRegion>
-                      <MasterDataCapabilityPermissionTree
-                        capabilities={capabilities}
-                        selectedCapabilityIds={selectedCapabilityIds}
-                        onSelectedCapabilityIdsChange={onSetSelectedCapabilityIds}
-                        editable={roleFormEditable}
-                        productOnly={productOnly}
-                      />
-                    </PermissionSelectionScrollRegion>
-                  )}
-                </div>
-              )}
+                    }
+                  />
+                }
+                permissionsPending={permissionsPending}
+                permissionsError={permissionsError}
+                totalCapabilityCount={totalCapabilityCount}
+                catalogPanel={
+                  <RoleEditorCatalogPanel
+                    capabilitySearch={capabilitySearch}
+                    visibleCount={visibleCount}
+                    roleFormEditable={roleFormEditable}
+                    capabilities={capabilities}
+                    selectedCapabilityIds={selectedCapabilityIds}
+                    productOnly={productOnly}
+                    onCapabilitySearchChange={onCapabilitySearchChange}
+                    onSetSelectedCapabilityIds={onSetSelectedCapabilityIds}
+                  />
+                }
+                onRetryAssignableCatalog={onRetryAssignableCatalog}
+              />
             </section>
         </div>
 
-        <DialogFooter className="mx-0 mb-0 flex w-full shrink-0 items-center justify-end border-t px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {isView ? 'Close' : 'Cancel'}
-            </Button>
-            {roleFormEditable ? (
-              <>
-                <Button type="button" variant="outline" disabled={!isDirty} onClick={onReset}>
-                  Reset
-                </Button>
-                <Button type="button" disabled={saveDisabled} onClick={onSave}>
-                  {savePending
-                    ? isCreate
-                      ? 'Creating...'
-                      : 'Saving...'
-                    : isCreate
-                      ? 'Create role'
-                      : 'Save changes'}
-                </Button>
-              </>
-            ) : null}
-          </div>
-        </DialogFooter>
+        <RoleEditorFooter
+          isView={isView}
+          roleFormEditable={roleFormEditable}
+          isDirty={isDirty}
+          saveDisabled={saveDisabled}
+          savePending={savePending}
+          isCreate={isCreate}
+          deletePending={deletePending}
+          onOpenChange={onOpenChange}
+          onReset={onReset}
+          onSave={onSave}
+          onDelete={onDelete}
+        />
       </DialogContent>
     </Dialog>
   );

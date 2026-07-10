@@ -49,13 +49,16 @@ export function rollupBillTotals(
   "subtotal" | "tax_amount" | "total_amount" | "net_amount" | "outstanding_amount"
 > {
   const active = items.filter((i) => i.status === "ACTIVE");
+  // subtotal is PRE-TAX (sum of line net), tax is the line-tax sum, and the gross
+  // total = subtotal + tax. Previously subtotal summed total_amount (net+tax), so
+  // it silently double-counted tax — invisible only while OPD tariffs were tax-exempt.
   let subtotal = "0.0000";
   let tax = "0.0000";
   for (const i of active) {
-    subtotal = moneyAdd(subtotal, i.total_amount);
+    subtotal = moneyAdd(subtotal, i.net_amount);
     tax = moneyAdd(tax, i.tax_amount);
   }
-  const total = subtotal;
+  const total = moneyAdd(subtotal, tax);
   const net = moneyAdd(moneySub(total, bill.discount_amount), bill.round_off_amount);
   return {
     subtotal,

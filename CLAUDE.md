@@ -19,17 +19,19 @@ Hospital Information Management System. Nx monorepo, TypeScript-first, polyglot-
 
 ## Critical rules
 
-- **Do not run `tsc`, `tsc --noEmit`, or `tsc -b`.** These freeze on WSL2. Use the dev server HMR, Vitest, or ESLint for type feedback.
+- **Typecheck with one-shot `tsc --noEmit` / `tsc -b`.** These are fine on the current WSL2 setup (the swap was increased ~2026-06-15; the old freeze is resolved) and complete in seconds — run them to catch type errors before pushing, since Vitest (esbuild) and ESLint do not typecheck. Still avoid long-lived **watch mode** (`tsc --watch`, watch-mode Vitest/Jest) — persistent file-system watchers remain the WSL2 stall risk, not one-shot builds.
 - **Spec first.** Every module's API is defined in `specs/openapi/<module>.v1.yaml` before handler code.
 - **No cross-module imports.** `modules/*` cannot import from other `modules/*`. Cross-module communication: events (async) or generated OpenAPI clients (sync).
 - **Use-cases are functions, adapters are classes.** The layer determines the paradigm — see `01-monorepo-setup.md` §2.5.
 - **Zustand selectors always.** `useStore(s => s.field)`, never bare `useStore()`.
-- **`tenant_id` on every table.** Citus-distributed. See database principles.
+- **`iq_tenant_id` on every table** (via `tenantColumn()` in `packages/ts-sdk-db`). Citus distribution column. See database principles.
 - **Frontend auth is UX, not security.** `usePermissionsStore` is for UI gating. Backend Cerbos PDP is authoritative.
 - **No cross-schema foreign keys.** Modules own separate schemas. Use events or API calls for cross-module data.
 - **Rich event payloads.** Events carry all fields consumers might project — not just IDs.
 
 ## Module structure (every module follows this)
+
+(Not every module has every folder — e.g. `modules/billing` has no `events/` or `projections/`. Include a folder only when the module needs it.)
 
 ```
 modules/<name>/src/

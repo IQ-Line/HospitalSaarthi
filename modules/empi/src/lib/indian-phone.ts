@@ -1,6 +1,8 @@
-/** Canonical EMPI storage/query format — matches desk registration `+91${tenDigit}`. */
-export function normalizeIndianPhoneForEmpi(raw: string | undefined | null): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  return `+91${digits.slice(-10)}`;
-}
+import { normalizeIndianMobile } from "@hims/ts-sdk-india";
+
+/**
+ * Canonical EMPI storage/query format — `+91${tenDigit}`.
+ * Thin alias over the shared {@link normalizeIndianMobile} so EMPI call sites keep
+ * their existing name while the rule lives once in `@hims/ts-sdk-india`.
+ */
+export const normalizeIndianPhoneForEmpi = normalizeIndianMobile;

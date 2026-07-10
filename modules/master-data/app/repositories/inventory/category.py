@@ -38,7 +38,9 @@ class InventoryCategoryRepository(ScopedInventoryCatalogRepository):
             filters.append(M.iq_tenant_id == self._scope.iq_tenant_id)
         if search:
             term = f"%{search.strip()}%"
-            filters.append(or_(M.name.ilike(term), M.description.isnot(None) & M.description.ilike(term)))
+            filters.append(
+                or_(M.name.ilike(term), M.description.isnot(None) & M.description.ilike(term))
+            )
         append_is_active_filter(filters, M, is_active)
         cnt = func.count().over().label("_page_total")
         page_stmt = (

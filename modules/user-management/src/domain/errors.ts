@@ -4,11 +4,12 @@ export type ValidationIssue =
   | "full_name_empty"
   | "email_invalid_type"
   | "email_required"
+  | "username_required"
+  | "username_invalid"
   | "password_invalid_type"
   | "password_required"
   | "password_too_short"
   | "username_invalid_type"
-  | "username_required"
   | "username_invalid_length"
   | "username_invalid_format"
   | "auth_user_not_linked"
@@ -17,6 +18,13 @@ export type ValidationIssue =
   | "create_user_role_template_ids_invalid"
   | "create_user_role_template_capability_ids_invalid"
   | "create_user_role_template_capability_ids_requires_single_role"
+  | "create_user_role_template_capability_ids_empty"
+  | "create_user_role_template_capability_not_on_role"
+  | "create_user_role_template_ids_limit_exceeded"
+  | "create_user_capability_ids_limit_exceeded"
+  | "replace_user_capabilities_limit_exceeded"
+  | "replace_role_capabilities_limit_exceeded"
+  | "tenant_module_ids_limit_exceeded"
   | "apply_role_template_ids_invalid"
   | "apply_role_template_capability_not_on_role"
   | "apply_role_template_capability_ids_empty"
@@ -25,8 +33,10 @@ export type ValidationIssue =
   | "replace_user_capabilities_invalid"
   | "role_code_invalid_type"
   | "role_code_empty"
+  | "role_code_reserved"
   | "role_type_invalid_type"
   | "role_type_empty"
+  | "role_type_reserved"
   | "role_display_name_invalid_type"
   | "role_display_name_empty"
   | "replace_role_capabilities_invalid";
@@ -47,6 +57,11 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   email_required: {
     code: "EMAIL_REQUIRED",
     message: "email is required to create a login account.",
+  },
+  username_invalid: {
+    code: "INVALID_INPUT",
+    message:
+      "username must be 3-30 chars using only lowercase letters, digits, '.', or '_'.",
   },
   password_invalid_type: {
     code: "INVALID_INPUT",
@@ -101,6 +116,34 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     message:
       "role_template_capability_ids may only be sent when exactly one role_template_id is provided.",
   },
+  create_user_role_template_capability_ids_empty: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must not be an empty array.",
+  },
+  create_user_role_template_capability_not_on_role: {
+    code: "INVALID_INPUT",
+    message: "Each capability id must belong to the role template being applied.",
+  },
+  create_user_role_template_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many role_template_ids requested in a single create-user call.",
+  },
+  create_user_capability_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single create-user call.",
+  },
+  replace_user_capabilities_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single replace-user-capabilities call.",
+  },
+  replace_role_capabilities_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids requested in a single replace-role-capabilities call.",
+  },
+  tenant_module_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many tenant module ids requested for slug resolution in a single call.",
+  },
   apply_role_template_ids_invalid: {
     code: "INVALID_INPUT",
     message: "user_id and role_id are required UUID strings.",
@@ -133,6 +176,10 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "ROLE_CODE_REQUIRED",
     message: "code is required.",
   },
+  role_code_reserved: {
+    code: "ROLE_CODE_RESERVED",
+    message: "code is reserved for the platform and cannot be assigned to a tenant role.",
+  },
   role_type_invalid_type: {
     code: "INVALID_INPUT",
     message: "role_type must be a non-empty string.",
@@ -140,6 +187,10 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   role_type_empty: {
     code: "ROLE_TYPE_REQUIRED",
     message: "role_type is required.",
+  },
+  role_type_reserved: {
+    code: "ROLE_TYPE_RESERVED",
+    message: "role_type is reserved for the platform and cannot be assigned to a tenant role.",
   },
   role_display_name_invalid_type: {
     code: "INVALID_INPUT",
@@ -339,6 +390,21 @@ export class UserRoleTemplateNotFoundError extends UserManagementError {
 export class TenantMismatchError extends UserManagementError {
   constructor() {
     super("TENANT_CONTEXT_MISMATCH", "iq_tenant_id header must match JWT tenant claim");
+  }
+}
+
+/**
+ * A tenant-less platform operator (scope:platform, JWT tenant "") invoked a tenant-scoped
+ * resource operation without supplying a target tenant (no `iq_tenant_id` header). The effective
+ * tenant resolved to empty; persisting under "" would create an orphan row or a confusing 500,
+ * so the operation is rejected up front. Operators must target a tenant explicitly.
+ */
+export class TenantTargetRequiredError extends UserManagementError {
+  constructor() {
+    super(
+      "TENANT_TARGET_REQUIRED",
+      "A target tenant is required: supply iq_tenant_id to scope this operation to a tenant.",
+    );
   }
 }
 

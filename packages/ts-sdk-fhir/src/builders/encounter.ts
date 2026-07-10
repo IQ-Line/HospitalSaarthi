@@ -19,6 +19,7 @@ import type {
   FhirReference,
 } from "../types/index.js";
 
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- canonical FHIR system URI (identifier, not a network call)
 const V3_ACT_ENCOUNTER = "http://terminology.hl7.org/CodeSystem/v3-ActCode";
 
 export interface BuildEncounterInput {

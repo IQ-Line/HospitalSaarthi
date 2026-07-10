@@ -1,10 +1,10 @@
-"""SQLAlchemy models for system role templates: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for system role templates: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Index, Integer, Text, Uuid, text
+from sqlalchemy import Boolean, Index, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class SystemRolePublicModel(TimestampMixin, Base):
-    """Platform-wide role templates (``global_master``)."""
+    """Platform-wide role templates (``master_global``)."""
 
     __tablename__ = "system_roles"
     __table_args__ = (
@@ -21,7 +21,6 @@ class SystemRolePublicModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -48,7 +47,6 @@ class SystemRoleTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

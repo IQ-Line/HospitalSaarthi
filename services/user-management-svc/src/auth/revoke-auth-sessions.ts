@@ -1,7 +1,6 @@
 import { eq } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
-import type { AuthSessionRevokerPort } from "../../../../modules/user-management/src/ports/auth-session-revoker.js";
-import type { UserRepository } from "../../../../modules/user-management/src/ports/index.js";
+import type { AuthSessionRevokerPort, UserRepository } from "@hims/user-management";
 import { authSession } from "./auth-schema.js";
 
 export class DrizzleAuthSessionRevoker implements AuthSessionRevokerPort {

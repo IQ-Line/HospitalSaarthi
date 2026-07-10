@@ -2,20 +2,25 @@
 ---
 name: user_cross_tenant_platform_operator_test
 description: >-
-  Platform super-admin manages hospital-tenant users via iq_tenant_id header.
-  user.read/create already allow cross-tenant; update and deactivate must too.
+  Bounded platform operator (scope:platform) manages hospital-tenant users cross-tenant.
+  Authority is the platform scope, NOT the "super-admin" role string: the operator is allowed
+  even with zero string, and is allowed even when a residual dead "super-admin" string is present
+  (the string is inert). Capabilities alone, without the scope, do NOT authorize cross-tenant.
 
 principals:
-  platform_operator_pep:
+  # Bounded operator: authority is scopes:["platform"] alone. Home tenant differs from the resource
+  # tenant; the scope rule does not check tenant equality, so the cross-tenant admin is allowed.
+  platform_operator_scope:
     id: platform-user
     roles:
-      - "super-admin"
+      - "__hims_authenticated__"
     attr:
       iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
       org_id: null
       department: null
-      role_codes:
-        - "super-admin"
+      role_codes: []
+      scopes:
+        - "platform"
       capabilities:
         - "users:users:create"
         - "users:users:read"
@@ -25,7 +30,9 @@ principals:
       clearances: {}
       um_clearance_effective_tier: 0
 
-  platform_operator_role_codes_only:
+  # Negative control: same scope grant, but a residual (dead) "super-admin" string in role_codes.
+  # The string carries no authority; the ALLOW comes purely from scopes:["platform"].
+  platform_operator_scope_legacy_string:
     id: platform-user-2
     roles:
       - "__hims_authenticated__"
@@ -35,6 +42,30 @@ principals:
       department: null
       role_codes:
         - "super-admin"
+      scopes:
+        - "platform"
+      capabilities:
+        - "users:users:create"
+        - "users:users:read"
+        - "users:users:update"
+        - "users:users:delete"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Same wire shape and capabilities, but the operator grant is stripped:
+  # generic Cerbos role, no "super-admin" in role_codes, no platform scope.
+  # Capabilities alone must NOT authorize cross-tenant user administration.
+  tenant_admin_no_operator_grant:
+    id: tenant-admin-user
+    roles:
+      - "__hims_authenticated__"
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      org_id: null
+      department: null
+      role_codes: []
+      scopes: []
       capabilities:
         - "users:users:create"
         - "users:users:read"
@@ -54,68 +85,80 @@ resources:
       required_clearance: 0
 
 tests:
-  - name: user.deactivate — cross-tenant ALLOW for platform super-admin role
+  - name: user.deactivate — cross-tenant ALLOW for scope:platform operator
     input:
-      principals: [platform_operator_pep]
+      principals: [platform_operator_scope]
       resources: [hospital_user]
       actions: [user.deactivate]
     expected:
-      - principal: platform_operator_pep
+      - principal: platform_operator_scope
         resource: hospital_user
         actions:
           user.deactivate: EFFECT_ALLOW
 
-  - name: user.update — cross-tenant ALLOW for platform super-admin role
+  - name: user.update — cross-tenant ALLOW for scope:platform operator
     input:
-      principals: [platform_operator_pep]
+      principals: [platform_operator_scope]
       resources: [hospital_user]
       actions: [user.update]
     expected:
-      - principal: platform_operator_pep
+      - principal: platform_operator_scope
         resource: hospital_user
         actions:
           user.update: EFFECT_ALLOW
 
-  - name: user.deactivate — cross-tenant ALLOW via role_codes when Cerbos role is generic
+  - name: user.deactivate — cross-tenant ALLOW via scope even with residual dead "super-admin" string
     input:
-      principals: [platform_operator_role_codes_only]
+      principals: [platform_operator_scope_legacy_string]
       resources: [hospital_user]
       actions: [user.deactivate]
     expected:
-      - principal: platform_operator_role_codes_only
+      - principal: platform_operator_scope_legacy_string
         resource: hospital_user
         actions:
           user.deactivate: EFFECT_ALLOW
 
-  - name: user.update — cross-tenant ALLOW via role_codes when Cerbos role is generic
+  - name: user.update — cross-tenant ALLOW via scope even with residual dead "super-admin" string
     input:
-      principals: [platform_operator_role_codes_only]
+      principals: [platform_operator_scope_legacy_string]
       resources: [hospital_user]
       actions: [user.update]
     expected:
-      - principal: platform_operator_role_codes_only
+      - principal: platform_operator_scope_legacy_string
         resource: hospital_user
         actions:
           user.update: EFFECT_ALLOW
 
-  - name: user.activate — cross-tenant ALLOW for platform super-admin role
+  - name: user.activate — cross-tenant ALLOW for scope:platform operator
     input:
-      principals: [platform_operator_pep]
+      principals: [platform_operator_scope]
       resources: [hospital_user]
       actions: [user.activate]
     expected:
-      - principal: platform_operator_pep
+      - principal: platform_operator_scope
         resource: hospital_user
         actions:
           user.activate: EFFECT_ALLOW
 
-  - name: user.activate — cross-tenant ALLOW via role_codes when Cerbos role is generic
+  - name: user.activate — cross-tenant ALLOW via scope even with residual dead "super-admin" string
     input:
-      principals: [platform_operator_role_codes_only]
+      principals: [platform_operator_scope_legacy_string]
       resources: [hospital_user]
       actions: [user.activate]
     expected:
-      - principal: platform_operator_role_codes_only
+      - principal: platform_operator_scope_legacy_string
         resource: hospital_user
         actions:
           user.activate: EFFECT_ALLOW
+
+  - name: user.update/deactivate — cross-tenant DENIED without operator grant (capabilities alone)
+    input:
+      principals: [tenant_admin_no_operator_grant]
+      resources: [hospital_user]
+      actions: [user.update, user.deactivate]
+    expected:
+      - principal: tenant_admin_no_operator_grant
+        resource: hospital_user
+        actions:
+          user.update: EFFECT_DENY
+          user.deactivate: EFFECT_DENY

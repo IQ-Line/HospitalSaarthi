@@ -1,0 +1,49 @@
+---
+# Configurator tenant_onboarding — the one non-uniform policy (faithful port of the removed
+# imperative `assertTenantOnboardingAllowed`). Two independent ALLOW rules:
+#   1. capability `configurator:tenant-onboarding:create` (the platform-operator path; covers
+#      picking OR creating any organization).
+#   2. org-scoped self-service: a principal may onboard a tenant only under their OWN org_id
+#      (`principal.attr.org_id == resource.attr.org_id`), where resource.attr.org_id is the
+#      persisted `organization.id` from the request body. Absent resource org_id (super-admin
+#      new-org path / probe) never matches this rule — only rule 1 can allow it.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:tenant_onboarding"
+  version: default
+  rules:
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-onboarding:create" in request.principal.attr.capabilities ||
+            "configurator:tenant-onboarding:create" in request.principal.attr.delegated_capabilities
+
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            has(request.resource.attr.org_id) &&
+            request.resource.attr.org_id != null &&
+            has(request.principal.attr.org_id) &&
+            request.principal.attr.org_id == request.resource.attr.org_id
+
+    # --- Bounded platform operator (scope:platform) — additive allow ---
+    # Replaces the former god-mode super-admin: authority is the platform scope issued from
+    # platform_admins membership (JWT `scopes` -> principal.attr.scopes), NOT a capability nor
+    # the "super-admin" role string. No tenant equality — the operator is inherently
+    # cross-tenant. Clinical policies (opd/pharmacy/registration/empi/inventory/billing)
+    # intentionally omit this rule; that omission is the bound. Capability rules above are
+    # untouched (delegated tenant-admins keep working).
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            has(request.principal.attr.scopes) &&
+            "platform" in request.principal.attr.scopes

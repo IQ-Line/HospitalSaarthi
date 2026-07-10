@@ -1,0 +1,673 @@
+{
+  "id": "62abd99a-3f88-4999-8fab-a1580223a83a",
+  "prevId": "f9d7e994-0bbd-4f95-981a-e8fdede6ef20",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "billing.bill_items": {
+      "name": "bill_items",
+      "schema": "billing",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bill_id": {
+          "name": "bill_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "item_type": {
+          "name": "item_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SERVICE'"
+        },
+        "item_code": {
+          "name": "item_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric(10, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'1'"
+        },
+        "unit_price": {
+          "name": "unit_price",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_amount": {
+          "name": "gross_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discount_percentage": {
+          "name": "discount_percentage",
+          "type": "numeric(7, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "discount_amount": {
+          "name": "discount_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "net_amount": {
+          "name": "net_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tax_percentage": {
+          "name": "tax_percentage",
+          "type": "numeric(7, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "tax_amount": {
+          "name": "tax_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_amount": {
+          "name": "total_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_module": {
+          "name": "source_module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_ref": {
+          "name": "source_ref",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "performed_date": {
+          "name": "performed_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "performed_by": {
+          "name": "performed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ACTIVE'"
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "bill_items_iq_tenant_id_id_pk": {
+          "name": "bill_items_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "billing.tariff_master": {
+      "name": "tariff_master",
+      "schema": "billing",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_code": {
+          "name": "service_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_name": {
+          "name": "service_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sub_category": {
+          "name": "sub_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_type": {
+          "name": "tax_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tax_percentage": {
+          "name": "tax_percentage",
+          "type": "numeric(7, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "effective_to": {
+          "name": "effective_to",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "tariff_master_iq_tenant_id_id_pk": {
+          "name": "tariff_master_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "billing.bills": {
+      "name": "bills",
+      "schema": "billing",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bill_number": {
+          "name": "bill_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visit_type": {
+          "name": "visit_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bill_type": {
+          "name": "bill_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'STANDALONE'"
+        },
+        "bill_date": {
+          "name": "bill_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "subtotal": {
+          "name": "subtotal",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "discount_amount": {
+          "name": "discount_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "discount_reason": {
+          "name": "discount_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_amount": {
+          "name": "tax_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_amount": {
+          "name": "total_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "round_off_amount": {
+          "name": "round_off_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "net_amount": {
+          "name": "net_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "paid_amount": {
+          "name": "paid_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "outstanding_amount": {
+          "name": "outstanding_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "tax_breakup": {
+          "name": "tax_breakup",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancellation_reason": {
+          "name": "cancellation_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "approved_by": {
+          "name": "approved_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_by": {
+          "name": "cancelled_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "bills_iq_tenant_id_id_pk": {
+          "name": "bills_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "billing.payments": {
+      "name": "payments",
+      "schema": "billing",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_number": {
+          "name": "payment_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receipt_number": {
+          "name": "receipt_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bill_id": {
+          "name": "bill_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_date": {
+          "name": "payment_date",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payment_method": {
+          "name": "payment_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference_number": {
+          "name": "reference_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SUCCESS'"
+        },
+        "received_by": {
+          "name": "received_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "payments_iq_tenant_id_id_pk": {
+          "name": "payments_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "billing": "billing"
+  },
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

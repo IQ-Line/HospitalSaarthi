@@ -1,7 +1,7 @@
 import cors from "@fastify/cors";
 import { fromNodeHeaders } from "better-auth/node";
 import type { FastifyInstance } from "fastify";
-import { AuthInvalidCredentialsError } from "../../../../modules/user-management/src/domain/errors.js";
+import { AuthInvalidCredentialsError } from "@hims/user-management";
 import type { HimsBetterAuthInstance } from "./create-hims-better-auth.js";
 
 export type RegisterBetterAuthOptions = {

@@ -1,6 +1,6 @@
 # ABDM Adapter — M3 Mock Harness Guide
 
-> Self-contained playbook for driving M3 flows locally without depending on real ABDM gateway, Record Foundation, or EMPI. Read after [`08-m3-flows.md`](./08-m3-flows.md) and the [ADR-0031 mock strategy](../../adr/0031-abdm-m3-mock-harness-strategy.md).
+> Self-contained playbook for driving M3 flows locally without depending on real ABDM gateway, Record Foundation, or EMPI. Read after [`08-m3-flows.md`](./08-m3-flows.md) and the [ADR-0033 mock strategy](../../adr/0033-abdm-m3-mock-harness-strategy.md).
 
 The harness has two halves:
 
@@ -296,7 +296,7 @@ Observe the encrypted POST hit `localhost:3007/...transfer/<random-transferId>` 
 
 ## 8. Removing the harness
 
-When **all three** of the [ADR-0031 §"Revisit trigger"](../../adr/0031-abdm-m3-mock-harness-strategy.md#revisit-trigger) conditions hold:
+When **all three** of the [ADR-0033 §"Revisit trigger"](../../adr/0033-abdm-m3-mock-harness-strategy.md#revisit-trigger) conditions hold:
 
 1. Real Record Foundation provides `fetchBundlesForConsent` over HTTP.
 2. A separate HIU service exists in the platform.
@@ -316,7 +316,7 @@ then:
 
 ## Related
 
-- [ADR-0031 mock harness strategy](../../adr/0031-abdm-m3-mock-harness-strategy.md) — why this exists
+- [ADR-0033 mock harness strategy](../../adr/0033-abdm-m3-mock-harness-strategy.md) — why this exists
 - [08-m3-flows.md](./08-m3-flows.md) — what the flows do (read first)
 - [09-m3-dev-guide.md](./09-m3-dev-guide.md) — how to implement them
 - [11-m3-doc-vetting-notes.md](./11-m3-doc-vetting-notes.md) — production HIMS divergences NOT to replicate

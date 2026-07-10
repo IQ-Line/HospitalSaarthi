@@ -44,6 +44,7 @@ import {
   permissionActionSchema,
   permissionFormSchema,
   type PermissionFormValues,
+  type PermissionFormInput,
 } from '@/features/master-data/validation';
 import type { Permission, PermissionAction } from '@/features/master-data/types';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
@@ -69,12 +70,12 @@ function PermissionsPage() {
   const createMutation = useCreatePermission();
   const updateMutation = useUpdatePermission();
 
-  const createForm = useForm<PermissionFormValues>({
+  const createForm = useForm<PermissionFormInput, unknown, PermissionFormValues>({
     resolver: zodResolver(permissionFormSchema),
     defaultValues: EMPTY_PERMISSION_FORM_VALUES,
   });
 
-  const editForm = useForm<PermissionFormValues>({
+  const editForm = useForm<PermissionFormInput, unknown, PermissionFormValues>({
     resolver: zodResolver(permissionFormSchema),
     defaultValues: EMPTY_PERMISSION_FORM_VALUES,
   });
@@ -300,7 +301,7 @@ function PermissionsPage() {
 }
 
 interface PermissionFormFieldsProps {
-  form: ReturnType<typeof useForm<PermissionFormValues>>;
+  form: ReturnType<typeof useForm<PermissionFormInput, unknown, PermissionFormValues>>;
   actionOptions: readonly string[];
 }
 

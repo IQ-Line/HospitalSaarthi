@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import type { Value } from "@cerbos/core";
 import { forbidden } from "@hims/ts-sdk-http";
-import type { Principal } from "@hims/ts-sdk-identity";
 import type {
   AuthzPluginOptions,
   CheckResult,

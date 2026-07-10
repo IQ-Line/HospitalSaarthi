@@ -1,24 +1,47 @@
 {
   "name": "record-foundation-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:record-foundation", "language:typescript", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:record-foundation",
+    "language:typescript",
+    "deploy:aks"
+  ],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/record-foundation-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
         "command": "tsup --config tsup.config.ts",
         "cwd": "services/record-foundation-svc"
       },
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
     },
     "serve": {
       "executor": "nx:run-commands",
-      "dependsOn": ["record-foundation:db-migrate"],
+      "dependsOn": [
+        "record-foundation:db-migrate"
+      ],
       "options": {
         "command": "npx tsx watch src/main.ts",
         "cwd": "services/record-foundation-svc",
         "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/record-foundation-svc/src/**/*.ts"
+        ]
       }
     }
   }

@@ -27,7 +27,7 @@ function resolvePathParam(
 }
 
 function tenantAttr(request: Parameters<AuthzTargetResolver>[0]) {
-  return { iq_tenant_id: (request as { tenantId?: string }).tenantId as string };
+  return { iq_tenant_id: request.tenantId };
 }
 
 export function createPharmacyAuthzTargetResolver(): AuthzTargetResolver {

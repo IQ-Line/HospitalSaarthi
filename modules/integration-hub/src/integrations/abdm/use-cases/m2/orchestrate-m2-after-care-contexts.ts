@@ -1,7 +1,10 @@
-import { LinkTokenNotAvailable } from "../../lib/link-token-cache.js";
 import { abdmWarn } from "../../lib/abdm-adapter-log.js";
 import { resolveM2PatientProfile } from "../../lib/resolve-m2-patient-profile.js";
-import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
+import type {
+  AbdmTenantInput,
+  AbdmAdapterDeps,
+  M2PatientProfile,
+} from "../../ports.js";
 import { addContextsPublish } from "./add-contexts/publish.js";
 import { hipInitiatedLinkStart } from "./hip-initiated-link/start.js";
 
@@ -60,6 +63,104 @@ function groupByHiType(
   return groups;
 }
 
+function errorMessage(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
+
+/**
+ * Phase 1: HIP-initiated link, one session per HI type. Per-group failures are
+ * collected into `result.errors` and do not abort the remaining groups.
+ */
+async function startHipLinksByHiType(
+  input: AbdmTenantInput<OrchestrateM2AfterCareContextsInput>,
+  deps: AbdmAdapterDeps,
+  profile: M2PatientProfile,
+  groups: Map<string, M2CareContextInput[]>,
+  result: OrchestrateM2AfterCareContextsResult,
+): Promise<void> {
+  for (const [hiType, contexts] of groups) {
+    try {
+      const linkResult = await hipInitiatedLinkStart(
+        {
+          iqTenantId: input.iqTenantId,
+          abhaAddress: profile.abhaAddress,
+          abhaNumber: profile.abhaNumber,
+          patientName: profile.patientName,
+          gender: profile.gender,
+          yearOfBirth: profile.yearOfBirth,
+          phoneNo: profile.phoneNo,
+          patientReference: input.patientId,
+          careContexts: contexts.map((c) => ({
+            referenceNumber: c.referenceNumber,
+            display: c.display,
+            hiType: c.hiType,
+          })),
+        },
+        deps,
+      );
+      result.hipLinkSessions.push(linkResult.sessionId);
+    } catch (e) {
+      const message = errorMessage(e);
+      result.errors.push({ step: "hip-initiated-link", hiType, message });
+      abdmWarn("abdm.m2.orchestrate.hip_link_failed", {
+        iqTenantId: input.iqTenantId,
+        patientId: input.patientId,
+        hiType,
+        message,
+      });
+    }
+  }
+}
+
+/**
+ * Phase 3: CM context notify per care context, throttled by PUBLISH_DELAY_MS
+ * between attempts. Per-context failures are collected and do not abort the rest.
+ */
+async function publishCareContexts(
+  input: AbdmTenantInput<OrchestrateM2AfterCareContextsInput>,
+  deps: AbdmAdapterDeps,
+  profile: M2PatientProfile,
+  eventDate: string,
+  result: OrchestrateM2AfterCareContextsResult,
+): Promise<void> {
+  let publishIndex = 0;
+  for (const ctx of input.careContexts) {
+    if (publishIndex > 0) {
+      await delay(PUBLISH_DELAY_MS);
+    }
+    publishIndex += 1;
+    try {
+      const publishResult = await addContextsPublish(
+        {
+          iqTenantId: input.iqTenantId,
+          abhaAddress: profile.abhaAddress,
+          patientReference: input.patientId,
+          careContextReference: ctx.referenceNumber,
+          hiType: ctx.hiType,
+          eventDate,
+        },
+        deps,
+      );
+      result.publishSessions.push(publishResult.sessionId);
+    } catch (e) {
+      const message = errorMessage(e);
+      result.errors.push({
+        step: "add-contexts-publish",
+        careContextReference: ctx.referenceNumber,
+        hiType: ctx.hiType,
+        message,
+      });
+      abdmWarn("abdm.m2.orchestrate.publish_failed", {
+        iqTenantId: input.iqTenantId,
+        patientId: input.patientId,
+        careContextReference: ctx.referenceNumber,
+        message,
+      });
+    }
+  }
+}
+
 /**
  * After consultation bundles / care contexts exist: HIP-initiated link per HI type,
  * then CM context notify per care context (mirrors legacy HIMS post-bundle flow).
@@ -96,43 +197,7 @@ export async function orchestrateM2AfterCareContexts(
   const eventDate = input.eventDate ?? new Date().toISOString();
   const groups = groupByHiType(input.careContexts);
 
-  for (const [hiType, contexts] of groups) {
-    try {
-      const linkResult = await hipInitiatedLinkStart(
-        {
-          iqTenantId: input.iqTenantId,
-          abhaAddress: profile.abhaAddress,
-          abhaNumber: profile.abhaNumber,
-          patientName: profile.patientName,
-          gender: profile.gender,
-          yearOfBirth: profile.yearOfBirth,
-          phoneNo: profile.phoneNo,
-          patientReference: input.patientId,
-          careContexts: contexts.map((c) => ({
-            referenceNumber: c.referenceNumber,
-            display: c.display,
-            hiType: c.hiType,
-          })),
-        },
-        deps,
-      );
-      result.hipLinkSessions.push(linkResult.sessionId);
-    } catch (e) {
-      const message =
-        e instanceof LinkTokenNotAvailable
-          ? e.message
-          : e instanceof Error
-            ? e.message
-            : String(e);
-      result.errors.push({ step: "hip-initiated-link", hiType, message });
-      abdmWarn("abdm.m2.orchestrate.hip_link_failed", {
-        iqTenantId: input.iqTenantId,
-        patientId: input.patientId,
-        hiType,
-        message,
-      });
-    }
-  }
+  await startHipLinksByHiType(input, deps, profile, groups, result);
 
   if (result.hipLinkSessions.length === 0) {
     return result;
@@ -152,41 +217,7 @@ export async function orchestrateM2AfterCareContexts(
     return result;
   }
 
-  let publishIndex = 0;
-  for (const ctx of input.careContexts) {
-    if (publishIndex > 0) {
-      await delay(PUBLISH_DELAY_MS);
-    }
-    publishIndex += 1;
-    try {
-      const publishResult = await addContextsPublish(
-        {
-          iqTenantId: input.iqTenantId,
-          abhaAddress: profile.abhaAddress,
-          patientReference: input.patientId,
-          careContextReference: ctx.referenceNumber,
-          hiType: ctx.hiType,
-          eventDate,
-        },
-        deps,
-      );
-      result.publishSessions.push(publishResult.sessionId);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      result.errors.push({
-        step: "add-contexts-publish",
-        careContextReference: ctx.referenceNumber,
-        hiType: ctx.hiType,
-        message,
-      });
-      abdmWarn("abdm.m2.orchestrate.publish_failed", {
-        iqTenantId: input.iqTenantId,
-        patientId: input.patientId,
-        careContextReference: ctx.referenceNumber,
-        message,
-      });
-    }
-  }
+  await publishCareContexts(input, deps, profile, eventDate, result);
 
   return result;
 }

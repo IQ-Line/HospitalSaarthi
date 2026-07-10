@@ -55,7 +55,7 @@ export async function registerM2CallbackRoutes(
           return;
         }
         await handleTokenCallback(
-          { iqTenantId, abhaAddress, ...payload },
+          { iqTenantId, ...payload, abhaAddress },
           deps,
         );
       },

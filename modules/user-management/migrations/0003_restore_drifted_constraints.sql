@@ -1,0 +1,1 @@
+CREATE INDEX "idx_users_api_key_prefix" ON "user_management"."users" USING btree ("api_key_prefix") WHERE "user_management"."users"."api_key_prefix" is not null and "user_management"."users"."status" = 'active';

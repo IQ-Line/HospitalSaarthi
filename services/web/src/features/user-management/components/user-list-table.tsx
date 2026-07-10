@@ -46,7 +46,7 @@ export function UserProfileNameLink({
     <Link
       to="/user-management/$userId"
       params={{ userId }}
-      search={tenantScope ? { tenant: tenantScope } : {}}
+      search={{ tenant: tenantScope }}
       className="font-medium text-primary hover:underline"
       onClick={(event) => event.stopPropagation()}
     >

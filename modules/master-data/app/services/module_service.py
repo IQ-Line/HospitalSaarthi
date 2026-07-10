@@ -7,7 +7,13 @@ from uuid import UUID
 
 from app.catalog.platform_table_models import module_model
 from app.repositories.module_repository import ModuleRepository
-from app.schemas.module import ModuleCategory, ModuleCreate, ModuleKind, ModuleUpdate, VisibilityScope
+from app.schemas.module import (
+    ModuleCategory,
+    ModuleCreate,
+    ModuleKind,
+    ModuleUpdate,
+    VisibilityScope,
+)
 
 # Deepest allowed stored ``level`` (root = 1). Raise migration + model check if this changes.
 MAX_MODULE_TREE_LEVEL = 10
@@ -55,7 +61,9 @@ def list_modules(
     module_kinds: list[ModuleKind] | None = None,
     visibility: VisibilityScope | None = None,
 ) -> list[Any]:
-    return repository.list_modules(category=category, module_kinds=module_kinds, visibility=visibility)
+    return repository.list_modules(
+        category=category, module_kinds=module_kinds, visibility=visibility
+    )
 
 
 def list_modules_for_nav(
@@ -65,6 +73,11 @@ def list_modules_for_nav(
 ) -> list[Any]:
     """Return all active, non-deleted modules for shell navigation (no pagination)."""
     return repository.list_modules_for_nav(visibility=visibility)
+
+
+def list_module_catalog_ids(repository: ModuleRepository) -> list[tuple[UUID, bool]]:
+    """Global module-id catalog (``id`` + ``is_deleted``) for the internal S2S entitlement dump."""
+    return repository.list_catalog_ids()
 
 
 def list_submodules(repository: ModuleRepository, parent_id: UUID) -> list[Any]:

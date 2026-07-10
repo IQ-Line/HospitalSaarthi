@@ -39,7 +39,8 @@ class VisitpadChiefComplaintEnumOption(BaseModel):
 
 
 class VisitpadChiefComplaintDescriptor(BaseModel):
-    """UI dropdown source — values match ``VisitpadChiefComplaintCreate`` enums (single source in code)."""
+    """UI dropdown source — values match ``VisitpadChiefComplaintCreate`` enums (single source in
+    code)."""
 
     body_systems: list[VisitpadChiefComplaintEnumOption]
     triage_priorities: list[VisitpadChiefComplaintEnumOption]
@@ -71,10 +72,12 @@ def build_visitpad_chief_complaint_descriptor() -> VisitpadChiefComplaintDescrip
     }
     return VisitpadChiefComplaintDescriptor(
         body_systems=[
-            VisitpadChiefComplaintEnumOption(value=e.value, label=body_labels[e]) for e in VisitpadBodySystem
+            VisitpadChiefComplaintEnumOption(value=e.value, label=body_labels[e])
+            for e in VisitpadBodySystem
         ],
         triage_priorities=[
-            VisitpadChiefComplaintEnumOption(value=e.value, label=triage_labels[e]) for e in VisitpadTriagePriority
+            VisitpadChiefComplaintEnumOption(value=e.value, label=triage_labels[e])
+            for e in VisitpadTriagePriority
         ],
     )
 

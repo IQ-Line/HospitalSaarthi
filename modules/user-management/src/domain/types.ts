@@ -5,7 +5,8 @@
 /** Lifecycle state for platform user rows (LLD MVP). */
 export type UserStatus = "active" | "inactive" | "suspended";
 export type RoleStatus = "active" | "inactive";
-export type UserCapabilityGrantSource = "manual" | "role_template" | "delegated" | "system";
+/** A `user_capabilities` override pins a capability on ('grant') or off ('deny') for one user (ADR-0037). */
+export type CapabilityOverrideEffect = "grant" | "deny";
 
 /** Password recovery routing tier (Phase 1: standard + admin_only in use). */
 export type RecoveryTier =
@@ -23,7 +24,7 @@ export interface User {
   phone?: string | null;
   auth_user_id?: string | null;
   username?: string | null;
-  /** Recovery tier for forgot-password routing. */
+  /** Account-recovery tier (authn spec §3.2); MVP emits 'standard' | 'admin_only'. */
   recovery_tier?: RecoveryTier;
   /** Forces password change on next login when set by admin reset. */
   must_change_password?: boolean;
@@ -129,8 +130,21 @@ export interface ReplaceRoleCapabilitiesInput {
   capability_ids: string[];
 }
 
+/** One override entry in a PUT /users/{id}/capabilities body (grant or deny list). */
+export interface CapabilityOverrideInput {
+  capability_id: string;
+  reason?: string | null;
+}
+
+/**
+ * PUT /users/{id}/capabilities body. Full-replace of the user's override rows (ADR-0037):
+ * `grant_overrides` pin capabilities on, `deny_overrides` pin them off. A capability appearing
+ * in both lists resolves as deny (deny wins) — the single-row `UNIQUE(tenant,user,capability)`
+ * shape cannot hold both, so the write path merges the duplicate down to a deny row.
+ */
 export interface ReplaceUserCapabilitiesInput {
-  capability_ids: string[];
+  grant_overrides: CapabilityOverrideInput[];
+  deny_overrides: CapabilityOverrideInput[];
 }
 
 export interface AppliedRoleTemplate {
@@ -142,6 +156,10 @@ export interface AppliedRoleTemplate {
   role: Role;
 }
 
+/**
+ * A single per-user capability override row (ADR-0037). `effect` pins the capability on ('grant')
+ * or off ('deny'); `reason` is the administrator's audit note for the deliberate exception.
+ */
 export interface UserCapabilityGrant {
   id: string;
   user_id: string;
@@ -152,17 +170,20 @@ export interface UserCapabilityGrant {
   action: string;
   display_name: string;
   description?: string | null;
-  grant_source: UserCapabilityGrantSource;
-  source_role_id: string | null;
+  effect: CapabilityOverrideEffect;
+  reason: string | null;
   granted_by_user_id: string | null;
   granted_at: string;
-  revoked_at: string | null;
-  revoked_by_user_id: string | null;
 }
 
+/**
+ * GET /users/{id}/capabilities view (ADR-0037): the user's grant/deny override rows plus the
+ * applied role-template memberships. Effective role-derived capabilities are read live from
+ * `role_capabilities` at principal hydration, not materialized here.
+ */
 export interface UserCapabilitiesSnapshot {
-  direct_grants: UserCapabilityGrant[];
-  copied_grants: UserCapabilityGrant[];
+  grant_overrides: UserCapabilityGrant[];
+  deny_overrides: UserCapabilityGrant[];
   role_templates: AppliedRoleTemplate[];
 }
 
@@ -198,6 +219,12 @@ export interface PrincipalAttributes {
    * (not Cerbos `principal.roles`, which may be `__hims_authenticated__` only).
    */
   role_codes: string[];
+  /**
+   * Bounded platform authority scopes (e.g. `["platform"]`); `[]` for ordinary tenant users.
+   * Derived from `platform_admins` membership. PDP rules ADDITIVELY allow platform-provisioning
+   * actions when this contains `"platform"` — clinical resources are intentionally never scoped.
+   */
+  scopes: string[];
   capabilities: string[];
   delegated_capabilities: string[];
   clearances: Record<string, string>;

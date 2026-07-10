@@ -10,7 +10,7 @@
 ## 1. Why Visitpad lives in Master Data
 
 - **Operational simplicity:** One Python service, one port (`8010`), one Alembic chain, one OpenAPI contract — matches how operators already run Master Data.
-- **Domain fit:** Visitpad rows are **reference catalogs** (same class of data as modules, permissions, picklists), maintained by platform admins. **Global** rows live in schema **`public`** and have **no** `iq_tenant_id` column after migration **`011`**. **Per-tenant** copies live in **`tenant_master`** with **`iq_tenant_id` UUID** on each row (see [dual-schema LLD](./01-catalog-dual-schema.md) and [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md)).
+- **Domain fit:** Visitpad rows are **reference catalogs** (same class of data as modules, permissions, picklists), maintained by platform admins. **Global** rows live in schema **`public`** and have **no** `iq_tenant_id` column after migration **`011`**. **Per-tenant** copies live in **`master_tenant`** with **`iq_tenant_id` UUID** on each row (see [dual-schema LLD](./01-catalog-dual-schema.md) and [ADR-0021](../../adr/0021-master-data-catalog-tenant-key-type.md)).
 - **Spec-first:** New routes are added to **`master-data.v1.yaml`** in the **same PR** as migrations and handlers (see [02-api-contracts.md §4](./02-api-contracts.md#4-changelog-discipline)).
 
 **Not** a separate `modules/visitpad` service and **not** a second BFF upstream unless an ADR later splits the deployment artifact.
@@ -40,8 +40,8 @@ Use **OpenAPI tags** such as `Visitpad — Units` so generated clients and docs 
 ## 3. Database layout
 
 - **Dual physical schemas (current):** Visitpad uses the same pattern as platform master catalog tables (modules, permissions, …). See [01-catalog-dual-schema.md](./01-catalog-dual-schema.md).
-  - **`public`:** Global Visitpad tables (`units`, `unit_conversions`, `vitals`, …) **without** an `iq_tenant_id` column after revision **`011_tenant_master_visitpad`** (legacy `tenant_id` was dropped from `public` once rows were copied).
-  - **`tenant_master`:** Parallel tables with the same logical names; each row includes **`iq_tenant_id` UUID NOT NULL** for tenant-scoped catalog data.
+  - **`public`:** Global Visitpad tables (`units`, `unit_conversions`, `vitals`, …) **without** an `iq_tenant_id` column after revision **`011_master_tenant_visitpad`** (legacy `tenant_id` was dropped from `public` once rows were copied).
+  - **`master_tenant`:** Parallel tables with the same logical names; each row includes **`iq_tenant_id` UUID NOT NULL** for tenant-scoped catalog data.
 - **Alembic:** Single history under `modules/master-data/alembic/`. Do not assume “one nullable tenant column on `public`” — that was superseded by the dual-schema design (**ADR-0020**, **ADR-0021**).
 - **Conventions:** Align with existing Master Data patterns: `is_deleted` for soft delete where applicable, `is_active` for user-visible enablement (see product matrix in the [visitpad implementation plan](../../../../docs/plans/visitpad-master-implementation-plan.md)), `display_order`, timestamps.
 

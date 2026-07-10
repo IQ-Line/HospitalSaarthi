@@ -22,7 +22,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -44,10 +44,11 @@ import type { VisitpadUnit } from '@/features/visitpad/types';
 import {
   visitpadUnitCreateSchema,
   visitpadUnitEditFormSchema,
+  type VisitpadUnitCreateInput,
   type VisitpadUnitCreateSchema,
+  type VisitpadUnitEditFormInput,
   type VisitpadUnitEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -63,7 +64,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/units')({
 
 function VisitpadUnitsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-units');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [dimension, setDimension] = useState<string>('all');
@@ -319,7 +320,6 @@ function VisitpadUnitsPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -340,7 +340,7 @@ function UnitCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadUnitCreateSchema>({
+  const form = useForm<VisitpadUnitCreateInput, unknown, VisitpadUnitCreateSchema>({
     resolver: zodResolver(visitpadUnitCreateSchema),
     defaultValues: {
       code: '',
@@ -451,7 +451,7 @@ function UnitEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadUnitEditFormSchema>({
+  const form = useForm<VisitpadUnitEditFormInput, unknown, VisitpadUnitEditFormSchema>({
     resolver: zodResolver(visitpadUnitEditFormSchema),
     defaultValues: {
       display_name: '',

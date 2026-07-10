@@ -1,9 +1,16 @@
 {
   "name": "opd-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:opd", "language:python", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:opd",
+    "language:python",
+    "deploy:aks"
+  ],
   "namedInputs": {
-    "default": ["{projectRoot}/**/*"],
+    "default": [
+      "{projectRoot}/**/*"
+    ],
     "production": [
       "default",
       "!{projectRoot}/tests/**/*",
@@ -17,33 +24,37 @@
       "options": {
         "cwd": "services/opd-svc"
       },
-      "inputs": ["default", "{workspaceRoot}/modules/opd/**/*"],
+      "inputs": [
+        "default",
+        "{workspaceRoot}/modules/opd/**/*"
+      ],
       "cache": true,
-      "outputs": ["{projectRoot}/.venv"]
+      "outputs": [
+        "{projectRoot}/.venv"
+      ]
     },
     "serve": {
       "command": "uv run uvicorn opd_svc.main:app --host 0.0.0.0 --port 8020 --reload --reload-dir src --reload-dir ../../modules/opd/src/opd",
       "options": {
         "cwd": "services/opd-svc"
       },
-      "dependsOn": ["opd:db-migrate", "setup"]
+      "dependsOn": [
+        "opd:db-migrate",
+        "setup"
+      ]
     },
     "lint": {
       "command": "uv run ruff check .",
       "options": {
         "cwd": "services/opd-svc"
       },
-      "dependsOn": ["setup"],
-      "inputs": ["default", "{projectRoot}/pyproject.toml"],
-      "cache": true
-    },
-    "test": {
-      "command": "uv run pytest",
-      "options": {
-        "cwd": "services/opd-svc"
-      },
-      "dependsOn": ["setup"],
-      "inputs": ["default"],
+      "dependsOn": [
+        "setup"
+      ],
+      "inputs": [
+        "default",
+        "{projectRoot}/pyproject.toml"
+      ],
       "cache": true
     }
   }

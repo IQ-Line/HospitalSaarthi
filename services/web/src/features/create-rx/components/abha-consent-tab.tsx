@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
@@ -39,6 +39,7 @@ interface ConsentFormState {
   fromDate: string;
   toDate: string;
   expiryDate: string;
+  hiTypes: string[];
   forAllHips: boolean;
   hipId: string;
 }
@@ -60,12 +61,12 @@ function defaultExpiryDate(): string {
 }
 
 function toIsoStartOfDay(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y = 0, m = 1, d = 1] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 0, 0, 0).toISOString();
 }
 
 function toIsoEndOfDay(dateStr: string): string {
-  const [y, m, d] = dateStr.split('-').map(Number);
+  const [y = 0, m = 1, d = 1] = dateStr.split('-').map(Number);
   return new Date(y, m - 1, d, 23, 59, 59).toISOString();
 }
 
@@ -84,9 +85,242 @@ function defaultForm(requesterName: string): ConsentFormState {
     fromDate: defaultFromDate(),
     toDate: defaultToDate(),
     expiryDate: defaultExpiryDate(),
+    hiTypes: [...M3_HI_TYPES],
     forAllHips: true,
     hipId: '',
   };
+}
+
+type DisplayStatus = 'REQUESTED' | ReturnType<typeof mapM3FsmToDisplayStatus>;
+
+function ConsentStatusPanel({
+  polling,
+  consentFsmState,
+  displayStatus,
+  detailsExpanded,
+  setDetailsExpanded,
+  form,
+  purposeLabel,
+}: {
+  polling: boolean;
+  consentFsmState: string | undefined;
+  displayStatus: DisplayStatus;
+  detailsExpanded: boolean;
+  setDetailsExpanded: Dispatch<SetStateAction<boolean>>;
+  form: ConsentFormState;
+  purposeLabel: string;
+}) {
+  return (
+    <div className="mb-4 rounded-md border border-gray-200 bg-white p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {polling && consentFsmState != null && POLLING_STATES.has(consentFsmState) ? (
+            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          ) : null}
+          <Badge variant="outline" className={statusBadgeClass(displayStatus)}>
+            {displayStatus}
+          </Badge>
+          <Link
+            to="/abha-consent-list"
+            className="text-sm font-medium text-[#2563EB] hover:underline"
+          >
+            View All Consents
+          </Link>
+        </div>
+        <button
+          type="button"
+          className="text-gray-400 hover:text-gray-600"
+          onClick={() => setDetailsExpanded((v) => !v)}
+          aria-label="Toggle consent details"
+        >
+          {detailsExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+        </button>
+      </div>
+      {detailsExpanded ? (
+        <div className="mt-3 space-y-1 text-sm text-gray-700">
+          <p>
+            Date range: {formatConsentDate(toIsoStartOfDay(form.fromDate))} –{' '}
+            {formatConsentDate(toIsoEndOfDay(form.toDate))}
+          </p>
+          <p>Consent expiry: {formatConsentDate(toIsoEndOfDay(form.expiryDate))}</p>
+          <p>Healthcare provider: {form.requesterName}</p>
+          <p>Purpose: {purposeLabel}</p>
+          {displayStatus === 'REQUESTED' ? (
+            <p className="pt-1 text-xs text-muted-foreground">
+              Waiting for patient approval in the PHR app.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ConsentRequestForm({
+  form,
+  patchForm,
+  isReadOnly,
+}: {
+  form: ConsentFormState;
+  patchForm: (patch: Partial<ConsentFormState>) => void;
+  isReadOnly: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-gray-700">Healthcare Provider</Label>
+        <Input
+          value={form.requesterName}
+          onChange={(e) => patchForm({ requesterName: e.target.value })}
+          disabled={isReadOnly}
+          className="bg-white"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">Records from</Label>
+          <Input
+            type="date"
+            value={form.fromDate}
+            onChange={(e) => patchForm({ fromDate: e.target.value })}
+            disabled={isReadOnly}
+            className="bg-white"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">Records to</Label>
+          <Input
+            type="date"
+            value={form.toDate}
+            onChange={(e) => patchForm({ toDate: e.target.value })}
+            disabled={isReadOnly}
+            className="bg-white"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-gray-700">Purpose</Label>
+        <Select
+          value={form.purpose}
+          onValueChange={(v) => patchForm({ purpose: v as M3PurposeCode })}
+          disabled={isReadOnly}
+        >
+          <SelectTrigger className="bg-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {M3_PURPOSE_OPTIONS.map((opt) => (
+              <SelectItem key={opt.code} value={opt.code}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-gray-700">Consent expiry</Label>
+        <Input
+          type="date"
+          value={form.expiryDate}
+          onChange={(e) => patchForm({ expiryDate: e.target.value })}
+          disabled={isReadOnly}
+          className="bg-white"
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm font-medium text-gray-700">Health Information Types</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {M3_HI_TYPES.map((hiType) => (
+            <div key={hiType} className="flex items-center gap-2">
+              <Checkbox
+                id={`hi-type-${hiType}`}
+                checked={form.hiTypes.includes(hiType)}
+                onCheckedChange={(checked) =>
+                  patchForm({
+                    hiTypes:
+                      checked === true
+                        ? [...form.hiTypes, hiType]
+                        : form.hiTypes.filter((t) => t !== hiType),
+                  })
+                }
+                disabled={isReadOnly}
+              />
+              <Label htmlFor={`hi-type-${hiType}`} className="text-sm font-normal text-gray-600">
+                {hiType}
+              </Label>
+            </div>
+          ))}
+        </div>
+        {form.hiTypes.length === 0 ? (
+          <p className="text-xs text-red-600">Select at least one health information type.</p>
+        ) : null}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="all-hips"
+          checked={form.forAllHips}
+          onCheckedChange={(checked) => patchForm({ forAllHips: checked === true })}
+          disabled={isReadOnly}
+        />
+        <Label htmlFor="all-hips" className="text-sm font-normal">
+          For all HIPs
+        </Label>
+      </div>
+
+      {!form.forAllHips ? (
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-gray-700">HIP ID</Label>
+          <Input
+            value={form.hipId}
+            onChange={(e) => patchForm({ hipId: e.target.value })}
+            placeholder="Enter HIP ID"
+            disabled={isReadOnly}
+            className="bg-white"
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ConsentSubmitBar({
+  showStatus,
+  handleRequestNew,
+  handleSubmit,
+  submitting,
+  isFormValid,
+}: {
+  showStatus: boolean;
+  handleRequestNew: () => void;
+  handleSubmit: () => void;
+  submitting: boolean;
+  isFormValid: string | boolean;
+}) {
+  return (
+    <div className="mt-4 flex justify-end">
+      <Button
+        type="button"
+        onClick={showStatus ? handleRequestNew : handleSubmit}
+        disabled={showStatus ? false : !isFormValid || submitting}
+      >
+        {submitting ? (
+          <>
+            <Loader2 className="mr-2 size-4 animate-spin" />
+            Requesting…
+          </>
+        ) : showStatus ? (
+          'Request New Consent'
+        ) : (
+          'Request Consent'
+        )}
+      </Button>
+    </div>
+  );
 }
 
 export function AbhaConsentTab() {
@@ -129,6 +363,9 @@ export function AbhaConsentTab() {
       return state && POLLING_STATES.has(state) ? 3000 : false;
     },
   });
+  // Read the FSM state string once. Re-narrowing `consentState` at the JSX site below hits a
+  // TS control-flow quirk (narrows to `never`), so use this plain value there instead.
+  const consentFsmState: string | undefined = consentState?.state;
 
   const displayStatus = useMemo(() => {
     if (!consentState) return 'REQUESTED' as const;
@@ -155,6 +392,7 @@ export function AbhaConsentTab() {
 
   const isFormValid =
     form.requesterName.trim().length > 0 &&
+    form.hiTypes.length > 0 &&
     form.fromDate &&
     form.toDate &&
     form.expiryDate &&
@@ -170,7 +408,7 @@ export function AbhaConsentTab() {
         patientName: patientDisplayName(patient),
         patientAbhaNumber: patient.abhaNumber,
         purpose: form.purpose,
-        hiTypes: [...M3_HI_TYPES],
+        hiTypes: form.hiTypes,
         dateRange: {
           from: toIsoStartOfDay(form.fromDate),
           to: toIsoEndOfDay(form.toDate),
@@ -213,169 +451,29 @@ export function AbhaConsentTab() {
       </Badge>
 
       {showStatus && sessionId ? (
-        <div className="mb-4 rounded-md border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-3">
-              {polling && POLLING_STATES.has(consentState?.state ?? '') ? (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              ) : null}
-              <Badge variant="outline" className={statusBadgeClass(displayStatus)}>
-                {displayStatus}
-              </Badge>
-              <Link
-                to="/abha-consent-list"
-                className="text-sm font-medium text-[#2563EB] hover:underline"
-              >
-                View All Consents
-              </Link>
-            </div>
-            <button
-              type="button"
-              className="text-gray-400 hover:text-gray-600"
-              onClick={() => setDetailsExpanded((v) => !v)}
-              aria-label="Toggle consent details"
-            >
-              {detailsExpanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
-            </button>
-          </div>
-          {detailsExpanded ? (
-            <div className="mt-3 space-y-1 text-sm text-gray-700">
-              <p>
-                Date range: {formatConsentDate(toIsoStartOfDay(form.fromDate))} –{' '}
-                {formatConsentDate(toIsoEndOfDay(form.toDate))}
-              </p>
-              <p>Consent expiry: {formatConsentDate(toIsoEndOfDay(form.expiryDate))}</p>
-              <p>Healthcare provider: {form.requesterName}</p>
-              <p>Purpose: {purposeLabel}</p>
-              {displayStatus === 'REQUESTED' ? (
-                <p className="pt-1 text-xs text-muted-foreground">
-                  Waiting for patient approval in the PHR app.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+        <ConsentStatusPanel
+          polling={polling}
+          consentFsmState={consentFsmState}
+          displayStatus={displayStatus}
+          detailsExpanded={detailsExpanded}
+          setDetailsExpanded={setDetailsExpanded}
+          form={form}
+          purposeLabel={purposeLabel}
+        />
       ) : null}
 
       {!showStatus ? (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-gray-700">Healthcare Provider</Label>
-            <Input
-              value={form.requesterName}
-              onChange={(e) => patchForm({ requesterName: e.target.value })}
-              disabled={isReadOnly}
-              className="bg-white"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-gray-700">Records from</Label>
-              <Input
-                type="date"
-                value={form.fromDate}
-                onChange={(e) => patchForm({ fromDate: e.target.value })}
-                disabled={isReadOnly}
-                className="bg-white"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-gray-700">Records to</Label>
-              <Input
-                type="date"
-                value={form.toDate}
-                onChange={(e) => patchForm({ toDate: e.target.value })}
-                disabled={isReadOnly}
-                className="bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-gray-700">Purpose</Label>
-            <Select
-              value={form.purpose}
-              onValueChange={(v) => patchForm({ purpose: v as M3PurposeCode })}
-              disabled={isReadOnly}
-            >
-              <SelectTrigger className="bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {M3_PURPOSE_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.code} value={opt.code}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-gray-700">Consent expiry</Label>
-            <Input
-              type="date"
-              value={form.expiryDate}
-              onChange={(e) => patchForm({ expiryDate: e.target.value })}
-              disabled={isReadOnly}
-              className="bg-white"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox id="all-hi-types" checked disabled />
-            <Label htmlFor="all-hi-types" className="text-sm font-normal text-gray-600">
-              All Health Information Types
-            </Label>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="all-hips"
-              checked={form.forAllHips}
-              onCheckedChange={(checked) => patchForm({ forAllHips: checked === true })}
-              disabled={isReadOnly}
-            />
-            <Label htmlFor="all-hips" className="text-sm font-normal">
-              For all HIPs
-            </Label>
-          </div>
-
-          {!form.forAllHips ? (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-gray-700">HIP ID</Label>
-              <Input
-                value={form.hipId}
-                onChange={(e) => patchForm({ hipId: e.target.value })}
-                placeholder="Enter HIP ID"
-                disabled={isReadOnly}
-                className="bg-white"
-              />
-            </div>
-          ) : null}
-        </div>
+        <ConsentRequestForm form={form} patchForm={patchForm} isReadOnly={isReadOnly} />
       ) : null}
 
       {!isReadOnly ? (
-        <div className="mt-4 flex justify-end">
-          <Button
-            type="button"
-            onClick={showStatus ? handleRequestNew : handleSubmit}
-            disabled={showStatus ? false : !isFormValid || submitting}
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Requesting…
-              </>
-            ) : showStatus ? (
-              'Request New Consent'
-            ) : (
-              'Request Consent'
-            )}
-          </Button>
-        </div>
+        <ConsentSubmitBar
+          showStatus={showStatus}
+          handleRequestNew={handleRequestNew}
+          handleSubmit={handleSubmit}
+          submitting={submitting}
+          isFormValid={isFormValid}
+        />
       ) : null}
     </div>
   );

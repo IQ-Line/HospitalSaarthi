@@ -1,4 +1,4 @@
-import type { HipDataPushRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
+import type { HipDataPushRequest } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmAdapterDeps, HealthRecordBundleEntry } from "../../../ports.js";
 import type { ParsedHiRequest } from "../../../lib/parse-hi-request-body.js";
 import type { AbdmSession } from "../../../domain/session.js";

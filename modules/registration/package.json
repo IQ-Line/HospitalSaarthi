@@ -5,12 +5,12 @@
   "main": "./src/index.ts",
   "dependencies": {
     "@hims/pdf-client": "workspace:*",
-    "@hims/registration-reports": "workspace:*",
     "@hims/ts-sdk-api-key": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-http": "workspace:*",
+    "@hims/ts-sdk-india": "workspace:*",
     "@hims/ts-sdk-sequence": "workspace:*"
   },
   "peerDependencies": {
@@ -19,10 +19,11 @@
     "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
-    "tsx": "^4.20.5",
-    "vitest": "^3.1.3"
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
+    "tsx": "catalog:",
+    "vitest": "catalog:",
+    "drizzle-kit": "^0.31.4"
   }
 }

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import os
-
 from app.core.config import get_settings, reset_settings_cache_for_tests
 from app.core.database import get_engine, reset_database_engine
 

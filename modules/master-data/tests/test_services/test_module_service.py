@@ -34,7 +34,13 @@ class FakeModuleRepository:
     def __init__(self) -> None:
         self.last_category: ModuleCategory | None = None
 
-    def list_modules(self, *, category: ModuleCategory | None = None, module_kinds: list[ModuleKind] | None = None, visibility: VisibilityScope | None = None):
+    def list_modules(
+        self,
+        *,
+        category: ModuleCategory | None = None,
+        module_kinds: list[ModuleKind] | None = None,
+        visibility: VisibilityScope | None = None,
+    ):
         self.last_category = category
         return [_row()]
 

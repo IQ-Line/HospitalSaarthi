@@ -25,6 +25,7 @@ export type PlatformRuntimeModuleSlug = (typeof PLATFORM_RUNTIME_MODULE_SLUGS)[n
 export const PLATFORM_ASSIGNABLE_MODULE_SLUGS = PLATFORM_RUNTIME_MODULE_SLUGS;
 
 /** @deprecated Use {@link PlatformRuntimeModuleSlug}. */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name (deprecated back-compat alias)
 export type PlatformAssignableModuleSlug = PlatformRuntimeModuleSlug;
 
 export function isPlatformRuntimeModuleSlug(slug: string): boolean {

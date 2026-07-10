@@ -1,4 +1,4 @@
-"""Database access for platform picklist catalog in ``global_master``."""
+"""Database access for platform picklist catalog in ``master_global``."""
 
 from __future__ import annotations
 

@@ -53,7 +53,7 @@ import {
   buildDescendantBranchTreeRows,
   type TenantTreeRow,
 } from '@/features/configurator/tenant-tree';
-import type { ConfiguratorTenant } from '@/features/configurator/types';
+import type { Organization } from '@/features/configurator/types';
 import { useModules } from '@/features/master-data/api';
 import { ReadOnlyRow } from '@/features/master-data/components/read-only-row';
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@pulse/ui/empty';
@@ -118,6 +118,38 @@ function TenantTabComingSoon({ title, body }: { title: string; body: string }) {
         <EmptyDescription>{body}</EmptyDescription>
       </EmptyHeader>
     </Empty>
+  );
+}
+
+function TenantNoRootState({ org, tenantCount }: { org: Organization; tenantCount: number }) {
+  return (
+    <div className="p-6 max-w-2xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
+          <Link to="/configurator/tenant">
+            <ArrowLeft className="size-4" />
+          </Link>
+        </Button>
+        <h1 className="text-xl font-semibold tracking-tight">{org.name}</h1>
+      </div>
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          This organization has no default (root) environment in the configurator database
+          {tenantCount > 0
+            ? ` — ${tenantCount} tenant row(s) exist but every row has a parent tenant, so none is treated as the org root.`
+            : ' — there are no tenant rows for this organization yet.'}
+        </p>
+        <p className="text-muted-foreground">
+          Provision a root tenant from the tenant list (Create tenant wizard), or add a root tenant
+          row in the database for legacy organisations.
+        </p>
+        <ReadOnlyRow label="Slug" value={org.slug} />
+        <ReadOnlyRow label="Organization ID" value={org.id} />
+      </div>
+      <Button variant="outline" asChild>
+        <Link to="/configurator/tenant">Back to tenants</Link>
+      </Button>
+    </div>
   );
 }
 
@@ -337,35 +369,7 @@ function TenantOrganizationDetailPage() {
 
   if (!contextTenant) {
     const tenantCount = orgTenantsRes?.data?.length ?? 0;
-    return (
-      <div className="p-6 max-w-2xl space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" size="icon-sm" asChild aria-label="Back to list">
-            <Link to="/configurator/tenant">
-              <ArrowLeft className="size-4" />
-            </Link>
-          </Button>
-          <h1 className="text-xl font-semibold tracking-tight">{org.name}</h1>
-        </div>
-        <div className="rounded-lg border bg-muted/30 p-4 space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            This organization has no default (root) environment in the configurator database
-            {tenantCount > 0
-              ? ` — ${tenantCount} tenant row(s) exist but every row has a parent tenant, so none is treated as the org root.`
-              : ' — there are no tenant rows for this organization yet.'}
-          </p>
-          <p className="text-muted-foreground">
-            Provision a root tenant from the tenant list (Create tenant wizard), or add a root tenant
-            row in the database for legacy organisations.
-          </p>
-          <ReadOnlyRow label="Slug" value={org.slug} />
-          <ReadOnlyRow label="Organization ID" value={org.id} />
-        </div>
-        <Button variant="outline" asChild>
-          <Link to="/configurator/tenant">Back to tenants</Link>
-        </Button>
-      </div>
-    );
+    return <TenantNoRootState org={org} tenantCount={tenantCount} />;
   }
 
   return (

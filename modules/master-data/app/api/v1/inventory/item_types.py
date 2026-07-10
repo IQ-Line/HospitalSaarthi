@@ -64,7 +64,11 @@ def post_item_type(
     return InventoryItemTypeSingleResponse(data=InventoryItemTypeResponse.model_validate(row))
 
 
-@router.get("/{item_type_id}", response_model=InventoryItemTypeSingleResponse, summary="Get item type")
+@router.get(
+    "/{item_type_id}",
+    response_model=InventoryItemTypeSingleResponse,
+    summary="Get item type",
+)
 def get_item_type(
     item_type_id: UUID,
     repository: Annotated[InventoryItemTypeRepository, Depends(get_inventory_item_type_repository)],

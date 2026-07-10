@@ -1,0 +1,1020 @@
+{
+  "id": "0a142937-f5e0-46eb-9ced-bf36bc4e645a",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "integration_hub.abdm_consent_artefacts": {
+      "name": "abdm_consent_artefacts",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_id": {
+          "name": "consent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hip_id": {
+          "name": "hip_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hiu_id": {
+          "name": "hiu_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_erase_at": {
+          "name": "data_erase_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artefact_json": {
+          "name": "artefact_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature": {
+          "name": "signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature_valid": {
+          "name": "signature_valid",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ix_abdm_consent_patient": {
+          "name": "ix_abdm_consent_patient",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_consent_artefacts_iq_tenant_id_consent_id_pk": {
+          "name": "abdm_consent_artefacts_iq_tenant_id_consent_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "consent_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_inbound_messages": {
+      "name": "abdm_inbound_messages",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "flow_kind": {
+          "name": "flow_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_inbound_messages_iq_tenant_id_request_id_pk": {
+          "name": "abdm_inbound_messages_iq_tenant_id_request_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "request_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_link_otps": {
+      "name": "abdm_link_otps",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_ref_number": {
+          "name": "link_ref_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "otp_hash": {
+          "name": "otp_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ix_abdm_link_otps_expires": {
+          "name": "ix_abdm_link_otps_expires",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_link_otps_iq_tenant_id_link_ref_number_pk": {
+          "name": "abdm_link_otps_iq_tenant_id_link_ref_number_pk",
+          "columns": [
+            "iq_tenant_id",
+            "link_ref_number"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_link_tokens": {
+      "name": "abdm_link_tokens",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abha_address": {
+          "name": "abha_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_token": {
+          "name": "link_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "obtained_at": {
+          "name": "obtained_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_request_id": {
+          "name": "pending_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pending_expires_at": {
+          "name": "pending_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_link_tokens_iq_tenant_id_abha_address_pk": {
+          "name": "abdm_link_tokens_iq_tenant_id_abha_address_pk",
+          "columns": [
+            "iq_tenant_id",
+            "abha_address"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_linked_care_contexts": {
+      "name": "abdm_linked_care_contexts",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "abha_address": {
+          "name": "abha_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "care_context_ref": {
+          "name": "care_context_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "linked_at": {
+          "name": "linked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ix_abdm_linked_care_contexts_abha": {
+          "name": "ix_abdm_linked_care_contexts_abha",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "abha_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_linked_care_contexts_iq_tenant_id_abha_address_care_context_ref_pk": {
+          "name": "abdm_linked_care_contexts_iq_tenant_id_abha_address_care_context_ref_pk",
+          "columns": [
+            "iq_tenant_id",
+            "abha_address",
+            "care_context_ref"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_m3_consent_artefacts_hiu": {
+      "name": "abdm_m3_consent_artefacts_hiu",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_id": {
+          "name": "consent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_request_id": {
+          "name": "consent_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_abha_address": {
+          "name": "patient_abha_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hip_id": {
+          "name": "hip_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_erase_at": {
+          "name": "data_erase_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hi_types": {
+          "name": "hi_types",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "care_contexts": {
+          "name": "care_contexts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "artefact_json": {
+          "name": "artefact_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature": {
+          "name": "signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "signature_valid": {
+          "name": "signature_valid",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "received_at": {
+          "name": "received_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ix_m3_artefacts_hiu_patient": {
+          "name": "ix_m3_artefacts_hiu_patient",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "patient_abha_address",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ix_m3_artefacts_hiu_request": {
+          "name": "ix_m3_artefacts_hiu_request",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consent_request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_m3_consent_artefacts_hiu_iq_tenant_id_consent_id_pk": {
+          "name": "abdm_m3_consent_artefacts_hiu_iq_tenant_id_consent_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "consent_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_m3_consent_requests": {
+      "name": "abdm_m3_consent_requests",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_request_id": {
+          "name": "consent_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_abha_address": {
+          "name": "patient_abha_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hip_id": {
+          "name": "hip_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purpose_code": {
+          "name": "purpose_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hi_types": {
+          "name": "hi_types",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_date_from": {
+          "name": "permission_date_from",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "permission_date_to": {
+          "name": "permission_date_to",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "data_erase_at": {
+          "name": "data_erase_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_artefact_ids": {
+          "name": "consent_artefact_ids",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "context": {
+          "name": "context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ix_m3_consent_requests_session": {
+          "name": "ix_m3_consent_requests_session",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ix_m3_consent_requests_state": {
+          "name": "ix_m3_consent_requests_state",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_m3_consent_requests_iq_tenant_id_consent_request_id_pk": {
+          "name": "abdm_m3_consent_requests_iq_tenant_id_consent_request_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "consent_request_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_m3_data_transfers": {
+      "name": "abdm_m3_data_transfers",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "transfer_id": {
+          "name": "transfer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "flow_kind": {
+          "name": "flow_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'abdm.m3.hiu.v1'"
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_id": {
+          "name": "consent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "outbound_request_id": {
+          "name": "outbound_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cm_transaction_id": {
+          "name": "cm_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hiu_private_key_jwk": {
+          "name": "hiu_private_key_jwk",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hiu_public_key_b64": {
+          "name": "hiu_public_key_b64",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hiu_nonce_b64": {
+          "name": "hiu_nonce_b64",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hip_public_key_b64": {
+          "name": "hip_public_key_b64",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hip_nonce_b64": {
+          "name": "hip_nonce_b64",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "data_push_url": {
+          "name": "data_push_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bundle_json": {
+          "name": "bundle_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error": {
+          "name": "error",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "awaiting_push_until": {
+          "name": "awaiting_push_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ix_m3_transfers_consent": {
+          "name": "ix_m3_transfers_consent",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "consent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ix_m3_transfers_txn": {
+          "name": "ix_m3_transfers_txn",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "cm_transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_m3_data_transfers_iq_tenant_id_transfer_id_pk": {
+          "name": "abdm_m3_data_transfers_iq_tenant_id_transfer_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "transfer_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "integration_hub.abdm_sessions": {
+      "name": "abdm_sessions",
+      "schema": "integration_hub",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "flow_kind": {
+          "name": "flow_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "txn_id": {
+          "name": "txn_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "x_token": {
+          "name": "x_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "t_token": {
+          "name": "t_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "context": {
+          "name": "context",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_abdm_sessions_txn": {
+          "name": "idx_abdm_sessions_txn",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "txn_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_abdm_sessions_flow_state": {
+          "name": "idx_abdm_sessions_flow_state",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "flow_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "abdm_sessions_iq_tenant_id_session_id_pk": {
+          "name": "abdm_sessions_iq_tenant_id_session_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "session_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "integration_hub": "integration_hub"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

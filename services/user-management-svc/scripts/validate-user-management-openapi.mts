@@ -108,7 +108,7 @@ class NoopUserAccessRepository implements UserAccessRepository {
   async listActiveCapabilityGrantsByUser(): Promise<UserCapabilityGrant[]> {
     return [];
   }
-  async replaceManualCapabilityGrants(): Promise<UserCapabilityGrant[]> {
+  async replaceCapabilityOverrides(): Promise<UserCapabilityGrant[]> {
     return [];
   }
 }
@@ -277,13 +277,18 @@ async function main(): Promise<void> {
             return { authUserId: input.platformUserId };
           },
         },
-        authPasswordAdmin: {
-          async setUserPassword() {},
-          async revokeUserSessions() {},
-        },
         tenantModuleEntitlementPort: noopTenantModuleEntitlementPort,
         masterDataModuleCatalogPort: noopMasterDataModuleCatalogPort,
         departmentCatalogPort: noopDepartmentCatalogPort,
+        // The reset-password route only mounts when BOTH auth ports are supplied
+        // (router.ts) — production wires them in main.ts, so the validation boot
+        // must too or the spec'd operation is falsely reported missing.
+        authPasswordResetter: {
+          async setPassword() {},
+        },
+        authSessionRevoker: {
+          async revokeAllSessionsForPlatformUser() {},
+        },
       });
     },
     { prefix: "/api/user-management" },
@@ -308,8 +313,20 @@ async function main(): Promise<void> {
     }),
   );
 
+  // JWT-protected internal diagnostics (rest-handlers/internal-diagnostics-handlers.ts):
+  // operator/debug surface with no cross-service consumers, deliberately NOT part of
+  // the v1 API contract. Exact matches only — a NEW internal route must either be
+  // spec'd or explicitly justified here; never blanket-exempt the /internal prefix.
+  const internalDiagnosticsRoutes = new Set([
+    `GET ${base}/internal/module-entitlements/:tenantId`,
+    `GET ${base}/internal/runtime-capability-catalog`,
+    `GET ${base}/internal/runtime-capability-catalog/assignable`,
+  ]);
+
   const missingInRuntime = [...expected].filter((e) => !runtimeSet.has(e));
-  const extraInRuntime = [...runtimeSet].filter((r) => !expected.has(r));
+  const extraInRuntime = [...runtimeSet].filter(
+    (r) => !expected.has(r) && !internalDiagnosticsRoutes.has(r),
+  );
 
   if (missingInRuntime.length > 0 || extraInRuntime.length > 0) {
     console.error("OpenAPI / runtime mismatch");

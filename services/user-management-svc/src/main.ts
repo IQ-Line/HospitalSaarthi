@@ -7,6 +7,8 @@ import {
 } from "@hims/ts-sdk-db";
 import { createEventBus } from "@hims/ts-sdk-events";
 import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createUserManagementAuthzTargetResolver } from "./authz-target-resolver.js";
@@ -14,14 +16,15 @@ import {
   createHimsBetterAuth,
   repairJwksForDevelopment,
 } from "./auth/create-hims-better-auth.js";
-import { createAuthPasswordAdmin } from "./auth/create-auth-password-admin.js";
 import { createPasswordAuthAccountProvisioner } from "./auth/create-password-auth-account-provisioner.js";
-import { registerBetterAuth } from "./auth/register-better-auth.js";
+import {
+  createBetterAuthInteractiveSignIn,
+  registerBetterAuth,
+} from "./auth/register-better-auth.js";
 import {
   runDevelopmentBootstrap,
   shouldRunDevelopmentBootstrap,
 } from "./bootstrap/development-bootstrap.js";
-import { repairPlatformSuperAdminCapabilitySnapshots } from "./bootstrap/repair-platform-super-admin.js";
 import {
   DrizzleCapabilityRepository,
   DrizzlePrincipalRoleProjectionRepository,
@@ -31,41 +34,34 @@ import {
   DrizzleUserAccessRepository,
   DrizzleUserProvisioningRepository,
   DrizzleUserRepository,
+  DrizzleUserActivationStatusReader,
+  DrizzlePlatformAdminRepository,
   createRuntimeEntitlementPrincipalWiring,
   formatRuntimeAuthorizationStartupFailure,
   registerTenantEntitlementCacheEventConsumers,
   validateRuntimeAuthorizationStartup,
   principalRoleEnricherPlugin,
-} from "../../../modules/user-management/src/index.js";
-import { deactivateSupersededLegacyCapabilities } from "../../../modules/user-management/src/dev/deactivate-superseded-legacy-capabilities.js";
-import {
   HttpConfiguratorTenantModuleEntitlementAdapter,
-} from "../../../modules/user-management/src/adapters/http-configurator-tenant-module-entitlement-adapter.js";
-import {
   HttpMasterDataModuleCatalogAdapter,
-} from "../../../modules/user-management/src/adapters/http-master-data-module-catalog-adapter.js";
-import { tenantApiKeyAuthPlugin } from "@hims/user-management";
+  tenantApiKeyAuthPlugin,
+} from "@hims/user-management";
 import { registerUserManagementApi } from "./openapi/register-user-management-api.js";
+import { stripTrailingSlashes } from "./lib/strip-trailing-slashes.js";
 import { DrizzleTenantApiKeyValidator } from "./adapters/drizzle-tenant-api-key-validator.js";
 import { HttpDepartmentCatalogAdapter } from "./adapters/http-department-catalog-adapter.js";
 import { createAccessTokenIssuer } from "./auth/issue-access-jwt.js";
-import { createBetterAuthInteractiveSignIn } from "./auth/register-better-auth.js";
+import { USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES } from "./auth/identity-skip-prefixes.js";
 import { DrizzleAuthSessionRevoker } from "./auth/revoke-auth-sessions.js";
+import { BetterAuthPasswordResetter } from "./auth/reset-auth-password.js";
 
-const USER_MANAGEMENT_IDENTITY_SKIP_PATH_PREFIXES = [
-  "/api/auth",
-  "/api/user-management/auth/api-key",
-  "/api/user-management/auth/login",
-] as const;
-
-function requireUpstreamBaseUrl(envKey: string): string {
-  const raw = process.env[envKey]?.trim();
-  if (!raw || raw.length === 0) {
+function requireUpstreamBaseUrl(envKey: string, raw: string | undefined): string {
+  const trimmed = raw?.trim();
+  if (!trimmed || trimmed.length === 0) {
     throw new Error(
       `${envKey} is required for tenant module entitlements and Master Data module catalog integration`,
     );
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(trimmed);
 }
 
 function readAuthBaseUrl(): string {
@@ -75,7 +71,7 @@ function readAuthBaseUrl(): string {
       "AUTH_BASE_URL is required (backend API origin; equals JWT_ISSUER and JWKS_URL prefix)",
     );
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
 }
 
 function readWebPublicOrigin(): string | undefined {
@@ -83,7 +79,7 @@ function readWebPublicOrigin(): string | undefined {
   if (!raw || raw.length === 0) {
     return undefined;
   }
-  return raw.replace(/\/+$/, "");
+  return stripTrailingSlashes(raw);
 }
 
 function readBetterAuthSecret(): string {
@@ -108,8 +104,12 @@ function readTrustedOrigins(): string[] {
 /**
  * Fastify wiring: event bus, better-auth, identity verification, Cerbos, user-management module.
  */
-async function createApp(): Promise<FastifyInstance> {
-  const app = Fastify();
+async function createApp(app: FastifyInstance): Promise<FastifyInstance> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
 
   const eventBus = createEventBus({ type: "in-process" });
   await eventBus.connect();
@@ -146,10 +146,11 @@ async function createApp(): Promise<FastifyInstance> {
     connectionString: databaseUrl,
   });
 
-  const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL");
-  const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL");
+  const configuratorUrl = requireUpstreamBaseUrl("CONFIGURATOR_URL", process.env.CONFIGURATOR_URL);
+  const masterDataUrl = requireUpstreamBaseUrl("MASTER_DATA_URL", process.env.MASTER_DATA_URL);
 
   const userRepository = new DrizzleUserRepository(pgDb);
+  const userActivationStatusReader = new DrizzleUserActivationStatusReader(pgDb);
   const userProvisioningRepository = new DrizzleUserProvisioningRepository(pgDb);
   const capabilityRepository = new DrizzleCapabilityRepository(pgDb);
   const roleRepository = new DrizzleRoleRepository(pgDb);
@@ -157,14 +158,7 @@ async function createApp(): Promise<FastifyInstance> {
   const userAccessRepository = new DrizzleUserAccessRepository(pgDb);
   const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(pgDb);
   const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(pgDb);
-
-  const legacyCleanup = await deactivateSupersededLegacyCapabilities(pgDb);
-  if (legacyCleanup.deactivated > 0) {
-    app.log.info(
-      { deactivatedKeys: legacyCleanup.deactivatedKeys },
-      "Deactivated superseded legacy capability catalog rows",
-    );
-  }
+  const platformAdminRepository = new DrizzlePlatformAdminRepository(pgDb);
 
   const startupValidation = await validateRuntimeAuthorizationStartup({
     configuratorUrl,
@@ -199,6 +193,7 @@ async function createApp(): Promise<FastifyInstance> {
     userRepository,
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
+    platformAdminRepository,
     capabilityRepository,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
@@ -232,19 +227,9 @@ async function createApp(): Promise<FastifyInstance> {
   const auth = createHimsBetterAuth(pgDb, authEnv, {
     userRepository,
     principalRoleProjectionRepository,
+    platformAdminRepository,
   });
-  const authPasswordAdmin = createAuthPasswordAdmin(auth);
   const authAccountProvisioner = createPasswordAuthAccountProvisioner(pgDb, auth);
-
-  if (process.env.NODE_ENV !== "production") {
-    const repair = await repairPlatformSuperAdminCapabilitySnapshots(pgDb);
-    if (repair.repaired) {
-      app.log.info(
-        { capabilityCount: repair.capabilityCount },
-        "Platform super-admin capability snapshots refreshed",
-      );
-    }
-  }
 
   if (shouldRunDevelopmentBootstrap()) {
     app.log.warn(
@@ -277,16 +262,23 @@ async function createApp(): Promise<FastifyInstance> {
   const accessTokenIssuer = createAccessTokenIssuer(pgDb, authEnv, {
     userRepository,
     principalRoleProjectionRepository,
+    platformAdminRepository,
   });
   const interactiveSignIn = createBetterAuthInteractiveSignIn(auth, authBaseUrl);
   const authSessionRevoker = new DrizzleAuthSessionRevoker(pgDb, userRepository);
+  const authPasswordResetter = new BetterAuthPasswordResetter(auth, userRepository);
 
   const tenantApiKeyValidator = new DrizzleTenantApiKeyValidator(pgDb);
   await app.register(tenantApiKeyAuthPlugin, { validator: tenantApiKeyValidator });
 
   await app.register(identityPlugin, {
     ...identityAuth,
-    skipPathPrefixes: [...USER_MANAGEMENT_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+    skipPathPrefixes: [
+      ...USER_MANAGEMENT_IDENTITY_SKIP_PREFIXES,
+      // POST /auth/login is authMode:"public" (no access token yet) — the identity onRequest
+      // hook honours only skipPathPrefixes (not per-route authMode), so it must step aside here.
+      "/api/user-management/auth/login",
+    ],
   });
 
   await assertCerbosReachable(cerbosUrl);
@@ -321,14 +313,15 @@ async function createApp(): Promise<FastifyInstance> {
     principalRoleProjectionRepository,
     principalAuthorizationRepository,
     authAccountProvisioner,
-    authPasswordAdmin,
     tenantModuleEntitlementPort,
     masterDataModuleCatalogPort,
     departmentCatalogPort,
     tenantEntitlementResolver,
     internalEntitlementCacheApiKey: umInternalApiKey,
+    userActivationStatusReader,
     accessTokenIssuer,
     authSessionRevoker,
+    authPasswordResetter,
     principalService,
     interactiveSignIn,
   });
@@ -340,14 +333,19 @@ async function main(): Promise<void> {
   const port = Number(
     process.env.USER_MANAGEMENT_SVC_PORT ?? process.env.PORT ?? 3005,
   );
+  const app = Fastify();
   try {
-    const app = await createApp();
+    await createApp(app);
     await app.listen({ port, host: "0.0.0.0" });
     app.log.info(`User Management service listening on http://localhost:${port}`);
   } catch (err) {
-    console.error("Failed to start user-management-svc:", err);
+    app.log.fatal({ err }, "Failed to start user-management-svc");
     process.exit(1);
   }
 }
 
-await main();
+main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
+  console.error("Failed to start user-management-svc:", err);
+  process.exit(1);
+});

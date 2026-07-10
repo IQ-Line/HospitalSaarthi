@@ -1,18 +1,21 @@
 import { z } from 'zod';
+import {
+  INDIAN_MOBILE_RE,
+  INDIAN_MOBILE_VALIDATION_MESSAGE,
+  isValidIndianMobile,
+  normalizeIndianMobile,
+  sanitizeIndianMobileInput,
+} from '@hims/ts-sdk-india';
 
-/** 10-digit Indian mobile: digits only, must start with 6, 7, 8, or 9. */
-export const INDIAN_MOBILE_RE = /^[6-9]\d{9}$/;
-
-export const INDIAN_MOBILE_VALIDATION_MESSAGE =
-  'Enter a valid 10-digit mobile number (must start with 6, 7, 8, or 9)';
-
-export function sanitizeIndianMobileInput(value: string, maxLength = 10): string {
-  return value.replace(/\D/g, '').slice(0, maxLength);
-}
-
-export function isValidIndianMobile(value: string | undefined | null): boolean {
-  return INDIAN_MOBILE_RE.test((value ?? '').trim());
-}
+// Re-export the language-neutral core so existing `@/lib/indian-mobile` imports
+// keep working unchanged. The rules themselves live once in `@hims/ts-sdk-india`.
+export {
+  INDIAN_MOBILE_RE,
+  INDIAN_MOBILE_VALIDATION_MESSAGE,
+  isValidIndianMobile,
+  normalizeIndianMobile,
+  sanitizeIndianMobileInput,
+};
 
 /** React Hook Form `register()` rules — same rules as visit registration phone field. */
 export function indianMobileRegisterOptions(options?: { required?: boolean }) {

@@ -1,4 +1,3 @@
-import { redirect } from '@tanstack/react-router';
 import {
   assertInventorySupplyMastersTenantAdmin,
   catalogModuleSlugForInventoryMasterTab,
@@ -9,8 +8,6 @@ import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
 import { getInventoryMasterTabConfig } from '@/features/inventory-masters/inventory-masters-nav-model';
 import { principalHasAnyInventoryMasterL3RouteAccess } from '@/lib/inventory-catalog-slugs';
 import { requireCatalogRouteAccess } from '@/lib/require-catalog-route-access';
-import { resolveNavigationCapabilityBypass } from '@/lib/resolve-nav-bypass';
-import { usePermissionsStore } from '@/stores/permissions.store';
 
 export function requireInventoryMasterTabAccess(tabId: InventoryMasterTabId) {
   return () => {

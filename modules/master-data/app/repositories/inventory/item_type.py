@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.catalog.inventory.table_models import inventory_item_type_model

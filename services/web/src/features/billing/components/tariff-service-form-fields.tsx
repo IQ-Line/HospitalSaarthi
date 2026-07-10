@@ -27,6 +27,22 @@ import type { TariffServiceCreateFormValues, TariffServiceEditFormValues } from 
 const TAX_TYPES = ['EXEMPT', 'CGST_SGST', 'IGST'] as const;
 const NONE = '__none__';
 
+type TariffLookups = ReturnType<typeof useTariffCreateLookups>;
+
+function departmentPlaceholder(lookups: TariffLookups): string {
+  if (lookups.isLoadingDepartments) return 'Loading…';
+  if (lookups.departmentsError) return 'Failed to load departments';
+  return 'Select department';
+}
+
+function doctorPlaceholder(departmentId: string | null, lookups: TariffLookups): string {
+  if (!departmentId) return 'Select department first';
+  if (lookups.isLoadingDoctors) return 'Loading…';
+  if (lookups.doctorsError) return 'Failed to load doctors';
+  if (lookups.doctorOptions.length === 0) return 'No doctors in this department';
+  return 'Select doctor';
+}
+
 function FieldError({ message }: { message?: string }) {
   return message ? <p className="text-xs text-destructive">{message}</p> : null;
 }
@@ -69,7 +85,6 @@ function FormSelect<T extends FieldValues>({
           return (
             <>
               <Select
-                modal={false}
                 value={value}
                 disabled={disabled}
                 onValueChange={(v) => {
@@ -249,6 +264,45 @@ function SharedFields<T extends TariffServiceCreateFormValues | TariffServiceEdi
   );
 }
 
+function CreateProviderFields({
+  control,
+  setValue,
+  departmentId,
+  lookups,
+}: {
+  control: Control<TariffServiceCreateFormValues>;
+  setValue: UseFormSetValue<TariffServiceCreateFormValues>;
+  departmentId: string | null;
+  lookups: TariffLookups;
+}) {
+  return (
+    <>
+      <FormSelect
+        control={control}
+        name="department_id"
+        label="Department"
+        placeholder={departmentPlaceholder(lookups)}
+        disabled={lookups.isLoadingDepartments || lookups.departmentsError}
+        options={lookups.departmentOptions}
+        onPicked={() => setValue('provider_id', null)}
+      />
+      <FormSelect
+        control={control}
+        name="provider_id"
+        label="Doctor"
+        placeholder={doctorPlaceholder(departmentId, lookups)}
+        disabled={
+          !departmentId ||
+          lookups.isLoadingDoctors ||
+          lookups.doctorsError ||
+          lookups.doctorOptions.length === 0
+        }
+        options={lookups.doctorOptions}
+      />
+    </>
+  );
+}
+
 export function TariffServiceCreateFormFields({
   control,
   setValue,
@@ -301,46 +355,12 @@ export function TariffServiceCreateFormFields({
         }}
       />
       {showProviderFields ? (
-        <>
-          <FormSelect
-            control={control}
-            name="department_id"
-            label="Department"
-            placeholder={
-              lookups.isLoadingDepartments
-                ? 'Loading…'
-                : lookups.departmentsError
-                  ? 'Failed to load departments'
-                  : 'Select department'
-            }
-            disabled={lookups.isLoadingDepartments || lookups.departmentsError}
-            options={lookups.departmentOptions}
-            onPicked={() => setValue('provider_id', null)}
-          />
-          <FormSelect
-            control={control}
-            name="provider_id"
-            label="Doctor"
-            placeholder={
-              !departmentId
-                ? 'Select department first'
-                : lookups.isLoadingDoctors
-                  ? 'Loading…'
-                  : lookups.doctorsError
-                    ? 'Failed to load doctors'
-                    : lookups.doctorOptions.length === 0
-                      ? 'No doctors in this department'
-                      : 'Select doctor'
-            }
-            disabled={
-              !departmentId ||
-              lookups.isLoadingDoctors ||
-              lookups.doctorsError ||
-              lookups.doctorOptions.length === 0
-            }
-            options={lookups.doctorOptions}
-          />
-        </>
+        <CreateProviderFields
+          control={control}
+          setValue={setValue}
+          departmentId={departmentId}
+          lookups={lookups}
+        />
       ) : null}
     </SharedFields>
   );
@@ -416,13 +436,7 @@ export function TariffServiceEditFormFields({
             control={control}
             name="department_id"
             label="Department"
-            placeholder={
-              lookups.isLoadingDepartments
-                ? 'Loading…'
-                : lookups.departmentsError
-                  ? 'Failed to load departments'
-                  : 'Select department'
-            }
+            placeholder={departmentPlaceholder(lookups)}
             disabled={lookups.isLoadingDepartments || lookups.departmentsError}
             options={lookups.departmentOptions}
           />

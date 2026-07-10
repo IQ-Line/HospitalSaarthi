@@ -1,6 +1,5 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import { isPostgresUniqueViolation, type DbInstance } from "@hims/ts-sdk-db";
 import { DuplicateUsernameError, UnexpectedPersistenceError } from "../domain/errors.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
 import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
@@ -242,6 +241,16 @@ export class DrizzleUserRepository implements UserRepository {
       conditions.push(eq(users.department, options.department));
     }
 
+    // Common read path is a plain projection; the role-name join + GROUP BY is
+    // paid only when the caller renders role display names (see ListUsersOptions).
+    if (options?.includeRoleDisplayNames !== true) {
+      const rows = await this.db
+        .select(userColumns)
+        .from(users)
+        .where(and(...conditions));
+      return rows.map((row) => rowToUser(row));
+    }
+
     const rows = await this.db
       .select({
         ...userColumns,
@@ -345,6 +354,8 @@ export class DrizzleUserRepository implements UserRepository {
         auth_user_id: users.auth_user_id,
         status: users.status,
         username: users.username,
+        recovery_tier: users.recovery_tier,
+        must_change_password: users.must_change_password,
         org_id: users.org_id,
         department: users.department,
         clearance_tier_required: users.clearance_tier_required,

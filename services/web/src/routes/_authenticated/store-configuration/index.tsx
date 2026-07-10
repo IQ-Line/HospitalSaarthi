@@ -172,7 +172,7 @@ function StoreConfigurationPage() {
       setIsCreateOpen(false);
       resetCreateForm();
     } catch (err) {
-      toast.error(mutationErrorMessage(err, 'Failed to create store'));
+      toast.error(mutationErrorMessage(err));
     }
   });
 
@@ -206,7 +206,7 @@ function StoreConfigurationPage() {
       toast.success('Store updated');
       setEditingStore(null);
     } catch (err) {
-      toast.error(mutationErrorMessage(err, 'Failed to update store'));
+      toast.error(mutationErrorMessage(err));
     }
   });
 
@@ -251,7 +251,10 @@ function StoreConfigurationPage() {
         enableHiding: false,
         cell: ({ row }) =>
           canUpdate ? (
-            <EntityRowActions onEdit={() => setEditingStore(row.original)} />
+            <EntityRowActions
+              onView={() => setEditingStore(row.original)}
+              onEdit={() => setEditingStore(row.original)}
+            />
           ) : null,
       },
     ],
@@ -327,17 +330,18 @@ function StoreConfigurationPage() {
         columns={columns}
         data={stores}
         isLoading={isLoading}
-        pageIndex={pageIndex}
-        pageSize={pageSize}
-        pageCount={Math.max(1, Math.ceil(total / pageSize))}
-        totalRows={total}
-        onPageIndexChange={setPageIndex}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setPageIndex(0);
+        showColumnMenu
+        manualPagination={{
+          pageIndex,
+          pageSize,
+          total,
+          pageSizeOptions: STORE_LIST_PAGE_SIZES,
+          onPageChange: setPageIndex,
+          onPageSizeChange: (size) => {
+            setPageSize(size);
+            setPageIndex(0);
+          },
         }}
-        pageSizeOptions={[...STORE_LIST_PAGE_SIZES]}
-        enableColumnVisibility
       />
 
       <StoreFormDialog

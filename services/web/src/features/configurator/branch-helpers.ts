@@ -8,6 +8,7 @@ export function slugifyTenantLabel(label: string): string {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     .replace(/^-+|-+$/g, '');
 }
 
@@ -20,6 +21,7 @@ export function branchTenantSlug(orgSlug: string, branchCode: string): string {
     .replace(/[^A-Z0-9_-]+/g, '-')
     .replace(/_/g, '-')
     .replace(/-{2,}/g, '-')
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     .replace(/^-+|-+$/g, '');
   const safeOrg = slugifyTenantLabel(orgSlug);
   if (!normalized) return safeOrg;
@@ -40,7 +42,7 @@ export function resolveBranchTenantSlug(input: {
 
   const orgPart = slugifyTenantLabel(input.orgSlug);
   const namePart = slugifyTenantLabel(input.branchName);
-  let slug =
+  const slug =
     namePart.length >= 3
       ? orgPart
         ? `${orgPart}-${namePart}`

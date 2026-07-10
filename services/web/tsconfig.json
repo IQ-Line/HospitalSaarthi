@@ -4,17 +4,17 @@
     "declaration": false,
     "declarationMap": false,
     "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
     "paths": {
       "@/*": ["./src/*"],
       "@pulse/ui/*": ["../../packages/pulse-ui/src/*"],
-<<<<<<< HEAD
       "@pulse/blocks/*": ["../../packages/pulse-blocks/src/*"],
       "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"],
-      "@pulse/patterns/*": ["../../packages/pulse-patterns/src/*"]
-=======
-      "@pulse/layouts/*": ["../../packages/pulse-layouts/src/*"]
->>>>>>> 0386cf54ed9b03457b1508c920d21f5a58439ee1
+      "@pulse/patterns/*": ["../../packages/pulse-patterns/src/*"],
+      "@hims/dev-bootstrap": ["../../packages/dev-bootstrap/src/index.ts"],
+      "@hims/ts-sdk-fhir": ["../../packages/ts-sdk-fhir/src/index.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

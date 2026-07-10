@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_chronic_illness_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
 from app.schemas.visitpad.chronic_illness import (
     VisitpadChronicIllnessCategory,
@@ -35,6 +36,13 @@ from app.services.visitpad.platform_bulk_import import (
 )
 
 router = APIRouter(prefix="/visitpad/chronic-illnesses", tags=["Visitpad — Chronic illnesses"])
+
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
 
 @router.get("", response_model=VisitpadChronicIllnessListResponse, summary="List chronic illnesses")
@@ -68,6 +76,7 @@ def get_chronic_illnesses(
     response_model=VisitpadChronicIllnessSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create chronic illness",
+    dependencies=[_GUARD_CREATE],
 )
 def post_chronic_illness(
     payload: VisitpadChronicIllnessCreate,
@@ -79,13 +88,16 @@ def post_chronic_illness(
 ) -> VisitpadChronicIllnessSingleResponse:
     row = create_visitpad_chronic_illness(repository, payload=payload)
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.post(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import chronic illnesses from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_chronic_illnesses_import_from_platform(
     payload: VisitpadPlatformImportRequest,
@@ -138,13 +150,16 @@ def get_chronic_illness(
     row = get_visitpad_chronic_illness_by_id(repository, row_id=chronic_illness_id)
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.patch(
     "/{chronic_illness_id}",
     response_model=VisitpadChronicIllnessSingleResponse,
     summary="Update chronic illness",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_chronic_illness(
     chronic_illness_id: UUID,
@@ -163,13 +178,16 @@ def patch_chronic_illness(
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )
 
 
 @router.delete(
     "/{chronic_illness_id}",
     response_model=VisitpadChronicIllnessSingleResponse,
     summary="Soft-delete chronic illness",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_chronic_illness(
     chronic_illness_id: UUID,
@@ -183,4 +201,6 @@ def delete_chronic_illness(
     if row is None:
         raise ResourceNotFoundError("No chronic illness with this id.")
     session.commit()
-    return VisitpadChronicIllnessSingleResponse(data=VisitpadChronicIllnessResponse.model_validate(row))
+    return VisitpadChronicIllnessSingleResponse(
+        data=VisitpadChronicIllnessResponse.model_validate(row)
+    )

@@ -2,7 +2,9 @@ import { apiClient } from '@/lib/api-client';
 import type { InventorySvcListResponse } from './api-types';
 import { INVENTORY_API_BASE } from './query-keys';
 
-function buildQueryString(params: Record<string, string | number | boolean | undefined>): string {
+type QueryParamValue = string | number | boolean | undefined;
+
+function buildQueryString(params: Record<string, QueryParamValue>): string {
   const q = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined || value === '') continue;

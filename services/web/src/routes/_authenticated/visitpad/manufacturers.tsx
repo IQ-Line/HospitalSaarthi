@@ -14,7 +14,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadManufacturers,
   useVisitpadManufacturersGlobalLibrary,
   useVisitpadPatch,
@@ -34,10 +34,11 @@ import type { VisitpadManufacturer } from '@/features/visitpad/types';
 import {
   visitpadManufacturerCreateFormSchema,
   visitpadManufacturerEditFormSchema,
+  type VisitpadManufacturerCreateFormInput,
   type VisitpadManufacturerCreateFormSchema,
+  type VisitpadManufacturerEditFormInput,
   type VisitpadManufacturerEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -53,7 +54,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/manufacturers')({
 
 function VisitpadManufacturersPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-manufacturers');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -276,7 +277,6 @@ function VisitpadManufacturersPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -295,7 +295,7 @@ function ManufacturerCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadManufacturerCreateFormSchema>({
+  const form = useForm<VisitpadManufacturerCreateFormInput, unknown, VisitpadManufacturerCreateFormSchema>({
     resolver: zodResolver(visitpadManufacturerCreateFormSchema),
     defaultValues: {
       code: '',
@@ -404,7 +404,7 @@ function ManufacturerEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadManufacturerEditFormSchema>({
+  const form = useForm<VisitpadManufacturerEditFormInput, unknown, VisitpadManufacturerEditFormSchema>({
     resolver: zodResolver(visitpadManufacturerEditFormSchema),
     defaultValues: {
       display_name: '',

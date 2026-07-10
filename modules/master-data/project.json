@@ -1,7 +1,7 @@
 {
   "name": "master-data",
-  "projectType": "application",
-  "tags": ["type:service", "scope:master-data", "language:python", "deploy:aks"],
+  "projectType": "library",
+  "tags": ["type:module", "scope:master-data", "language:python"],
   "namedInputs": {
     "default": ["{projectRoot}/**/*"],
     "production": [
@@ -22,13 +22,6 @@
       "cache": true,
       "outputs": ["{projectRoot}/.venv"]
     },
-    "serve": {
-      "command": "uv run uvicorn app.main:app --host 0.0.0.0 --port 8010 --reload",
-      "options": {
-        "cwd": "modules/master-data"
-      },
-      "dependsOn": ["setup"]
-    },
     "lint": {
       "command": "uv run ruff check .",
       "options": {
@@ -39,7 +32,7 @@
       "cache": true
     },
     "test": {
-      "command": "uv run pytest",
+      "command": "uv run pytest --ignore=tests/integration",
       "options": {
         "cwd": "modules/master-data"
       },
@@ -47,8 +40,8 @@
       "inputs": ["default"],
       "cache": true
     },
-    "migrate": {
-      "command": "bash scripts/run-migrations.sh",
+    "test:integration": {
+      "command": "bash scripts/run-integration-tests.sh",
       "options": {
         "cwd": "modules/master-data"
       },

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import fp from "fastify-plugin";
 import { and, desc, eq, sql, type DbInstance } from "@hims/ts-sdk-db";
 import { createTariffMasterRepo } from "./data-access/tariff-master.repository.js";
@@ -11,6 +11,7 @@ import {
   parseCreateServiceBody,
   stampTariffInsertTimestamps,
   type CreateServiceBody,
+  type DepartmentTariffItem,
   validateBulkCreate,
   validateSingleCreate,
 } from "./lib/create-tariff-service.js";
@@ -19,12 +20,25 @@ import { seedMockBills } from "./lib/mock-bills.js";
 import { registerBillingHandlers } from "./rest-handlers/billing.handlers.js";
 import { registerUpdateServiceHandler } from "./rest-handlers/update-service.handler.js";
 import { billingMaster } from "./schema/tables.js";
+import type { SequenceConfigLoader } from "@hims/ts-sdk-sequence";
 
 export interface BillingRouterOptions {
   db?: DbInstance;
   /** Return in-memory sample rows (no DB). Default off; set BILLING_USE_MOCK_DATA=true in billing-svc. */
   useMock?: boolean;
+  /**
+   * Resolves tenant sequence config for `op_bill` numbering from configurator's internal route.
+   * Required for real-DB bill creation; billing-svc wires the HTTP loader. When absent, bill numbers
+   * compose from platform defaults (no custom formats).
+   */
+  sequenceConfigLoader?: SequenceConfigLoader;
 }
+
+/** Platform-default config used when no loader is wired (tenant_numeric_code "00001", no overrides). */
+const defaultSequenceConfigLoader: SequenceConfigLoader = async () => ({
+  tenantNumericCode: "00001",
+  identifierOverrides: {},
+});
 
 type ListQuery = {
   q?: string;
@@ -330,9 +344,196 @@ function listMock(tenantId: string, q: ListQuery, limit: number) {
   };
 }
 
+/** A create body that has passed `parseCreateServiceBody` (or is the dummy fallback). */
+type ParsedCreateBody = CreateServiceBody & {
+  service_code: string;
+  service_name: string;
+  base_price: string | number;
+};
+
+/** Resolve the request body into a parsed create body, applying the mock dummy fallback. */
+function resolveCreateBody(body: CreateServiceBody, useMock: boolean): ParsedCreateBody | null {
+  const parsed = parseCreateServiceBody(body);
+  if (parsed) return parsed as ParsedCreateBody;
+  if (useMock && !isBulkDoctorCreate(body)) {
+    return CREATE_SERVICE_DUMMY as ParsedCreateBody;
+  }
+  return null;
+}
+
+function replyDbNotConfigured(reply: FastifyReply): FastifyReply {
+  return reply.code(500).send({
+    statusCode: 500,
+    error: "Internal Server Error",
+    message: "Database not configured (set BILLING_USE_MOCK_DATA=true for local mock data)",
+  });
+}
+
+function replyDuplicate(reply: FastifyReply, hasDeptAndProvider: boolean): FastifyReply {
+  return reply.code(409).send({
+    statusCode: 409,
+    error: "Conflict",
+    message: hasDeptAndProvider
+      ? "Consultation tariff already exists for this doctor and department"
+      : "Service already exists for this tenant, code, and provider",
+  });
+}
+
+/** Bulk doctor create: one tariff row per department for a provider. */
+async function handleBulkDoctorCreate(
+  reply: FastifyReply,
+  ctx: { db: DbInstance | undefined; useMock: boolean | undefined; tenantId: string },
+  parsed: CreateServiceBody & { provider_id: string; department_tariffs: DepartmentTariffItem[] },
+): Promise<FastifyReply> {
+  const { db, useMock, tenantId } = ctx;
+
+  const bulkError = validateBulkCreate(parsed);
+  if (bulkError) {
+    return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: bulkError });
+  }
+
+  const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
+  if (typeof effective === "string") {
+    return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: effective });
+  }
+
+  const rowsToInsert = expandBulkCreateRows(tenantId, parsed, {
+    effectiveFrom: effective.from,
+    effectiveTo: effective.to,
+  });
+
+  if (useMock) {
+    return insertBulkMock(reply, tenantId, parsed, rowsToInsert);
+  }
+
+  if (!db) return replyDbNotConfigured(reply);
+
+  try {
+    const inserted = await db
+      .insert(billingMaster)
+      .values(stampTariffInsertTimestamps(rowsToInsert))
+      .returning();
+    return reply.code(201).send({ data: inserted.map(toTariffRow) });
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code === "23505") {
+      return replyDuplicate(reply, true);
+    }
+    throw err;
+  }
+}
+
+/** Mock-mode insert for the bulk doctor create path. */
+function insertBulkMock(
+  reply: FastifyReply,
+  tenantId: string,
+  parsed: CreateServiceBody,
+  rowsToInsert: ReturnType<typeof expandBulkCreateRows>,
+): FastifyReply {
+  for (const row of rowsToInsert) {
+    if (hasDuplicate(tenantId, row.service_code, row.provider_id, row.department_id)) {
+      return reply.code(409).send({
+        statusCode: 409,
+        error: "Conflict",
+        message: "Consultation tariff already exists for this doctor and department",
+      });
+    }
+  }
+  const base = Date.now();
+  const created = rowsToInsert.map((row, i) => {
+    const r = createMockRow(tenantId, {
+      ...parsed,
+      service_code: row.service_code,
+      service_name: row.service_name,
+      base_price: row.base_price,
+      department_id: row.department_id,
+      provider_id: row.provider_id,
+    });
+    const ts = new Date(base + i).toISOString();
+    r.created_at = ts;
+    r.updated_at = ts;
+    return r;
+  });
+  MOCK_ROWS.push(...created);
+  return reply.code(201).send({ data: created });
+}
+
+/** Single-row tariff create. */
+async function handleSingleCreate(
+  reply: FastifyReply,
+  ctx: { db: DbInstance | undefined; useMock: boolean | undefined; tenantId: string },
+  parsed: ParsedCreateBody,
+): Promise<FastifyReply> {
+  const { db, useMock, tenantId } = ctx;
+
+  const validationError = validateSingleCreate(parsed);
+  if (validationError) {
+    return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: validationError });
+  }
+
+  const providerId = parsed.provider_id ?? null;
+  const code = parsed.service_code!.trim();
+  const departmentId = parsed.department_id ?? null;
+  const hasDeptAndProvider = Boolean(providerId && departmentId);
+
+  if (useMock) {
+    if (hasDuplicate(tenantId, code, providerId, departmentId)) {
+      return replyDuplicate(reply, hasDeptAndProvider);
+    }
+    const row = createMockRow(tenantId, parsed);
+    MOCK_ROWS.push(row);
+    return reply.code(201).send({ data: row });
+  }
+
+  if (!db) return replyDbNotConfigured(reply);
+
+  const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
+  if (typeof effective === "string") {
+    return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: effective });
+  }
+
+  try {
+    const now = new Date();
+    const [row] = await db
+      .insert(billingMaster)
+      .values({
+        iq_tenant_id: tenantId,
+        service_code: code,
+        service_name: parsed.service_name!.trim(),
+        description: parsed.description ?? null,
+        provider_id: providerId,
+        department_id: departmentId,
+        category: parsed.category ?? null,
+        sub_category: parsed.sub_category ?? null,
+        tax_type: parsed.tax_type ?? null,
+        is_active: parsed.is_active ?? true,
+        base_price: formatMoney(Number(parsed.base_price)),
+        tax_percentage: formatMoney(Number(parsed.tax_percentage ?? 0)),
+        effective_from: effective.from,
+        effective_to: effective.to,
+        created_at: now,
+        updated_at: now,
+      })
+      .returning();
+
+    if (!row) {
+      return reply.code(500).send({
+        statusCode: 500,
+        error: "Internal Server Error",
+        message: "Insert failed",
+      });
+    }
+    return reply.code(201).send({ data: toTariffRow(row) });
+  } catch (err: unknown) {
+    if ((err as { code?: string }).code === "23505") {
+      return replyDuplicate(reply, hasDeptAndProvider);
+    }
+    throw err;
+  }
+}
+
 async function billingRouter(
   app: FastifyInstance,
-  { db, useMock }: BillingRouterOptions,
+  { db, useMock, sequenceConfigLoader }: BillingRouterOptions,
 ): Promise<void> {
   app.get<{ Querystring: ListQuery }>(
     "/services",
@@ -418,16 +619,7 @@ async function billingRouter(
       schema: createServiceSchema,
     },
     async (request, reply) => {
-      const parsed =
-        parseCreateServiceBody(request.body) ??
-        (useMock && !isBulkDoctorCreate(request.body as CreateServiceBody)
-          ? (CREATE_SERVICE_DUMMY as CreateServiceBody & {
-              service_code: string;
-              service_name: string;
-              base_price: string | number;
-            })
-          : null);
-
+      const parsed = resolveCreateBody(request.body, Boolean(useMock));
       if (!parsed) {
         return reply.code(400).send({
           statusCode: 400,
@@ -438,170 +630,12 @@ async function billingRouter(
         });
       }
 
-      const tenantId = request.tenantId;
+      const ctx = { db, useMock, tenantId: request.tenantId };
 
       if (isBulkDoctorCreate(parsed)) {
-        const bulkError = validateBulkCreate(parsed);
-        if (bulkError) {
-          return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: bulkError });
-        }
-
-        const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
-        if (typeof effective === "string") {
-          return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: effective });
-        }
-
-        const rowsToInsert = expandBulkCreateRows(tenantId, parsed, {
-          effectiveFrom: effective.from,
-          effectiveTo: effective.to,
-        });
-
-        if (useMock) {
-          for (const row of rowsToInsert) {
-            if (hasDuplicate(tenantId, row.service_code, row.provider_id, row.department_id)) {
-              return reply.code(409).send({
-                statusCode: 409,
-                error: "Conflict",
-                message: "Consultation tariff already exists for this doctor and department",
-              });
-            }
-          }
-          const base = Date.now();
-          const created = rowsToInsert.map((row, i) => {
-            const r = createMockRow(tenantId, {
-              ...parsed,
-              service_code: row.service_code,
-              service_name: row.service_name,
-              base_price: row.base_price,
-              department_id: row.department_id,
-              provider_id: row.provider_id,
-            });
-            const ts = new Date(base + i).toISOString();
-            r.created_at = ts;
-            r.updated_at = ts;
-            return r;
-          });
-          MOCK_ROWS.push(...created);
-          return reply.code(201).send({ data: created });
-        }
-
-        if (!db) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: "Internal Server Error",
-            message: "Database not configured (set BILLING_USE_MOCK_DATA=true for local mock data)",
-          });
-        }
-
-        try {
-          const inserted = await db
-            .insert(billingMaster)
-            .values(stampTariffInsertTimestamps(rowsToInsert))
-            .returning();
-          return reply.code(201).send({ data: inserted.map(toTariffRow) });
-        } catch (err: unknown) {
-          if ((err as { code?: string }).code === "23505") {
-            return reply.code(409).send({
-              statusCode: 409,
-              error: "Conflict",
-              message: "Consultation tariff already exists for this doctor and department",
-            });
-          }
-          throw err;
-        }
+        return handleBulkDoctorCreate(reply, ctx, parsed);
       }
-
-      const validationError = validateSingleCreate(parsed);
-      if (validationError) {
-        return reply.code(400).send({
-          statusCode: 400,
-          error: "Bad Request",
-          message: validationError,
-        });
-      }
-
-      const providerId = parsed.provider_id ?? null;
-      const code = parsed.service_code!.trim();
-      const departmentId = parsed.department_id ?? null;
-
-      if (useMock) {
-        if (hasDuplicate(tenantId, code, providerId, departmentId)) {
-          return reply.code(409).send({
-            statusCode: 409,
-            error: "Conflict",
-            message:
-              providerId && departmentId
-                ? "Consultation tariff already exists for this doctor and department"
-                : "Service already exists for this tenant, code, and provider",
-          });
-        }
-        const row = createMockRow(tenantId, parsed as CreateServiceBody & { service_code: string; service_name: string; base_price: string | number });
-        MOCK_ROWS.push(row);
-        return reply.code(201).send({ data: row });
-      }
-
-      if (!db) {
-        return reply.code(500).send({
-          statusCode: 500,
-          error: "Internal Server Error",
-          message: "Database not configured (set BILLING_USE_MOCK_DATA=true for local mock data)",
-        });
-      }
-
-      const effective = parseEffectiveWindow(parsed.effective_from, parsed.effective_to);
-      if (typeof effective === "string") {
-        return reply.code(400).send({
-          statusCode: 400,
-          error: "Bad Request",
-          message: effective,
-        });
-      }
-
-      try {
-        const now = new Date();
-        const [row] = await db
-          .insert(billingMaster)
-          .values({
-            iq_tenant_id: tenantId,
-            service_code: code,
-            service_name: parsed.service_name!.trim(),
-            description: parsed.description ?? null,
-            provider_id: providerId,
-            department_id: departmentId,
-            category: parsed.category ?? null,
-            sub_category: parsed.sub_category ?? null,
-            tax_type: parsed.tax_type ?? null,
-            is_active: parsed.is_active ?? true,
-            base_price: formatMoney(Number(parsed.base_price)),
-            tax_percentage: formatMoney(Number(parsed.tax_percentage ?? 0)),
-            effective_from: effective.from,
-            effective_to: effective.to,
-            created_at: now,
-            updated_at: now,
-          })
-          .returning();
-
-        if (!row) {
-          return reply.code(500).send({
-            statusCode: 500,
-            error: "Internal Server Error",
-            message: "Insert failed",
-          });
-        }
-        return reply.code(201).send({ data: toTariffRow(row) });
-      } catch (err: unknown) {
-        if ((err as { code?: string }).code === "23505") {
-          return reply.code(409).send({
-            statusCode: 409,
-            error: "Conflict",
-            message:
-              providerId && departmentId
-                ? "Consultation tariff already exists for this doctor and department"
-                : "Service already exists for this tenant, code, and provider",
-          });
-        }
-        throw err;
-      }
+      return handleSingleCreate(reply, ctx, parsed);
     },
   );
 
@@ -610,7 +644,9 @@ async function billingRouter(
 
   const memoryBilling = useMock || !db ? createInMemoryBillingRepo() : null;
   if (memoryBilling && useMock) seedMockBills(memoryBilling.bills);
-  const billingRepo = memoryBilling?.repo ?? createBillingRepo(db!);
+  const billingRepo =
+    memoryBilling?.repo ??
+    createBillingRepo(db!, sequenceConfigLoader ?? defaultSequenceConfigLoader);
   registerBillingHandlers(app, { tariffRepo, billingRepo });
 }
 

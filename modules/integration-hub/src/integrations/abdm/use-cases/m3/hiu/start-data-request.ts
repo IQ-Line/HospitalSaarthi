@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { HiuDataRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type { HiuDataRequestInitBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import {
@@ -8,7 +8,6 @@ import {
 } from "../../../lib/m3-runtime-env.js";
 import { assertFlowKind } from "../../../domain/session.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
-import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 
 export interface StartDataRequestInput {
   consentId: string;

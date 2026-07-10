@@ -1,11 +1,12 @@
 [project]
 name = "hims-master-data"
 version = "0.1.0"
-description = "Master Data service for the HIMS platform."
+description = "Master Data module for the HIMS platform (logic library; served by services/master-data-svc)."
 requires-python = ">=3.12"
 dependencies = [
     "alembic",
     "fastapi",
+    "hims_sdk_authz",
     "pydantic",
     "pydantic-settings",
     "psycopg[binary]",
@@ -15,8 +16,22 @@ dependencies = [
     "python-dotenv>=1.2.2",
 ]
 
+# Installable so the thin service host (services/master-data-svc) can import the
+# module's `create_app` factory. The importable package is `app` (the module's
+# established public surface — handlers, alembic env, and tests all import `app.*`).
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv.sources]
+hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }
+
 [dependency-groups]
 dev = [
+    "cryptography",
     "httpx",
     "pytest",
     "pytest-asyncio",
@@ -29,6 +44,12 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The squash baseline (and any migration) embeds authoritative DDL + seed data as SQL
+# string literals; line-length is noise there and wrapping would chop the SQL. All other
+# rules (unused imports, bugbear, pyupgrade, ...) still apply to migration files.
+"alembic/versions/*.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

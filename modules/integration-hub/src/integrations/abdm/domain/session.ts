@@ -33,8 +33,9 @@ export interface M2UserLinkContext {
   abhaAddress?: string;
   linkRefNumber?: string;
   patientId?: string;
-  careContexts?: Array<{ referenceNumber: string; display: string }>;
+  careContexts?: Array<{ referenceNumber: string; display: string; hiType?: string }>;
   otpToken?: string;
+  otpAttemptCount?: number;
   error?: { code: string; message: string };
 }
 
@@ -111,7 +112,19 @@ export interface FlowStateMap {
   "abdm.m3.hiu.transfer-push.v1": "INIT";
 }
 
-export interface AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> {
+/** The three M1 enrolment/login flows; all use a `Record<string, unknown>` context. */
+export type M1FlowKind =
+  | "abdm.m1.aadhaar-otp.v1"
+  | "abdm.m1.login.v1"
+  | "abdm.m1.verify-existing.v1";
+
+/**
+ * The structural shape of a session for one flow. Parametrized non-distributively:
+ * `AbdmSessionShape<AbdmFlowKind>` is the widest single object (all flow kinds, all
+ * states, any context) and is a supertype of every `AbdmSession` member — the shape
+ * a deserializer produces before the concrete flow is known.
+ */
+export interface AbdmSessionShape<F extends AbdmFlowKind> {
   iqTenantId: string;
   sessionId: string;
   flowKind: F;
@@ -124,6 +137,19 @@ export interface AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> {
   createdAt: Date;
   updatedAt: Date;
 }
+
+/**
+ * A session row. Unparametrized (`AbdmSession`) this distributes into a
+ * discriminated union keyed on `flowKind`, so narrowing `flowKind` narrows
+ * `state` and `context` to the matching flow. `AbdmSession<"abdm.m3.hip.v1">`
+ * selects a single flow.
+ */
+export type AbdmSession<F extends AbdmFlowKind = AbdmFlowKind> = F extends AbdmFlowKind
+  ? AbdmSessionShape<F>
+  : never;
+
+/** Any state string a session may hold, across every flow (union of all FSM states). */
+export type AbdmSessionState = FlowStateMap[AbdmFlowKind];
 
 export function assertFlowKind<F extends AbdmFlowKind>(
   session: AbdmSession,

@@ -13,14 +13,24 @@ const CTX = {
 };
 
 class TestEventBus implements EventBus {
-  async connect(): Promise<void> {}
+  async connect(): Promise<void> {
+    // no-op: in-memory test double
+  }
 
-  async disconnect(): Promise<void> {}
+  async disconnect(): Promise<void> {
+    // no-op: in-memory test double
+  }
 
-  async publish(_event: DomainEvent): Promise<void> {}
+  async publish(_event: DomainEvent): Promise<void> {
+    // no-op: events are irrelevant to this use-case under test
+  }
 
   async subscribe(_eventType: string, _handler: EventHandler): Promise<Subscription> {
-    return { async unsubscribe(): Promise<void> {} };
+    return {
+      async unsubscribe(): Promise<void> {
+        // no-op: in-memory test double
+      },
+    };
   }
 }
 
@@ -31,7 +41,6 @@ describe("clearMustChangePassword", () => {
       full_name: "Reset User",
       email: "reset@example.com",
       username: "resetuser",
-      password: "unused",
     });
     await userRepository.updateUser("tenant-a", created.id, { must_change_password: true });
 
@@ -50,7 +59,6 @@ describe("clearMustChangePassword", () => {
       full_name: "Normal User",
       email: "normal@example.com",
       username: "normaluser",
-      password: "unused",
     });
 
     const updated = await clearMustChangePassword(

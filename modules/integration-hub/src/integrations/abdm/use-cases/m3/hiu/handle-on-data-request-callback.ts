@@ -1,4 +1,4 @@
-import type { OnHiuDataRequestCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type { OnHiuDataRequestCallback } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3Hiu } from "../../../lib/m3-fsm-states.js";
 

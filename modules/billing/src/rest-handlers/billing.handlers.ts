@@ -5,12 +5,19 @@ import { sendUseCaseResult } from "../lib/handler-result.js";
 import { renderReceiptHtml } from "../lib/receipt-html.js";
 import { applyBillDiscount } from "../use-cases/apply-bill-discount.js";
 import { cancelBill } from "../use-cases/cancel-bill.js";
-import { captureCharge } from "../use-cases/capture-charge.js";
+import { captureCharge, hasDeskPricingOverrides } from "../use-cases/capture-charge.js";
 import { finalizeBill } from "../use-cases/finalize-bill.js";
 import { getBill } from "../use-cases/get-bill.js";
 import { listBills } from "../use-cases/list-bills.js";
 import { recordPayment } from "../use-cases/record-payment.js";
-import type { BillStatus, ListBillsQuery } from "../domain/bill.types.js";
+import type {
+  ApplyBillDiscountInput,
+  BillStatus,
+  CancelBillInput,
+  CaptureChargeInput,
+  ListBillsQuery,
+  RecordPaymentInput,
+} from "../domain/bill.types.js";
 import {
   applyBillDiscountRouteSchema,
   cancelBillRouteSchema,
@@ -54,11 +61,24 @@ function parseListBillsQuery(q: ListBillsQuerystring): ListBillsQuery {
 }
 
 export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps): void {
-  app.post(
+  app.post<{ Body: CaptureChargeInput }>(
     "/charges",
     { ...protectedRoute, schema: captureChargeRouteSchema },
     async (req, reply) => {
-      const result = await captureCharge(deps, req.tenantId, req.body, parseIdempotencyKey(req.headers));
+      // The route-level PEP already cleared invoice.create. Desk price/discount overrides need a
+      // second, distinct capability — resolve it against Cerbos only when overrides are present so
+      // ordinary charges keep a single check. Same resource id/attr as the resolver's POST /charges.
+      let canOverridePrice = false;
+      if (hasDeskPricingOverrides(req.body)) {
+        const decision = await req.checkResource("invoice", "new", "invoice.override-price", {
+          iq_tenant_id: req.tenantId,
+        });
+        canOverridePrice = decision.isAllowed("invoice.override-price") === true;
+      }
+      const result = await captureCharge(deps, req.tenantId, req.body, {
+        idempotencyKey: parseIdempotencyKey(req.headers),
+        canOverridePrice,
+      });
       return sendUseCaseResult(reply, result, { successCode: 201, wrapData: false });
     },
   );
@@ -78,7 +98,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
     async (req, reply) => sendUseCaseResult(reply, await getBill(deps, req.tenantId, req.params.bill_id)),
   );
 
-  app.patch<{ Params: BillParams }>(
+  app.patch<{ Params: BillParams; Body: ApplyBillDiscountInput }>(
     "/bills/:bill_id",
     { ...protectedRoute, schema: applyBillDiscountRouteSchema },
     async (req, reply) =>
@@ -95,7 +115,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
       sendUseCaseResult(reply, await finalizeBill(deps, req.tenantId, req.params.bill_id)),
   );
 
-  app.post<{ Params: BillParams }>(
+  app.post<{ Params: BillParams; Body: CancelBillInput }>(
     "/bills/:bill_id/cancel",
     { ...protectedRoute, schema: cancelBillRouteSchema },
     async (req, reply) =>
@@ -115,7 +135,7 @@ export function registerBillingHandlers(app: FastifyInstance, deps: BillingDeps)
     },
   );
 
-  app.post(
+  app.post<{ Body: RecordPaymentInput }>(
     "/payments",
     { ...protectedRoute, schema: recordPaymentRouteSchema },
     async (req, reply) =>

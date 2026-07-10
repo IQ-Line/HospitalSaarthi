@@ -12,10 +12,10 @@ export type ProvisionTenantAdminInput = {
   organizationId: string;
   firstName: string;
   lastName: string;
-  email: string;
+  username: string;
+  email?: string | null;
   password: string;
   phone?: string | null;
-  username?: string | null;
 };
 
 /**
@@ -28,7 +28,8 @@ export async function provisionTenantAdministrator(
 ): Promise<{ role: UmRole; user: UmUser }> {
   const tenantCtx = { tenantIdOverride: input.iqTenantId.trim() };
   const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
-  const email = input.email.trim().toLowerCase();
+  const username = input.username.trim().toLowerCase();
+  const email = input.email?.trim() ? input.email.trim().toLowerCase() : undefined;
 
   const capabilities = await apiClientWithIqTenant<Capability[]>(
     input.iqTenantId,
@@ -68,10 +69,10 @@ export async function provisionTenantAdministrator(
       method: 'POST',
       body: JSON.stringify({
         full_name: fullName,
+        username,
         email,
         password: input.password,
         phone: input.phone?.trim() || undefined,
-        username: input.username?.trim() || undefined,
         org_id: input.organizationId,
         capability_ids: [],
         role_template_ids: [role.id],

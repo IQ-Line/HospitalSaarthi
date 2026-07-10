@@ -27,6 +27,88 @@ function isAllowedProvisioningTransition(
   return ALLOWED_PROVISIONING_TRANSITIONS.has(`${from}:${to}`);
 }
 
+function assertValidType(data: UpdateTenantData): void {
+  if (data.type !== undefined && !TENANT_TYPES.has(data.type)) {
+    throw new ConfiguratorError(400, "invalid tenant type");
+  }
+}
+
+async function assertOrganizationExists(
+  organizationRepo: OrganizationRepo,
+  data: UpdateTenantData,
+  existing: Tenant,
+): Promise<void> {
+  if (data.org_id === undefined || data.org_id === existing.org_id) {
+    return;
+  }
+  const org = await organizationRepo.findById(data.org_id);
+  if (!org) {
+    throw new ConfiguratorError(400, "organization not found");
+  }
+}
+
+function assertValidProvisioningTransition(
+  data: UpdateTenantData,
+  existing: Tenant,
+): void {
+  if (data.provisioning_status === undefined) {
+    return;
+  }
+  if (!isAllowedProvisioningTransition(existing.provisioning_status, data.provisioning_status)) {
+    throw new ConfiguratorError(400, "invalid provisioning_status transition");
+  }
+}
+
+async function normalizeSlug(
+  tenantRepo: TenantRepo,
+  data: UpdateTenantData,
+  id: string,
+): Promise<UpdateTenantData> {
+  if (data.slug === undefined) {
+    return data;
+  }
+  const slug = data.slug.trim();
+  if (!slug) {
+    throw new ConfiguratorError(400, "slug cannot be empty");
+  }
+  const slugOwner = await tenantRepo.findBySlug(slug);
+  if (slugOwner && slugOwner.iq_tenant_id !== id) {
+    throw new ConfiguratorError(409, "tenant slug already exists", "CONFLICT");
+  }
+  return { ...data, slug };
+}
+
+function normalizeNonNegativeInt(
+  value: number,
+  fieldName: "free_follow_up_days" | "free_follow_up_visits",
+): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new ConfiguratorError(400, `${fieldName} must be a non-negative number`);
+  }
+  return Math.trunc(n);
+}
+
+function normalizeFreeFollowUps(data: UpdateTenantData): UpdateTenantData {
+  let next = data;
+  if (next.free_follow_up_days !== undefined) {
+    next = {
+      ...next,
+      free_follow_up_days: normalizeNonNegativeInt(next.free_follow_up_days, "free_follow_up_days"),
+    };
+  }
+  if (next.free_follow_up_visits !== undefined) {
+    next = {
+      ...next,
+      free_follow_up_visits: normalizeNonNegativeInt(
+        next.free_follow_up_visits,
+        "free_follow_up_visits",
+      ),
+    };
+  }
+  return next;
+}
+
 export async function updateTenant(
   tenantRepo: TenantRepo,
   organizationRepo: OrganizationRepo,
@@ -38,53 +120,15 @@ export async function updateTenant(
     return null;
   }
 
-  if (data.type !== undefined && !TENANT_TYPES.has(data.type)) {
-    throw new ConfiguratorError(400, "invalid tenant type");
-  }
+  assertValidType(data);
+  await assertOrganizationExists(organizationRepo, data, existing);
 
-  if (data.org_id !== undefined && data.org_id !== existing.org_id) {
-    const org = await organizationRepo.findById(data.org_id);
-    if (!org) {
-      throw new ConfiguratorError(400, "organization not found");
-    }
-  }
+  let patch = await normalizeSlug(tenantRepo, data, id);
 
-  if (data.slug !== undefined) {
-    const slug = data.slug.trim();
-    if (!slug) {
-      throw new ConfiguratorError(400, "slug cannot be empty");
-    }
-    const slugOwner = await tenantRepo.findBySlug(slug);
-    if (slugOwner && slugOwner.iq_tenant_id !== id) {
-      throw new ConfiguratorError(409, "tenant slug already exists", "CONFLICT");
-    }
-    data = { ...data, slug };
-  }
+  assertValidProvisioningTransition(patch, existing);
 
-  if (data.provisioning_status !== undefined) {
-    const from = existing.provisioning_status;
-    const to = data.provisioning_status;
-    if (!isAllowedProvisioningTransition(from, to)) {
-      throw new ConfiguratorError(400, "invalid provisioning_status transition");
-    }
-  }
+  patch = normalizeFreeFollowUps(patch);
 
-  if (data.free_follow_up_days !== undefined) {
-    const days = Number(data.free_follow_up_days);
-    if (!Number.isFinite(days) || days < 0) {
-      throw new ConfiguratorError(400, "free_follow_up_days must be a non-negative number");
-    }
-    data = { ...data, free_follow_up_days: Math.trunc(days) };
-  }
-
-  if (data.free_follow_up_visits !== undefined) {
-    const visits = Number(data.free_follow_up_visits);
-    if (!Number.isFinite(visits) || visits < 0) {
-      throw new ConfiguratorError(400, "free_follow_up_visits must be a non-negative number");
-    }
-    data = { ...data, free_follow_up_visits: Math.trunc(visits) };
-  }
-
-  const updated = await tenantRepo.update(id, data);
+  const updated = await tenantRepo.update(id, patch);
   return updated ?? null;
 }

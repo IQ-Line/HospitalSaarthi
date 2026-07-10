@@ -1,0 +1,25 @@
+{
+  "name": "ts-sdk-errors",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/ts-sdk-errors/src",
+  "projectType": "library",
+  "tags": ["scope:sdk", "type:sdk"],
+  "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-errors"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec vitest run",
+        "cwd": "packages/ts-sdk-errors"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    }
+  }
+}

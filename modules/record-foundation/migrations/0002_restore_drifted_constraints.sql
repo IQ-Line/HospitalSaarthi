@@ -1,0 +1,3 @@
+ALTER TABLE "record_foundation"."bundles" ADD CONSTRAINT "fk_bundles_care_context" FOREIGN KEY ("iq_tenant_id","care_context_id") REFERENCES "record_foundation"."care_contexts"("iq_tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "record_foundation"."care_contexts" ADD CONSTRAINT "chk_care_contexts_source_origin" CHECK ("source_origin" in ('platform_module', 'legacy_system', 'external_abdm'));--> statement-breakpoint
+ALTER TABLE "record_foundation"."care_contexts" ADD CONSTRAINT "chk_care_contexts_status" CHECK ("status" in ('active', 'inactive', 'archived'));

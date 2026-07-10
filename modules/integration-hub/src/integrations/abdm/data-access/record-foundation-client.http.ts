@@ -1,4 +1,5 @@
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type {
   CareContextRef,
   HealthRecordBundleEntry,
@@ -25,7 +26,7 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
     if (!this.baseUrl) return [];
     const url = new URL(
       "/api/record-foundation/v1/care-contexts",
-      this.baseUrl.replace(/\/+$/, ""),
+      stripTrailingSlashes(this.baseUrl),
     );
     url.searchParams.set("patient_id", input.patientId);
     url.searchParams.set("status", "active");
@@ -64,7 +65,7 @@ export class HttpRecordFoundationClient implements RecordFoundationClient {
   }): Promise<HealthRecordBundleEntry[]> {
     if (!this.baseUrl) return [];
     const encoded = encodeURIComponent(input.careContextId);
-    const url = `${this.baseUrl.replace(/\/+$/, "")}/api/record-foundation/v1/care-contexts/${encoded}/bundles`;
+    const url = `${stripTrailingSlashes(this.baseUrl)}/api/record-foundation/v1/care-contexts/${encoded}/bundles`;
     const res = await fetchWithTimeout(url, {
       method: "GET",
       headers: {

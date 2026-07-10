@@ -11,8 +11,8 @@ export {
   createQueueProjectionRepo,
   DrizzleQueueProjectionRepo,
   createOpdQueueProjectionRepo,
-  DrizzleOpdQueueProjectionRepo,
 } from "./data-access/queue-projection.repo.js";
+export type { DrizzleOpdQueueProjectionRepo } from "./data-access/queue-projection.repo.js";
 export { registerPharmacyHandlers } from "./rest-handlers/pharmacy.handlers.js";
 
 export type {

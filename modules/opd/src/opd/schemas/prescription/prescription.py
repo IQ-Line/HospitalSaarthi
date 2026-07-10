@@ -58,6 +58,7 @@ class PrescriptionSymptomPayload(BaseModel):
 class PrescriptionMedicalHistoryPayload(BaseModel):
     smoking_status: str | None = None
     alcohol_status: str | None = None
+    diet_type: str | None = None
     other_notes: str | None = None
 
 
@@ -119,6 +120,7 @@ class PrescriptionOrderedImagingPayload(BaseModel):
     external_id: str | None = None
     name: str
     due_by: datetime | None = None
+    when_text: str | None = None
     instructions: str | None = None
     status: OrderItemStatus = OrderItemStatus.PENDING
 
@@ -180,10 +182,10 @@ class PrescriptionClinicalPayload(BaseModel):
 
 
 class PrescriptionCreate(BaseModel):
-    tenant_id: UUID
+    # tenant_id and doctor_id are resolved from request headers (not the body) — see
+    # core/tenant.py require_tenant_id and core/principal.py resolve_doctor_id.
     visit_id: UUID  # Same UUID as registration.registration.visit_id (registration module)
     patient_id: UUID
-    doctor_id: UUID
     vitals_schema_version: int = 1
     created_by: UUID | None = None
     clinical: PrescriptionClinicalPayload = Field(default_factory=PrescriptionClinicalPayload)

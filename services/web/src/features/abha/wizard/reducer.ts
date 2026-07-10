@@ -83,10 +83,18 @@ export function createInitialAbhaWizardState(flow: AbhaWizardFlow = 'create'): A
   };
 }
 
-export function abhaWizardReducer(
+const AADHAAR_SEG_KEY = { 1: 'seg1', 2: 'seg2', 3: 'seg3' } as const;
+const AADHAAR_MASK_KEY = { 1: 'maskSeg1', 2: 'maskSeg2', 3: 'maskSeg3' } as const;
+
+// Each sub-reducer owns one slice of the action union and returns the next state,
+// or null when the action does not belong to that slice. The top-level reducer
+// chains them, so the per-function `switch` stays small and below the cognitive
+// complexity threshold while preserving every action -> state mapping exactly.
+
+function reduceLifecycle(
   state: AbhaWizardState,
   action: AbhaWizardAction,
-): AbhaWizardState {
+): AbhaWizardState | null {
   switch (action.type) {
     case 'OPEN': {
       const initial = createInitialAbhaWizardState(action.flow);
@@ -99,20 +107,48 @@ export function abhaWizardReducer(
       return createInitialAbhaWizardState(state.flow);
     case 'SET_STEP':
       return { ...state, step: action.step };
-    case 'SET_AADHAAR_SEG': {
-      const key = action.index === 1 ? 'seg1' : action.index === 2 ? 'seg2' : 'seg3';
+    case 'SET_SUBMITTING':
+      return { ...state, isSubmitting: action.isSubmitting };
+    case 'SET_PROFILE_DISPLAY':
       return {
         ...state,
-        aadhaar: { ...state.aadhaar, [key]: action.value, error: null },
+        profileDisplay: action.profileDisplay,
+        profileAccount: action.profileAccount,
       };
-    }
+    case 'SET_VERIFY_SNAPSHOT':
+      return { ...state, verifySnapshot: action.snapshot };
+    default:
+      return null;
+  }
+}
+
+function reduceAadhaar(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState | null {
+  switch (action.type) {
+    case 'SET_AADHAAR_SEG':
+      return {
+        ...state,
+        aadhaar: { ...state.aadhaar, [AADHAAR_SEG_KEY[action.index]]: action.value, error: null },
+      };
     case 'SET_AADHAAR_ERROR':
       return { ...state, aadhaar: { ...state.aadhaar, error: action.error } };
-    case 'SET_MASK_SEG': {
-      const key =
-        action.index === 1 ? 'maskSeg1' : action.index === 2 ? 'maskSeg2' : 'maskSeg3';
-      return { ...state, aadhaar: { ...state.aadhaar, [key]: action.masked } };
-    }
+    case 'SET_MASK_SEG':
+      return {
+        ...state,
+        aadhaar: { ...state.aadhaar, [AADHAAR_MASK_KEY[action.index]]: action.masked },
+      };
+    default:
+      return null;
+  }
+}
+
+function reduceConsent(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState | null {
+  switch (action.type) {
     case 'SET_CONSENT_ITEM':
       return {
         ...state,
@@ -152,6 +188,16 @@ export function abhaWizardReducer(
         ...state,
         consent: { ...state.consent, isLoginAadhaarConsent: action.value },
       };
+    default:
+      return null;
+  }
+}
+
+function reduceOtpSession(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState | null {
+  switch (action.type) {
     case 'INIT_OTP_SESSION':
       return {
         ...state,
@@ -193,6 +239,16 @@ export function abhaWizardReducer(
       const next = state.otpSession.resendCooldown <= 1 ? 0 : state.otpSession.resendCooldown - 1;
       return { ...state, otpSession: { ...state.otpSession, resendCooldown: next } };
     }
+    default:
+      return null;
+  }
+}
+
+function reduceLogin(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState | null {
+  switch (action.type) {
     case 'SET_LOGIN_ABHA_SEGMENTS':
       return {
         ...state,
@@ -263,16 +319,16 @@ export function abhaWizardReducer(
         ...state,
         login: { ...state.login, abhaAddress: '', abhaAddressError: null },
       };
-    case 'SET_SUBMITTING':
-      return { ...state, isSubmitting: action.isSubmitting };
-    case 'SET_PROFILE_DISPLAY':
-      return {
-        ...state,
-        profileDisplay: action.profileDisplay,
-        profileAccount: action.profileAccount,
-      };
-    case 'SET_VERIFY_SNAPSHOT':
-      return { ...state, verifySnapshot: action.snapshot };
+    default:
+      return null;
+  }
+}
+
+function reduceAddress(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState | null {
+  switch (action.type) {
     case 'SET_ADDRESS_SUGGESTIONS':
       return { ...state, address: { ...state.address, suggestions: action.suggestions } };
     case 'SET_ADDRESS_LOCAL':
@@ -300,6 +356,26 @@ export function abhaWizardReducer(
         },
       };
     default:
-      return state;
+      return null;
   }
+}
+
+const SLICE_REDUCERS = [
+  reduceLifecycle,
+  reduceAadhaar,
+  reduceConsent,
+  reduceOtpSession,
+  reduceLogin,
+  reduceAddress,
+];
+
+export function abhaWizardReducer(
+  state: AbhaWizardState,
+  action: AbhaWizardAction,
+): AbhaWizardState {
+  for (const reduce of SLICE_REDUCERS) {
+    const next = reduce(state, action);
+    if (next !== null) return next;
+  }
+  return state;
 }

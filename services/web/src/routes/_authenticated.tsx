@@ -24,6 +24,30 @@ import { useTenantStore } from '@/stores/tenant.store';
 const EMPTY_CAPABILITY_RETRY_MAX = 3;
 const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
 
+/** Redirect to /change-password when the principal must rotate their password. */
+async function enforcePasswordChange(pathname: string): Promise<void> {
+  if (pathname === '/change-password') {
+    return;
+  }
+  const { mustChangePassword } = useAuthStore.getState();
+  if (mustChangePassword === true) {
+    throw redirect({ to: '/change-password' });
+  }
+  if (mustChangePassword === null) {
+    try {
+      const profile = await fetchAuthMe();
+      if (profile.must_change_password === true) {
+        throw redirect({ to: '/change-password' });
+      }
+    } catch (err) {
+      if (err && typeof err === 'object' && 'to' in err) {
+        throw err;
+      }
+      /* auth/me may fail transiently; allow shell to load */
+    }
+  }
+}
+
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ context, location }: { context: RouterContext; location: { pathname: string } }) => {
     const { isAuthenticated } = useAuthStore.getState();
@@ -31,27 +55,7 @@ export const Route = createFileRoute('/_authenticated')({
       throw redirect({ to: '/login' });
     }
     await refreshAuthorizationContext(context.queryClient);
-
-    const onChangePassword = location.pathname === '/change-password';
-    if (!onChangePassword) {
-      const { mustChangePassword } = useAuthStore.getState();
-      if (mustChangePassword === true) {
-        throw redirect({ to: '/change-password' });
-      }
-      if (mustChangePassword === null) {
-        try {
-          const profile = await fetchAuthMe();
-          if (profile.must_change_password === true) {
-            throw redirect({ to: '/change-password' });
-          }
-        } catch (err) {
-          if (err && typeof err === 'object' && 'to' in err) {
-            throw err;
-          }
-          /* auth/me may fail transiently; allow shell to load */
-        }
-      }
-    }
+    await enforcePasswordChange(location.pathname);
   },
   component: AuthenticatedLayout,
 });

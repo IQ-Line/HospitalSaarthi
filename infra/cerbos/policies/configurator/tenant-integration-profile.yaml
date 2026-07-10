@@ -1,0 +1,60 @@
+---
+# Configurator tenant_integration_profile — platform provisioning surface (configurator schema).
+# Capability-gated with NO tenant equality (capabilities are platform-operator scoped).
+# Reads are authorization decisions here: integration credentials are cross-tenant platform data.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "configurator:tenant_integration_profile"
+  version: default
+  rules:
+    - actions: ["create"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-integration-profile:create" in request.principal.attr.capabilities ||
+            "configurator:tenant-integration-profile:create" in request.principal.attr.delegated_capabilities
+
+    - actions: ["read"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-integration-profile:read" in request.principal.attr.capabilities ||
+            "configurator:tenant-integration-profile:read" in request.principal.attr.delegated_capabilities
+
+    - actions: ["update"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-integration-profile:update" in request.principal.attr.capabilities ||
+            "configurator:tenant-integration-profile:update" in request.principal.attr.delegated_capabilities
+
+    - actions: ["delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            "configurator:tenant-integration-profile:delete" in request.principal.attr.capabilities ||
+            "configurator:tenant-integration-profile:delete" in request.principal.attr.delegated_capabilities
+
+    # --- Bounded platform operator (scope:platform) — additive allow ---
+    # Replaces the former god-mode super-admin: authority is the platform scope issued from
+    # platform_admins membership (JWT `scopes` -> principal.attr.scopes), NOT a capability nor
+    # the "super-admin" role string. No tenant equality — the operator is inherently
+    # cross-tenant. Clinical policies (opd/pharmacy/registration/empi/inventory/billing)
+    # intentionally omit this rule; that omission is the bound. Capability rules above are
+    # untouched (delegated tenant-admins keep working).
+    - actions: ["create", "read", "update", "delete"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            has(request.principal.attr.scopes) &&
+            "platform" in request.principal.attr.scopes

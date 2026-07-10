@@ -2,8 +2,9 @@
 ---
 name: role_cross_tenant_provision_test
 description: >-
-  Platform operator provisions roles in a new tenant via iq_tenant_id header.
-  Cerbos principal.roles may be __hims_authenticated__ only; role_codes + capabilities authorize.
+  Bounded platform operator (scope:platform) provisions roles in a new tenant cross-tenant.
+  Authority is the platform scope, NOT the "super-admin" role string; capabilities alone,
+  without the scope, do NOT authorize cross-tenant provisioning (tenant-equality guard applies).
 
 principals:
   platform_operator_pep:
@@ -14,8 +15,30 @@ principals:
       iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
       org_id: null
       department: null
-      role_codes:
-        - "super-admin"
+      role_codes: []
+      scopes:
+        - "platform"
+      capabilities:
+        - "user-roles:user-roles:create"
+        - "users:users:create"
+        - "user-roles:role:assign"
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Same wire shape and capabilities, but the operator grant is stripped:
+  # no platform scope. Capabilities alone
+  # must NOT authorize cross-tenant provisioning (tenant-equality guard applies).
+  tenant_admin_no_operator_grant:
+    id: tenant-admin-user
+    roles:
+      - "__hims_authenticated__"
+    attr:
+      iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480"
+      org_id: null
+      department: null
+      role_codes: []
+      scopes: []
       capabilities:
         - "user-roles:user-roles:create"
         - "users:users:create"
@@ -63,3 +86,14 @@ tests:
         resource: home_tenant_role
         actions:
           role.create: EFFECT_ALLOW
+
+  - name: role.create — cross-tenant DENIED without operator grant (capabilities alone)
+    input:
+      principals: [tenant_admin_no_operator_grant]
+      resources: [new_tenant_role]
+      actions: [role.create]
+    expected:
+      - principal: tenant_admin_no_operator_grant
+        resource: new_tenant_role
+        actions:
+          role.create: EFFECT_DENY

@@ -1,6 +1,6 @@
 import "./load-env.js";
 import path from "node:path";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb, sql } from "@hims/ts-sdk-db";
@@ -38,14 +38,28 @@ import {
   requireCallbackSecurityInProd,
   requireSessionTokenCryptoInProd,
   INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES,
+  createIntegrationHubAuthzTargetResolver,
   type IntegrationHubSharedInfra,
+  type PlatformCapabilityGuardInstaller,
 } from "@hims/integration-hub";
 import {
   normalizeIntegrationHubEnvAliases,
   resolveDatabaseUrlFromEnv,
   serviceRoot,
 } from "./load-env.js";
-import { validateAuthConfig } from "@hims/ts-sdk-identity";
+import { identityPlugin, validateAuthConfig } from "@hims/ts-sdk-identity";
+import { assertCerbosReachable, authzPlugin } from "@hims/ts-sdk-authz";
+import {
+  DrizzleUserRepository,
+  DrizzlePrincipalRoleProjectionRepository,
+  DrizzlePrincipalAuthorizationRepository,
+  DrizzleCapabilityRepository,
+  createPepRuntimeAuthFromUrls,
+  requirePepUpstreamBaseUrl,
+  principalRoleEnricherPlugin,
+} from "@hims/user-management";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerHttpErrorHandler } from "./http-errors.js";
 
 normalizeIntegrationHubEnvAliases();
@@ -56,7 +70,6 @@ const PORT = Number(
   process.env["INTEGRATION_HUB_SVC_PORT"] ?? process.env["ABDM_ADAPTER_SVC_PORT"] ?? 3007,
 );
 const DATABASE_URL = resolveDatabaseUrlFromEnv();
-const ENABLE_AUTH = process.env["ENABLE_AUTH"] === "true";
 
 const GATEWAY_BASE_URL =
   process.env["INTEGRATION_HUB_ABDM_GATEWAY_BASE_URL"] ??
@@ -92,28 +105,73 @@ const fastifyAjv = {
   },
 };
 
-async function main() {
-  if (!DATABASE_URL) {
+type FastifyApp = ReturnType<typeof Fastify>;
+
+function assertDatabaseUrl(databaseUrl: string): asserts databaseUrl is string {
+  if (!databaseUrl) {
     throw new Error(
       "INTEGRATION_HUB_DATABASE_URL, ABDM_DATA_DATABASE_URL, or DATABASE_URL is required",
     );
   }
+}
 
+async function verifyDbConnection(app: FastifyApp, db: ReturnType<typeof createDb>): Promise<void> {
+  try {
+    await db.execute(sql`select 1`);
+    app.log.info("Database connection verified");
+  } catch (dbErr) {
+    app.log.error(dbErr, "Database connection failed at startup");
+    throw new Error(
+      "Cannot connect to Postgres — check DATABASE_URL (Azure: add ?sslmode=require)",
+      { cause: dbErr },
+    );
+  }
+}
+
+function warnIfConfiguratorKeyMissing(app: FastifyApp): void {
+  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
+  if (!configuratorInternalApiKey && process.env["NODE_ENV"] === "production") {
+    app.log.warn(
+      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
+    );
+  }
+}
+
+function createEmpiClient(): IntegrationHubSharedInfra["empi"] {
+  if (ABDM_M2_MOCK_PLATFORM) return new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID);
+  if (EMPI_BASE_URL) return new HttpEmpiClient(EMPI_BASE_URL);
+  return new NoOpEmpiClient();
+}
+
+function createRecordFoundationClient(): IntegrationHubSharedInfra["recordFoundation"] {
+  if (ABDM_M2_MOCK_PLATFORM) return new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS);
+  if (RECORD_FOUNDATION_BASE_URL)
+    return new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL);
+  return new NoOpRecordFoundationClient();
+}
+
+async function main() {
   const app = Fastify({ logger: true, ajv: fastifyAjv });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start integration-hub-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route — including the /api/v3 ABDM gateway
+  // callbacks and health — gets an id bound to request.log and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // Base RFC 7807 wiring: supplies the problem+json not-found handler and a correlation-aware
+  // fallback. registerHttpErrorHandler below then OVERRIDES setErrorHandler to preserve the
+  // ABDM-specific mappings (NHA gateway upstream, integration-profile, envelope, PG hints).
+  // Layered deliberately — the ABDM error shapes are consumed by ABDM flows and must not change.
+  registerProblemErrorHandler(app);
   registerHttpErrorHandler(app);
 
-  if (!ENABLE_AUTH) {
-    const env = process.env["NODE_ENV"] ?? "development";
-    if (env === "production" || env === "staging") {
-      app.log.error(
-        "ENABLE_AUTH is false — M1 routes are open to anyone with a tenant UUID. Set ENABLE_AUTH=true and JWT_ISSUER, JWT_AUDIENCE, JWKS_URL before staging/production.",
-      );
-    } else {
-      app.log.warn(
-        "ENABLE_AUTH is false — local dev only. M1 enrol/profile APIs trust x-tenant-id alone.",
-      );
-    }
-  }
+  assertDatabaseUrl(DATABASE_URL);
 
   await registerOpenApiDocs(app, {
     serviceId: "integration-hub",
@@ -132,22 +190,9 @@ async function main() {
   app.get("/api/abdm/v1/healthz", healthzHandler);
 
   const db = createDb(DATABASE_URL);
-  try {
-    await db.execute(sql`select 1`);
-    app.log.info("Database connection verified");
-  } catch (dbErr) {
-    app.log.error(dbErr, "Database connection failed at startup");
-    throw new Error(
-      "Cannot connect to Postgres — check DATABASE_URL (Azure: add ?sslmode=require)",
-    );
-  }
+  await verifyDbConnection(app, db);
 
-  const configuratorInternalApiKey = process.env["CONFIGURATOR_INTERNAL_API_KEY"]?.trim();
-  if (!configuratorInternalApiKey && (process.env["NODE_ENV"] === "production" || ENABLE_AUTH)) {
-    app.log.warn(
-      "CONFIGURATOR_INTERNAL_API_KEY unset — configurator by-tenant/by-hip profile lookup may fail when configurator enforces internal key auth",
-    );
-  }
+  warnIfConfiguratorKeyMissing(app);
 
   const profiles = ConfiguratorHttpIntegrationProfileRepo.fromEnv();
   const eventBus = new InProcessEventBus();
@@ -158,19 +203,11 @@ async function main() {
   const inboundMessages = new DrizzleInboundMessagesRepo(db);
   const linkTokens = new DrizzleLinkTokensRepo(db);
   const consentArtefacts = new DrizzleConsentArtefactsRepo(db);
-  const empi = ABDM_M2_MOCK_PLATFORM
-    ? new MockEmpiClient(ABDM_MOCK_ABHA_ADDRESS, ABDM_MOCK_PATIENT_ID)
-    : EMPI_BASE_URL
-      ? new HttpEmpiClient(EMPI_BASE_URL)
-      : new NoOpEmpiClient();
+  const empi = createEmpiClient();
   const registration = REGISTRATION_BASE_URL
     ? new HttpRegistrationClient(REGISTRATION_BASE_URL)
     : new NoOpRegistrationClient();
-  const recordFoundation = ABDM_M2_MOCK_PLATFORM
-    ? new MockRecordFoundationClient(ABDM_MOCK_ABHA_ADDRESS)
-    : RECORD_FOUNDATION_BASE_URL
-      ? new HttpRecordFoundationClient(RECORD_FOUNDATION_BASE_URL)
-      : new NoOpRecordFoundationClient();
+  const recordFoundation = createRecordFoundationClient();
   if (ABDM_M2_MOCK_PLATFORM) {
     app.log.warn(
       "ABDM_M2_MOCK_PLATFORM=true — EMPI/Record Foundation use in-memory mocks",
@@ -238,22 +275,65 @@ async function main() {
     await registerScanShareCallbackRoutes(v3, sharedInfra);
   }, { prefix: "/api/v3" });
 
-  const abdmRouter = createRouter(sharedInfra);
+  // Capability PEP for the user-facing M2/M3 platform routes (care-context linking +
+  // HIU consent/health-data). Built here (service owns the auth deps) and installed only
+  // onto the gated child scope inside the router; M0/M1/scan-share stay identity-only and
+  // the /api/v3 gateway callbacks are never wrapped by this PEP.
+  if (!process.env["CERBOS_URL"] || process.env["CERBOS_URL"].trim() === "") {
+    throw new Error("CERBOS_URL is required for integration-hub-svc capability authorization");
+  }
+  const cerbosUrl = process.env["CERBOS_URL"].trim();
+  await assertCerbosReachable(cerbosUrl);
 
-  const identityAuth = ENABLE_AUTH ? validateAuthConfig() : undefined;
+  const userRepository = new DrizzleUserRepository(db);
+  const principalRoleProjectionRepository = new DrizzlePrincipalRoleProjectionRepository(db);
+  const principalAuthorizationRepository = new DrizzlePrincipalAuthorizationRepository(db);
+  const capabilityRepository = new DrizzleCapabilityRepository(db);
+
+  const configuratorUrl = requirePepUpstreamBaseUrl("CONFIGURATOR_URL");
+  const masterDataUrl = requirePepUpstreamBaseUrl("MASTER_DATA_URL");
+
+  const { principalService } = createPepRuntimeAuthFromUrls({
+    configuratorUrl,
+    masterDataUrl,
+    userRepository,
+    principalRoleProjectionRepository,
+    principalAuthorizationRepository,
+    capabilityRepository,
+    log: (event, message) => app.log.info(event, message),
+  });
+
+  const installPlatformCapabilityGuards: PlatformCapabilityGuardInstaller = async (gated) => {
+    await gated.register(principalRoleEnricherPlugin, {
+      principalService,
+      userRepository,
+    });
+    await gated.register(authzPlugin, {
+      cerbosUrl,
+      resolveTarget: createIntegrationHubAuthzTargetResolver(),
+    });
+  };
+
+  const abdmRouter = createRouter(sharedInfra, installPlatformCapabilityGuards);
+
+  // Identity is ALWAYS on. validateAuthConfig() throws if JWKS_URL/JWT_ISSUER/JWT_AUDIENCE
+  // are unset — a service terminating ABHA (M1) and consent (M3) APIs must never boot
+  // without JWT verification. There is no opt-out flag.
+  const identityAuth = validateAuthConfig();
 
   await app.register(async (api) => {
     await api.register(tenantPlugin);
 
     await api.register(async (scopedApp) => {
-      if (identityAuth) {
-        const { identityPlugin } = await import("@hims/ts-sdk-identity");
-        // Platform JWT only on /api/abdm/v1 — never on /api/v3 NHA callbacks (gateway Bearer JWS).
-        await scopedApp.register(identityPlugin, {
-          ...identityAuth,
-          skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
-        });
-      }
+      // Platform JWT gate on /api/abdm/v1. NHA gateway callbacks live on the /api/v3
+      // scope (registered above, OUTSIDE this plugin) and authenticate via gateway
+      // signatures/session semantics, not our JWT. skipPathPrefixes exempts only health +
+      // docs; every platform-facing route (M1/M2/M3/scan-share/bridge discovery) requires
+      // a verified token.
+      await scopedApp.register(identityPlugin, {
+        ...identityAuth,
+        skipPathPrefixes: [...INTEGRATION_HUB_IDENTITY_SKIP_PATH_PREFIXES, "/docs"],
+      });
       await scopedApp.register(abdmRouter);
     }, { prefix: "/abdm/v1" });
   }, { prefix: "/api" });
@@ -276,6 +356,7 @@ async function main() {
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start integration-hub-svc:", err);
   process.exit(1);
 });

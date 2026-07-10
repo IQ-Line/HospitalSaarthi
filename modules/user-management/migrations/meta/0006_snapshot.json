@@ -1,0 +1,1404 @@
+{
+  "id": "fda2e1b2-4c96-4701-ad58-9770bd1e2821",
+  "prevId": "2e8f8ef6-a393-4a58-9c6f-74f46e8a804f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "user_management.capabilities": {
+      "name": "capabilities",
+      "schema": "user_management",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "capability_key": {
+          "name": "capability_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module": {
+          "name": "module",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "feature": {
+          "name": "feature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "source_module_slug": {
+          "name": "source_module_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_permission_slug": {
+          "name": "source_permission_slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source_catalog": {
+          "name": "source_catalog",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_capabilities_module_feature": {
+          "name": "idx_capabilities_module_feature",
+          "columns": [
+            {
+              "expression": "module",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "feature",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "capabilities_id_pk": {
+          "name": "capabilities_id_pk",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_capabilities_key": {
+          "name": "uq_capabilities_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "capability_key"
+          ]
+        },
+        "uq_capabilities_module_feature_action": {
+          "name": "uq_capabilities_module_feature_action",
+          "nullsNotDistinct": false,
+          "columns": [
+            "module",
+            "feature",
+            "action"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "capabilities_key_not_blank_chk": {
+          "name": "capabilities_key_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"capabilities\".\"capability_key\")) > 0"
+        },
+        "capabilities_key_canonical_chk": {
+          "name": "capabilities_key_canonical_chk",
+          "value": "\"user_management\".\"capabilities\".\"capability_key\" = lower(btrim(\"user_management\".\"capabilities\".\"capability_key\"))"
+        },
+        "capabilities_module_not_blank_chk": {
+          "name": "capabilities_module_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"capabilities\".\"module\")) > 0"
+        },
+        "capabilities_feature_not_blank_chk": {
+          "name": "capabilities_feature_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"capabilities\".\"feature\")) > 0"
+        },
+        "capabilities_action_not_blank_chk": {
+          "name": "capabilities_action_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"capabilities\".\"action\")) > 0"
+        },
+        "capabilities_display_name_not_blank_chk": {
+          "name": "capabilities_display_name_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"capabilities\".\"display_name\")) > 0"
+        },
+        "capabilities_source_catalog_chk": {
+          "name": "capabilities_source_catalog_chk",
+          "value": "\"user_management\".\"capabilities\".\"source_catalog\" is null or \"user_management\".\"capabilities\".\"source_catalog\" in ('master_data')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "user_management.delegated_capability_grants": {
+      "name": "delegated_capability_grants",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "source_user_id": {
+          "name": "source_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_id": {
+          "name": "capability_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_delegated_grants_tenant_target_status": {
+          "name": "idx_delegated_grants_tenant_target_status",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "target_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_delegated_grants_tenant_source_user": {
+          "name": "fk_delegated_grants_tenant_source_user",
+          "tableFrom": "delegated_capability_grants",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "source_user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_delegated_grants_tenant_target_user": {
+          "name": "fk_delegated_grants_tenant_target_user",
+          "tableFrom": "delegated_capability_grants",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "target_user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_delegated_grants_capability": {
+          "name": "fk_delegated_grants_capability",
+          "tableFrom": "delegated_capability_grants",
+          "tableTo": "capabilities",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "capability_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "delegated_capability_grants_iq_tenant_id_id_pk": {
+          "name": "delegated_capability_grants_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_delegated_grants_tenant_source_target_capability_start": {
+          "name": "uq_delegated_grants_tenant_source_target_capability_start",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "source_user_id",
+            "target_user_id",
+            "capability_id",
+            "starts_at"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "delegated_capability_grants_status_chk": {
+          "name": "delegated_capability_grants_status_chk",
+          "value": "\"user_management\".\"delegated_capability_grants\".\"status\" in ('pending', 'active', 'revoked', 'expired')"
+        },
+        "delegated_capability_grants_window_chk": {
+          "name": "delegated_capability_grants_window_chk",
+          "value": "\"user_management\".\"delegated_capability_grants\".\"ends_at\" is null or \"user_management\".\"delegated_capability_grants\".\"ends_at\" > \"user_management\".\"delegated_capability_grants\".\"starts_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "user_management.platform_admins": {
+      "name": "platform_admins",
+      "schema": "user_management",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "granted_by": {
+          "name": "granted_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "user_management.role_capabilities": {
+      "name": "role_capabilities",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_id": {
+          "name": "capability_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_role_capabilities_tenant_role": {
+          "name": "idx_role_capabilities_tenant_role",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_role_capabilities_capability": {
+          "name": "idx_role_capabilities_capability",
+          "columns": [
+            {
+              "expression": "capability_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_role_capabilities_tenant_role": {
+          "name": "fk_role_capabilities_tenant_role",
+          "tableFrom": "role_capabilities",
+          "tableTo": "roles",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "role_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "restrict"
+        },
+        "fk_role_capabilities_capability": {
+          "name": "fk_role_capabilities_capability",
+          "tableFrom": "role_capabilities",
+          "tableTo": "capabilities",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "capability_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "role_capabilities_iq_tenant_id_id_pk": {
+          "name": "role_capabilities_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_role_capabilities_tenant_role_capability": {
+          "name": "uq_role_capabilities_tenant_role_capability",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "role_id",
+            "capability_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "user_management.roles": {
+      "name": "roles",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_type": {
+          "name": "role_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_system": {
+          "name": "is_system",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_roles_tenant_status": {
+          "name": "idx_roles_tenant_status",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_roles_tenant_role_type": {
+          "name": "idx_roles_tenant_role_type",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "roles_iq_tenant_id_id_pk": {
+          "name": "roles_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_roles_tenant_code": {
+          "name": "uq_roles_tenant_code",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "roles_code_not_blank_chk": {
+          "name": "roles_code_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"roles\".\"code\")) > 0"
+        },
+        "roles_code_canonical_chk": {
+          "name": "roles_code_canonical_chk",
+          "value": "\"user_management\".\"roles\".\"code\" = lower(btrim(\"user_management\".\"roles\".\"code\"))"
+        },
+        "roles_role_type_not_blank_chk": {
+          "name": "roles_role_type_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"roles\".\"role_type\")) > 0"
+        },
+        "roles_role_type_canonical_chk": {
+          "name": "roles_role_type_canonical_chk",
+          "value": "\"user_management\".\"roles\".\"role_type\" = lower(btrim(\"user_management\".\"roles\".\"role_type\"))"
+        },
+        "roles_display_name_not_blank_chk": {
+          "name": "roles_display_name_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"roles\".\"display_name\")) > 0"
+        },
+        "roles_status_chk": {
+          "name": "roles_status_chk",
+          "value": "\"user_management\".\"roles\".\"status\" in ('active', 'inactive')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "user_management.user_capabilities": {
+      "name": "user_capabilities",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "capability_id": {
+          "name": "capability_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "grant_source": {
+          "name": "grant_source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_role_id": {
+          "name": "source_role_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "granted_by_user_id": {
+          "name": "granted_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "granted_at": {
+          "name": "granted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_by_user_id": {
+          "name": "revoked_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_user_capabilities_tenant_user": {
+          "name": "idx_user_capabilities_tenant_user",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_user_capabilities_tenant_user_revoked": {
+          "name": "idx_user_capabilities_tenant_user_revoked",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "revoked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_user_capabilities_tenant_capability": {
+          "name": "idx_user_capabilities_tenant_capability",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "capability_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_user_capabilities_tenant_user": {
+          "name": "fk_user_capabilities_tenant_user",
+          "tableFrom": "user_capabilities",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_capabilities_capability": {
+          "name": "fk_user_capabilities_capability",
+          "tableFrom": "user_capabilities",
+          "tableTo": "capabilities",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "capability_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_capabilities_tenant_source_role": {
+          "name": "fk_user_capabilities_tenant_source_role",
+          "tableFrom": "user_capabilities",
+          "tableTo": "roles",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "source_role_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_capabilities_tenant_granted_by_user": {
+          "name": "fk_user_capabilities_tenant_granted_by_user",
+          "tableFrom": "user_capabilities",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "granted_by_user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_capabilities_tenant_revoked_by_user": {
+          "name": "fk_user_capabilities_tenant_revoked_by_user",
+          "tableFrom": "user_capabilities",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "revoked_by_user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_capabilities_iq_tenant_id_id_pk": {
+          "name": "user_capabilities_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_user_capabilities_tenant_user_capability": {
+          "name": "uq_user_capabilities_tenant_user_capability",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "user_id",
+            "capability_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "user_capabilities_grant_source_chk": {
+          "name": "user_capabilities_grant_source_chk",
+          "value": "\"user_management\".\"user_capabilities\".\"grant_source\" in ('manual', 'role_template', 'delegated', 'system')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "user_management.user_clearances": {
+      "name": "user_clearances",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clearance_key": {
+          "name": "clearance_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clearance_level": {
+          "name": "clearance_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_user_clearances_tenant_user": {
+          "name": "idx_user_clearances_tenant_user",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_user_clearances_tenant_user": {
+          "name": "fk_user_clearances_tenant_user",
+          "tableFrom": "user_clearances",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_clearances_iq_tenant_id_id_pk": {
+          "name": "user_clearances_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_user_clearances_tenant_user_key": {
+          "name": "uq_user_clearances_tenant_user_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "user_id",
+            "clearance_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "user_clearances_key_not_blank_chk": {
+          "name": "user_clearances_key_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"user_clearances\".\"clearance_key\")) > 0"
+        },
+        "user_clearances_level_not_blank_chk": {
+          "name": "user_clearances_level_not_blank_chk",
+          "value": "length(btrim(\"user_management\".\"user_clearances\".\"clearance_level\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "user_management.user_roles": {
+      "name": "user_roles",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assigned_by_user_id": {
+          "name": "assigned_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "assigned_at": {
+          "name": "assigned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "idx_user_roles_tenant_user": {
+          "name": "idx_user_roles_tenant_user",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_user_roles_tenant_role": {
+          "name": "idx_user_roles_tenant_role",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fk_user_roles_tenant_user": {
+          "name": "fk_user_roles_tenant_user",
+          "tableFrom": "user_roles",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_roles_tenant_role": {
+          "name": "fk_user_roles_tenant_role",
+          "tableFrom": "user_roles",
+          "tableTo": "roles",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "role_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        },
+        "fk_user_roles_tenant_assigned_by_user": {
+          "name": "fk_user_roles_tenant_assigned_by_user",
+          "tableFrom": "user_roles",
+          "tableTo": "users",
+          "schemaTo": "user_management",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "assigned_by_user_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "restrict"
+        }
+      },
+      "compositePrimaryKeys": {
+        "user_roles_iq_tenant_id_id_pk": {
+          "name": "user_roles_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_user_roles_tenant_user_role": {
+          "name": "uq_user_roles_tenant_user_role",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "user_id",
+            "role_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "user_management.users": {
+      "name": "users",
+      "schema": "user_management",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recovery_tier": {
+          "name": "recovery_tier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
+        },
+        "must_change_password": {
+          "name": "must_change_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "clearance_tier_required": {
+          "name": "clearance_tier_required",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "api_key_prefix": {
+          "name": "api_key_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "api_key_hash": {
+          "name": "api_key_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_users_api_key_prefix": {
+          "name": "idx_users_api_key_prefix",
+          "columns": [
+            {
+              "expression": "api_key_prefix",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"user_management\".\"users\".\"api_key_prefix\" is not null and \"user_management\".\"users\".\"status\" = 'active'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "users_iq_tenant_id_id_pk": {
+          "name": "users_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "uq_users_tenant_username": {
+          "name": "uq_users_tenant_username",
+          "nullsNotDistinct": false,
+          "columns": [
+            "iq_tenant_id",
+            "username"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "users_status_chk": {
+          "name": "users_status_chk",
+          "value": "\"user_management\".\"users\".\"status\" in ('active', 'inactive', 'suspended')"
+        },
+        "users_clearance_tier_chk": {
+          "name": "users_clearance_tier_chk",
+          "value": "\"user_management\".\"users\".\"clearance_tier_required\" >= 0 and \"user_management\".\"users\".\"clearance_tier_required\" <= 3"
+        },
+        "users_recovery_tier_chk": {
+          "name": "users_recovery_tier_chk",
+          "value": "\"user_management\".\"users\".\"recovery_tier\" in ('standard', 'admin_only')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "user_management": "user_management"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

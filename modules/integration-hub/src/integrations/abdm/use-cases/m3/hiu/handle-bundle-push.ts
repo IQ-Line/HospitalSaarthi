@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
-import type { DataFlowNotifyBody } from "@hims/ts-sdk-abha/protocol/m3/hiu-data-fetch.js";
+import type { EncryptedBundlePushBody } from "@hims/ts-sdk-abha/protocol/m3";
+import type { DataFlowNotifyBody } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M3_GATEWAY_PATHS } from "../../../lib/m3-gateway-paths.js";
 import { skipM3OutboundGateway } from "../../../lib/m3-runtime-env.js";
@@ -47,23 +47,18 @@ export async function handleBundlePush(
     return;
   }
 
-  const decryptedParts: string[] = [];
-  try {
-    for (const entry of input.body.entries) {
-      const plain = await deps.fidelius.decryptBundle({
-        encryptedPayload: entry.content,
-        peerPublicKey: peerKey,
-        peerNonce: peerNonce,
-        ourPrivateKey: privateKeyPlain,
-        ourNonce: transfer.hiuNonceB64,
-      });
-      decryptedParts.push(plain);
-    }
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    await failTransfer(deps, transfer, "DECRYPT_FAILED", message);
-    return;
-  }
+  const decryptedParts = await decryptEntries(deps, transfer, input.body.entries, {
+    peerKey,
+    peerNonce,
+    privateKeyPlain,
+  });
+  if (decryptedParts === null) return;
+
+  await deps.m3DataTransfers.patchWithSession({
+    iqTenantId: input.iqTenantId,
+    transferId: transfer.transferId,
+    transfer: { state: M3Hiu.BUNDLES_DECRYPTED },
+  });
 
   const bundleJson = {
     transactionId: input.body.transactionId,
@@ -125,31 +120,13 @@ export async function handleBundlePush(
   };
 
   if (!skipM3OutboundGateway()) {
-    try {
-      await deps.gateway.post({
-        path: M3_GATEWAY_PATHS.dataFlowNotify,
-        body: notifyBody,
-        target: "gateway",
-        requestId: input.inboundRequestId ?? randomUUID(),
-        headers: { "X-HIU-ID": deps.xHiuId },
-      });
-    } catch (e) {
-      const gateway =
-        e instanceof AbdmGatewayError
-          ? {
-              statusCode: e.statusCode,
-              abdmCode: e.abdmCode,
-              message: e.message,
-              responseBody: e.responseBody,
-            }
-          : { message: e instanceof Error ? e.message : String(e) };
-      abdmWarn("abdm.m3.hiu_data_flow_notify_failed", {
-        transferId: transfer.transferId,
-        consentId: transfer.consentId,
-        cmTransactionId: cmTxn,
-        ...gateway,
-      });
-    }
+    await sendDataFlowNotify(deps, {
+      notifyBody,
+      requestId: input.inboundRequestId ?? randomUUID(),
+      transferId: transfer.transferId,
+      consentId: transfer.consentId,
+      cmTransactionId: cmTxn,
+    });
   }
 
   await deps.m3DataTransfers.patchWithSession({
@@ -160,6 +137,80 @@ export async function handleBundlePush(
       ? { sessionId: transfer.sessionId, state: M3Hiu.ACKNOWLEDGED }
       : undefined,
   });
+}
+
+/**
+ * Decrypts every pushed entry in order via Fidelius. On any failure, marks the
+ * transfer failed (DECRYPT_FAILED) and returns `null` so the caller short-circuits;
+ * otherwise returns the plaintext bundle parts in entry order.
+ */
+async function decryptEntries(
+  deps: AbdmAdapterDeps,
+  transfer: { iqTenantId: string; transferId: string; sessionId: string | null; hiuNonceB64: string },
+  entries: EncryptedBundlePushBody["entries"],
+  keys: { peerKey: string; peerNonce: string; privateKeyPlain: string },
+): Promise<string[] | null> {
+  const decryptedParts: string[] = [];
+  try {
+    for (const entry of entries) {
+      const plain = await deps.fidelius.decryptBundle({
+        encryptedPayload: entry.content,
+        peerPublicKey: keys.peerKey,
+        peerNonce: keys.peerNonce,
+        ourPrivateKey: keys.privateKeyPlain,
+        ourNonce: transfer.hiuNonceB64,
+      });
+      decryptedParts.push(plain);
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    await failTransfer(deps, transfer, "DECRYPT_FAILED", message);
+    return null;
+  }
+  return decryptedParts;
+}
+
+/**
+ * Best-effort CM data-flow notify: posts to the gateway and swallows failures by
+ * logging a structured warning (the records are already ingested, so a notify
+ * failure must not roll back the transfer).
+ */
+async function sendDataFlowNotify(
+  deps: AbdmAdapterDeps,
+  args: {
+    notifyBody: DataFlowNotifyBody;
+    requestId: string;
+    transferId: string;
+    consentId: string;
+    cmTransactionId: string;
+  },
+): Promise<void> {
+  try {
+    await deps.gateway.post({
+      path: M3_GATEWAY_PATHS.dataFlowNotify,
+      body: args.notifyBody,
+      target: "gateway",
+      requestId: args.requestId,
+      headers: { "X-HIU-ID": deps.xHiuId },
+    });
+  } catch (e) {
+    const gateway =
+      e instanceof AbdmGatewayError
+        ? {
+            statusCode: e.statusCode,
+            abdmCode: e.abdmCode,
+            message: e.message,
+            responseBody:
+              e.responseBody === undefined ? undefined : JSON.stringify(e.responseBody),
+          }
+        : { message: e instanceof Error ? e.message : String(e) };
+    abdmWarn("abdm.m3.hiu_data_flow_notify_failed", {
+      transferId: args.transferId,
+      consentId: args.consentId,
+      cmTransactionId: args.cmTransactionId,
+      ...gateway,
+    });
+  }
 }
 
 async function failTransfer(

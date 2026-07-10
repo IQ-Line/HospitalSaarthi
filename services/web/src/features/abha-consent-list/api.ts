@@ -190,6 +190,7 @@ export interface StoredConsentSession {
     fromDate: string;
     toDate: string;
     expiryDate: string;
+    hiTypes: string[];
     forAllHips: boolean;
     hipId: string;
   };

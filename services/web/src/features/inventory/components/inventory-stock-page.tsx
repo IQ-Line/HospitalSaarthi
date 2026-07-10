@@ -185,7 +185,7 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
         accessorKey: 'status',
         header: 'Status',
         meta: { label: 'Status' },
-        cell: ({ getValue }) => <InventoryStockStatusLabel status={getValue()} />,
+        cell: ({ getValue }) => <InventoryStockStatusLabel status={getValue<InventoryStockStatus>()} />,
       });
     }
 

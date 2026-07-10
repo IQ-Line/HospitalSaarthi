@@ -1,4 +1,7 @@
-"""Database access for the Visitpad ``allergy_reactions`` catalog (``global_master`` vs ``tenant_master``)."""
+"""Database access for the Visitpad ``allergy_reactions`` catalog.
+
+(``master_global`` vs ``master_tenant``).
+"""
 
 from __future__ import annotations
 
@@ -13,7 +16,10 @@ from app.catalog.visitpad.table_models import visitpad_allergy_reaction_model
 from app.core.catalog_scope import CatalogScope
 from app.repositories.paged_window import fetch_page_with_window_total
 from app.repositories.visitpad._list_filters import append_is_active_filter
-from app.repositories.visitpad.integrity import DuplicateVisitpadCatalogKeyError, is_unique_violation
+from app.repositories.visitpad.integrity import (
+    DuplicateVisitpadCatalogKeyError,
+    is_unique_violation,
+)
 
 
 class VisitpadAllergyReactionRepository:

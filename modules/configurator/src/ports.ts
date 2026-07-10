@@ -88,7 +88,7 @@ export interface TenantIntegrationProfilesRepo {
     iqTenantId: string,
     data: UpdateTenantIntegrationProfileData,
   ): Promise<TenantIntegrationProfile | undefined>;
-  delete(id: string): Promise<boolean>;
+  delete(id: string, iqTenantId: string): Promise<boolean>;
 }
 
 export interface TenantApiKeyRepo {
@@ -152,17 +152,26 @@ export interface InfrastructureModuleCatalogPort {
 }
 
 /**
+ * Cross-module port for the platform module catalog owned by Master Data (`master_global.modules`).
+ * Returns the set of VALID (non-deleted) module ids — the Configurator uses it to drop orphaned /
+ * soft-deleted `tenant_modules` from entitlement hydration WITHOUT querying `master_data.*` directly
+ * (the reach-in its own LLD forbids). Implemented at the service layer as a hand-written HTTP
+ * adapter (decision D3). The result is always AUTHORITATIVE — the adapter does not cache (see the
+ * adapter for why; the destructive deactivation it feeds must not run off stale data).
+ */
+export interface PlatformModuleCatalogPort {
+  listValidModuleIds(): Promise<Set<string>>;
+}
+
+/**
  * Cross-module port for provisioning the admin role, user, and auth account.
  * Implemented at the service layer where user-management + better-auth are available.
  */
 export interface TenantAdminProvisioningPort {
-  checkEmailAvailability(email: string): Promise<void>;
-
   createAuthAccount(input: {
     platformUserId: string;
     tenantId: string;
     fullName: string;
-    email: string;
     password: string;
   }): Promise<{ authUserId: string }>;
 
@@ -187,14 +196,16 @@ export interface TenantAdminProvisioningPort {
     input: {
       userId: string;
       fullName: string;
-      email: string;
+      /** Required login credential (username-primary). */
+      username: string;
+      /** Optional contact email — not the login credential. */
+      email?: string | null;
       phone?: string | null;
-      username?: string | null;
       orgId?: string | null;
       authUserId: string;
       roleId: string;
       roleCapabilityIds: string[];
       actorId: string | null;
     },
-  ): Promise<{ id: string; email: string; full_name: string }>;
+  ): Promise<{ id: string; email: string | null; full_name: string }>;
 }

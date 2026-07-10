@@ -3,10 +3,8 @@ import { useNavigate, useSearch } from '@tanstack/react-router';
 import { DEMO_PATIENT_SEARCH_RESULTS } from '../data/pharmacy-demo-data';
 import { PharmacyPageShell } from './pharmacy-page-shell';
 import { DispensePatientSearch } from './dispense/dispense-patient-search';
-import {
-  PharmacyDispenseWorkspace,
-  type DispensePatientSearchResult,
-} from './dispense/pharmacy-dispense-workspace';
+import { PharmacyDispenseWorkspace } from './dispense/pharmacy-dispense-workspace';
+import type { DispensePatientSearchResult } from '../types/dispense-ui.types';
 
 export function PharmacyDispensePage() {
   const search = useSearch({ from: '/_authenticated/pharmacy/dispense/' });

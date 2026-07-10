@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import { CapabilityGate } from '@/components/capability-gate';
 import { useAnyCapability, useCapability } from '@/hooks/use-capability';
 import { UM_ROLE_ASSIGN, UM_ROLE_READ } from '@/lib/runtime-capability-keys';
 import { roleListOptions, useUserCapabilities } from '../api/queries';
-import type { AppliedRoleTemplate, UserCapabilityGrant } from '../types';
+import type { AppliedRoleTemplate } from '../types';
 import { AssignRoleDialog } from './assign-role-dialog';
 import { ManageRolePermissionsDialog } from './manage-role-permissions-dialog';
 import { UserManagementSectionCard } from './user-management-section-card';
@@ -16,11 +16,10 @@ type UserAccessPanelProps = {
   tenantScope?: string;
 };
 
-function grantsForRole(grants: UserCapabilityGrant[], roleId: string): string[] {
-  return grants
-    .filter((grant) => grant.source_role_id === roleId && grant.revoked_at === null)
-    .map((grant) => grant.capability_id);
-}
+// ADR-0037: role capabilities are resolved live from the role's composition — they are no longer
+// copied per-user, so there is no per-user "granted subset" to read back from the capabilities
+// snapshot. The permission picker below reflects the role's own composition; narrowing a single
+// user below their role (deny overrides via PUT /users/{id}/capabilities) is a follow-up UI.
 
 export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
   const umRoleRead = useCapability(UM_ROLE_READ);
@@ -45,13 +44,7 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
     (capabilitiesSnapshotQuery.data?.role_templates ?? []).map((template) => template.role_id),
   );
   const availableRoles = activeRoles.filter((role) => !appliedRoleIds.has(role.id));
-  const copiedGrants = capabilitiesSnapshotQuery.data?.copied_grants ?? [];
   const appliedRoles = capabilitiesSnapshotQuery.data?.role_templates ?? [];
-
-  const editingRoleGrantedCapabilityIds = useMemo(() => {
-    if (!editingRole) return [];
-    return grantsForRole(copiedGrants, editingRole.role_id);
-  }, [copiedGrants, editingRole]);
 
   return (
     <>
@@ -83,7 +76,6 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
         ) : (
           <ul className="divide-y rounded-lg border">
             {appliedRoles.map((applied) => {
-              const grantedCount = grantsForRole(copiedGrants, applied.role_id).length;
               return (
                 <li
                   key={applied.id}
@@ -92,9 +84,7 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
                   <div>
                     <p className="font-medium">{applied.role.display_name}</p>
                     <p className="text-sm text-muted-foreground">
-                      {grantedCount === 0
-                        ? 'No permissions active yet'
-                        : `${grantedCount} permission${grantedCount === 1 ? '' : 's'} active`}
+                      Grants this role&apos;s permissions.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -130,7 +120,7 @@ export function UserAccessPanel({ userId, tenantScope }: UserAccessPanelProps) {
         userId={userId}
         tenantScope={tenantScope}
         applied={editingRole}
-        grantedCapabilityIds={editingRoleGrantedCapabilityIds}
+        grantedCapabilityIds={[]}
       />
     </>
   );

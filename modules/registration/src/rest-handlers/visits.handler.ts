@@ -1,7 +1,7 @@
-/// <reference path="../fastify.d.ts" />
+import "../fastify.d.ts";
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { ConfiguratorHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
+import type { ConfiguratorHttpPort, RegistrationRepo, VisitRepo } from "../ports.js";
 import type { CreateVisitInput, UpdateVisitInput } from "../domain/visit.types.js";
 import type { VisitStatus } from "../lib/visit-helpers.js";
 import { createVisit } from "../use-cases/create-visit.js";
@@ -43,7 +43,6 @@ export interface VisitsHandlerDeps {
   registrationRepo: RegistrationRepo;
   allocateOpVisitId: (tenantId: string) => Promise<string>;
   eventBus: EventBus;
-  opdGateway?: OpdHttpPort;
   configuratorGateway?: ConfiguratorHttpPort;
 }
 
@@ -110,7 +109,6 @@ export function registerVisitsHandler(app: FastifyInstance, deps: VisitsHandlerD
             visitRepo: deps.visitRepo,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
           },
           request.tenantId,

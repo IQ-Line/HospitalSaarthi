@@ -1,4 +1,4 @@
-/// <reference path="../fastify.d.ts" />
+import "../fastify.d.ts";
 import type { FastifyInstance } from "fastify";
 import type { EventBus } from "@hims/ts-sdk-events";
 import type {
@@ -69,6 +69,10 @@ interface HandlerDeps {
   allocatePatientUhid: (tenantId: string) => Promise<string>;
 }
 
+// PEP-enforced: authz plugin guards only routes whose config sets authMode:"protected" (its
+// onReady probe asserts each resolves to an AuthzTarget). Every route below is protected.
+const protectedRoute = { authMode: "protected" as const };
+
 export function registerPatientsHandler(
   app: FastifyInstance,
   deps: HandlerDeps,
@@ -76,6 +80,7 @@ export function registerPatientsHandler(
   app.post<{ Body: RegisterPatientRequestBody }>(
     "/patients",
     {
+      config: protectedRoute,
       schema: {
         body: createPatientBodySchema,
       },
@@ -148,6 +153,7 @@ export function registerPatientsHandler(
   app.get<{ Querystring: SearchPatientsQuerystring }>(
     "/patients",
     {
+      config: protectedRoute,
       schema: {
         querystring: searchPatientsQuerySchema,
       },
@@ -172,13 +178,24 @@ export function registerPatientsHandler(
         filters,
       );
 
-      return reply.send(result);
+      if (!result.ok) {
+        return reply.code(400).send({
+          statusCode: 400,
+          error: "Bad Request",
+          message:
+            "Provide at least one search criterion: uhid, phone, abha_number, or name (min 2 chars).",
+          code: "patient_search_invalid_query",
+        });
+      }
+
+      return reply.send(result.page);
     },
   );
 
   app.get<{ Querystring: { abha_address: string } }>(
     "/patients/find",
     {
+      config: protectedRoute,
       schema: {
         querystring: findPatientByAbhaQuerySchema,
       },
@@ -212,6 +229,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/find-by-demographics",
     {
+      config: protectedRoute,
       schema: {
         body: findPatientByDemographicsBodySchema,
       },
@@ -258,6 +276,7 @@ export function registerPatientsHandler(
   app.get<{ Params: { id: string } }>(
     "/patients/:id",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
       },
@@ -284,6 +303,7 @@ export function registerPatientsHandler(
   app.patch<{ Params: { id: string }; Body: UpdatePatientRequestBody }>(
     "/patients/:id",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: updatePatientBodySchema,
@@ -311,6 +331,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/status",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: changePatientStatusBodySchema,
@@ -349,6 +370,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/identifiers",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: createIdentifierBodySchema,
@@ -399,6 +421,7 @@ export function registerPatientsHandler(
   app.delete<{ Params: { id: string; identifierId: string } }>(
     "/patients/:id/identifiers/:identifierId",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientAndIdentifierSchema,
       },
@@ -421,6 +444,7 @@ export function registerPatientsHandler(
   app.post<{ Params: { id: string }; Body: CreateAddressRequestBody }>(
     "/patients/:id/addresses",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientIdSchema,
         body: createAddressBodySchema,
@@ -453,6 +477,7 @@ export function registerPatientsHandler(
   }>(
     "/patients/:id/addresses/:addressId",
     {
+      config: protectedRoute,
       schema: {
         params: paramsPatientAndAddressSchema,
         body: updateAddressBodySchema,

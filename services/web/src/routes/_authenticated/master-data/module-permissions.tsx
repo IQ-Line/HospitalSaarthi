@@ -45,7 +45,9 @@ import {
   modulePermissionFormSchema,
   modulePermissionUpdateSchema,
   type ModulePermissionFormValues,
+  type ModulePermissionFormInput,
   type ModulePermissionUpdateValues,
+  type ModulePermissionUpdateInput,
 } from '@/features/master-data/validation';
 import type { ModulePermission } from '@/features/master-data/types';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
@@ -88,7 +90,7 @@ function ModulePermissionsPage() {
   const createMutation = useCreateModulePermission();
   const updateMutation = useUpdateModulePermission();
 
-  const createForm = useForm<ModulePermissionFormValues>({
+  const createForm = useForm<ModulePermissionFormInput, unknown, ModulePermissionFormValues>({
     resolver: zodResolver(modulePermissionFormSchema),
     defaultValues: {
       ...EMPTY_MODULE_PERMISSION_FORM_VALUES,
@@ -96,7 +98,7 @@ function ModulePermissionsPage() {
     },
   });
 
-  const editForm = useForm<ModulePermissionUpdateValues>({
+  const editForm = useForm<ModulePermissionUpdateInput, unknown, ModulePermissionUpdateValues>({
     resolver: zodResolver(modulePermissionUpdateSchema),
     defaultValues: EMPTY_MODULE_PERMISSION_UPDATE_VALUES,
   });
@@ -356,7 +358,7 @@ function ModulePermissionsPage() {
 }
 
 interface ModulePermissionCreateFieldsProps {
-  form: ReturnType<typeof useForm<ModulePermissionFormValues>>;
+  form: ReturnType<typeof useForm<ModulePermissionFormInput, unknown, ModulePermissionFormValues>>;
   modules: Array<{ id: string; name: string; slug: string }>;
   permissions: Array<{ id: string; name: string; slug: string; action: string }>;
 }
@@ -487,7 +489,7 @@ function ModulePermissionCreateFields({
 }
 
 interface ModulePermissionUpdateFieldsProps {
-  form: ReturnType<typeof useForm<ModulePermissionUpdateValues>>;
+  form: ReturnType<typeof useForm<ModulePermissionUpdateInput, unknown, ModulePermissionUpdateValues>>;
 }
 
 function ModulePermissionUpdateFields({ form }: ModulePermissionUpdateFieldsProps) {

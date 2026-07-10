@@ -173,6 +173,76 @@ function validateOptionalHeaderFields(input: GrnFormInput): GrnHeaderFieldErrors
   return errors;
 }
 
+function mapGrnLineField(field: unknown, pathLength: number): keyof GrnLineFieldErrors | null {
+  if (field === "lot_number") return "batch_no";
+  if (
+    field === "purchase_rate" ||
+    field === "item_id" ||
+    field === "grn_qty" ||
+    field === "expiry_date"
+  ) {
+    return field;
+  }
+  if (pathLength === 0) return "item_id";
+  return null;
+}
+
+function applyLineIssues(
+  issues: z.ZodIssue[],
+  filledLines: GrnFormLineInput[],
+  lines: Record<string, GrnLineFieldErrors>,
+): void {
+  for (const issue of issues) {
+    const index = issue.path[0];
+    if (typeof index !== "number" || !filledLines[index]) continue;
+    const lineId = filledLines[index]!.id;
+    const field = issue.path[issue.path.length - 1];
+    const mapped = mapGrnLineField(field, issue.path.length);
+    if (!mapped) continue;
+    const current = lines[lineId] ?? {};
+    if (!current[mapped]) {
+      lines[lineId] = { ...current, [mapped]: issue.message };
+    }
+  }
+}
+
+/** Validate submit-mode GRN lines, populating `lines`; returns a general error or null. */
+function validateSubmitLines(
+  input: GrnFormInput,
+  lines: Record<string, GrnLineFieldErrors>,
+): string | null {
+  const filledLines = input.lines.filter((line) => line.item_id);
+  if (filledLines.length === 0) {
+    return "Add at least one line with an item";
+  }
+
+  const seenItems = new Set<string>();
+  const lineInputs = filledLines.map((line) => ({
+    item_id: line.item_id,
+    grn_qty: line.grn_qty,
+    purchase_rate: line.purchase_rate,
+    lot_number: line.batch_no,
+    expiry_date: line.expiry_date || null,
+    requested_qty: line.required_qty,
+    tracking_mode: line.tracking_mode,
+    is_expirable: line.is_expirable,
+  }));
+
+  for (const line of filledLines) {
+    if (seenItems.has(line.item_id)) {
+      lines[line.id] = { ...(lines[line.id] ?? {}), item_id: "Duplicate item on GRN lines" };
+    } else {
+      seenItems.add(line.item_id);
+    }
+  }
+
+  const linesResult = grnLinesSchema.safeParse(lineInputs);
+  if (!linesResult.success) {
+    applyLineIssues(linesResult.error.issues, filledLines, lines);
+  }
+  return null;
+}
+
 /** Validate GRN form before save draft or submit. */
 export function validateGrnForm(input: GrnFormInput, mode: GrnValidationMode): GrnFormValidationResult {
   const header: GrnHeaderFieldErrors = {};
@@ -195,60 +265,9 @@ export function validateGrnForm(input: GrnFormInput, mode: GrnValidationMode): G
   Object.assign(header, validateOptionalHeaderFields(input));
 
   if (mode === "submit") {
-    const filledLines = input.lines.filter((line) => line.item_id);
-    if (filledLines.length === 0) {
-      return {
-        ok: false,
-        header,
-        lines,
-        general: "Add at least one line with an item",
-      };
-    }
-
-    const seenItems = new Set<string>();
-    const lineInputs = filledLines.map((line) => ({
-      item_id: line.item_id,
-      grn_qty: line.grn_qty,
-      purchase_rate: line.purchase_rate,
-      lot_number: line.batch_no,
-      expiry_date: line.expiry_date || null,
-      requested_qty: line.required_qty,
-      tracking_mode: line.tracking_mode,
-      is_expirable: line.is_expirable,
-    }));
-
-    for (const line of filledLines) {
-      if (seenItems.has(line.item_id)) {
-        lines[line.id] = { ...(lines[line.id] ?? {}), item_id: "Duplicate item on GRN lines" };
-      } else {
-        seenItems.add(line.item_id);
-      }
-    }
-
-    const linesResult = grnLinesSchema.safeParse(lineInputs);
-    if (!linesResult.success) {
-      for (const issue of linesResult.error.issues) {
-        const index = issue.path[0];
-        if (typeof index !== "number" || !filledLines[index]) continue;
-        const lineId = filledLines[index]!.id;
-        const field = issue.path[issue.path.length - 1];
-        const mapped =
-          field === "lot_number"
-            ? "batch_no"
-            : field === "purchase_rate" ||
-                field === "item_id" ||
-                field === "grn_qty" ||
-                field === "expiry_date"
-              ? field
-              : issue.path.length === 0
-                ? "item_id"
-                : null;
-        if (!mapped) continue;
-        const current = lines[lineId] ?? {};
-        if (!current[mapped as keyof GrnLineFieldErrors]) {
-          lines[lineId] = { ...current, [mapped]: issue.message };
-        }
-      }
+    const general = validateSubmitLines(input, lines);
+    if (general) {
+      return { ok: false, header, lines, general };
     }
   }
 

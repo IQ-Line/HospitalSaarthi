@@ -76,9 +76,9 @@ export function resolveActorId(
   request: Pick<FastifyRequest, "user">,
   fallback?: string | null,
 ): string {
-  const user = request.user as { id?: string } | undefined;
-  if (user?.id && user.id.trim().length > 0) {
-    return user.id.trim();
+  const userId = request.user?.userId;
+  if (userId && userId.trim().length > 0) {
+    return userId.trim();
   }
   if (fallback && fallback.trim().length > 0) {
     return fallback.trim();
@@ -191,7 +191,8 @@ export function mapRegistrationAddressToEmpiBody(
 export function stripNonEmpiIntakeFields(
   patient: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { abha_address: _ignored, ...empiBody } = patient;
+  const empiBody = { ...patient };
+  delete empiBody.abha_address;
   return empiBody;
 }
 

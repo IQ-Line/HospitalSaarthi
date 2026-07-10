@@ -37,10 +37,8 @@ function hasSupportedAlg(jwk: JWK, alg: string): boolean {
   if (typeof jwk.alg === "string") {
     return jwk.alg === alg;
   }
-  if (Array.isArray((jwk as JWK & { key_ops?: unknown }).key_ops)) {
-    // key_ops is operational metadata, not algorithm metadata.
-    return true;
-  }
+  // No `alg` on the JWK: key_ops is operational metadata, not algorithm
+  // metadata, so an absent `alg` is treated as supported for the requested alg.
   return true;
 }
 

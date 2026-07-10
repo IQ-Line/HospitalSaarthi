@@ -7,6 +7,7 @@ dependencies = [
     "alembic",
     "azure-storage-blob",
     "fastapi",
+    "hims_sdk_authz",
     "hims_sdk_fhir",
     "pydantic",
     "pydantic-settings",
@@ -17,10 +18,12 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+hims_sdk_authz = { path = "../../packages/py-sdk-authz", editable = true }
 hims_sdk_fhir = { path = "../../packages/py-sdk-fhir", editable = true }
 
 [dependency-groups]
 dev = [
+    "datamodel-code-generator",
     "httpx",
     "pyright",
     "pytest",
@@ -41,6 +44,28 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# The squash baseline (and any migration) embeds authoritative DDL as SQL string
+# literals; line-length is noise there and wrapping would chop the SQL. All other
+# rules (unused imports, bugbear, pyupgrade, ...) still apply to migration files.
+"alembic/versions/*.py" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency-injection idiom puts Depends()/Query()/etc. in argument
+# defaults; these are not the mutable-default footgun B008 targets. Whitelisting
+# them is the FastAPI-canonical fix (see fastapi.tiangolo.com + ruff B008 docs).
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

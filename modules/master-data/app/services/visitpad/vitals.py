@@ -12,7 +12,10 @@ from app.schemas.visitpad.vital import VisitpadVitalCreate, VisitpadVitalUpdate
 
 
 class InvalidVitalRangeError(Exception):
-    def __init__(self, message: str = "critical_low must be less than or equal to critical_high.") -> None:
+    def __init__(
+        self,
+        message: str = "critical_low must be less than or equal to critical_high.",
+    ) -> None:
         self.message = message
         super().__init__(message)
 

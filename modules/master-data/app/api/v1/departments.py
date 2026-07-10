@@ -6,9 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_department_repository, get_session
+from app.api.deps import get_department_repository, get_session, resolve_actor_id
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import department_guard
 from app.repositories.department_repository import DepartmentRepository
 from app.schemas.department import (
     DepartmentCreate,
@@ -33,6 +34,14 @@ from app.services.department_service import (
 )
 
 router = APIRouter(prefix="/departments", tags=["Departments"])
+
+# Tenant catalog: writes are tenant-isolated (capability + iq_tenant_id equality vs the request's
+# catalog scope, super-admin cross-tenant); reads are identity-gate-only. `import` shares the
+# create capability. See infra/cerbos/policies/master_data/department.yaml.
+_GUARD_CREATE = Depends(department_guard("create"))
+_GUARD_IMPORT = Depends(department_guard("import"))
+_GUARD_UPDATE = Depends(department_guard("update"))
+_GUARD_DELETE = Depends(department_guard("delete"))
 
 
 @router.get("", response_model=DepartmentListResponse, summary="List departments")
@@ -59,13 +68,15 @@ def get_departments(
     response_model=DepartmentSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a department",
+    dependencies=[_GUARD_CREATE],
 )
 def post_department(
     payload: DepartmentCreate,
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> DepartmentSingleResponse:
-    row = create_department(repository, payload, actor_id=None)
+    row = create_department(repository, payload, actor_id=actor_id)
     session.commit()
     return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
 
@@ -74,11 +85,13 @@ def post_department(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import departments from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_departments_import_from_platform(
     payload: VisitpadPlatformImportRequest,
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> VisitpadPlatformImportSingleResponse:
     try:
         data = import_departments_from_platform(
@@ -86,6 +99,7 @@ def post_departments_import_from_platform(
             scope=repository.scope,
             tenant_repo=repository,
             platform_row_ids=payload.platform_row_ids,
+            actor_id=actor_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -124,14 +138,16 @@ def get_department_by_id_route(
     "/{department_id}",
     response_model=DepartmentSingleResponse,
     summary="Update a department",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_department(
     department_id: UUID,
     payload: DepartmentUpdate,
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> DepartmentSingleResponse:
-    row = update_department(repository, department_id, payload, actor_id=None)
+    row = update_department(repository, department_id, payload, actor_id=actor_id)
     session.commit()
     return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))
 
@@ -140,12 +156,14 @@ def patch_department(
     "/{department_id}",
     response_model=DepartmentSingleResponse,
     summary="Soft-delete a department",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_department(
     department_id: UUID,
     repository: Annotated[DepartmentRepository, Depends(get_department_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> DepartmentSingleResponse:
-    row = soft_delete_department(repository, department_id, actor_id=None)
+    row = soft_delete_department(repository, department_id, actor_id=actor_id)
     session.commit()
     return DepartmentSingleResponse(data=DepartmentResponse.model_validate(row))

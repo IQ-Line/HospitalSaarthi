@@ -9,7 +9,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.catalog_scope import CatalogScope
-from app.repositories.inventory.integrity import DuplicateInventoryCatalogKeyError, is_unique_violation
+from app.repositories.inventory.integrity import (
+    DuplicateInventoryCatalogKeyError,
+    is_unique_violation,
+)
 
 
 class ScopedInventoryCatalogRepository:

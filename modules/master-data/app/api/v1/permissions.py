@@ -6,8 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_permission_repository, get_session
+from app.api.deps import get_permission_repository, get_session, resolve_actor_id
 from app.api.errors import ResourceNotFoundError
+from app.core.authz import guard
 from app.repositories.permission_repository import PermissionRepository
 from app.schemas.permission import (
     PermissionAction,
@@ -28,6 +29,11 @@ from app.services.permission_service import (
 
 router = APIRouter(prefix="/permissions", tags=["Permissions"])
 
+# Global catalog: writes are capability-gated (no tenant equality); reads are identity-gate-only.
+_GUARD_CREATE = Depends(guard("master_data:permission", "create"))
+_GUARD_UPDATE = Depends(guard("master_data:permission", "update"))
+_GUARD_DELETE = Depends(guard("master_data:permission", "delete"))
+
 
 @router.get("", response_model=PermissionListResponse, summary="List permission definitions")
 def get_permissions(
@@ -44,13 +50,15 @@ def get_permissions(
     response_model=PermissionSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a permission",
+    dependencies=[_GUARD_CREATE],
 )
 def post_permission(
     payload: PermissionCreate,
     repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> PermissionSingleResponse:
-    row = create_permission(repository, payload, actor_id=None)
+    row = create_permission(repository, payload, actor_id=actor_id)
     session.commit()
     return PermissionSingleResponse(data=PermissionResponse.model_validate(row))
 
@@ -89,14 +97,16 @@ def get_permission_by_id_route(
     "/{permission_id}",
     response_model=PermissionSingleResponse,
     summary="Update a permission",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_permission(
     permission_id: UUID,
     payload: PermissionUpdate,
     repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> PermissionSingleResponse:
-    row = update_permission(repository, permission_id, payload, actor_id=None)
+    row = update_permission(repository, permission_id, payload, actor_id=actor_id)
     session.commit()
     return PermissionSingleResponse(data=PermissionResponse.model_validate(row))
 
@@ -105,12 +115,14 @@ def patch_permission(
     "/{permission_id}",
     response_model=PermissionSingleResponse,
     summary="Soft-delete a permission",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_permission(
     permission_id: UUID,
     repository: Annotated[PermissionRepository, Depends(get_permission_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> PermissionSingleResponse:
-    row = soft_delete_permission(repository, permission_id, actor_id=None)
+    row = soft_delete_permission(repository, permission_id, actor_id=actor_id)
     session.commit()
     return PermissionSingleResponse(data=PermissionResponse.model_validate(row))

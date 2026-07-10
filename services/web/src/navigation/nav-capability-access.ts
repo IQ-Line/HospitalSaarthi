@@ -96,6 +96,31 @@ export function inferRoutePrefixFromRoute(route: string): string | undefined {
   return `/${parts[0]}`;
 }
 
+/** Add a slug and all of its catalog variants to a candidate set. */
+function addSlugWithVariants(target: Set<string>, slug: string): void {
+  target.add(slug);
+  for (const variant of catalogSlugVariants(slug)) {
+    target.add(variant);
+  }
+}
+
+/** Catalog slugs whose fuzzy match against the route segment authorizes the route. */
+function catalogSlugsMatchingSegment(
+  catalogIndex: ModuleCatalogIndex | null | undefined,
+  segment: string,
+): Set<string> {
+  const matches = new Set<string>();
+  if (!catalogIndex) {
+    return matches;
+  }
+  for (const entry of catalogIndex.bySlug.values()) {
+    if (catalogSlugMatchesRouteSegment(entry.slug, segment)) {
+      addSlugWithVariants(matches, entry.slug);
+    }
+  }
+  return matches;
+}
+
 /**
  * Catalog module slugs that may authorize a nav route (explicit override, path segment, catalog fuzzy match).
  */
@@ -110,28 +135,14 @@ export function resolveCatalogModuleSlugsForNavRoute(
   const candidates = new Set<string>();
 
   if (options?.catalogModuleSlug) {
-    candidates.add(options.catalogModuleSlug);
-    for (const variant of catalogSlugVariants(options.catalogModuleSlug)) {
-      candidates.add(variant);
-    }
+    addSlugWithVariants(candidates, options.catalogModuleSlug);
   }
 
   const segment = inferRoutePathSegmentAfterPrefix(route, options?.routePrefix);
   if (segment) {
-    candidates.add(segment);
-    for (const variant of catalogSlugVariants(segment)) {
-      candidates.add(variant);
-    }
-
-    if (options?.catalogIndex) {
-      for (const entry of options.catalogIndex.bySlug.values()) {
-        if (catalogSlugMatchesRouteSegment(entry.slug, segment)) {
-          candidates.add(entry.slug);
-          for (const variant of catalogSlugVariants(entry.slug)) {
-            candidates.add(variant);
-          }
-        }
-      }
+    addSlugWithVariants(candidates, segment);
+    for (const slug of catalogSlugsMatchingSegment(options?.catalogIndex, segment)) {
+      candidates.add(slug);
     }
   }
 
@@ -150,6 +161,30 @@ const VISITPAD_MASTER_SHELL_NAV_ACTIONS = ['read', 'manage', 'create', 'update',
  * `master-data:shell:access` does **not** grant Visitpad catalog routes or the
  * `visitpad-master` nav group — those require `visitpad-master:*` shell/catalog keys or L3 keys.
  */
+/** L1 product of a well-formed `<product>:shell:access` key, else null. */
+function shellAccessKeyL1(rawKey: string): string | null {
+  const parts = normalizeCapabilityKey(rawKey).split(':');
+  if (parts.length !== 3 || parts[1] !== 'shell' || parts[2] !== 'access') {
+    return null;
+  }
+  return parts[0] || null;
+}
+
+/** True when any product slug (or its variant) fuzzy-matches the given L1 segment. */
+function anyProductSlugMatchesL1(catalogProductSlugs: readonly string[], l1: string): boolean {
+  for (const productSlug of catalogProductSlugs) {
+    if (catalogSlugMatchesRouteSegment(productSlug, l1)) {
+      return true;
+    }
+    for (const variant of catalogSlugVariants(productSlug)) {
+      if (catalogSlugMatchesRouteSegment(variant, l1)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function principalHasL1ProductShellAccess(
   capabilityKeys: ReadonlySet<string>,
   catalogProductSlugs: readonly string[],
@@ -164,33 +199,21 @@ export function principalHasL1ProductShellAccess(
   const visitpadMasterNavContext = catalogProductSlugs.some((slug) =>
     catalogSlugMatchesRouteSegment(slug, 'visitpad-master'),
   );
+  // `master-data:shell:access` must not authorize Visitpad routes or the
+  // `visitpad-master` nav group — only `visitpad-master:*` keys do.
+  const masterDataBlockedForVisitpad =
+    isVisitpadRoute || (visitpadMasterNavContext && route == null);
 
   for (const rawKey of capabilityKeys) {
-    const parts = normalizeCapabilityKey(rawKey).split(':');
-    if (parts.length !== 3 || parts[1] !== 'shell' || parts[2] !== 'access') {
-      continue;
-    }
-    const l1 = parts[0];
+    const l1 = shellAccessKeyL1(rawKey);
     if (!l1) {
       continue;
     }
-
-    if (
-      catalogSlugMatchesRouteSegment(l1, 'master-data') &&
-      (isVisitpadRoute || (visitpadMasterNavContext && route == null))
-    ) {
+    if (masterDataBlockedForVisitpad && catalogSlugMatchesRouteSegment(l1, 'master-data')) {
       continue;
     }
-
-    for (const productSlug of catalogProductSlugs) {
-      if (catalogSlugMatchesRouteSegment(productSlug, l1)) {
-        return true;
-      }
-      for (const variant of catalogSlugVariants(productSlug)) {
-        if (catalogSlugMatchesRouteSegment(variant, l1)) {
-          return true;
-        }
-      }
+    if (anyProductSlugMatchesL1(catalogProductSlugs, l1)) {
+      return true;
     }
   }
 
@@ -208,6 +231,14 @@ export function principalGrantsVisitpadMasterShellLeafNav(
   productSlugs: readonly string[],
 ): boolean {
   if (route !== '/visitpad' && !route.startsWith('/visitpad/')) {
+    return false;
+  }
+
+  // `conversions` is independently gated by its own catalog L2 slug
+  // (`unit-conversions:*`); a product-wide `visitpad-master` shell key must not
+  // blanket-grant it. The precise L2 gate upstream still grants it to real holders.
+  const leafSegment = inferRoutePathSegmentAfterPrefix(route, '/visitpad');
+  if (leafSegment?.toLowerCase() === 'conversions') {
     return false;
   }
 
@@ -304,6 +335,139 @@ export function catalogProductSlugsForNode(node: NavigationNode): readonly strin
 }
 
 /**
+ * Explicit `requiredCapabilities*` declarations on the node.
+ * Returns a concrete grant decision, or null when the node declares no explicit
+ * capabilities (so the caller falls through to route/product gating).
+ */
+function evaluateDeclaredCapabilities(
+  input: NavCapabilityAccessInput,
+  node: NavigationNode,
+  productSlugs: readonly string[],
+): boolean | null {
+  if (node.requiredCapabilitiesAll?.length) {
+    return input.hasAllCapabilities(node.requiredCapabilitiesAll);
+  }
+
+  if (node.requiredCapabilities?.length) {
+    if (input.hasAnyCapability(node.requiredCapabilities)) {
+      return true;
+    }
+    if (productSlugs.length && input.hasAnyCapabilityForProduct?.(productSlugs)) {
+      return true;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Module index routes (no L2 path segment): granted by any L2+ key under the L1
+ * product, by the route-prefix slug, or when the node is entirely ungated.
+ */
+function grantsModuleIndexRoute(
+  input: NavCapabilityAccessInput,
+  node: NavigationNode,
+  productSlugs: readonly string[],
+  routePrefix: string | undefined,
+): boolean {
+  if (productSlugs.length && input.hasAnyCapabilityForProduct?.(productSlugs)) {
+    return true;
+  }
+  if (routePrefix) {
+    const prefixSlug = routePrefix.replace(/^\//, '').trim();
+    if (
+      prefixSlug &&
+      capabilityKeysGrantModuleSlugAccess(input.capabilityModuleSegments, [prefixSlug])
+    ) {
+      return true;
+    }
+  }
+  return (
+    !node.requiredCapabilities?.length &&
+    !node.requiredCapabilitiesAll?.length &&
+    productSlugs.length === 0
+  );
+}
+
+/** Access decision for a node that has a concrete `route`. */
+function grantsRoutedNode(
+  input: NavCapabilityAccessInput,
+  node: NavigationNode & { route: string },
+  productSlugs: readonly string[],
+  routePrefixOverride: string | undefined,
+): boolean {
+  const routePrefix = routePrefixOverride ?? inferRoutePrefixFromRoute(node.route);
+  const pathSegment = inferRoutePathSegmentAfterPrefix(node.route, routePrefix);
+
+  // Inventory subtree: routes under the inventory prefix grant on any capability in
+  // the inventory product subtree (transfers, indents, GRN, etc.), not just the exact leaf.
+  if (
+    node.route === INVENTORY_ROUTE_PREFIX ||
+    node.route.startsWith(`${INVENTORY_ROUTE_PREFIX}/`)
+  ) {
+    const inventoryModuleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
+      routePrefix: INVENTORY_ROUTE_PREFIX,
+      catalogModuleSlug: node.catalogModuleSlug,
+      catalogIndex: input.catalogIndex,
+    });
+    return principalGrantsProductSubtreeRouteAccess(input.capabilityKeys, {
+      productSlugs: INVENTORY_CATALOG_PRODUCT_SLUGS,
+      routeModuleSlugs: inventoryModuleSlugs,
+      route: node.route,
+    });
+  }
+
+  const moduleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
+    routePrefix,
+    catalogModuleSlug: node.catalogModuleSlug,
+    catalogIndex: input.catalogIndex,
+  });
+
+  if (principalGrantsCatalogModuleSlugRouteAccess(input.capabilityKeys, moduleSlugs)) {
+    return true;
+  }
+  if (principalGrantsVisitpadMasterShellLeafNav(input.capabilityKeys, node.route, productSlugs)) {
+    return true;
+  }
+  if (principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, node.route)) {
+    return true;
+  }
+  if (!pathSegment) {
+    return grantsModuleIndexRoute(input, node, productSlugs, routePrefix);
+  }
+  return false;
+}
+
+/** Access decision for a node with no route (a nav group). */
+function grantsNavGroup(
+  input: NavCapabilityAccessInput,
+  node: NavigationNode,
+  productSlugs: readonly string[],
+): boolean {
+  // Visitpad Master nav group: `master-data:shell:access` alone must not show the catalog tree.
+  if (node.id === 'visitpad-master') {
+    return (
+      principalGrantsVisitpadMasterShellLeafNav(
+        input.capabilityKeys,
+        '/visitpad',
+        ['visitpad-master'],
+      ) ||
+      input.hasAnyCapabilityForProduct?.(['visitpad-master']) === true
+    );
+  }
+
+  // Other nav groups: visible when product-level access exists; leaves are pruned separately.
+  if (productSlugs.length) {
+    return (
+      input.hasAnyCapabilityForProduct?.(productSlugs) === true ||
+      principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, undefined)
+    );
+  }
+
+  return false;
+}
+
+/**
  * Whether a nav node should be visible for the current principal (UX gate; PDP remains authoritative).
  */
 export function principalGrantsNavNodeAccess(
@@ -323,104 +487,21 @@ export function principalGrantsNavNodeAccess(
     ...(options?.parentProductSlugs ?? []),
   ];
 
-  if (node.requiredCapabilitiesAll?.length) {
-    return input.hasAllCapabilities(node.requiredCapabilitiesAll);
-  }
-
-  if (node.requiredCapabilities?.length) {
-    if (input.hasAnyCapability(node.requiredCapabilities)) {
-      return true;
-    }
-    if (productSlugs.length && input.hasAnyCapabilityForProduct?.(productSlugs)) {
-      return true;
-    }
+  const declared = evaluateDeclaredCapabilities(input, node, productSlugs);
+  if (declared !== null) {
+    return declared;
   }
 
   if (node.route) {
-    const routePrefix = options?.routePrefix ?? inferRoutePrefixFromRoute(node.route);
-    const pathSegment = inferRoutePathSegmentAfterPrefix(node.route, routePrefix);
-    if (
-      node.route === INVENTORY_ROUTE_PREFIX ||
-      node.route.startsWith(`${INVENTORY_ROUTE_PREFIX}/`)
-    ) {
-      const moduleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
-        routePrefix: INVENTORY_ROUTE_PREFIX,
-        catalogModuleSlug: node.catalogModuleSlug,
-        catalogIndex: input.catalogIndex,
-      });
-      return principalGrantsProductSubtreeRouteAccess(input.capabilityKeys, {
-        productSlugs: INVENTORY_CATALOG_PRODUCT_SLUGS,
-        routeModuleSlugs: moduleSlugs,
-        route: node.route,
-      });
-    }
-    const moduleSlugs = resolveCatalogModuleSlugsForNavRoute(node.route, {
-      routePrefix,
-      catalogModuleSlug: node.catalogModuleSlug,
-      catalogIndex: input.catalogIndex,
-    });
-    if (principalGrantsCatalogModuleSlugRouteAccess(input.capabilityKeys, moduleSlugs)) {
-      return true;
-    }
-    if (
-      principalGrantsVisitpadMasterShellLeafNav(
-        input.capabilityKeys,
-        node.route,
-        productSlugs,
-      )
-    ) {
-      return true;
-    }
-    if (principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, node.route)) {
-      return true;
-    }
-    // Module index routes (no L2 path segment): any L2+ key under the L1 product, or route prefix slug.
-    if (!pathSegment) {
-      if (productSlugs.length && input.hasAnyCapabilityForProduct?.(productSlugs)) {
-        return true;
-      }
-      if (routePrefix) {
-        const prefixSlug = routePrefix.replace(/^\//, '').trim();
-        if (
-          prefixSlug &&
-          capabilityKeysGrantModuleSlugAccess(input.capabilityModuleSegments, [prefixSlug])
-        ) {
-          return true;
-        }
-      }
-      if (
-        !node.requiredCapabilities?.length &&
-        !node.requiredCapabilitiesAll?.length &&
-        productSlugs.length === 0
-      ) {
-        return true;
-      }
-      return false;
-    }
-    return false;
-  }
-
-  // Visitpad Master nav group: `master-data:shell:access` alone must not show the catalog tree.
-  if (node.id === 'visitpad-master') {
-    return (
-      principalGrantsVisitpadMasterShellLeafNav(
-        input.capabilityKeys,
-        '/visitpad',
-        ['visitpad-master'],
-      ) ||
-      input.hasAnyCapabilityForProduct?.(['visitpad-master']) === true
+    return grantsRoutedNode(
+      input,
+      node as NavigationNode & { route: string },
+      productSlugs,
+      options?.routePrefix,
     );
   }
 
-  // Nav group (no route): visible when product-level access exists; leaves are pruned separately.
-  if (productSlugs.length) {
-    return (
-      input.hasAnyCapabilityForProduct?.(productSlugs) === true ||
-      principalHasL1ProductShellAccess(input.capabilityKeys, productSlugs, undefined)
-    );
-  }
-
-  return false;
+  return grantsNavGroup(input, node, productSlugs);
 }
 
 export function buildNavCapabilityAccessInput(

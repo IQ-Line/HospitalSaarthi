@@ -44,15 +44,6 @@ def _join_url(base: str, path: str) -> str:
     return f"{b}{p}"
 
 
-def _omit_none(value: Any) -> Any:
-    """Drop null keys — pdf-platform Zod schemas are `.strict()` and reject JSON null on optionals."""
-    if isinstance(value, dict):
-        return {key: _omit_none(item) for key, item in value.items() if item is not None}
-    if isinstance(value, list):
-        return [_omit_none(item) for item in value]
-    return value
-
-
 def _format_pdf_platform_error(status_code: int, reason: str, body: str) -> str:
     if not body.strip():
         return f"pdf-platform render failed: {status_code} {reason}"
@@ -172,7 +163,9 @@ def _post_clinical_report(
     slug = REPORT_SLUG_BY_TYPE[report_type]
     suffix = "/html" if accept.startswith("text/html") else ""
     url = _join_url(settings.pdf_platform_url, f"/v1/pdf/reports/{slug}{suffix}")
-    payload = json.dumps(_omit_none(request_body)).encode("utf-8")
+    # request_body arrives pre-cleaned from build_clinical_report_request
+    # (model_dump(exclude_none=True)) — no None optionals to strip here.
+    payload = json.dumps(request_body).encode("utf-8")
 
     headers = {
         "Content-Type": "application/json",

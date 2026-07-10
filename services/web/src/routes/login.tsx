@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { Button } from '@pulse/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Input } from '@pulse/ui/input';
@@ -15,23 +14,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@pulse/ui/dialog';
-import { completeInteractiveLogin, loginWithCredentials } from '@/lib/auth-session';
+import { authClient } from '@/lib/auth-client';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { queryClient } from '@/lib/query-client';
+import { applyTenantSessionFromAuth } from '@/lib/tenant-session';
 import { useAuthStore } from '@/stores/auth.store';
-
-const signInSchema = z.object({
-  identifier: z
-    .string()
-    .min(1, 'Email or username is required')
-    .superRefine((value, ctx) => {
-      if (value.includes('@') && !z.string().email().safeParse(value).success) {
-        ctx.addIssue({ code: 'custom', message: 'Enter a valid email' });
-      }
-    }),
-  password: z.string().min(1, 'Password is required'),
-});
-
-export type SignInValues = z.infer<typeof signInSchema>;
+import {
+  normalizeUsername,
+  signInSchema,
+  type SignInValues,
+} from '@/features/auth/lib/sign-in-form';
 
 export const Route = createFileRoute('/login')({
   beforeLoad: () => {
@@ -42,31 +34,26 @@ export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
-function resolveLoginErrorMessage(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
-  try {
-    const body = JSON.parse(raw) as { message?: string; code?: string };
-    if (body.code === 'AUTH_INVALID_CREDENTIALS') {
-      return 'Invalid email/username or password';
-    }
-    if (typeof body.message === 'string' && body.message.trim()) {
-      return body.message;
-    }
-  } catch {
-    /* not JSON */
+async function fetchJwt(): Promise<string> {
+  const { data, error } = await authClient.token();
+
+  if (error || !data?.token) {
+    throw new Error(`JWT fetch failed: ${error?.message ?? 'empty response'}`);
   }
-  return raw || 'Sign-in failed';
+
+  return data.token;
 }
 
 function LoginPage() {
   const navigate = useNavigate();
+  const setSession = useAuthStore((s) => s.setSession);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { identifier: '', password: '' },
+    defaultValues: { username: '', password: '' },
   });
 
   async function completeSignIn(
@@ -76,22 +63,24 @@ function LoginPage() {
     const jwt = await fetchJwt();
     const authUser = user as { iq_tenant_id?: string };
 
-    setSession({ accessToken: jwt, sessionToken, userId: user.id, displayName: user.name });
+    // better-auth cookie sessions issue no refresh token; '' disables the silent-refresh
+    // path (all consumers guard with refreshToken?.trim()). FE cutover to POST /auth/login
+    // is a later wave.
+    setSession({
+      accessToken: jwt,
+      refreshToken: '',
+      sessionToken,
+      userId: user.id,
+      displayName: user.name,
+    });
 
     await applyTenantSessionFromAuth({
       accessToken: jwt,
       authUserIqTenantId: authUser.iq_tenant_id ?? null,
     });
 
-    // Fresh entitlement after sign-in (avoids stale UM TTL cache when master-data just recovered).
-    await refreshAuthorizationContext(queryClient, { bypassEntitlementCache: true });
-
-    const profile = await fetchAuthMe();
-    if (profile.must_change_password === true) {
-      navigate({ to: '/change-password' });
-      return;
-    }
-
+    await refreshAuthorizationContext(queryClient);
+    // must_change_password is enforced by the _authenticated layout guard.
     navigate({ to: '/dashboard' });
   }
 
@@ -99,16 +88,25 @@ function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const login = await loginWithCredentials({
-        identifier: values.identifier,
+      const { data, error: authError } = await authClient.signIn.username({
+        username: normalizeUsername(values.username),
         password: values.password,
       });
-      await completeInteractiveLogin(queryClient, login);
-      navigate({
-        to: login.user.must_change_password === true ? '/change-password' : '/dashboard',
-      });
+
+      if (authError) {
+        setError(authError.message ?? 'Sign-in failed');
+        return;
+      }
+
+      const sessionToken = data?.token;
+      if (!sessionToken || !data?.user) {
+        setError('Unexpected response from server');
+        return;
+      }
+
+      await completeSignIn(sessionToken, data.user);
     } catch (err) {
-      setError(resolveLoginErrorMessage(err));
+      setError(err instanceof Error ? err.message : 'Sign-in failed');
     } finally {
       setLoading(false);
     }
@@ -129,18 +127,16 @@ function LoginPage() {
 
           <form onSubmit={form.handleSubmit(handleSignIn)} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="identifier">Email or username</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="identifier"
+                id="username"
                 type="text"
                 autoComplete="username"
-                placeholder="platform or you@hospital.org"
-                {...form.register('identifier')}
+                placeholder="your.username"
+                {...form.register('username')}
               />
-              {form.formState.errors.identifier && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.identifier.message}
-                </p>
+              {form.formState.errors.username && (
+                <p className="text-xs text-destructive">{form.formState.errors.username.message}</p>
               )}
             </div>
             <div className="space-y-1.5">

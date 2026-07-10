@@ -26,7 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from '@pulse/ui/table';
-import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
+import type {
+  CreateVisitRequestBody,
+  VisitRegistrationBillingFeeLine,
+} from '@/features/frontdesk/types';
 import {
   VISIT_REGISTRATION_SECTION_IDS,
   VISIT_REGISTRATION_SECTION_LABELS,
@@ -36,8 +39,6 @@ import {
 import { useDepartments } from '@/features/master-data/api';
 import { useVisitTypePicklistValues } from '@/features/master-data/api/picklists';
 import { useDoctorsForDepartment } from '@/features/billing/hooks/use-doctors-for-department';
-import { useVisitpadVitalsCatalog } from '@/features/visitpad/api';
-import type { VisitpadVital } from '@/features/visitpad/types';
 import {
   VISIT_REGISTRATION_LAB_TEST_CATALOG,
   VISIT_REGISTRATION_PAYMENT_MODES,
@@ -165,15 +166,13 @@ export function VisitRegistrationAppointmentSection({
       enabled: Boolean(departmentId),
     });
 
-  const doctorPlaceholder = !departmentId
-    ? 'Select a department first'
-    : doctorsLoading
-      ? 'Loading doctors…'
-      : doctorsError
-        ? 'Failed to load doctors'
-        : doctorOptions.length > 0
-          ? 'Select doctor'
-          : `No doctors in ${selectedDepartmentName ?? 'this department'}`;
+  const doctorPlaceholder = resolveDoctorPlaceholder({
+    departmentId,
+    doctorsLoading,
+    doctorsError,
+    hasOptions: doctorOptions.length > 0,
+    selectedDepartmentName,
+  });
 
   const departmentPlaceholder = resolveDepartmentPlaceholder(
     departmentsQuery.isPending,
@@ -200,13 +199,11 @@ export function VisitRegistrationAppointmentSection({
     [visitTypesQuery.data, visitTypeCode],
   );
 
-  const visitTypePlaceholder = visitTypesQuery.isPending
-    ? 'Loading visit types…'
-    : visitTypesQuery.isError
-      ? 'Failed to load visit types'
-      : visitTypeOptions.length > 0
-        ? 'Select Visit Type'
-        : 'No visit types configured';
+  const visitTypePlaceholder = resolveVisitTypePlaceholder(
+    visitTypesQuery.isPending,
+    visitTypesQuery.isError,
+    visitTypeOptions.length > 0,
+  );
 
   return (
     <RegistrationSection title="Visit Details">
@@ -217,10 +214,7 @@ export function VisitRegistrationAppointmentSection({
           value={departmentId || '__none__'}
           onValueChange={(v) => {
             const nextId = v === '__none__' ? '' : v;
-            const nextName =
-              nextId === ''
-                ? ''
-                : (departments.find((d) => d.id === nextId)?.name ?? '');
+            const nextName = resolveDepartmentName(nextId, departments);
             setValue('appointment.department_id', nextId);
             setValue('appointment.department_name', nextName);
             setValue('appointment.provider_id', '');
@@ -302,79 +296,123 @@ export function VisitRegistrationBillingSection({
   tariffsError?: boolean;
   hasProvider?: boolean;
 }) {
-  const paymentMode = watch('billing.payment_mode') ?? '';
-
   if (variant === 'compact') {
     return (
-      <RegistrationSection title="Billing">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end">
-          <Field>
-            <RegistrationFieldLabel htmlFor="visit-reg-discount-pct">
-              Discount (%)
-            </RegistrationFieldLabel>
-            <FormNumberInput
-              id="visit-reg-discount-pct"
-              min={0}
-              max={100}
-              step="any"
-              className="h-10 tabular-nums"
-              value={watch('billing.invoice_discount') ?? 0}
-              onChange={(v) =>
-                setValue('billing.invoice_discount', v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-          </Field>
-          <Field>
-            <RegistrationFieldLabel required>Payment Mode</RegistrationFieldLabel>
-            <Select
-              value={paymentMode || 'cash'}
-              onValueChange={(v: string) =>
-                setValue('billing.payment_mode', v, {
-                  shouldValidate: true,
-                  shouldDirty: true,
-                })
-              }
-            >
-              <SelectTrigger className="h-10" aria-invalid={paymentModeError ? true : undefined}>
-                <SelectValue placeholder="Cash" />
-              </SelectTrigger>
-              <SelectContent>
-                {VISIT_REGISTRATION_PAYMENT_MODES.map((m) => (
-                  <SelectItem key={m.value} value={m.value}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {paymentModeError ? (
-              <p className="text-xs text-destructive">{paymentModeError}</p>
-            ) : null}
-          </Field>
-          <Field>
-            <RegistrationFieldLabel htmlFor="visit-reg-amount-paid">
-              Amount paid
-            </RegistrationFieldLabel>
-            <FormNumberInput
-              id="visit-reg-amount-paid"
-              min={0}
-              step="any"
-              className="h-10 tabular-nums"
-              value={watch('billing.amount_paid') ?? 0}
-              onChange={(v) =>
-                setValue('billing.amount_paid', v, {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                })
-              }
-            />
-          </Field>
-        </div>
-      </RegistrationSection>
+      <BillingSectionCompact
+        register={register}
+        watch={watch}
+        setValue={setValue}
+        paymentModeError={paymentModeError}
+      />
     );
   }
+
+  return (
+    <BillingSectionDetailed
+      register={register}
+      watch={watch}
+      setValue={setValue}
+      paymentModeError={paymentModeError}
+      amountPaidError={amountPaidError}
+      tariffsLoading={tariffsLoading}
+      tariffsError={tariffsError}
+      hasProvider={hasProvider}
+    />
+  );
+}
+
+function BillingSectionCompact({
+  watch,
+  setValue,
+  paymentModeError,
+}: BillingSectionProps) {
+  const paymentMode = watch('billing.payment_mode') ?? '';
+
+  return (
+    <RegistrationSection title="Billing">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end">
+        <Field>
+          <RegistrationFieldLabel htmlFor="visit-reg-discount-pct">
+            Discount (%)
+          </RegistrationFieldLabel>
+          <FormNumberInput
+            id="visit-reg-discount-pct"
+            min={0}
+            max={100}
+            step="any"
+            className="h-10 tabular-nums"
+            value={watch('billing.invoice_discount') ?? 0}
+            onChange={(v) =>
+              setValue('billing.invoice_discount', v, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          />
+        </Field>
+        <Field>
+          <RegistrationFieldLabel required>Payment Mode</RegistrationFieldLabel>
+          <Select
+            value={paymentMode || 'cash'}
+            onValueChange={(v: string) =>
+              setValue('billing.payment_mode', v, {
+                shouldValidate: true,
+                shouldDirty: true,
+              })
+            }
+          >
+            <SelectTrigger className="h-10" aria-invalid={paymentModeError ? true : undefined}>
+              <SelectValue placeholder="Cash" />
+            </SelectTrigger>
+            <SelectContent>
+              {VISIT_REGISTRATION_PAYMENT_MODES.map((m) => (
+                <SelectItem key={m.value} value={m.value}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {paymentModeError ? (
+            <p className="text-xs text-destructive">{paymentModeError}</p>
+          ) : null}
+        </Field>
+        <Field>
+          <RegistrationFieldLabel htmlFor="visit-reg-amount-paid">
+            Amount paid
+          </RegistrationFieldLabel>
+          <FormNumberInput
+            id="visit-reg-amount-paid"
+            min={0}
+            step="any"
+            className="h-10 tabular-nums"
+            value={watch('billing.amount_paid') ?? 0}
+            onChange={(v) =>
+              setValue('billing.amount_paid', v, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+          />
+        </Field>
+      </div>
+    </RegistrationSection>
+  );
+}
+
+function BillingSectionDetailed({
+  watch,
+  setValue,
+  paymentModeError,
+  amountPaidError,
+  tariffsLoading,
+  tariffsError,
+  hasProvider,
+}: BillingSectionProps & {
+  tariffsLoading: boolean;
+  tariffsError: boolean;
+  hasProvider: boolean;
+}) {
+  const paymentMode = watch('billing.payment_mode') ?? '';
 
   const registrationFee = watch('billing.registration_fee') ?? {
     unit_price: 100,
@@ -454,10 +492,7 @@ export function VisitRegistrationBillingSection({
             {hasProvider ? (
               <BillingFeeRow
                 tariffTypeLabel="Consultation fee"
-                serviceName={
-                  consultationFee.service_name?.trim() ||
-                  (consultationFee.unit_price > 0 ? 'Consultation' : 'Select department & doctor')
-                }
+                serviceName={resolveConsultationServiceName(consultationFee)}
                 unitPrice={consultationFee.unit_price}
                 taxPercent={consultationFee.tax_percent}
                 discountPercent={consultationFee.discount_percent}
@@ -470,29 +505,17 @@ export function VisitRegistrationBillingSection({
                 muted={tariffsLoading || consultationFee.unit_price <= 0}
               />
             ) : null}
-            <TableRow className="bg-muted/40 font-medium hover:bg-muted/40">
-              <TableCell className={BILLING_LABEL_CELL}>All items summary</TableCell>
-              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
-              <TableCell className={BILLING_NUM_CELL}>
-                {formatInr(registrationFee.unit_price + (hasProvider ? consultationFee.unit_price : 0))}
-              </TableCell>
-              <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
-              <TableCell className={BILLING_NUM_CELL}>
-                {formatInr(
-                  billingLineDiscountAmount(registrationFee) +
-                    (hasProvider ? billingLineDiscountAmount(consultationFee) : 0),
-                )}
-              </TableCell>
-              <TableCell className={BILLING_NUM_CELL}>
-                {formatInr(regNet + (hasProvider ? consultNet : 0))}
-              </TableCell>
-              <TableCell className={BILLING_NUM_CELL}>
-                {formatBillingTaxSummary(regTax + (hasProvider ? consultTax : 0))}
-              </TableCell>
-              <TableCell className={BILLING_NUM_CELL}>
-                {formatBillingInr(hasProvider ? itemsSubtotal : regTotal)}
-              </TableCell>
-            </TableRow>
+            <BillingSummaryRow
+              registrationFee={registrationFee}
+              consultationFee={consultationFee}
+              hasProvider={hasProvider}
+              regNet={regNet}
+              consultNet={consultNet}
+              regTax={regTax}
+              consultTax={consultTax}
+              regTotal={regTotal}
+              itemsSubtotal={itemsSubtotal}
+            />
             <TableRow className="hover:bg-transparent">
               <TableCell className={BILLING_LABEL_CELL}>Invoice discount</TableCell>
               <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
@@ -617,6 +640,48 @@ function resolveDepartmentPlaceholder(
   if (isError) return 'Failed to load departments';
   if (!hasOptions) return 'No departments configured';
   return 'Select department';
+}
+
+function resolveDoctorPlaceholder(args: {
+  departmentId: string;
+  doctorsLoading: boolean;
+  doctorsError: boolean;
+  hasOptions: boolean;
+  selectedDepartmentName: string | null;
+}): string {
+  if (!args.departmentId) return 'Select a department first';
+  if (args.doctorsLoading) return 'Loading doctors…';
+  if (args.doctorsError) return 'Failed to load doctors';
+  if (args.hasOptions) return 'Select doctor';
+  return `No doctors in ${args.selectedDepartmentName ?? 'this department'}`;
+}
+
+function resolveVisitTypePlaceholder(
+  isPending: boolean,
+  isError: boolean,
+  hasOptions: boolean,
+): string {
+  if (isPending) return 'Loading visit types…';
+  if (isError) return 'Failed to load visit types';
+  if (hasOptions) return 'Select Visit Type';
+  return 'No visit types configured';
+}
+
+function resolveDepartmentName(
+  nextId: string,
+  departments: ReadonlyArray<{ id: string; name: string }>,
+): string {
+  if (nextId === '') return '';
+  return departments.find((d) => d.id === nextId)?.name ?? '';
+}
+
+function resolveConsultationServiceName(
+  consultationFee: VisitRegistrationBillingFeeLine,
+): string {
+  return (
+    consultationFee.service_name?.trim() ||
+    (consultationFee.unit_price > 0 ? 'Consultation' : 'Select department & doctor')
+  );
 }
 
 function LabTestsPanel({
@@ -955,6 +1020,7 @@ function BillingFeeRow({
         {formatInr(
           billingLineDiscountAmount({
             unit_price: unitPrice,
+            tax_percent: taxPercent,
             discount_percent: discountPercent,
             discount: 0,
           }),
@@ -965,6 +1031,54 @@ function BillingFeeRow({
         {formatBillingTaxLine(taxPercent, taxAmount)}
       </TableCell>
       <TableCell className={`${BILLING_NUM_CELL} font-medium`}>{formatBillingInr(total)}</TableCell>
+    </TableRow>
+  );
+}
+
+function BillingSummaryRow({
+  registrationFee,
+  consultationFee,
+  hasProvider,
+  regNet,
+  consultNet,
+  regTax,
+  consultTax,
+  regTotal,
+  itemsSubtotal,
+}: {
+  registrationFee: VisitRegistrationBillingFeeLine;
+  consultationFee: VisitRegistrationBillingFeeLine;
+  hasProvider: boolean;
+  regNet: number;
+  consultNet: number;
+  regTax: number;
+  consultTax: number;
+  regTotal: number;
+  itemsSubtotal: number;
+}) {
+  return (
+    <TableRow className="bg-muted/40 font-medium hover:bg-muted/40">
+      <TableCell className={BILLING_LABEL_CELL}>All items summary</TableCell>
+      <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatInr(registrationFee.unit_price + (hasProvider ? consultationFee.unit_price : 0))}
+      </TableCell>
+      <TableCell className={BILLING_EMPTY_CELL}>—</TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatInr(
+          billingLineDiscountAmount(registrationFee) +
+            (hasProvider ? billingLineDiscountAmount(consultationFee) : 0),
+        )}
+      </TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatInr(regNet + (hasProvider ? consultNet : 0))}
+      </TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatBillingTaxSummary(regTax + (hasProvider ? consultTax : 0))}
+      </TableCell>
+      <TableCell className={BILLING_NUM_CELL}>
+        {formatBillingInr(hasProvider ? itemsSubtotal : regTotal)}
+      </TableCell>
     </TableRow>
   );
 }

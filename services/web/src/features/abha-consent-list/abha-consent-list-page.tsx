@@ -357,7 +357,7 @@ export function AbhaConsentListPage() {
               setPage(pageIndex + 1);
               setExpandedId(null);
             },
-            onPageSizeChange: () => {},
+            onPageSizeChange: () => {/* page size fixed for this table */},
           }}
         />
       </div>

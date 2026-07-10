@@ -3,7 +3,7 @@ import { visitpadModuleManifest } from './manifests/visitpad.manifest';
 import type { ModuleManifest } from './types';
 
 /** Stable children list — avoids new array refs on every compose cache rebuild. */
-const VISITPAD_MASTER_NAV_CHILDREN: readonly NavigationNode[] = visitpadModuleManifest.navigation;
+const VISITPAD_MASTER_NAV_CHILDREN: NavigationNode[] = visitpadModuleManifest.navigation;
 
 /** Catalog L2 group nested under Master Data (not a separate sidebar root). */
 export function visitpadMasterNavigationGroup(
@@ -46,8 +46,8 @@ export function manifestToNavigationNode(manifest: ModuleManifest): NavigationNo
             requiredModulesAny: undefined,
           };
 
-  if (nav.length === 1 && !nav[0].children?.length && !manifest.keepNavigationGroup) {
-    const leaf = nav[0];
+  const leaf = nav[0];
+  if (leaf && nav.length === 1 && !leaf.children?.length && !manifest.keepNavigationGroup) {
     return {
       ...leaf,
       id: manifest.slug,

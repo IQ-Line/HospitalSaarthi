@@ -16,14 +16,14 @@ import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
-  canShowIncomingTab,
-  canShowOutgoingTab,
+  shouldShowIncomingTab,
+  shouldShowOutgoingTab,
   defaultIndentDirection,
   type IndentListDirection,
 } from '../lib/indent-workflow';
 import { INDENT_STATUS_FILTER_OPTIONS, indentStatusBadgeVariant, indentStatusLabel } from '../lib/indent-status';
 import { useInventoryIndentStores, useInventoryIndents, useInventoryStores } from '../api/queries';
-import type { InventoryIndentRow, InventoryIndentStoreOption } from '../types';
+import type { InventoryIndentRow, InventoryIndentStoreOption, InventoryStore } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 
 function formatIndentDate(iso: string) {
@@ -85,6 +85,26 @@ const MOCK_INDENT_STORES: InventoryIndentStoreOption[] = [
   },
 ];
 
+/** Live indent stores when the operational API is on; otherwise mocks or a fallback-store mapping. */
+function resolveIndentStores(
+  liveIndentStores: InventoryIndentStoreOption[],
+  fallbackStores: InventoryStore[],
+): InventoryIndentStoreOption[] {
+  if (OPERATIONAL_INVENTORY_API_ENABLED) {
+    return liveIndentStores;
+  }
+  if (MOCK_INDENT_STORES.length > 0) {
+    return MOCK_INDENT_STORES;
+  }
+  return fallbackStores.map((store) => ({
+    id: store.id,
+    name: store.name,
+    store_code: store.store_code,
+    indent_authority: store.id !== 'store-cms',
+    indent_target_store_id: store.id !== 'store-cms' ? 'store-cms' : null,
+  }));
+}
+
 type InventoryIndentsPageProps = {
   direction?: IndentListDirection;
   storeId?: string;
@@ -94,17 +114,7 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
   const navigate = useNavigate();
   const { data: liveIndentStores = [], isLoading: storesLoading } = useInventoryIndentStores();
   const { data: fallbackStores = [] } = useInventoryStores();
-  const indentStores = OPERATIONAL_INVENTORY_API_ENABLED
-    ? liveIndentStores
-    : MOCK_INDENT_STORES.length > 0
-      ? MOCK_INDENT_STORES
-      : fallbackStores.map((store) => ({
-          id: store.id,
-          name: store.name,
-          store_code: store.store_code,
-          indent_authority: store.id !== 'store-cms',
-          indent_target_store_id: store.id !== 'store-cms' ? 'store-cms' : null,
-        }));
+  const indentStores = resolveIndentStores(liveIndentStores, fallbackStores);
 
   const [storeId, setStoreId] = useState(storeIdProp ?? '');
   const [search, setSearch] = useState('');
@@ -126,8 +136,8 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
   }, [storeId, storeIdProp, indentStores]);
 
   const direction = directionProp ?? defaultIndentDirection(activeStore);
-  const showOutgoing = canShowOutgoingTab(activeStore);
-  const showIncoming = canShowIncomingTab(activeStore);
+  const showOutgoing = shouldShowOutgoingTab(activeStore);
+  const showIncoming = shouldShowIncomingTab(activeStore);
   const showTabs = showOutgoing && showIncoming;
 
   const listParams = useMemo(

@@ -21,7 +21,7 @@ PostgreSQL (Citus cluster)
 └── schema: ...                ← future modules
 ```
 
-**Why one cluster:** Citus distributes tables by `tenant_id` across worker nodes. All of a tenant's data — across all modules — lands on the same node, making tenant-scoped queries fast regardless of which module's schema they touch. Separate clusters would mean cross-node joins even within a single tenant.
+**Why one cluster:** Citus distributes tables by `iq_tenant_id` across worker nodes. All of a tenant's data — across all modules — lands on the same node, making tenant-scoped queries fast regardless of which module's schema they touch. Separate clusters would mean cross-node joins even within a single tenant.
 
 **Why separate schemas:** Logical isolation. A module's Drizzle schema file only defines tables in its own namespace. You cannot accidentally JOIN across modules because the ORM only knows about its own tables. Schema permissions can enforce this with separate database roles per module if hard enforcement is desired.
 
@@ -29,47 +29,47 @@ PostgreSQL (Citus cluster)
 
 ---
 
-## 2. Every Table Has `tenant_id` as the Distribution Column
+## 2. Every Table Has `iq_tenant_id` as the Distribution Column
 
-Every table in every module must include `tenant_id` as a column, and it must be the Citus distribution column.
+Every table in every module must include `iq_tenant_id` as a column, and it must be the Citus distribution column.
 
 ```sql
 CREATE TABLE opd.visits (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL,
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    iq_tenant_id  UUID NOT NULL,
     -- ... module-specific columns
 );
 
-SELECT create_distributed_table('opd.visits', 'tenant_id');
+SELECT create_distributed_table('opd.visits', 'iq_tenant_id');
 ```
 
-**Why:** Citus co-locates all rows with the same `tenant_id` on the same worker node. This means:
-- All queries filtered by `tenant_id` (which is every query — see principle 3) hit a single node
-- JOINs between tables in the same schema with the same `tenant_id` value are local (no cross-node shuffle)
+**Why:** Citus co-locates all rows with the same `iq_tenant_id` on the same worker node. This means:
+- All queries filtered by `iq_tenant_id` (which is every query — see principle 3) hit a single node
+- JOINs between tables in the same schema with the same `iq_tenant_id` value are local (no cross-node shuffle)
 - Tenant data isolation is physical, not just logical
 
-**Compound primary keys:** For tables distributed by `tenant_id`, Citus requires that `tenant_id` be part of any unique constraint or primary key. The pattern is:
+**Compound primary keys:** For tables distributed by `iq_tenant_id`, Citus requires that `iq_tenant_id` be part of any unique constraint or primary key. The pattern is:
 
 ```sql
--- Option A: UUID primary key, tenant_id in a separate unique constraint
+-- Option A: UUID primary key, iq_tenant_id in a separate unique constraint
 PRIMARY KEY (id),
-UNIQUE (tenant_id, id)
+UNIQUE (iq_tenant_id, id)
 
 -- Option B: Composite primary key (preferred for Citus)
-PRIMARY KEY (tenant_id, id)
+PRIMARY KEY (iq_tenant_id, id)
 ```
 
-Option B is cleaner for Citus. It means all foreign keys referencing this table must include `tenant_id`, which reinforces the tenant isolation pattern.
+Option B is cleaner for Citus. It means all foreign keys referencing this table must include `iq_tenant_id`, which reinforces the tenant isolation pattern.
 
 ---
 
-## 3. Every Query Includes `tenant_id`
+## 3. Every Query Includes `iq_tenant_id`
 
-No query should ever scan across tenants. The application layer (tenant context middleware using AsyncLocalStorage, same pattern as the production HIMS) ensures `tenant_id` is injected into every query. Drizzle middleware or a custom query wrapper can enforce this.
+No query should ever scan across tenants. The application layer (tenant context middleware using AsyncLocalStorage, same pattern as the production HIMS) ensures `iq_tenant_id` is injected into every query. Drizzle middleware or a custom query wrapper can enforce this.
 
 **What this prevents:**
 - Accidental cross-tenant data leakage (security)
-- Full-cluster scans (performance — without `tenant_id`, Citus must scatter the query to all nodes)
+- Full-cluster scans (performance — without `iq_tenant_id`, Citus must scatter the query to all nodes)
 
 **Exception:** Platform-level queries (tenant provisioning, cross-tenant admin dashboards) require explicit superadmin authorization and should use a clearly marked separate query path that bypasses the tenant filter.
 
@@ -161,17 +161,17 @@ When a module subscribes to events from another module and maintains a local rea
 ```sql
 -- In OPD's schema, maintained by OPD's event consumer
 CREATE TABLE opd.patient_projection (
-    patient_id    UUID NOT NULL,
-    tenant_id     UUID NOT NULL,
-    name          TEXT,
-    date_of_birth DATE,
-    gender        TEXT,
-    abha_number   TEXT,
-    last_synced   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (tenant_id, patient_id)
+    patient_id     UUID NOT NULL,
+    iq_tenant_id   UUID NOT NULL,
+    name           TEXT,
+    date_of_birth  DATE,
+    gender         TEXT,
+    abha_number    TEXT,
+    last_synced    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (iq_tenant_id, patient_id)
 );
 
-SELECT create_distributed_table('opd.patient_projection', 'tenant_id');
+SELECT create_distributed_table('opd.patient_projection', 'iq_tenant_id');
 ```
 
 **Design rules for projections:**
@@ -202,7 +202,7 @@ Master data (ICD codes, drug formulary, LOINC, SNOMED, procedure codes, fee sche
   master_data.drugs           -- global catalog
   master_data.drug_overrides  -- tenant-specific price/availability overrides, FK to drugs
   ```
-  Query pattern: `SELECT * FROM drugs LEFT JOIN drug_overrides ON ... WHERE tenant_id = ?`. Override wins when present.
+  Query pattern: `SELECT * FROM drugs LEFT JOIN drug_overrides ON ... WHERE iq_tenant_id = ?`. Override wins when present.
 
 ---
 
@@ -212,13 +212,13 @@ Human-readable sequential identifiers (UHID, visit number, bill number) must be 
 
 In PostgreSQL with Citus:
 - **Do not use** `SERIAL` or `SEQUENCE` — these are node-local and don't coordinate across Citus workers
-- **Use** a counter table distributed by `tenant_id`:
+- **Use** a counter table distributed by `iq_tenant_id`:
   ```sql
   CREATE TABLE shared.sequence_counters (
-      tenant_id      UUID NOT NULL,
+      iq_tenant_id   UUID NOT NULL,
       sequence_name  TEXT NOT NULL,
       current_value  BIGINT NOT NULL DEFAULT 0,
-      PRIMARY KEY (tenant_id, sequence_name)
+      PRIMARY KEY (iq_tenant_id, sequence_name)
   );
   ```
   Increment with `UPDATE ... SET current_value = current_value + 1 RETURNING current_value` inside the transaction that creates the record needing the sequence. This is tenant-local (single node) so there's no distributed coordination.
@@ -303,7 +303,7 @@ These parameters depend on the hardware and can be adjusted without touching app
 
 Before approving any module's schema design:
 
-- [ ] Every table has `tenant_id` as a column and Citus distribution key
+- [ ] Every table has `iq_tenant_id` as a column and Citus distribution key
 - [ ] Every table has `created_at`, `updated_at`, `created_by`, `updated_by`
 - [ ] No foreign keys reference tables in another module's schema
 - [ ] Cross-module entity references use plain ID columns (no `REFERENCES`)

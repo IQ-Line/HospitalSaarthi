@@ -12,15 +12,18 @@
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
+    "@hims/ts-sdk-sequence": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
     "@hims/user-management": "workspace:*",
-    "dotenv": "^16.6.1",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1"
+    "dotenv": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:"
   },
   "devDependencies": {
-    "tsx": "^4.20.5"
+    "tsx": "catalog:"
   }
 }

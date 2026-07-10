@@ -77,6 +77,9 @@ from .profile_registry import (
     NrcesProfile,
     resource_profile,
 )
+from .types import (
+    Bundle,
+)
 
 __all__ = [
     # identifiers
@@ -142,6 +145,8 @@ __all__ = [
     "build_prescription_bundle",
     "build_immunization_bundle",
     "build_health_document_bundle",
+    # FHIR R4 types
+    "Bundle",
 ]
 
 __version__ = "0.1.0"

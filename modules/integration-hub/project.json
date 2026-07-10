@@ -2,10 +2,16 @@
   "name": "integration-hub",
   "tags": ["type:module", "scope:integration-hub", "language:typescript"],
   "targets": {
-    "db:migrate": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "modules/integration-hub"
+      }
+    },
+    "db-generate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "tsx scripts/apply-migration.ts",
+        "command": "pnpm exec drizzle-kit generate",
         "cwd": "modules/integration-hub"
       }
     },
@@ -23,13 +29,17 @@
         "cwd": "modules/integration-hub"
       }
     },
+    "test:integration": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "TEST_DATABASE_URL=\"${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_integration_hub\" vitest run --no-file-parallelism test/integration",
+        "cwd": "modules/integration-hub"
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint",
       "options": {
-        "lintFilePatterns": [
-          "modules/integration-hub/src/index.ts",
-          "modules/integration-hub/src/lib/**/*.ts"
-        ]
+        "lintFilePatterns": ["modules/integration-hub/src/**/*.ts"]
       }
     }
   }

@@ -12,9 +12,7 @@ describe("findBridgeServices", () => {
       get: vi.fn().mockResolvedValue(bridgeResponse),
       post: vi.fn(),
       getPublicCertificate: vi.fn(),
-      getBearerToken: vi.fn(),
       invalidateBearer: vi.fn(),
-      invalidateCertificate: vi.fn(),
       getDiagnosticsSnapshot: vi.fn(),
     };
 

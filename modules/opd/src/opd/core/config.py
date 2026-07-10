@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ``modules/opd`` — stable regardless of CWD.
@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://hims:hims@localhost:5433/hims_dev",
         description="SQLAlchemy database URL for the OPD module.",
+        # Prefixed OPD_DATABASE_URL wins; falls back to the shared DATABASE_URL
+        # (single hims_dev DB per ADR-0013). AliasChoices bypasses env_prefix.
+        validation_alias=AliasChoices("OPD_DATABASE_URL", "DATABASE_URL"),
     )
     api_prefix: str = "/api/v1/opd"
     log_level: str = "INFO"
@@ -95,7 +98,9 @@ class AzureBlobSettings(BaseSettings):
     connection_string: str = Field(default="", validation_alias="AZURE_STORAGE_CONNECTION_STRING")
     account_name: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT")
     account_key: str = Field(default="", validation_alias="AZURE_STORAGE_ACCOUNT_KEY")
-    container_name: str = Field(default="hmis-patient-docs", validation_alias="AZURE_BLOB_CONTAINER")
+    container_name: str = Field(
+        default="hmis-patient-docs", validation_alias="AZURE_BLOB_CONTAINER"
+    )
 
 
 @lru_cache
@@ -139,11 +144,51 @@ def get_service_integration_settings() -> ServiceIntegrationSettings:
     return ServiceIntegrationSettings()
 
 
+class AuthEnvSettings(BaseSettings):
+    """In-process PEP configuration — JWKS/issuer/audience + Cerbos + UM principal URL.
+
+    These are platform-wide auth values (not ``OPD_``-prefixed): the edge JWKS, the JWT
+    issuer/audience, the Cerbos PDP, and the User Management ``/auth/principal`` endpoint.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=_opd_env_files(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    jwks_url: str = Field(
+        default="http://localhost:3000/api/auth/.well-known/jwks.json",
+        validation_alias="JWKS_URL",
+    )
+    jwt_issuer: str = Field(default="http://localhost:3000", validation_alias="JWT_ISSUER")
+    jwt_audience: str = Field(default="hims-platform", validation_alias="JWT_AUDIENCE")
+    cerbos_http_url: str = Field(
+        default="http://localhost:3592", validation_alias="CERBOS_HTTP_URL"
+    )
+    user_management_url: str = Field(
+        default="http://localhost:3005", validation_alias="USER_MANAGEMENT_URL"
+    )
+    principal_path: str = Field(
+        default="/api/user-management/auth/principal", validation_alias="UM_PRINCIPAL_PATH"
+    )
+    max_token_age_seconds: int = Field(
+        default=300, validation_alias="JWT_MAX_TOKEN_AGE_SECONDS"
+    )
+    clock_skew_seconds: int = Field(default=60, validation_alias="JWT_CLOCK_SKEW_SECONDS")
+
+
+@lru_cache
+def get_auth_env_settings() -> AuthEnvSettings:
+    return AuthEnvSettings()
+
+
 def reset_settings_cache_for_tests() -> None:
     """Clear cached settings (tests / after ``.env`` changes in long-lived shells)."""
     get_settings.cache_clear()
     get_azure_blob_settings.cache_clear()
     get_service_integration_settings.cache_clear()
+    get_auth_env_settings.cache_clear()
     from opd.core.database import reset_database_engine
     from opd.lib import azure_blob_storage
 

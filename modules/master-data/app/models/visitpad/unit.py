@@ -1,4 +1,7 @@
-"""SQLAlchemy models for Visitpad ``units``: global rows (no ``iq_tenant_id``) vs ``tenant_master`` rows."""
+"""SQLAlchemy models for Visitpad ``units``.
+
+Global rows (no ``iq_tenant_id``) vs ``master_tenant`` rows.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +15,7 @@ from app.models.base import AuditActorMixin, Base, TimestampMixin
 
 
 class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
-    """Platform-wide unit definition in the ``global_master`` schema."""
+    """Platform-wide unit definition in the ``master_global`` schema."""
 
     __tablename__ = "units"
     __table_args__ = (
@@ -21,7 +24,6 @@ class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -38,7 +40,7 @@ class VisitpadUnitPublicModel(TimestampMixin, AuditActorMixin, Base):
 
 
 class VisitpadUnitTenantModel(TimestampMixin, AuditActorMixin, Base):
-    """Tenant-scoped unit definitions in ``tenant_master``."""
+    """Tenant-scoped unit definitions in ``master_tenant``."""
 
     __tablename__ = "units"
     __table_args__ = (
@@ -48,7 +50,6 @@ class VisitpadUnitTenantModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

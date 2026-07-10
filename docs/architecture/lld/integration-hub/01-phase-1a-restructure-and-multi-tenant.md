@@ -55,8 +55,6 @@ services/integration-hub-svc/               @hims/integration-hub-svc
     load-env.ts                             deployment-level vars only
     resolve-database-url.ts
     http-errors.ts
-  scripts/
-    migrate.mjs                             integration_hub migrations
 
 modules/configurator/                       changeset
   src/

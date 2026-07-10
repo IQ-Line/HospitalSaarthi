@@ -45,11 +45,6 @@ export function formatVisitDateTime(createdAt: Date): string {
   });
 }
 
-export function formatVisitNumber(record: RegistrationRecord): string {
-  const shortId = record.registration_id.slice(0, 8).toUpperCase();
-  return record.visit_id ? `VIS-${shortId}` : `REG-${shortId}`;
-}
-
 export function formatTokenDisplay(record: RegistrationRecord): string {
   const suffix = record.registration_id.replace(/-/g, "").slice(-4).toUpperCase();
   return `TOKEN: ${suffix}`;

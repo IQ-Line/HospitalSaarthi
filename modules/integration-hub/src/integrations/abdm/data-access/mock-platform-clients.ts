@@ -16,7 +16,9 @@ const NDHM_PROFILES = {
 } as const;
 
 const ABHA_IDENTIFIER_SYSTEM = "https://healthid.ndhm.gov.in";
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- FHIR CodeSystem identifier URI (an opaque identifier per the FHIR spec, never dereferenced over the network) — not a cleartext transport
 const SNOMED_SYSTEM = "http://snomed.info/sct";
+// eslint-disable-next-line sonarjs/no-clear-text-protocols -- FHIR CodeSystem identifier URI (an opaque identifier per the FHIR spec, never dereferenced over the network) — not a cleartext transport
 const V3_ACT_CODE_SYSTEM = "http://terminology.hl7.org/CodeSystem/v3-ActCode";
 
 /** Dev-only mocks when EMPI/RF are not running (see `ABDM_M2_MOCK_PLATFORM=true`). */

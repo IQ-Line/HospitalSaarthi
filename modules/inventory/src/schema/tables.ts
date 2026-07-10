@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   date,
   foreignKey,
   index,
@@ -62,7 +63,9 @@ export const inventoryStores = inventorySchema.table(
       columns: [t.iq_tenant_id, t.indent_target_store_id],
       foreignColumns: [t.iq_tenant_id, t.id],
     })
-      .onDelete("set null")
+      // Citus: ON DELETE SET NULL is rejected when the distribution key is part of the FK
+      // (EnsureSupportedFKeyOnDistKey), so NO ACTION replaces the legacy SET NULL here.
+      .onDelete("no action")
       .onUpdate("no action"),
   ],
 );
@@ -76,7 +79,13 @@ export const inventoryStoreCodeSequences = inventorySchema.table(
     store_type_id: uuid("store_type_id").notNull(),
     last_sequence: integer("last_sequence").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.store_type_id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.store_type_id] }),
+    check(
+      "store_code_sequences_last_sequence_nonneg_chk",
+      sql.raw(`${t.last_sequence.name} >= 0`),
+    ),
+  ],
 );
 
 export const inventoryItemCodeSequences = inventorySchema.table(
@@ -86,7 +95,13 @@ export const inventoryItemCodeSequences = inventorySchema.table(
     item_type_id: uuid("item_type_id").notNull(),
     last_sequence: integer("last_sequence").notNull().default(0),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.item_type_id] }),
+    check(
+      "item_code_sequences_last_sequence_nonneg_chk",
+      sql.raw(`${t.last_sequence.name} >= 0`),
+    ),
+  ],
 );
 
 export const inventoryIndentSequences = inventorySchema.table(
@@ -155,10 +170,41 @@ export const inventoryItems = inventorySchema.table(
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     uniqueIndex("uq_inventory_items_tenant_item_code").on(t.iq_tenant_id, t.item_code),
+    uniqueIndex("uq_inventory_items_tenant_formulary")
+      .on(t.iq_tenant_id, t.tenant_formulary_id)
+      .where(sql`${t.tenant_formulary_id} is not null`),
     index("idx_inventory_items_tenant_classification").on(t.iq_tenant_id, t.item_classification),
     index("idx_inventory_items_tenant_active").on(t.iq_tenant_id, t.is_active),
     index("idx_inventory_items_category").on(t.iq_tenant_id, t.category_id),
     index("idx_inventory_items_item_type").on(t.iq_tenant_id, t.item_type_id),
+    check(
+      "items_item_classification_chk",
+      sql.raw(`${t.item_classification.name} in ('inventory', 'medicine')`),
+    ),
+    check(
+      "items_tracking_mode_chk",
+      sql.raw(`${t.tracking_mode.name} in ('none', 'lot', 'serial')`),
+    ),
+    check(
+      "items_classification_formulary_chk",
+      sql.raw(
+        `(${t.item_classification.name} = 'medicine' and ${t.tenant_formulary_id.name} is not null) or (${t.item_classification.name} = 'inventory' and ${t.tenant_formulary_id.name} is null)`,
+      ),
+    ),
+    check(
+      "items_medicine_tracking_chk",
+      sql.raw(
+        `${t.item_classification.name} <> 'medicine' or (${t.tracking_mode.name} = 'lot' and ${t.is_expirable.name} = true)`,
+      ),
+    ),
+    check(
+      "items_conversion_factor_positive_chk",
+      sql.raw(`${t.conversion_factor.name} > 0`),
+    ),
+    check(
+      "items_category_pair_chk",
+      sql.raw(`${t.sub_category_id.name} is null or ${t.category_id.name} is not null`),
+    ),
   ],
 );
 
@@ -190,7 +236,19 @@ export const inventoryGrns = inventorySchema.table(
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
     uniqueIndex("uq_inventory_grns_tenant_number").on(t.iq_tenant_id, t.grn_number),
-    index("idx_inventory_grns_tenant_status_date").on(t.iq_tenant_id, t.status, t.grn_date),
+    index("idx_inventory_grns_tenant_status_date").on(
+      t.iq_tenant_id,
+      t.status,
+      t.grn_date.desc(),
+    ),
+    uniqueIndex("uq_inventory_grns_manufacturer_invoice_submitted")
+      .on(t.iq_tenant_id, t.manufacturer_id, sql`lower(btrim(${t.voucher_invoice_no}))`)
+      .where(
+        sql`${t.status} = 'submitted' and ${t.grn_type} = 'purchase' and ${t.manufacturer_id} is not null and length(btrim(${t.voucher_invoice_no})) > 0`,
+      ),
+    index("idx_inventory_grns_tenant_indent")
+      .on(t.iq_tenant_id, t.inventory_indent_id)
+      .where(sql`${t.inventory_indent_id} is not null`),
     foreignKey({
       name: "inventory_grns_store_fk",
       columns: [t.iq_tenant_id, t.inventory_store_id],
@@ -198,6 +256,12 @@ export const inventoryGrns = inventorySchema.table(
     })
       .onDelete("restrict")
       .onUpdate("no action"),
+    check("grns_status_chk", sql.raw(`${t.status.name} in ('draft', 'submitted')`)),
+    check("grns_type_chk", sql.raw(`${t.grn_type.name} in ('purchase', 'transfer')`)),
+    check(
+      "grns_remarks_len_chk",
+      sql.raw(`${t.remarks.name} is null or char_length(${t.remarks.name}) <= 250`),
+    ),
   ],
 );
 
@@ -242,6 +306,10 @@ export const inventoryGrnLines = inventorySchema.table(
     })
       .onDelete("restrict")
       .onUpdate("no action"),
+    check(
+      "grn_lines_purchase_to_base_factor_positive_chk",
+      sql.raw(`${t.purchase_to_base_factor.name} > 0`),
+    ),
   ],
 );
 
@@ -266,6 +334,16 @@ export const inventoryLots = inventorySchema.table(
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    uniqueIndex("uq_inventory_lots_tenant_item_store_lot")
+      .on(
+        t.iq_tenant_id,
+        t.item_id,
+        t.inventory_store_id,
+        sql`lower(btrim(${t.lot_number}))`,
+      )
+      .where(
+        sql`${t.inventory_store_id} is not null and length(btrim(${t.lot_number})) > 0`,
+      ),
     foreignKey({
       name: "inventory_lots_item_fk",
       columns: [t.iq_tenant_id, t.item_id],
@@ -366,10 +444,46 @@ export const inventoryIndents = inventorySchema.table(
     index("idx_inventory_indents_tenant_status_date").on(
       t.iq_tenant_id,
       t.status,
-      t.indent_date,
+      t.indent_date.desc(),
     ),
     index("idx_inventory_indents_tenant_from_store").on(t.iq_tenant_id, t.from_store_id),
     index("idx_inventory_indents_tenant_to_store").on(t.iq_tenant_id, t.to_store_id),
+    check(
+      "indents_type_chk",
+      sql.raw(`${t.indent_type.name} in ('store_transfer', 'pharmacy_refill', 'emergency')`),
+    ),
+    check("indents_priority_chk", sql.raw(`${t.priority.name} in ('normal', 'urgent', 'stat')`)),
+    check(
+      "indents_status_chk",
+      sql.raw(
+        `${t.status.name} in ('draft', 'submitted', 'approved', 'partially_approved', 'rejected', 'in_fulfillment', 'fulfilled')`,
+      ),
+    ),
+    check(
+      "indents_fulfillment_route_chk",
+      sql.raw(`${t.fulfillment_route.name} in ('stock_transfer', 'procurement')`),
+    ),
+    check(
+      "indents_distinct_stores_chk",
+      sql.raw(`${t.to_store_id.name} is null or ${t.from_store_id.name} <> ${t.to_store_id.name}`),
+    ),
+    check(
+      "indents_remarks_len_chk",
+      sql.raw(`${t.remarks.name} is null or char_length(${t.remarks.name}) <= 2000`),
+    ),
+    check(
+      "indents_reject_len_chk",
+      sql.raw(
+        `${t.rejection_reason.name} is null or char_length(${t.rejection_reason.name}) <= 2000`,
+      ),
+    ),
+    check("indents_date_not_future_chk", sql.raw(`${t.indent_date.name} <= CURRENT_DATE`)),
+    check(
+      "indents_purchase_indent_len_chk",
+      sql.raw(
+        `${t.purchase_indent_number.name} is null or char_length(trim(${t.purchase_indent_number.name})) <= 120`,
+      ),
+    ),
     foreignKey({
       name: "inventory_indents_from_store_fk",
       columns: [t.iq_tenant_id, t.from_store_id],
@@ -389,7 +503,9 @@ export const inventoryIndents = inventorySchema.table(
       columns: [t.iq_tenant_id, t.inventory_grn_id],
       foreignColumns: [inventoryGrns.iq_tenant_id, inventoryGrns.id],
     })
-      .onDelete("set null")
+      // Citus: ON DELETE SET NULL is rejected when the distribution key is part of the FK
+      // (EnsureSupportedFKeyOnDistKey), so NO ACTION replaces the legacy SET NULL here.
+      .onDelete("no action")
       .onUpdate("no action"),
   ],
 );
@@ -431,8 +547,19 @@ export const inventoryIndentLines = inventorySchema.table(
       columns: [t.iq_tenant_id, t.preferred_lot_id],
       foreignColumns: [inventoryLots.iq_tenant_id, inventoryLots.id],
     })
-      .onDelete("set null")
+      // Citus: ON DELETE SET NULL is rejected when the distribution key is part of the FK
+      // (EnsureSupportedFKeyOnDistKey), so NO ACTION replaces the legacy SET NULL here.
+      .onDelete("no action")
       .onUpdate("no action"),
+    check("indent_lines_requested_qty_positive_chk", sql.raw(`${t.requested_qty.name} > 0`)),
+    check(
+      "indent_lines_approved_le_requested_chk",
+      sql.raw(`${t.approved_qty.name} is null or ${t.approved_qty.name} <= ${t.requested_qty.name}`),
+    ),
+    check(
+      "indent_lines_approved_positive_chk",
+      sql.raw(`${t.approved_qty.name} is null or ${t.approved_qty.name} >= 0`),
+    ),
   ],
 );
 
@@ -472,8 +599,21 @@ export const inventoryStockTransfers = inventorySchema.table(
       t.iq_tenant_id,
       t.transfer_number,
     ),
-    index("idx_inventory_stock_transfers_tenant_date").on(t.iq_tenant_id, t.transfer_date),
-    index("idx_inventory_stock_transfers_tenant_indent").on(t.iq_tenant_id, t.inventory_indent_id),
+    index("idx_inventory_stock_transfers_tenant_date").on(
+      t.iq_tenant_id,
+      t.transfer_date.desc(),
+    ),
+    index("idx_inventory_stock_transfers_tenant_indent")
+      .on(t.iq_tenant_id, t.inventory_indent_id)
+      .where(sql`${t.inventory_indent_id} is not null`),
+    check(
+      "stock_transfers_type_chk",
+      sql.raw(`${t.transfer_type.name} in ('normal', 'emergency')`),
+    ),
+    check(
+      "stock_transfers_status_chk",
+      sql.raw(`${t.status.name} in ('draft', 'in_transit', 'completed', 'cancelled')`),
+    ),
     foreignKey({
       name: "inventory_stock_transfers_from_store_fk",
       columns: [t.iq_tenant_id, t.from_store_id],
@@ -493,7 +633,9 @@ export const inventoryStockTransfers = inventorySchema.table(
       columns: [t.iq_tenant_id, t.inventory_indent_id],
       foreignColumns: [inventoryIndents.iq_tenant_id, inventoryIndents.id],
     })
-      .onDelete("set null")
+      // Citus: ON DELETE SET NULL is rejected when the distribution key is part of the FK
+      // (EnsureSupportedFKeyOnDistKey), so NO ACTION replaces the legacy SET NULL here.
+      .onDelete("no action")
       .onUpdate("no action"),
   ],
 );
@@ -536,6 +678,7 @@ export const inventoryStockTransferLines = inventorySchema.table(
     })
       .onDelete("restrict")
       .onUpdate("no action"),
+    check("stock_transfer_lines_qty_chk", sql.raw(`${t.transfer_qty.name} > 0`)),
   ],
 );
 

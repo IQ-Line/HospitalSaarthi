@@ -1,0 +1,229 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: master_data_permissions_test
+description: >-
+  Master Data catalog authorization: global catalogs (module/permission/system_role/
+  module_permission) are capability-gated with NO tenant equality; the department catalog is
+  tenant-isolated (capability + iq_tenant_id equality). As a clinical-reference catalog it omits the
+  platform-operator scope rule (ADR-0035), so the "super-admin" role string grants nothing cross-tenant.
+
+principals:
+  module_creator:
+    id: op-1
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:module:create"]
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  permission_creator:
+    id: op-2
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:permission:create"]
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  system_role_creator:
+    id: op-3
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:system-role:create"]
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  module_permission_creator:
+    id: op-4
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:module-permission:create"]
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  no_caps:
+    id: op-none
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  dept_creator:
+    id: t-1
+    roles: ["tenant-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:department:create"]
+      delegated_capabilities: []
+      role_codes: ["tenant-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  dept_updater:
+    id: t-2
+    roles: ["tenant-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:department:update"]
+      delegated_capabilities: []
+      role_codes: ["tenant-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  dept_creator_delegated:
+    id: t-3
+    roles: ["tenant-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: ["master-data:department:create"]
+      role_codes: ["tenant-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  super_admin_dept:
+    id: sa-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["master-data:department:create"]
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  module_res:
+    id: mod-1
+    kind: master_data:module
+    attr: {}
+  module_res_tenant_b:
+    id: mod-2
+    kind: master_data:module
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  permission_res:
+    id: perm-1
+    kind: master_data:permission
+    attr: {}
+  system_role_res:
+    id: sr-1
+    kind: master_data:system_role
+    attr: {}
+  module_permission_res:
+    id: mp-1
+    kind: master_data:module_permission
+    attr: {}
+  dept_a:
+    id: dep-1
+    kind: master_data:department
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  dept_b:
+    id: dep-2
+    kind: master_data:department
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: global module create with capability
+    input:
+      principals: [module_creator]
+      resources: [module_res]
+      actions: [create]
+    expected:
+      - principal: module_creator
+        resource: module_res
+        actions: { create: EFFECT_ALLOW }
+
+  - name: global module create denied without capability
+    input:
+      principals: [no_caps]
+      resources: [module_res]
+      actions: [create]
+    expected:
+      - principal: no_caps
+        resource: module_res
+        actions: { create: EFFECT_DENY }
+
+  - name: global catalog ignores tenant (create allowed on any-tenant resource)
+    input:
+      principals: [module_creator]
+      resources: [module_res_tenant_b]
+      actions: [create]
+    expected:
+      - principal: module_creator
+        resource: module_res_tenant_b
+        actions: { create: EFFECT_ALLOW }
+
+  - name: permission / system_role / module_permission create with their capabilities
+    input:
+      principals: [permission_creator, system_role_creator, module_permission_creator]
+      resources: [permission_res, system_role_res, module_permission_res]
+      actions: [create]
+    expected:
+      - principal: permission_creator
+        resource: permission_res
+        actions: { create: EFFECT_ALLOW }
+      - principal: system_role_creator
+        resource: system_role_res
+        actions: { create: EFFECT_ALLOW }
+      - principal: module_permission_creator
+        resource: module_permission_res
+        actions: { create: EFFECT_ALLOW }
+
+  - name: department create/import allowed in own tenant, denied cross-tenant
+    input:
+      principals: [dept_creator]
+      resources: [dept_a, dept_b]
+      actions: [create, import]
+    expected:
+      - principal: dept_creator
+        resource: dept_a
+        actions: { create: EFFECT_ALLOW, import: EFFECT_ALLOW }
+      - principal: dept_creator
+        resource: dept_b
+        actions: { create: EFFECT_DENY, import: EFFECT_DENY }
+
+  - name: department create via delegated capability (own tenant)
+    input:
+      principals: [dept_creator_delegated]
+      resources: [dept_a]
+      actions: [create]
+    expected:
+      - principal: dept_creator_delegated
+        resource: dept_a
+        actions: { create: EFFECT_ALLOW }
+
+  - name: department update needs the update capability (create cap does not grant update)
+    input:
+      principals: [dept_updater, dept_creator]
+      resources: [dept_a]
+      actions: [update]
+    expected:
+      - principal: dept_updater
+        resource: dept_a
+        actions: { update: EFFECT_ALLOW }
+      - principal: dept_creator
+        resource: dept_a
+        actions: { update: EFFECT_DENY }
+
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the create capability is DENIED cross-tenant — department is a
+  # clinical-reference catalog that omits the platform-operator scope rule by design.
+  - name: dead string — super-admin DENIED cross-tenant department create even with capability
+    input:
+      principals: [super_admin_dept]
+      resources: [dept_b]
+      actions: [create]
+    expected:
+      - principal: super_admin_dept
+        resource: dept_b
+        actions: { create: EFFECT_DENY }

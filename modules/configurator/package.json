@@ -8,17 +8,19 @@
     "./router": "./src/router.ts"
   },
   "devDependencies": {
-    "vitest": "^3.1.3"
+    "vitest": "catalog:",
+    "drizzle-kit": "^0.31.4"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.32.0",
     "@fastify/multipart": "^10.0.0",
     "@hims/ts-sdk-api-key": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1"
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:"
   },
   "scripts": {
     "test": "vitest run"

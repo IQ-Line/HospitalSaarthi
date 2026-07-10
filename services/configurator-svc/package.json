@@ -13,14 +13,20 @@
     "@fastify/swagger-ui": "^5.2.3",
     "@hims/configurator": "workspace:*",
     "@hims/dev-bootstrap": "workspace:*",
+    "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
-    "fastify": "^5.3.3"
+    "@hims/user-management": "workspace:*",
+    "dotenv": "catalog:",
+    "fastify": "catalog:"
   },
   "devDependencies": {
-    "tsx": "^4.19.4"
+    "tsx": "catalog:",
+    "vitest": "catalog:"
   }
 }

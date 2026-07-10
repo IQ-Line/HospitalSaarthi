@@ -6,6 +6,7 @@ import type {
   CreateTenantIntegrationProfileData,
   UpdateTenantIntegrationProfileData,
   IntegrationKind,
+  TenantIntegrationProfile,
 } from "../domain/tenant-integration-profile.types.js";
 import { listTenantIntegrationProfiles } from "../use-cases/list-tenant-integration-profiles.js";
 import { createTenantIntegrationProfile } from "../use-cases/create-tenant-integration-profile.js";
@@ -33,6 +34,19 @@ interface ByHipQuery {
 export interface TenantIntegrationProfilesHandlerDeps {
   tenantIntegrationProfilesRepo: TenantIntegrationProfilesRepo;
   tenantRepo: TenantRepo;
+}
+
+/**
+ * Strip the stored ABDM `client_secret` from management (super-admin) responses.
+ * The credential is write-only over the management surface: defense-in-depth, the
+ * plaintext secret must never travel back over the wire (logs, browser cache) even
+ * to a super-admin. The internal S2S routes (by-hip / by-tenant) deliberately keep
+ * it — integration-hub needs it to authenticate to the ABDM gateway.
+ */
+function redactProfileSecret(
+  profile: TenantIntegrationProfile,
+): TenantIntegrationProfile {
+  return { ...profile, client_secret: null };
 }
 
 export function registerTenantIntegrationProfilesHandler(
@@ -113,6 +127,7 @@ export function registerTenantIntegrationProfilesHandler(
           properties: { tenantId: uuidParamSchema.properties.id },
         },
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
       const profiles = await listTenantIntegrationProfiles(
@@ -123,7 +138,7 @@ export function registerTenantIntegrationProfilesHandler(
           is_active: request.query.is_active,
         },
       );
-      return { data: profiles, total: profiles.length };
+      return { data: profiles.map(redactProfileSecret), total: profiles.length };
     },
   );
 
@@ -141,6 +156,7 @@ export function registerTenantIntegrationProfilesHandler(
         },
         body: postTenantIntegrationProfileBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       const created = await createTenantIntegrationProfile(
@@ -151,7 +167,7 @@ export function registerTenantIntegrationProfilesHandler(
           ...request.body,
         },
       );
-      return reply.code(201).send(created);
+      return reply.code(201).send(redactProfileSecret(created));
     },
   );
 
@@ -159,12 +175,15 @@ export function registerTenantIntegrationProfilesHandler(
     "/tenants/:tenantId/integration-profiles/:profileId",
     {
       schema: { params: tenantIntegrationProfileParamsSchema },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      return getTenantIntegrationProfileById(
-        tenantIntegrationProfilesRepo,
-        request.params.profileId,
-        request.params.tenantId,
+      return redactProfileSecret(
+        await getTenantIntegrationProfileById(
+          tenantIntegrationProfilesRepo,
+          request.params.profileId,
+          request.params.tenantId,
+        ),
       );
     },
   );
@@ -179,13 +198,16 @@ export function registerTenantIntegrationProfilesHandler(
         params: tenantIntegrationProfileParamsSchema,
         body: patchTenantIntegrationProfileBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      return updateTenantIntegrationProfile(
-        tenantIntegrationProfilesRepo,
-        request.params.profileId,
-        request.params.tenantId,
-        request.body,
+      return redactProfileSecret(
+        await updateTenantIntegrationProfile(
+          tenantIntegrationProfilesRepo,
+          request.params.profileId,
+          request.params.tenantId,
+          request.body,
+        ),
       );
     },
   );
@@ -194,6 +216,7 @@ export function registerTenantIntegrationProfilesHandler(
     "/tenants/:tenantId/integration-profiles/:profileId",
     {
       schema: { params: tenantIntegrationProfileParamsSchema },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
       await deleteTenantIntegrationProfile(

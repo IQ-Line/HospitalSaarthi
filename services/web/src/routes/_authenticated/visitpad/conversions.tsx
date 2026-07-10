@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@pulse/ui/select';
-import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table';
 import { EntityFormDialog } from '@/features/master-data/components/entity-form-dialog';
 import { MasterDataTableToolbar } from '@/features/master-data/components/master-data-table-toolbar';
@@ -21,7 +20,6 @@ import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadConversions,
   useVisitpadConversionsGlobalLibrary,
-  useVisitpadDelete,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -47,7 +45,6 @@ import {
   type VisitpadUnitConversionCreateSchema,
   type VisitpadUnitConversionEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -72,7 +69,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/conversions')({
 
 function VisitpadConversionsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-conversions');
-  const { canUpdate, canDelete, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -86,7 +83,6 @@ function VisitpadConversionsPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(VISITPAD_CATALOG_DEFAULT_PAGE_SIZE);
   const [editing, setEditing] = useState<VisitpadUnitConversion | null>(null);
-  const [deleting, setDeleting] = useState<VisitpadUnitConversion | null>(null);
   const listPage = useMemo(() => ({ pageIndex, pageSize }), [pageIndex, pageSize]);
   useEffect(() => {
     setPageIndex(0);
@@ -107,11 +103,10 @@ function VisitpadConversionsPage() {
   const create = useVisitpadPost(CONV_BASE);
   const platformImport = useVisitpadPlatformImport('/unit-conversions/import-from-platform');
   const patch = useVisitpadPatch(CONV_BASE);
-  const del = useVisitpadDelete(CONV_BASE);
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const tabCount = { active: rows.length, total };
-  const busy = patch.isPending || del.isPending || platformImport.isPending;
+  const busy = patch.isPending || platformImport.isPending;
 
   const conversionKey = useCallback(
     (r: Pick<VisitpadUnitConversion, 'from_unit_code' | 'to_unit_code'>) =>
@@ -170,7 +165,8 @@ function VisitpadConversionsPage() {
     try {
       const res = await platformImport.mutateAsync(selection.map((r) => r.id));
       const { created, skipped, errors } = res.data;
-      toast.success(`${created.length} created, ${skipped.length} skipped${errors.length ? `, ${errors.length} failed` : ''}`);
+      const failedSuffix = errors.length ? `, ${errors.length} failed` : '';
+      toast.success(`${created.length} created, ${skipped.length} skipped${failedSuffix}`);
       if (errors.length) toast.error(errors.map((e) => e.message).join('; '));
       setImportOpen(false);
     } catch (e) {
@@ -205,13 +201,11 @@ function VisitpadConversionsPage() {
       { accessorKey: 'display_order', header: 'Order', meta: { label: 'Order' } },
       visitpadActionsColumn<VisitpadUnitConversion>({
         onEdit: setEditing,
-        onDelete: setDeleting,
         disabled: busy,
         canEdit: canUpdate,
-        canDelete,
       }),
     ],
-    [busy, unitLabelByCode, canUpdate, canDelete],
+    [busy, unitLabelByCode, canUpdate],
   );
 
   return (
@@ -332,27 +326,6 @@ function VisitpadConversionsPage() {
           } catch (e) {
             toast.error(mutationErrorMessage(e));
           }
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
-        title="Deactivate conversion?"
-        description={`${deleting?.from_unit_code ?? ''} → ${deleting?.to_unit_code ?? ''} will be deactivated. You can activate it again later.`}
-        confirmLabel="Deactivate"
-        destructive
-        onConfirm={() => {
-          if (!deleting) return;
-          void (async () => {
-            try {
-              await del.mutateAsync(deleting.id);
-              toast.success('Conversion deactivated');
-              setDeleting(null);
-            } catch (e) {
-              toast.error(mutationErrorMessage(e));
-            }
-          })();
         }}
       />
 

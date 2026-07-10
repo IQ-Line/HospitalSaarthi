@@ -24,6 +24,31 @@
         "cwd": "services/web"
       }
     },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/web/src/**/*.{ts,tsx}",
+          "services/web/test/**/*.{ts,tsx}"
+        ]
+      }
+    },
+    "generate-routes": {
+      "command": "tsr generate",
+      "options": {
+        "cwd": "services/web"
+      },
+      "outputs": ["{projectRoot}/src/routeTree.gen.ts"],
+      "cache": true
+    },
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/web"
+      },
+      "dependsOn": ["generate-routes"],
+      "cache": true
+    },
     "test": {
       "command": "vitest run",
       "options": {

@@ -8,7 +8,7 @@ export type CatalogModuleRef = {
   readonly level?: number;
 };
 
-/** Active L1 product module in `global_master.modules` (matches seed `level = 1`). */
+/** Active L1 product module in `master_global.modules` (matches seed `level = 1`). */
 export function isCatalogL1Module(module: Pick<CatalogModuleRef, "level" | "parent_id">): boolean {
   return module.level === 1 && module.parent_id === null;
 }
@@ -120,7 +120,7 @@ export function moduleSlugsForIds(
 ): string[] {
   const byId = new Map(modules.map((module) => [module.id, module]));
   const slugs = new Set<string>();
-  for (const id of moduleIds instanceof Set ? moduleIds : moduleIds) {
+  for (const id of moduleIds) {
     const slug = byId.get(id)?.slug;
     if (slug) {
       slugs.add(normalizeModuleSlug(slug));

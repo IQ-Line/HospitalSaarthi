@@ -5,6 +5,7 @@ import { DEVELOPMENT_SEED_USERS } from "../../packages/dev-bootstrap/src/index.t
 import { DrizzleUserRepository } from "../../modules/user-management/src/data-access/user-repository.ts";
 import { DrizzlePrincipalAuthorizationRepository } from "../../modules/user-management/src/data-access/principal-authorization-repository.ts";
 import { DrizzlePrincipalRoleProjectionRepository } from "../../modules/user-management/src/data-access/drizzle-principal-role-projection-repository.ts";
+import { DrizzlePlatformAdminRepository } from "../../modules/user-management/src/data-access/drizzle-platform-admin-repository.ts";
 import { createDefaultPrincipalService } from "../../modules/user-management/src/services/default-principal-service.ts";
 import { syncCapabilitiesFromMasterDataCatalog } from "../../modules/user-management/src/dev/sync-capabilities-from-master-data-catalog.ts";
 import { createDevSeedAuth, repairJwksForDevSeed } from "./create-dev-auth.ts";
@@ -73,6 +74,7 @@ export async function seedUserManagement(
   const auth = createDevSeedAuth(db, authEnv, {
     userRepository,
     principalRoleProjectionRepository,
+    platformAdminRepository: new DrizzlePlatformAdminRepository(db),
   }) as unknown as BetterAuthServerApi;
 
   const capabilityRows = await ensureCapabilities(db, masterDataDatabaseUrl);
@@ -98,5 +100,6 @@ export function buildPrincipalService(db: DbInstance) {
     userRepository: new DrizzleUserRepository(db),
     principalRoleProjectionRepository: new DrizzlePrincipalRoleProjectionRepository(db),
     principalAuthorizationRepository: new DrizzlePrincipalAuthorizationRepository(db),
+    platformAdminRepository: new DrizzlePlatformAdminRepository(db),
   });
 }

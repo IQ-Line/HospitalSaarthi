@@ -1,5 +1,7 @@
 # ABDM M2 — Simple reference
 
+> Paths/schema realigned with the integration-hub layout, 2026-07-10.
+
 Easy overview for **HIP linking**, **consent**, and **record fetch**.  
 Technical detail stays in the other guides (linked below).
 
@@ -56,11 +58,11 @@ NHA sends the token on callback `on-generate-token`. Linking uses header `X-LINK
 
 So in LIMS: **token generation and linking are chained in one user action**, but link still only runs **after** the token is stored (callback or cache hit).
 
-### New adapter (`abdm-adapter-svc` — Hospital Saarthi)
+### New adapter (`integration-hub-svc` — Hospital Saarthi)
 
 | Step | What happens |
 |------|----------------|
-| 1 | Token stored in Postgres `abdm_adapter.abdm_link_tokens` when NHA hits `POST /api/v3/hip/token/on-generate-token` |
+| 1 | Token stored in Postgres `integration_hub.abdm_link_tokens` when NHA hits `POST /api/v3/hip/token/on-generate-token` |
 | 2 | Staff / HIMS calls **one platform API** `POST /api/abdm/v1/m2/hip/initiated-link/start` |
 | 3 | Adapter reads token via `linkTokenCache.getOrAcquire(...)` |
 | 3a | **Cache hit** → uses saved token immediately |
@@ -132,7 +134,7 @@ Optional manual NHA step (debug only):
 
 ## Environment variables (sandbox vs production)
 
-Full template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-adapter-svc/.env.example)
+Full template: [`services/integration-hub-svc/.env.example`](../../services/integration-hub-svc/.env.example)
 
 ### Sandbox (local E2E)
 
@@ -176,7 +178,7 @@ Full template: [`services/abdm-adapter-svc/.env.example`](../../services/abdm-ad
 | `ABDM_FIDELIUS_USE_STUB` | Optional | **Unset** |
 | Callback URL | ngrok | **Stable URL** in HFR |
 
-**DB:** apply `migrations/0002_abdm_link_otps.sql` before multi-replica deploy (OTP persistence).
+**DB:** apply all `modules/integration-hub/migrations/` before multi-replica deploy — the `abdm_link_otps` table (OTP persistence) ships in `0000_init.sql`.
 
 ---
 
@@ -196,8 +198,8 @@ Swagger only shows **Door 1** (by design). M2 callbacks are **Door 3**.
 
 | Script | Purpose |
 |--------|---------|
-| `services/abdm-adapter-svc/scripts/simulate-consent-notify.sh` | Fake consent notify → ngrok |
-| `services/abdm-adapter-svc/scripts/m2-local-smoke.sh` | Local token callback + link (needs creds) |
+| `services/integration-hub-svc/scripts/simulate-consent-notify.sh` | Fake consent notify → ngrok |
+| `services/integration-hub-svc/scripts/m2-local-smoke.sh` | Local token callback + link (needs creds) |
 
 ---
 
@@ -206,20 +208,20 @@ Swagger only shows **Door 1** (by design). M2 callbacks are **Door 3**.
 ```sql
 -- Link token
 SELECT abha_address, length(link_token) AS token_len
-FROM abdm_adapter.abdm_link_tokens
+FROM integration_hub.abdm_link_tokens
 WHERE abha_address = 'your-abha@sbx';
 
 -- HIP link session
-SELECT session_id, state FROM abdm_adapter.abdm_sessions
+SELECT session_id, state FROM integration_hub.abdm_sessions
 WHERE flow_kind = 'abdm.m2.hip-initiated-link.v1'
 ORDER BY created_at DESC LIMIT 1;
 
 -- Consent
-SELECT consent_id, status FROM abdm_adapter.abdm_consent_artefacts
+SELECT consent_id, status FROM integration_hub.abdm_consent_artefacts
 ORDER BY received_at DESC LIMIT 1;
 
 -- Record fetch (M3)
-SELECT session_id, state FROM abdm_adapter.abdm_sessions
+SELECT session_id, state FROM integration_hub.abdm_sessions
 WHERE flow_kind = 'abdm.m3.hip.v1'
 ORDER BY created_at DESC LIMIT 1;
 ```

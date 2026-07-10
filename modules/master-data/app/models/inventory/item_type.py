@@ -16,10 +16,9 @@ class InventoryItemTypePublicModel(TimestampMixin, AuditActorMixin, Base):
     __table_args__ = (
         Index(
             "inventory_item_types_name_active_key",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -36,10 +35,9 @@ class InventoryItemTypeTenantModel(TimestampMixin, AuditActorMixin, Base):
         Index(
             "tm_inventory_item_types_name_active_key",
             "iq_tenant_id",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

@@ -1,10 +1,11 @@
-"""SQLAlchemy models for Visitpad ``vitals`` — global_master vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``vitals`` — master_global vs ``master_tenant``."""
 
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, Float, Index, Integer, JSON, String, Uuid, text
+from sqlalchemy import Boolean, Float, Index, Integer, String, Uuid, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -19,7 +20,6 @@ class VisitpadVitalPublicModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -32,13 +32,13 @@ class VisitpadVitalPublicModel(TimestampMixin, AuditActorMixin, Base):
     data_type: Mapped[str] = mapped_column(String(32), nullable=False)
     unit: Mapped[str] = mapped_column(String(128), nullable=False)
     default_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
-    allowed_units: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    allowed_units: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     critical_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     critical_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     reference_kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    reference_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    normal_range_adult: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    normal_range_paediatric: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    reference_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    normal_range_adult: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    normal_range_paediatric: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     input_method: Mapped[str] = mapped_column(String(32), nullable=False)
     is_paired: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     pair_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -58,7 +58,6 @@ class VisitpadVitalTenantModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )
@@ -72,13 +71,13 @@ class VisitpadVitalTenantModel(TimestampMixin, AuditActorMixin, Base):
     data_type: Mapped[str] = mapped_column(String(32), nullable=False)
     unit: Mapped[str] = mapped_column(String(128), nullable=False)
     default_unit_code: Mapped[str] = mapped_column(String(64), nullable=False)
-    allowed_units: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    allowed_units: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     critical_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     critical_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     reference_kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    reference_json: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    normal_range_adult: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    normal_range_paediatric: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    reference_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    normal_range_adult: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    normal_range_paediatric: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     input_method: Mapped[str] = mapped_column(String(32), nullable=False)
     is_paired: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
     pair_code: Mapped[str | None] = mapped_column(String(64), nullable=True)

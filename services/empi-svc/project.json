@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:empi", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/empi-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
@@ -16,6 +22,22 @@
       "command": "tsx watch src/main.ts",
       "options": {
         "cwd": "services/empi-svc"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "services/empi-svc"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/empi-svc/src/**/*.ts",
+          "services/empi-svc/test/**/*.ts"
+        ]
       }
     }
   }

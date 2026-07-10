@@ -36,7 +36,7 @@ function toPatch(values: FormValues): UpdateUserBody {
 
 export function UserEditForm({ user }: { user: UmUser }) {
   const update = useUpdateUser(user.id);
-  const { reset, handleSubmit, register, control, formState } = useForm<FormValues>({
+  const { reset, handleSubmit, register, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       full_name: user.full_name,

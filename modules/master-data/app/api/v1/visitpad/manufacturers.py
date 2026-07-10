@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_session, get_visitpad_manufacturer_repository
 from app.api.errors import ResourceNotFoundError
 from app.api.v1.visitpad.catalog_http import require_visitpad_tenant_catalog_scope
+from app.core.authz import visitpad_guard
 from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
 from app.schemas.visitpad.manufacturer import (
     VisitpadManufacturerCreate,
@@ -33,10 +34,21 @@ from app.services.visitpad.platform_bulk_import import import_visitpad_manufactu
 
 router = APIRouter(prefix="/visitpad/manufacturers", tags=["Visitpad — Manufacturers"])
 
+# Tenant-isolated visitpad catalog: writes are capability + iq_tenant_id gated (see
+# infra/cerbos/policies/master_data_visitpad.yaml); reads are identity-gate-only.
+_GUARD_CREATE = Depends(visitpad_guard("create"))
+_GUARD_IMPORT = Depends(visitpad_guard("import"))
+_GUARD_UPDATE = Depends(visitpad_guard("update"))
+_GUARD_DELETE = Depends(visitpad_guard("delete"))
 
-@router.get("", response_model=VisitpadManufacturerListResponse, summary="List manufacturers")
+
+@router.get(
+    "", response_model=VisitpadManufacturerListResponse, summary="List manufacturers"
+)
 def get_manufacturers(
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     search: Annotated[str | None, Query()] = None,
@@ -60,10 +72,13 @@ def get_manufacturers(
     response_model=VisitpadManufacturerSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create manufacturer",
+    dependencies=[_GUARD_CREATE],
 )
 def post_manufacturer(
     payload: VisitpadManufacturerCreate,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = create_visitpad_manufacturer(repository, payload=payload)
@@ -75,10 +90,13 @@ def post_manufacturer(
     "/import-from-platform",
     response_model=VisitpadPlatformImportSingleResponse,
     summary="Bulk-import manufacturers from the platform catalog",
+    dependencies=[_GUARD_IMPORT],
 )
 def post_manufacturers_import_from_platform(
     payload: VisitpadPlatformImportRequest,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadPlatformImportSingleResponse:
     try:
@@ -100,16 +118,24 @@ def post_manufacturers_import_from_platform(
     summary="List tenant manufacturer codes (lowercase) for import-from-platform matching",
 )
 def get_manufacturer_import_keys(
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
 ) -> VisitpadCatalogKeysResponse:
     require_visitpad_tenant_catalog_scope(repository.scope)
     return VisitpadCatalogKeysResponse(data=repository.list_import_key_strings())
 
 
-@router.get("/{manufacturer_id}", response_model=VisitpadManufacturerSingleResponse, summary="Get manufacturer")
+@router.get(
+    "/{manufacturer_id}",
+    response_model=VisitpadManufacturerSingleResponse,
+    summary="Get manufacturer",
+)
 def get_manufacturer(
     manufacturer_id: UUID,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
 ) -> VisitpadManufacturerSingleResponse:
     row = get_visitpad_manufacturer_by_id(repository, row_id=manufacturer_id)
     if row is None:
@@ -121,11 +147,14 @@ def get_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Update manufacturer",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_manufacturer(
     manufacturer_id: UUID,
     payload: VisitpadManufacturerUpdate,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = update_visitpad_manufacturer(repository, row_id=manufacturer_id, payload=payload)
@@ -139,10 +168,13 @@ def patch_manufacturer(
     "/{manufacturer_id}",
     response_model=VisitpadManufacturerSingleResponse,
     summary="Soft-delete manufacturer",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_manufacturer(
     manufacturer_id: UUID,
-    repository: Annotated[VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)],
+    repository: Annotated[
+        VisitpadManufacturerRepository, Depends(get_visitpad_manufacturer_repository)
+    ],
     session: Annotated[Session, Depends(get_session)],
 ) -> VisitpadManufacturerSingleResponse:
     row = soft_delete_visitpad_manufacturer(repository, row_id=manufacturer_id)

@@ -12,5 +12,9 @@ export async function hydrateCapabilitiesFromPrincipal(
 ): Promise<void> {
   const payload = principal ?? (await fetchAuthPrincipal());
   const keys = capabilityKeysFromPrincipalAttributes(payload.attributes);
-  usePermissionsStore.getState().setCapabilityKeys(keys, payload.roles);
+  const rawScopes = payload.attributes?.scopes;
+  const scopes = Array.isArray(rawScopes)
+    ? rawScopes.filter((s): s is string => typeof s === 'string' && s.length > 0)
+    : [];
+  usePermissionsStore.getState().setCapabilityKeys(keys, payload.roles, scopes);
 }

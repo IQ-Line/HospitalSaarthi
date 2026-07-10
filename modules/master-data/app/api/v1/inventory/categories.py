@@ -64,7 +64,11 @@ def post_category(
     return InventoryCategorySingleResponse(data=InventoryCategoryResponse.model_validate(row))
 
 
-@router.get("/{category_id}", response_model=InventoryCategorySingleResponse, summary="Get category")
+@router.get(
+    "/{category_id}",
+    response_model=InventoryCategorySingleResponse,
+    summary="Get category",
+)
 def get_category(
     category_id: UUID,
     repository: Annotated[InventoryCategoryRepository, Depends(get_inventory_category_repository)],

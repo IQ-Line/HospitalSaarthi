@@ -1,12 +1,15 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
 import { AbdmUseCaseError } from "../../../lib/m1-errors.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
-import { filterConsentCareContexts } from "../../../lib/filter-consent-care-contexts.js";
+import {
+  filterConsentCareContexts,
+  type ConsentArtefactWithCareContexts,
+} from "../../../lib/filter-consent-care-contexts.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import type {
   ConsentNotifyRequest,
   OnConsentNotifyRequest,
-} from "@hims/ts-sdk-abha/protocol/m2/index.js";
+} from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyConsentNotificationSignature } from "../../../lib/consent-signature-verifier.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
@@ -73,7 +76,7 @@ export async function handleConsentNotifyCallback(
     return;
   }
 
-  const detail = notification.consentDetail;
+  const detail: ConsentArtefactWithCareContexts = notification.consentDetail;
   const abhaAddress = detail.patient.id;
   const requestedHiTypes = Array.isArray(detail.hiTypes) ? detail.hiTypes : [];
   const filteredCareContexts = filterConsentCareContexts({

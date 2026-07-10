@@ -44,17 +44,20 @@ paths:
       operationId: searchPatients
       summary: Search patients
       description: |
-        Tenant-scoped lookup with **required** identity-style criteria (at least one of `uhid`,
-        `phone`, `mobile`, `abha_number`, or `name` with ≥2 characters). Combine with `status`,
-        `gender`, pagination (`page`, `limit` max 100), and `sort`/`order` for desk workflows.
+        Tenant-scoped lookup with **required** identity-style criteria: at least one of `uhid`,
+        `phone`, `abha_number`, or `name` (with ≥2 characters). A request with no criterion (or
+        only `status`/pagination) is rejected with 400 `patient_search_invalid_query` — it must
+        never fall through to a full tenant patient list. Combine with `status` and pagination
+        (`page`, `limit`; `limit` is clamped to 100).
 
-        **Phone / mobile:** `phone` and `mobile` are equivalent for matching — both compare against
-        stored `phone_number` **or** `alternate_phone` (exact string as stored).
+        **Phone:** exact match on the stored `phone_number` (Indian numbers are normalized to
+        `+91XXXXXXXXXX` before matching).
 
         **Name:** case-insensitive substring on `full_name`; uses `pg_trgm` GIN when migration
-        `0001_pg_trgm.sql` is applied.
+        `0000_pg_trgm.sql` is applied. A name shorter than 2 characters does not count as a criterion.
 
-        **Performance:** UHID and phone matches use btree indexes; name search uses trigram GIN.
+        Results are ordered by `created_at`. (Richer desk search — gender filter, `mobile` alias,
+        `alternate_phone` matching, `sort`/`order` — is a documented follow-up, not yet implemented.)
       tags: [Patients]
       parameters:
         - name: name
@@ -62,17 +65,12 @@ paths:
           schema:
             type: string
             minLength: 2
-          description: Substring match on `full_name` (minimum 2 characters when used as the primary criterion).
+          description: Substring match on `full_name` (minimum 2 characters when used as a criterion).
         - name: phone
           in: query
           schema:
             type: string
-          description: Exact match on `phone_number` or `alternate_phone` (same as `mobile`).
-        - name: mobile
-          in: query
-          schema:
-            type: string
-          description: Alias of `phone` for registration-desk wording; first non-empty of `mobile`/`phone` wins if both are sent.
+          description: Exact match on the normalized `phone_number`.
         - name: uhid
           in: query
           schema:
@@ -88,27 +86,7 @@ paths:
           schema:
             type: string
             enum: [active, inactive, deceased]
-          description: Filter by patient status (optional; narrows other criteria).
-        - name: gender
-          in: query
-          schema:
-            type: string
-            enum: [male, female, other]
-          description: Optional filter on gender.
-        - name: sort
-          in: query
-          schema:
-            type: string
-            enum: [created_at, updated_at, full_name]
-            default: created_at
-          description: Sort column for the result page.
-        - name: order
-          in: query
-          schema:
-            type: string
-            enum: [asc, desc]
-            default: desc
-          description: Sort direction.
+          description: Filter by patient status (optional; narrows other criteria — not a criterion on its own).
         - name: page
           in: query
           schema:
@@ -135,6 +113,86 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PatientSearchError"
+
+  /patients/find:
+    get:
+      operationId: findPatientByAbhaAddress
+      summary: Find a patient by ABHA address (internal dedup lookup)
+      description: >-
+        Service-to-service lookup (used by registration) resolving an ABHA address to a patient id.
+      tags: [Patients]
+      parameters:
+        - name: abha_address
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Patient found.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [patientId, id]
+                properties:
+                  patientId: { type: string, format: uuid }
+                  id: { type: string, format: uuid }
+        "404":
+          description: No patient with that ABHA address.
+
+  /patients/find-by-demographics:
+    post:
+      operationId: findPatientByDemographics
+      summary: Find a patient by dedup demographics (internal lookup)
+      description: >-
+        Service-to-service dedup lookup. A match is attempted ONLY when `first_name`, `gender`, and
+        `phone_number` are ALL present (phonetic-name + age/phone blocking); any other request —
+        including an `identifiers`-only body — returns 404. NOTE: `identifiers` is accepted by the
+        schema but is NOT yet used for matching (identifier-based lookup is a documented follow-up,
+        tracked for the functional walk-through).
+      tags: [Patients]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                identifiers:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [type, value]
+                    properties:
+                      type: { type: string }
+                      value: { type: string }
+                first_name: { type: string }
+                middle_name: { type: string }
+                last_name: { type: string }
+                gender: { type: string, enum: [male, female, other] }
+                phone_number: { type: string }
+                date_of_birth: { type: string }
+                year_of_birth: { type: integer }
+                age_years: { type: integer }
+                age_months: { type: integer }
+                age_days: { type: integer }
+      responses:
+        "200":
+          description: Patient matched.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [patientId, id, score]
+                properties:
+                  patientId: { type: string, format: uuid }
+                  id: { type: string, format: uuid }
+                  score: { type: number }
+        "404":
+          description: No matching patient.
 
   /patients/{id}:
     get:
@@ -233,6 +291,33 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PatientIdentifier"
+        "200":
+          description: >-
+            ABHA address was already linked to this same patient (idempotent no-op).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    enum: [already_linked]
+        "409":
+          description: >-
+            ABHA address is already linked to a DIFFERENT patient.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error, existing_patient_id]
+                properties:
+                  error:
+                    type: string
+                    enum: [identifier_conflict]
+                  existing_patient_id:
+                    type: string
+                    format: uuid
 
   /patients/{id}/identifiers/{identifierId}:
     delete:

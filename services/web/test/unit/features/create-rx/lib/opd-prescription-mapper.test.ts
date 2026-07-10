@@ -1,0 +1,354 @@
+import { describe, expect, it } from 'vitest';
+import {
+  immunizationRowToVaccinePayload,
+  vaccinePayloadToImmunizationRow,
+} from '../../../../../src/features/create-rx/lib/opd-immunization-meta';
+import { formVitalsToLegacyVitals, legacyVitalsToFormVitals } from '../../../../../src/features/create-rx/lib/opd-legacy-vitals';
+import { clinicalToCreateRxFormData, createRxFormDataToClinical } from '../../../../../src/features/create-rx/lib/opd-prescription-mapper';
+import type { CreateRxFormData } from '../../../../../src/features/create-rx/types';
+
+describe('opd immunization meta', () => {
+  it('round-trips manufacturer, lot, and dates via instructions and due_by', () => {
+    const row = {
+      id: '1',
+      vaccineName: 'Ebola vaccine',
+      manufacturer: 'Acme Labs',
+      lotNumber: 'LOT-99',
+      dateOfDose: '2026-06-01',
+      doseNumber: '2',
+      nextDueDate: '2026-12-01',
+      notes: 'Left arm',
+    };
+
+    const payload = immunizationRowToVaccinePayload(row, 1);
+    expect(payload.due_by).toBeTruthy();
+    expect(payload.instructions).toContain('__hims_immunization_v1:');
+
+    const restored = vaccinePayloadToImmunizationRow({
+      name: payload.name,
+      instructions: payload.instructions,
+      due_by: payload.due_by,
+    });
+
+    expect(restored.vaccineName).toBe('Ebola vaccine');
+    expect(restored.manufacturer).toBe('Acme Labs');
+    expect(restored.lotNumber).toBe('LOT-99');
+    expect(restored.dateOfDose).toBe('2026-06-01');
+    expect(restored.doseNumber).toBe('2');
+    expect(restored.nextDueDate).toBe('2026-12-01');
+    expect(restored.notes).toBe('Left arm');
+  });
+});
+
+describe('opd legacy vitals', () => {
+  it('maps form codes to API keys and back', () => {
+    const legacy = formVitalsToLegacyVitals({
+      systolic_bp: '120',
+      respiratory_rate: '19',
+      bmi: '24',
+    });
+    expect(legacy).toEqual({
+      bp_systolic: 120,
+      respiratory_rate: 19,
+      bmi: 24,
+    });
+
+    const form = legacyVitalsToFormVitals(legacy);
+    expect(form.systolic_bp).toBe('120');
+    expect(form.respiratory_rate).toBe('19');
+    expect(form.bmi).toBe('24');
+  });
+});
+
+describe('medicine prescription mapping', () => {
+  it('maps dosage form, M-A-N dosage, frequency, route, and TOA to clinical payload', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: '',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [
+        {
+          id: '1',
+          medicineId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          medicine: 'Paracetamol',
+          dosageForm: 'Tablet',
+          route: 'Oral',
+          strength: '500mg',
+          dosageMorning: '1',
+          dosageAfternoon: '0',
+          dosageNight: '1',
+          days: '5',
+          frequency: 'Once Daily',
+          toa: 'After Meals',
+          quantity: '10',
+        },
+      ],
+      testsRequired: [],
+      imagingRequired: [],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medicines?.[0]).toEqual({
+      line_no: 1,
+      medicine_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      name: 'Paracetamol',
+      medicine_type: 'Tablet',
+      strength: '500mg',
+      dosage: '1-0-1',
+      duration: '5',
+      frequency: 'Once Daily',
+      quantity: '10',
+      route: 'Oral',
+      method: 'After Meals',
+    });
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicines[0]).toMatchObject({
+      medicineId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      medicine: 'Paracetamol',
+      dosageForm: 'Tablet',
+      route: 'Oral',
+      strength: '500mg',
+      dosageMorning: '1',
+      dosageAfternoon: '0',
+      dosageNight: '1',
+      days: '5',
+      frequency: 'Once Daily',
+      toa: 'After Meals',
+      quantity: '10',
+    });
+  });
+
+  it('persists custom medicine names without a master catalog id', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: '',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [
+        {
+          id: '1',
+          medicineId: '',
+          medicine: 'Custom Compound X',
+          dosageForm: 'Tablet',
+          route: 'Oral',
+          strength: '250mg',
+          dosageMorning: '1',
+          dosageAfternoon: '0',
+          dosageNight: '0',
+          days: '3',
+          frequency: 'Once Daily',
+          toa: '',
+          quantity: '3',
+        },
+      ],
+      testsRequired: [],
+      imagingRequired: [],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medicines?.[0]).toMatchObject({
+      medicine_id: null,
+      name: 'Custom Compound X',
+    });
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicines[0]).toMatchObject({
+      medicineId: '',
+      medicine: 'Custom Compound X',
+    });
+  });
+});
+
+describe('custom visitpad catalog text (no master id)', () => {
+  const emptyShell: Omit<CreateRxFormData, 'chiefComplaints' | 'immunizations' | 'allergyDetails' | 'diagnosis'> = {
+    vitals: {},
+    physicalActivity: [],
+    medicalHistory: {
+      chronicIllness: '',
+      smokingStatus: '',
+      alcoholStatus: '',
+      dietType: '',
+      historyOfPresentIllness: '',
+    },
+    medicines: [],
+    testsRequired: [],
+    imagingRequired: [],
+    procedures: [],
+    carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+  };
+
+  it('persists free-text chief complaint, allergy, and diagnosis', () => {
+    const formData: CreateRxFormData = {
+      ...emptyShell,
+      chiefComplaints: [
+        {
+          id: '1',
+          complaint: 'Custom chest tightness',
+          severity: 'mild',
+          duration: '2',
+          durationUnit: 'days',
+          notes: '',
+        },
+      ],
+      immunizations: [],
+      allergyDetails: [
+        {
+          id: '1',
+          allergen: 'Custom pollen mix',
+          reaction: 'Custom rash',
+          severity: 'mild',
+        },
+      ],
+      diagnosis: [{ id: '1', notes: 'Custom provisional dx', certainty: 'presumed' }],
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.chief_complaints?.[0]?.complaint_text).toBe('Custom chest tightness');
+    expect(clinical.medical_history_allergies?.[0]?.allergen_text).toBe('Custom pollen mix');
+    expect(clinical.medical_history_allergies?.[0]?.reaction_text).toBe('Custom rash');
+    expect(clinical.diagnoses?.[0]?.notes).toBe('Custom provisional dx');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.chiefComplaints[0]?.complaint).toBe('Custom chest tightness');
+    expect(restored.allergyDetails[0]?.allergen).toBe('Custom pollen mix');
+    expect(restored.diagnosis[0]?.notes).toBe('Custom provisional dx');
+  });
+
+  it('persists free-text vaccine and manufacturer names', () => {
+    const formData: CreateRxFormData = {
+      ...emptyShell,
+      chiefComplaints: [],
+      immunizations: [
+        {
+          id: '1',
+          vaccineName: 'Custom booster X',
+          manufacturer: 'Local Pharma',
+          lotNumber: '',
+          dateOfDose: '',
+          doseNumber: '',
+          nextDueDate: '',
+          notes: '',
+        },
+      ],
+      allergyDetails: [],
+      diagnosis: [],
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.vaccines_required?.[0]?.name).toBe('Custom booster X');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.immunizations[0]?.vaccineName).toBe('Custom booster X');
+    expect(restored.immunizations[0]?.manufacturer).toBe('Local Pharma');
+  });
+});
+
+describe('diet type and imaging byWhen round-trip', () => {
+  it('preserves medicalHistory.dietType and imagingRequired[].byWhen through the normalized round-trip', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: 'Vegetarian',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [],
+      testsRequired: [],
+      imagingRequired: [
+        { id: '1', testName: 'Chest X-Ray', byWhen: 'in 2 weeks', instructions: 'PA view', status: '' },
+      ],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    expect(clinical.medical_history?.diet_type).toBe('Vegetarian');
+    const imaging = clinical.ordered_imaging?.[0] as { name: string; when_text?: string | null };
+    expect(imaging.name).toBe('Chest X-Ray');
+    expect(imaging.when_text).toBe('in 2 weeks');
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.medicalHistory.dietType).toBe('Vegetarian');
+    expect(restored.imagingRequired[0]?.byWhen).toBe('in 2 weeks');
+    expect(restored.imagingRequired[0]?.instructions).toBe('PA view');
+  });
+});
+
+describe('createRxFormDataToClinical', () => {
+  it('includes immunization meta in vaccines_required', () => {
+    const formData: CreateRxFormData = {
+      vitals: {},
+      chiefComplaints: [],
+      immunizations: [
+        {
+          id: '1',
+          vaccineName: 'BCG',
+          manufacturer: 'Bio',
+          lotNumber: '1',
+          dateOfDose: '2026-01-01',
+          doseNumber: '1',
+          nextDueDate: '2027-01-01',
+          notes: '',
+        },
+      ],
+      physicalActivity: [],
+      medicalHistory: {
+        chronicIllness: '',
+        smokingStatus: '',
+        alcoholStatus: '',
+        dietType: '',
+        historyOfPresentIllness: '',
+      },
+      allergyDetails: [],
+      diagnosis: [],
+      medicines: [],
+      testsRequired: [],
+      imagingRequired: [],
+      procedures: [],
+      carePlan: { advice: '', referTo: '', nextVisit: '', nextVisitUnit: 'days' },
+    };
+
+    const clinical = createRxFormDataToClinical(formData);
+    const vaccine = clinical.vaccines_required?.[0] as {
+      instructions?: string;
+      due_by?: string;
+    };
+    expect(vaccine.instructions).toContain('__hims_immunization_v1:');
+    expect(vaccine.due_by).toBeTruthy();
+
+    const restored = clinicalToCreateRxFormData(clinical);
+    expect(restored.immunizations[0]?.manufacturer).toBe('Bio');
+    expect(restored.immunizations[0]?.nextDueDate).toBe('2027-01-01');
+  });
+});

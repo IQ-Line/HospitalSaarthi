@@ -29,7 +29,7 @@ import type { ListUserRolesDeps } from "../use-cases/list-user-roles.js";
 import { deactivateUser } from "../use-cases/deactivate-user.js";
 import type { DeactivateUserDeps } from "../use-cases/deactivate-user.js";
 import { resetUserPassword } from "../use-cases/reset-user-password.js";
-import type { ResetUserPasswordDeps, ResetUserPasswordInput } from "../use-cases/reset-user-password.js";
+import type { ResetUserPasswordDeps } from "../use-cases/reset-user-password.js";
 import { activateUser } from "../use-cases/activate-user.js";
 import type { ActivateUserDeps } from "../use-cases/activate-user.js";
 import { replaceUserCapabilities } from "../use-cases/replace-user-capabilities.js";
@@ -54,7 +54,8 @@ export type UserHandlersDeps = {
   updateUserDeps: UpdateUserDeps;
   deactivateUserDeps: DeactivateUserDeps;
   activateUserDeps: ActivateUserDeps;
-  resetUserPasswordDeps: ResetUserPasswordDeps;
+  /** Admin recovery Flow A. When omitted (better-auth ports not wired) the route is not mounted. */
+  resetUserPasswordDeps?: ResetUserPasswordDeps;
 };
 
 function tenantOnlyResourceAttr(tenantId: string) {
@@ -266,40 +267,53 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     { config: { authMode: "protected" } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
+      const cid = request.correlationId ?? request.id;
       const departmentId = request.query.department_id?.trim() || undefined;
       let department = request.query.department?.trim() || undefined;
-
-      if (departmentId) {
-        const resolvedName = await deps.departmentCatalogPort.resolveDepartmentName(departmentId, {
-          iqTenantId: tenantId,
-          authorization:
-            typeof request.headers.authorization === "string"
-              ? request.headers.authorization
-              : undefined,
-        });
-        if (!resolvedName) {
-          return reply.status(400).send({
-            error: "invalid_department_id",
-            message: "No department found for the given department_id.",
-          });
+      // try/catch so a repo failure returns the standard UM error envelope
+      // instead of leaking a raw Fastify 500 (mirrors GET /users below).
+      // NOTE (tracked): whether this provider picklist should additionally route
+      // through listUsersWithAuthz (per-caller authz scoping) is a product
+      // decision for the functional walk-through — a picklist may intentionally
+      // list all active providers regardless of the caller's manage scope.
+      try {
+        if (departmentId) {
+          const resolvedName = await deps.departmentCatalogPort.resolveDepartmentName(
+            departmentId,
+            {
+              iqTenantId: tenantId,
+              authorization:
+                typeof request.headers.authorization === "string"
+                  ? request.headers.authorization
+                  : undefined,
+            },
+          );
+          if (!resolvedName) {
+            return reply.status(400).send({
+              error: "invalid_department_id",
+              message: "No department found for the given department_id.",
+            });
+          }
+          department = resolvedName;
         }
-        department = resolvedName;
-      }
 
-      const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
-        tenantId,
-        department ? { department } : undefined,
-      );
-      return reply.send(
-        users
-          .filter((u) => u.status === "active")
-          .map((u) => ({
-            id: u.id,
-            full_name: u.full_name,
-            department: u.department ?? null,
-            status: u.status,
-          })),
-      );
+        const users = await deps.listUsersAuthzDeps.userRepository.listUsers(
+          tenantId,
+          department ? { department } : undefined,
+        );
+        return reply.send(
+          users
+            .filter((u) => u.status === "active")
+            .map((u) => ({
+              id: u.id,
+              full_name: u.full_name,
+              department: u.department ?? null,
+              status: u.status,
+            })),
+        );
+      } catch (err) {
+        return replyWithUserManagementError(reply, err, cid);
+      }
     },
   );
 
@@ -347,27 +361,6 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
     },
   );
 
-  fastify.post<{ Params: { id: string }; Body: ResetUserPasswordInput }>(
-    "/users/:id/reset-password",
-    { config: { authMode: "protected" } },
-    async (request, reply) => {
-      const tenantId = deps.getTenantId(request);
-      const actorId = deps.getActorId(request);
-      const cid = request.correlationId ?? request.id;
-      try {
-        const user = await resetUserPassword(
-          deps.resetUserPasswordDeps,
-          { tenantId, actorId, correlationId: cid },
-          request.params.id,
-          request.body ?? { password: "" },
-        );
-        return reply.send(user);
-      } catch (err) {
-        return replyWithUserManagementError(reply, err, cid);
-      }
-    },
-  );
-
   fastify.post<{ Params: { id: string } }>(
     "/users/:id/activate",
     { config: { authMode: "protected" } },
@@ -390,6 +383,33 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
       }
     },
   );
+
+  const resetUserPasswordDeps = deps.resetUserPasswordDeps;
+  if (resetUserPasswordDeps) {
+    fastify.post<{ Params: { id: string }; Body: { new_password: string } }>(
+      "/users/:id/reset-password",
+      { config: { authMode: "protected" } },
+      async (request, reply) => {
+        const tenantId = deps.getTenantId(request);
+        const actorId = deps.getActorId(request);
+        const cid = request.correlationId ?? request.id;
+        try {
+          const user = await resetUserPassword(
+            resetUserPasswordDeps,
+            { tenantId, actorId, correlationId: cid },
+            request.params.id,
+            (request.body ?? {}) as { new_password: string },
+          );
+          if (user === null) {
+            return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
+          }
+          return reply.send(user);
+        } catch (err) {
+          return replyWithUserManagementError(reply, err, cid);
+        }
+      },
+    );
+  }
 
   fastify.get<{ Params: { id: string } }>(
     "/users/:id",
@@ -419,7 +439,6 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
           request.params.id,
           request.body ?? {},
         );
-        console.log("user========>", user);
         if (user === null) {
           return replyWithUserManagementError(reply, new UserNotFoundError(request.params.id), cid);
         }

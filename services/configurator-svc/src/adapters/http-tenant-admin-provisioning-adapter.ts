@@ -1,4 +1,5 @@
 import type { TenantAdminProvisioningPort } from "@hims/configurator";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -19,7 +20,7 @@ export class HttpTenantAdminProvisioningAdapter
   private _deferredPassword?: string;
 
   constructor(options: HttpTenantAdminProvisioningAdapterOptions) {
-    this.umBaseUrl = options.userManagementBaseUrl.replace(/\/+$/, "");
+    this.umBaseUrl = stripTrailingSlashes(options.userManagementBaseUrl);
     this.authorization = options.authorization;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = options.log;
@@ -35,17 +36,10 @@ export class HttpTenantAdminProvisioningAdapter
     return h;
   }
 
-  async checkEmailAvailability(_email: string): Promise<void> {
-    // Email uniqueness is enforced by better-auth at user creation time.
-    // For Phase 0 we rely on the createAuthAccount / provisionUser steps
-    // returning a clear error if the email is already taken.
-  }
-
   async createAuthAccount(input: {
     platformUserId: string;
     tenantId: string;
     fullName: string;
-    email: string;
     password: string;
   }): Promise<{ authUserId: string }> {
     // In the HTTP adapter model, user-management-svc's POST /users creates
@@ -55,7 +49,7 @@ export class HttpTenantAdminProvisioningAdapter
     this._deferredPassword = input.password;
 
     this.log?.(
-      { email: input.email },
+      { platformUserId: input.platformUserId },
       "Auth account creation deferred to provisionUser (HTTP adapter)",
     );
 
@@ -145,34 +139,35 @@ export class HttpTenantAdminProvisioningAdapter
     input: {
       userId: string;
       fullName: string;
-      email: string;
+      username: string;
+      email?: string | null;
       phone?: string | null;
-      username?: string | null;
       orgId?: string | null;
       authUserId: string;
       roleId: string;
       roleCapabilityIds: string[];
       actorId: string | null;
     },
-  ): Promise<{ id: string; email: string; full_name: string }> {
+  ): Promise<{ id: string; email: string | null; full_name: string }> {
     const url = `${this.umBaseUrl}/api/user-management/users`;
     const password = this._deferredPassword;
     if (!password) {
       throw new Error("provisionUser called before createAuthAccount — no password available");
     }
+    // Username-primary (ADR-0003): username is always sent; email is optional contact data.
     const body = {
       full_name: input.fullName,
-      email: input.email,
+      username: input.username,
+      email: input.email ?? undefined,
       password,
       phone: input.phone ?? undefined,
-      username: input.username ?? undefined,
       org_id: input.orgId ?? undefined,
       role_template_ids: [input.roleId],
       role_template_capability_ids: input.roleCapabilityIds,
     };
 
     this.log?.(
-      { tenantId, email: input.email, roleId: input.roleId },
+      { tenantId, username: input.username, roleId: input.roleId },
       "Provisioning admin user via user-management",
     );
 
@@ -196,7 +191,7 @@ export class HttpTenantAdminProvisioningAdapter
 
     return (await res.json()) as {
       id: string;
-      email: string;
+      email: string | null;
       full_name: string;
     };
   }

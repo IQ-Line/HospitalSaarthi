@@ -1,10 +1,8 @@
 import { redirect } from '@tanstack/react-router';
 import { hasAllCapabilities, hasAnyCapability, hasCapability } from '@/lib/capabilities';
 
-export type RequireCapabilityRedirectTo = string;
-
 export type RequireCapabilityOptions = {
-  redirectTo?: RequireCapabilityRedirectTo;
+  redirectTo?: string;
 };
 
 function deny(options?: RequireCapabilityOptions): never {

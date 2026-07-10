@@ -20,18 +20,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "pharmacy.read"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "dispense:dispense:read" in request.principal.attr.capabilities ||
-              "dispense:dispense:read" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "pharmacy.update"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -39,18 +27,6 @@ resourcePolicy:
         match:
           expr: >-
             request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
-            (
-              "dispense:dispense:update" in request.principal.attr.capabilities ||
-              "dispense:dispense:update" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "pharmacy.update"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
             (
               "dispense:dispense:update" in request.principal.attr.capabilities ||
               "dispense:dispense:update" in request.principal.attr.delegated_capabilities

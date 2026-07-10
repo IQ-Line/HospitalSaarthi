@@ -10,6 +10,7 @@ import {
   type NavCapabilityAccessInput,
 } from './nav-capability-access';
 import type { NavFilterContext, NavigationNode } from './types';
+import type { ModuleCatalogEntry } from '@/platform/modules/types';
 
 function tenantHasModuleSlug(enabledModuleSlugs: ReadonlySet<string>, slug: string): boolean {
   return catalogSlugVariants(slug).some((variant) => enabledModuleSlugs.has(variant));
@@ -97,6 +98,41 @@ function passesCapabilityGate(
   return principalGrantsNavNodeAccess(access, node, parent);
 }
 
+/**
+ * Admin (super-admin / tenant-admin) branch of catalog visibility: product shells are hidden
+ * unless the admin holds some capability, route access, or L1 shell access for the product.
+ */
+function adminCatalogVisibilityHidesNode(
+  node: NavigationNode,
+  ctx: NavFilterContext,
+  slug: string,
+  entry: ModuleCatalogEntry,
+): boolean {
+  if (entry.module_kind !== 'product') {
+    return false;
+  }
+  const productSlugs = catalogProductSlugsForNode(node);
+  if (productSlugs.length > 0 && ctx.hasAnyCapabilityForProduct?.(productSlugs)) {
+    return false;
+  }
+  if (ctx.navAccess) {
+    const routeSlugs = node.route
+      ? resolveCatalogModuleSlugsForNavRoute(node.route, {
+          routePrefix: inferRoutePrefixFromRoute(node.route),
+          catalogModuleSlug: node.catalogModuleSlug,
+          catalogIndex: ctx.catalogIndex,
+        })
+      : [slug];
+    if (principalGrantsCatalogModuleSlugRouteAccess(ctx.navAccess.capabilityKeys, routeSlugs)) {
+      return false;
+    }
+    if (principalHasL1ProductShellAccess(ctx.navAccess.capabilityKeys, productSlugs, node.route)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function catalogVisibilityScopeHidesNode(
   node: NavigationNode,
   ctx: NavFilterContext,
@@ -120,29 +156,7 @@ function catalogVisibilityScopeHidesNode(
     return false;
   }
   if (ctx.isSuperAdmin || ctx.isTenantAdmin) {
-    if (entry.module_kind !== 'product') {
-      return false;
-    }
-    const productSlugs = catalogProductSlugsForNode(node);
-    if (productSlugs.length > 0 && ctx.hasAnyCapabilityForProduct?.(productSlugs)) {
-      return false;
-    }
-    if (ctx.navAccess) {
-      const routeSlugs = node.route
-        ? resolveCatalogModuleSlugsForNavRoute(node.route, {
-            routePrefix: inferRoutePrefixFromRoute(node.route),
-            catalogModuleSlug: node.catalogModuleSlug,
-            catalogIndex: ctx.catalogIndex,
-          })
-        : [slug];
-      if (principalGrantsCatalogModuleSlugRouteAccess(ctx.navAccess.capabilityKeys, routeSlugs)) {
-        return false;
-      }
-      if (principalHasL1ProductShellAccess(ctx.navAccess.capabilityKeys, productSlugs, node.route)) {
-        return false;
-      }
-    }
-    return true;
+    return adminCatalogVisibilityHidesNode(node, ctx, slug, entry);
   }
   return entry.visibility_scope === 'superadmin';
 }

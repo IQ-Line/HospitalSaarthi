@@ -6,3 +6,27 @@ packages:
   - 'tests/load'
 
 injectWorkspacePackages: true
+
+# Single-version policy for shared dev tooling. Reference with "catalog:" in a
+# package's dependencies/devDependencies so every project resolves the same version.
+# (Started with vitest, which was split across v3 and v4 — one test runner now.)
+catalog:
+  vitest: ^4.1.6
+  "@types/node": ^24.13.3
+  dotenv: ^16.6.1
+  drizzle-orm: ^0.45.2
+  eslint: ^10.3.0
+  fastify: ^5.3.3
+  fastify-plugin: ^5.1.0
+  react: ^19.1.0
+  react-dom: ^19.1.0
+  tsx: ^4.21.0
+  typescript: ^6.0.3
+  zod: ^3.25.7
+  "@cerbos/core": ^0.31.0
+  "@cerbos/grpc": ^0.27.1
+  "@cerbos/http": ^0.28.1
+  "@cerbos/react": ^0.3.6
+
+overrides:
+  "@types/node": ^24.13.3

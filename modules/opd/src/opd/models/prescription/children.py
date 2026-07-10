@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
@@ -33,25 +34,25 @@ _SCHEMA = {"schema": SCHEMA}
 
 def _rx_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "prescription_id"],
-        [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+        ["iq_tenant_id", "prescription_id"],
+        [f"{SCHEMA}.prescriptions.iq_tenant_id", f"{SCHEMA}.prescriptions.id"],
         ondelete="CASCADE",
     )
 
 
 def _med_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "prescription_medicine_id"],
-        [f"{SCHEMA}.prescription_medicines.tenant_id", f"{SCHEMA}.prescription_medicines.id"],
+        ["iq_tenant_id", "prescription_medicine_id"],
+        [f"{SCHEMA}.prescription_medicines.iq_tenant_id", f"{SCHEMA}.prescription_medicines.id"],
         ondelete="CASCADE",
     )
 
 
 def _pa_fk() -> ForeignKeyConstraint:
     return ForeignKeyConstraint(
-        ["tenant_id", "physical_activity_id"],
+        ["iq_tenant_id", "physical_activity_id"],
         [
-            f"{SCHEMA}.prescription_physical_activity.tenant_id",
+            f"{SCHEMA}.prescription_physical_activity.iq_tenant_id",
             f"{SCHEMA}.prescription_physical_activity.id",
         ],
         ondelete="CASCADE",
@@ -65,16 +66,16 @@ class PrescriptionLegacyVitalsModel(TimestampMixin, TenantPrimaryKeyMixin, Base)
     prescription_id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, nullable=False
     )
-    height_cm: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    weight_kg: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
-    bmi: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
-    temperature_c: Mapped[float | None] = mapped_column(Numeric(4, 1), nullable=True)
+    height_cm: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(6, 2), nullable=True)
+    bmi: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    temperature_c: Mapped[Decimal | None] = mapped_column(Numeric(4, 1), nullable=True)
     pulse_bpm: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     bp_systolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     bp_diastolic: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     respiratory_rate: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     spo2_percent: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    blood_sugar_mg_dl: Mapped[float | None] = mapped_column(Numeric(6, 1), nullable=True)
+    blood_sugar_mg_dl: Mapped[Decimal | None] = mapped_column(Numeric(6, 1), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     prescription: Mapped[PrescriptionModel] = relationship(back_populates="legacy_vitals")
@@ -85,7 +86,7 @@ class PrescriptionVitalObservationModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_vital_obs_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_vital_obs_line_key"
         ),
         _SCHEMA,
     )
@@ -107,7 +108,9 @@ class PrescriptionChiefComplaintModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_chief_complaints"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"),
+        UniqueConstraint(
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_cc_line_key"
+        ),
         _SCHEMA,
     )
 
@@ -128,7 +131,9 @@ class PrescriptionDiagnosisModel(TimestampMixin, LineItemMixin, Base):
     __tablename__ = "prescription_diagnoses"
     __table_args__ = (
         _rx_fk(),
-        UniqueConstraint("tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"),
+        UniqueConstraint(
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_dx_line_key"
+        ),
         _SCHEMA,
     )
 
@@ -148,7 +153,7 @@ class PrescriptionSymptomModel(LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_symptoms_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_symptoms_line_key"
         ),
         _SCHEMA,
     )
@@ -176,6 +181,7 @@ class PrescriptionMedicalHistoryModel(TimestampMixin, TenantPrimaryKeyMixin, Bas
     )
     smoking_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
     alcohol_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    diet_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     other_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     prescription: Mapped[PrescriptionModel] = relationship(back_populates="medical_history")
@@ -186,7 +192,7 @@ class PrescriptionMedicalHistoryAllergyModel(TimestampMixin, LineItemMixin, Base
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_mh_allergy_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_mh_allergy_line_key"
         ),
         _SCHEMA,
     )
@@ -210,7 +216,7 @@ class PrescriptionMedicalHistoryChronicIllnessModel(TimestampMixin, LineItemMixi
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_mh_chronic_line_key"
         ),
         _SCHEMA,
     )
@@ -233,7 +239,7 @@ class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_medicines_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_medicines_line_key"
         ),
         _SCHEMA,
     )
@@ -250,7 +256,7 @@ class PrescriptionMedicineModel(TimestampMixin, LineItemMixin, Base):
     dosage: Mapped[str | None] = mapped_column(String(256), nullable=True)
     duration: Mapped[str | None] = mapped_column(String(128), nullable=True)
     frequency: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     route: Mapped[str | None] = mapped_column(String(64), nullable=True)
     method: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -274,7 +280,7 @@ class PrescriptionMedicineSubstitutionModel(TimestampMixin, TenantPrimaryKeyMixi
     issued_medicine_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     issued_name: Mapped[str] = mapped_column(String(512), nullable=False)
     item_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    quantity: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     form: Mapped[str | None] = mapped_column(String(128), nullable=True)
     volume: Mapped[str | None] = mapped_column(String(64), nullable=True)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -288,7 +294,7 @@ class PrescriptionOrderedTestModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_tests_line_key"
+            "iq_tenant_id", "prescription_id", "line_no", name="prescription_ordered_tests_line_key"
         ),
         _SCHEMA,
     )
@@ -316,7 +322,10 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_ordered_imaging_line_key"
+            "iq_tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_ordered_imaging_line_key",
         ),
         _SCHEMA,
     )
@@ -328,6 +337,10 @@ class PrescriptionOrderedImagingModel(TimestampMixin, LineItemMixin, Base):
     external_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512), nullable=False)
     due_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Free-text "By When" the imaging is captured as in the Create-RX form (e.g. "in 2
+    # weeks", "before next visit"). Distinct from the typed `due_by`, which the OPD form
+    # does not populate; this preserves what the doctor actually typed on save/reload.
+    when_text: Mapped[str | None] = mapped_column(String(256), nullable=True)
     instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[OrderItemStatus] = mapped_column(
         order_item_status_column(),
@@ -343,7 +356,10 @@ class PrescriptionVaccineRequiredModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id", "prescription_id", "line_no", name="prescription_vaccines_required_line_key"
+            "iq_tenant_id",
+            "prescription_id",
+            "line_no",
+            name="prescription_vaccines_required_line_key",
         ),
         _SCHEMA,
     )
@@ -371,7 +387,7 @@ class PrescriptionAdvisedProcedureModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id",
+            "iq_tenant_id",
             "prescription_id",
             "line_no",
             name="prescription_advised_procedures_line_key",
@@ -395,7 +411,7 @@ class PrescriptionPhysicalActivityModel(TimestampMixin, LineItemMixin, Base):
     __table_args__ = (
         _rx_fk(),
         UniqueConstraint(
-            "tenant_id",
+            "iq_tenant_id",
             "prescription_id",
             "line_no",
             name="prescription_physical_activity_line_key",

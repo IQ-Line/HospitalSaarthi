@@ -30,7 +30,9 @@ export class MockEventBus implements EventBus {
   private readonly published: DomainEvent[] = [];
   private readonly subscribers = new Map<string, Set<EventHandler>>();
 
-  async connect(): Promise<void> {}
+  async connect(): Promise<void> {
+    /* intentional no-op: in-memory mock has no connection to establish */
+  }
 
   async disconnect(): Promise<void> {
     this.subscribers.clear();

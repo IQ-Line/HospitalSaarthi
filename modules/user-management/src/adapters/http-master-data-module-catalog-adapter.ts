@@ -73,6 +73,7 @@ export type HttpMasterDataModuleCatalogAdapterOptions = {
 };
 
 function trimTrailingSlash(url: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   return url.replace(/\/+$/, "");
 }
 
@@ -107,6 +108,7 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
 
   invalidateModuleSlugMapCache(): void {
     this.moduleSlugByIdCache.invalidate(MODULE_SLUG_MAP_CACHE_KEY);
+    this.moduleKindBySlugCache.invalidate(MODULE_KIND_BY_SLUG_CACHE_KEY);
     this.moduleTreeCache.invalidate(MODULE_TREE_CACHE_KEY);
     this.permissionSlugByIdCache.invalidate(PERMISSION_SLUG_MAP_CACHE_KEY);
     this.modulePermissionSourcePairsCache.invalidate(MODULE_PERMISSION_SOURCE_PAIRS_CACHE_KEY);
@@ -118,7 +120,12 @@ export class HttpMasterDataModuleCatalogAdapter implements MasterDataModuleCatal
       return [];
     }
     const tree = await this.loadModuleTree();
-    return [...expandModuleSlugsWithDescendants(roots, tree)];
+    return [
+      ...expandModuleSlugsWithDescendants(
+        roots,
+        tree.map((m) => ({ ...m, parent_id: m.parent_id ?? null })),
+      ),
+    ];
   }
 
   async listActiveModulePermissionSourcePairs(

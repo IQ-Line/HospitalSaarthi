@@ -9,26 +9,33 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./test-support": {
+      "types": "./dist/test-support/index.d.ts",
+      "import": "./dist/test-support/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {},
   "dependencies": {
-    "@cerbos/core": "0.21.1",
+    "@cerbos/core": "catalog:",
     "@hims/dev-bootstrap": "workspace:*",
     "@hims/ts-sdk-api-key": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-http": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.0.0",
-    "fastify-plugin": "^5.1.0"
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:"
   },
   "devDependencies": {
     "@fastify/sensible": "^6.0.4",
     "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
-    "vitest": "^4.1.5"
+    "vitest": "catalog:",
+    "drizzle-kit": "^0.31.4"
   }
 }

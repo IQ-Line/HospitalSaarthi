@@ -24,7 +24,9 @@ def _catalog_index(visitpad_vitals: list[dict[str, Any]]) -> dict[str, dict[str,
     return index
 
 
-def _parse_normal_range(row: dict[str, Any]) -> tuple[float | None, float | None, float | None, float | None]:
+def _parse_normal_range(
+    row: dict[str, Any],
+) -> tuple[float | None, float | None, float | None, float | None]:
     adult = row.get("normal_range_adult")
     if not isinstance(adult, dict):
         return None, None, None, None
@@ -74,12 +76,16 @@ def _vital_meta_entry(code: str, catalog: dict[str, dict[str, Any]]) -> dict[str
     return meta
 
 
-def build_vitals_master_display_plan(visitpad_vitals: list[dict[str, Any]]) -> dict[str, Any] | None:
+def build_vitals_master_display_plan(
+    visitpad_vitals: list[dict[str, Any]],
+) -> dict[str, Any] | None:
     """Master-driven labels/order for OP report vitals (matches visitpad catalog)."""
     active = [
         row
         for row in visitpad_vitals
-        if row.get("is_active", True) and not row.get("is_deleted", False) and _text(row.get("code"))
+        if row.get("is_active", True)
+        and not row.get("is_deleted", False)
+        and _text(row.get("code"))
     ]
     if not active:
         return None
@@ -105,14 +111,17 @@ def build_vitals_master_display_plan(visitpad_vitals: list[dict[str, Any]]) -> d
 
         if row.get("is_paired") and _text(row.get("pair_code")):
             pair_code = _norm_code(row.get("pair_code"))
-            pair_key = tuple(sorted((code, pair_code)))
+            first_code, second_code = sorted((code, pair_code))
+            pair_key = (first_code, second_code)
             if pair_key in consumed_pairs:
                 continue
             partner = by_code.get(pair_code)
             if partner is None:
                 continue
             consumed_pairs.add(pair_key)
-            partner_name = _text(partner.get("name")) or _text(partner.get("short_name")) or pair_code
+            partner_name = (
+                _text(partner.get("name")) or _text(partner.get("short_name")) or pair_code
+            )
             group_label = display_name
             pair_unit = unit or _text(partner.get("unit")) or None
             ordered_codes.extend([code, pair_code])
@@ -231,8 +240,9 @@ def build_vitals_report_bundle(
     vital_observations: list[PrescriptionVitalObservationPayload] | None,
     visitpad_vitals: list[dict[str, Any]] | None,
 ) -> dict[str, Any]:
-    """
-    Build pdf-platform vitals payload using admin-configured visitpad codes (vitalsV2 + master plan).
+    """Build pdf-platform vitals payload.
+
+    Uses admin-configured visitpad codes (vitalsV2 + master plan).
     Falls back to legacy vitals object only when V2 rows cannot be built.
     """
     catalog = _catalog_index(visitpad_vitals or [])

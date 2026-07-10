@@ -20,8 +20,8 @@ import {
   transferQueueAction,
 } from '../lib/indent-workflow';
 import {
-  canDispatchTransfer,
-  canReceiveTransfer,
+  transferAwaitsDispatch,
+  transferAwaitsReceipt,
   defaultTransferDirection,
   incomingTransferStoreFilter,
   outgoingTransferStoreFilter,
@@ -42,7 +42,11 @@ import {
   useInventoryTransferDetail,
   useInventoryTransfers,
 } from '../api/queries';
-import type { InventoryIndentRow, InventoryTransferRow } from '../types';
+import type {
+  InventoryIndentRow,
+  InventoryTransferListParams,
+  InventoryTransferRow,
+} from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryTransferDialog } from './inventory-transfer-dialog';
 import { InventoryTransferReceiveDialog } from './inventory-transfer-receive-dialog';
@@ -151,25 +155,27 @@ export function InventoryTransfersPage({
       }));
   }, [direction, draftTransferIds, readyIndentsData?.data, search]);
 
-  const transferListParams = useMemo(() => {
+  const transferListParams = useMemo<InventoryTransferListParams>(() => {
     const mappedStatus =
       status === 'all'
         ? undefined
-        : ({
-            Draft: 'draft',
-            Dispatched: 'in_transit',
-            'Partially received': 'partially_received',
-            Completed: 'completed',
-            Rejected: 'rejected',
-            Cancelled: 'cancelled',
-          }[status] as const);
+        : (
+            {
+              Draft: 'draft',
+              Dispatched: 'in_transit',
+              'Partially received': 'partially_received',
+              Completed: 'completed',
+              Rejected: 'rejected',
+              Cancelled: 'cancelled',
+            } as const
+          )[status];
 
     return {
       search: search || undefined,
       status: direction === 'incoming' && status === 'all' ? undefined : mappedStatus,
       statuses:
         direction === 'incoming' && status === 'all'
-          ? (['in_transit', 'partially_received'] as const)
+          ? ['in_transit', 'partially_received']
           : undefined,
       page,
       limit: pageSize,
@@ -185,7 +191,7 @@ export function InventoryTransfersPage({
     if (routePrefill?.transferId && routeTransferDetail) {
       setSelectedTransferId(routeTransferDetail.id);
       setSelectedIndent(null);
-      if (canReceiveTransfer(routeTransferDetail)) {
+      if (transferAwaitsReceipt(routeTransferDetail)) {
         setReceiveDialogOpen(true);
       } else {
         setDispatchDialogOpen(true);
@@ -315,7 +321,7 @@ export function InventoryTransfersPage({
         id: 'actions',
         header: '',
         cell: ({ row }) =>
-          canDispatchTransfer(row.original) ? (
+          transferAwaitsDispatch(row.original) ? (
             <Button type="button" variant="outline" size="sm" onClick={() => openOutgoingTransfer(row.original)}>
               Dispatch
             </Button>
@@ -365,7 +371,7 @@ export function InventoryTransfersPage({
         id: 'actions',
         header: '',
         cell: ({ row }) =>
-          canReceiveTransfer(row.original) ? (
+          transferAwaitsReceipt(row.original) ? (
             <Button type="button" variant="outline" size="sm" onClick={() => openIncomingTransfer(row.original)}>
               Receive
             </Button>

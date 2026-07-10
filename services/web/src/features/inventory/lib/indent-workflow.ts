@@ -2,12 +2,18 @@ import type { InventoryIndentRow, InventoryIndentStoreOption } from '../types';
 
 export type IndentListDirection = 'outgoing' | 'incoming';
 
-export function canShowOutgoingTab(_store: InventoryIndentStoreOption | undefined): boolean {
+/** Indent shape needed to reason about the transfer/dispatch queue. */
+type TransferQueueIndent = Pick<
+  InventoryIndentRow,
+  'status' | 'inventory_stock_transfer_id' | 'route'
+>;
+
+export function shouldShowOutgoingTab(_store: InventoryIndentStoreOption | undefined): boolean {
   return true;
 }
 
 /** Any store can receive stock and must see indents addressed to it. */
-export function canShowIncomingTab(store: InventoryIndentStoreOption | undefined): boolean {
+export function shouldShowIncomingTab(store: InventoryIndentStoreOption | undefined): boolean {
   return store != null;
 }
 
@@ -26,14 +32,14 @@ export function indentStockSupplyStoreId(
 }
 
 /** All submitted indents are approved; procurement vs stock transfer differs only in stock checks. */
-export function canApproveIndent(indent: Pick<InventoryIndentRow, 'status'>): boolean {
+export function indentAwaitsApproval(indent: Pick<InventoryIndentRow, 'status'>): boolean {
   return indent.status === 'submitted';
 }
 
 /**
  * After approval, authorized users initiate transfer / procurement from the indent detail.
  */
-export function canFulfillIndent(
+export function indentAwaitsFulfillment(
   indent: Pick<
     InventoryIndentRow,
     'status' | 'inventory_stock_transfer_id' | 'inventory_grn_id'
@@ -71,13 +77,11 @@ export function indentTransferFromStoreId(
 
 export function indentTransferToStoreId(
   indent: Pick<InventoryIndentRow, 'from_store_id' | 'to_store_id'>,
-): string {
+): string | null {
   return indent.to_store_id;
 }
 
-export function canCreateTransferFromIndent(
-  indent: Pick<InventoryIndentRow, 'status' | 'inventory_stock_transfer_id' | 'route'>,
-): boolean {
+export function indentSupportsTransferCreation(indent: TransferQueueIndent): boolean {
   if (indent.route !== 'stock_transfer') return false;
   if (indent.inventory_stock_transfer_id) return false;
   return indent.status === 'approved' || indent.status === 'partially_approved';
@@ -85,7 +89,7 @@ export function canCreateTransferFromIndent(
 
 /** Indents shown on the transfers queue (new transfer or draft awaiting dispatch). */
 export function isIndentReadyForTransferQueue(
-  indent: Pick<InventoryIndentRow, 'status' | 'inventory_stock_transfer_id' | 'route'>,
+  indent: TransferQueueIndent,
   draftTransferIds: ReadonlySet<string>,
 ): boolean {
   if (indent.route !== 'stock_transfer') return false;
@@ -99,7 +103,7 @@ export function isIndentReadyForTransferQueue(
 }
 
 export function transferQueueAction(
-  indent: Pick<InventoryIndentRow, 'status' | 'inventory_stock_transfer_id' | 'route'>,
+  indent: TransferQueueIndent,
   draftTransferIds: ReadonlySet<string>,
 ): 'create' | 'dispatch' | null {
   if (!isIndentReadyForTransferQueue(indent, draftTransferIds)) return null;
@@ -125,15 +129,40 @@ export function isPartialApproval(
 export const INDENT_INSUFFICIENT_STOCK_MESSAGE =
   'Insufficient stock at the source store — no batch has enough quantity for the approved amount. Receive stock via GRN, lower the approved quantity, or use procurement.';
 
+type ApprovalStockLine = {
+  id: string;
+  item_id?: string;
+  item_code?: string;
+  item_name?: string;
+  uom?: string;
+};
+
+function lineAvailableQty(
+  line: ApprovalStockLine,
+  availableQtyByItemCode: Map<string, number>,
+  availableQtyByItemId?: Map<string, number>,
+): number {
+  return (
+    (line.item_id ? availableQtyByItemId?.get(line.item_id) : undefined) ??
+    (line.item_code ? availableQtyByItemCode.get(line.item_code) : undefined) ??
+    0
+  );
+}
+
+function insufficientStockLineMessage(
+  line: ApprovalStockLine,
+  approved: number,
+  available: number,
+): string {
+  const name = line.item_name ?? line.item_code ?? line.item_id ?? 'Item';
+  const codeSuffix = line.item_code ? ` (${line.item_code})` : '';
+  const uomSuffix = line.uom ? ` ${line.uom}` : '';
+  return `${name}${codeSuffix}: approved qty ${approved} exceeds available stock (${available}${uomSuffix}). ${INDENT_INSUFFICIENT_STOCK_MESSAGE}`;
+}
+
 export function validateApprovalStock(
   route: InventoryIndentRow['route'],
-  lines: Array<{
-    id: string;
-    item_id?: string;
-    item_code?: string;
-    item_name?: string;
-    uom?: string;
-  }>,
+  lines: ApprovalStockLine[],
   approvedByLine: Record<string, string>,
   availableQtyByItemCode: Map<string, number>,
   availableQtyByItemId?: Map<string, number>,
@@ -144,16 +173,9 @@ export function validateApprovalStock(
     const approved = Number(approvedByLine[line.id] ?? 0);
     if (approved <= 0) continue;
 
-    const available =
-      (line.item_id ? availableQtyByItemId?.get(line.item_id) : undefined) ??
-      (line.item_code ? availableQtyByItemCode.get(line.item_code) : undefined) ??
-      0;
-
+    const available = lineAvailableQty(line, availableQtyByItemCode, availableQtyByItemId);
     if (approved > available) {
-      const name = line.item_name ?? line.item_code ?? line.item_id ?? 'Item';
-      const codeSuffix = line.item_code ? ` (${line.item_code})` : '';
-      const uomSuffix = line.uom ? ` ${line.uom}` : '';
-      return `${name}${codeSuffix}: approved qty ${approved} exceeds available stock (${available}${uomSuffix}). ${INDENT_INSUFFICIENT_STOCK_MESSAGE}`;
+      return insufficientStockLineMessage(line, approved, available);
     }
   }
   return null;

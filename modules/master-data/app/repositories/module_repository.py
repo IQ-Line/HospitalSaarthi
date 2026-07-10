@@ -1,4 +1,4 @@
-"""Database access for ``modules`` — ``global_master`` (global) vs ``tenant_master``."""
+"""Database access for ``modules`` — ``master_global`` (global) vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.catalog.platform_table_models import module_model
 from app.core.catalog_scope import CatalogScope
+from app.models.module import ModulePublicModel
 from app.schemas.module import ModuleCategory, ModuleKind, VisibilityScope
 
 
@@ -68,6 +69,17 @@ class ModuleRepository:
 
         statement: Select[tuple[Any]] = select(M).where(*filters).order_by(M.display_order, M.name)
         return list(self._session.scalars(statement).all())
+
+    def list_catalog_ids(self) -> list[tuple[UUID, bool]]:
+        """Every GLOBAL-catalog module id with its ``is_deleted`` flag — the WHOLE catalog.
+
+        Global-only by design: the internal S2S catalog dump is defined over ``master_global``,
+        so this queries :class:`ModulePublicModel` directly (ignoring ``scope``) and does NOT
+        filter ``is_deleted`` — unlike the scoped list methods — so a consumer can treat
+        soft-deleted rows as orphans.
+        """
+        stmt = select(ModulePublicModel.id, ModulePublicModel.is_deleted)
+        return [(row.id, row.is_deleted) for row in self._session.execute(stmt)]
 
     def list_modules_for_nav(
         self,

@@ -1,4 +1,5 @@
 import {
+  bigint,
   index,
   pgSchema,
   primaryKey,
@@ -80,4 +81,19 @@ export const visits = registrationSchema.table(
       .on(t.iq_tenant_id, t.idempotency_key)
       .where(sql`${t.idempotency_key} is not null`),
   ],
+);
+
+// ─── sequence_counters ───────────────────────────────────────────────────────
+// Registration owns its OWN counter table (the op_visit stream) so no module
+// writes into another module's schema. Shape mirrors empi.sequence_counters
+// exactly — the runtime allocator (ts-sdk-sequence) builds an identical table
+// instance targeting the "registration" schema.
+export const sequenceCounters = registrationSchema.table(
+  "sequence_counters",
+  {
+    ...tenantColumn(),
+    sequence_name: text("sequence_name").notNull(),
+    current_value: bigint("current_value", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.sequence_name] })],
 );

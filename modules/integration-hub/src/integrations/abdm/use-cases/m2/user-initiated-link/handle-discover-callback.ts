@@ -37,6 +37,33 @@ function acceptDemographicsMatch(
   return { patientId: match.patientId };
 }
 
+/** Run one EMPI demographics query; return the accepted patient or warn (and return null) on a below-threshold hit. */
+async function tryDemographicsMatch(
+  deps: AbdmAdapterDeps,
+  query: {
+    iqTenantId: string;
+    identifiers?: Array<{ type: string; value: string }>;
+    first_name?: string;
+    gender?: string;
+    phone_number?: string;
+    year_of_birth?: number;
+  },
+  rejectionEvent: string,
+  abhaAddress: string | undefined,
+): Promise<{ patientId: string } | null> {
+  const match = await deps.empi.findPatientByDemographics(query);
+  const accepted = acceptDemographicsMatch(match);
+  if (accepted) return accepted;
+  if (match) {
+    abdmWarn(rejectionEvent, {
+      abhaAddress,
+      score: match.score,
+      threshold: MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE,
+    });
+  }
+  return null;
+}
+
 async function resolveDiscoverPatient(
   deps: AbdmAdapterDeps,
   input: { iqTenantId: string; discoveryPatient: ReturnType<typeof normalizeDiscoveryPatient> },
@@ -57,39 +84,30 @@ async function resolveDiscoverPatient(
 
   const demographics = buildEmpiDemographicsFromDiscovery(discoveryPatient);
   if (demographics) {
-    const match = await deps.empi.findPatientByDemographics({
-      iqTenantId,
-      ...demographics,
-    });
-    const accepted = acceptDemographicsMatch(match);
+    const accepted = await tryDemographicsMatch(
+      deps,
+      { iqTenantId, ...demographics },
+      "abdm.m2.user_link.discover_demographics_score_rejected",
+      abhaAddress,
+    );
     if (accepted) return { patientId: accepted.patientId, demographics: {} };
-    if (match) {
-      abdmWarn("abdm.m2.user_link.discover_demographics_score_rejected", {
-        abhaAddress,
-        score: match.score,
-        threshold: MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE,
-      });
-    }
   }
 
   const verified = discoveryPatient?.verifiedIdentifiers;
   if (verified?.length) {
-    const match = await deps.empi.findPatientByDemographics({
-      iqTenantId,
-      identifiers: verified.map((i: { type: string; value: string }) => ({
-        type: i.type,
-        value: i.value,
-      })),
-    });
-    const accepted = acceptDemographicsMatch(match);
+    const accepted = await tryDemographicsMatch(
+      deps,
+      {
+        iqTenantId,
+        identifiers: verified.map((i: { type: string; value: string }) => ({
+          type: i.type,
+          value: i.value,
+        })),
+      },
+      "abdm.m2.user_link.discover_verified_id_score_rejected",
+      abhaAddress,
+    );
     if (accepted) return { patientId: accepted.patientId, demographics: {} };
-    if (match) {
-      abdmWarn("abdm.m2.user_link.discover_verified_id_score_rejected", {
-        abhaAddress,
-        score: match.score,
-        threshold: MIN_EMPI_DEMOGRAPHICS_MATCH_SCORE,
-      });
-    }
   }
 
   return null;

@@ -10,6 +10,9 @@ const UM_IDENTITY_SKIP_PATH_PREFIXES = [
   "/api/user-management/auth/login",
 ] as const;
 
+// Dummy request field for the login payload; this route is stubbed and never verifies it.
+const SAMPLE_LOGIN_SECRET = "sample-value";
+
 const validator: TenantApiKeyValidatorPort = {
   validateOpdSlipKey: async () => null,
 };
@@ -50,11 +53,12 @@ describe("POST /api/user-management/auth/login skips JWT identity", () => {
     const app = await buildLoginSkipTestApp();
     apps.push(app);
 
+    const loginPayload = { identifier: "admin@example.com", password: SAMPLE_LOGIN_SECRET };
     const res = await app.inject({
       method: "POST",
       url: "/api/user-management/auth/login",
       headers: { "content-type": "application/json" },
-      payload: { identifier: "admin@example.com", password: "secret" },
+      payload: loginPayload,
     });
 
     expect(res.statusCode).not.toBe(401);

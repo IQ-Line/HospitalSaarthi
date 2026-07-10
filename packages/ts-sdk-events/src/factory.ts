@@ -3,14 +3,12 @@ import type { EventBusConfig } from './types.js';
 import { InProcessEventBus } from './in-process-event-bus.js';
 
 export function createEventBus(config: EventBusConfig): EventBus {
-  switch (config.type) {
-    case 'in-process':
-      return new InProcessEventBus({
-        validateEnvelope: config.validateEnvelope,
-      });
-    default: {
-      const _exhaustive: never = config.type;
-      throw new Error(`Unknown event bus type: ${_exhaustive}`);
-    }
+  if (config.type === 'in-process') {
+    return new InProcessEventBus({
+      validateEnvelope: config.validateEnvelope,
+    });
   }
+
+  const _exhaustive: never = config.type;
+  throw new Error(`Unknown event bus type: ${_exhaustive}`);
 }

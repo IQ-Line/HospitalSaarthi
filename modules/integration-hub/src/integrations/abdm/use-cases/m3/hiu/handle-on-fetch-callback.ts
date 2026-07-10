@@ -1,5 +1,5 @@
 import { ABDM_ERROR_CODES } from "@hims/ts-sdk-abha";
-import type { OnConsentFetchCallback } from "@hims/ts-sdk-abha/protocol/m3/hiu-consent-request.js";
+import type { OnConsentFetchCallback } from "@hims/ts-sdk-abha/protocol/m3";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { verifyM3ConsentArtefactSignature } from "../../../lib/m3-consent-artefact-signature.js";
 import { resolveConsentPatientId } from "../../../lib/resolve-consent-patient-id.js";
@@ -80,6 +80,7 @@ export async function handleOnFetchCallback(
     artefactJson: input.consent as unknown as Record<string, unknown>,
     signature: input.consent.signature,
     signatureValid,
+    receivedAt: new Date(),
   });
 
   await deps.consentArtefacts.upsert({
@@ -123,21 +124,14 @@ export async function handleOnFetchCallback(
   });
 
   if (allDone) {
-    await deps.m3ConsentRequests.patch({
+    await finalizeConsentGranted(deps, {
       iqTenantId: input.iqTenantId,
       consentRequestId,
-      state: M3Hiu.CONSENT_GRANTED,
       consentArtefactIds: mergedIds,
+      consentId,
+      patientId,
+      dataEraseAt: detail.permission.dataEraseAt,
     });
-    if (deps.eventBus) {
-      await deps.eventBus.publish(
-        createConsentGrantedEnvelope(input.iqTenantId, {
-          consentId,
-          patientId,
-          dataEraseAt: detail.permission.dataEraseAt,
-        }),
-      );
-    }
   }
 
   if (input.consent.status === "GRANTED") {
@@ -152,6 +146,34 @@ export async function handleOnFetchCallback(
         message: e instanceof Error ? e.message : String(e),
       });
     }
+  }
+}
+
+async function finalizeConsentGranted(
+  deps: AbdmAdapterDeps,
+  params: {
+    iqTenantId: string;
+    consentRequestId: string;
+    consentArtefactIds: string[];
+    consentId: string;
+    patientId: string;
+    dataEraseAt: string;
+  },
+): Promise<void> {
+  await deps.m3ConsentRequests.patch({
+    iqTenantId: params.iqTenantId,
+    consentRequestId: params.consentRequestId,
+    state: M3Hiu.CONSENT_GRANTED,
+    consentArtefactIds: params.consentArtefactIds,
+  });
+  if (deps.eventBus) {
+    await deps.eventBus.publish(
+      createConsentGrantedEnvelope(params.iqTenantId, {
+        consentId: params.consentId,
+        patientId: params.patientId,
+        dataEraseAt: params.dataEraseAt,
+      }),
+    );
   }
 }
 

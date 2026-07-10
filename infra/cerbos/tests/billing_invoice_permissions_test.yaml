@@ -1,0 +1,346 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: billing_invoice_permissions_test
+description: >-
+  Billing invoice PEP — every action (read/create/update/delete) requires the matching
+  invoice:invoice:<action> runtime capability AND tenant (iq_tenant_id) alignment.
+  Delegated capabilities grant. No platform-operator scope rule on this billing surface
+  (ADR-0035), so the "super-admin" role string grants nothing cross-tenant. No capability => DENY;
+  wrong tenant => DENY.
+
+principals:
+  inv_reader:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["invoice:invoice:read"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  inv_creator:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["invoice:invoice:create"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  inv_updater:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["invoice:invoice:update"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  inv_deleter:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["invoice:invoice:delete"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Holds the privileged desk price/discount override capability (GH #94).
+  inv_overrider:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: ["invoice:invoice:override-price"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # override-price arrives only as a delegated capability — proves delegation is honoured.
+  inv_delegated_overrider:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: ["invoice:invoice:override-price"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # read arrives only as a delegated capability — proves delegation is honoured.
+  inv_delegated_reader:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: ["invoice:invoice:read"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # Authenticated but holds no invoice capability — proves the "403 authed, no cap" case.
+  inv_nocap:
+    id: billing-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["receptionist"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # super-admin with the read capability — bypasses tenant equality.
+  inv_super_admin:
+    id: super-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["super-admin"]
+      scopes: []
+      capabilities: ["invoice:invoice:read"]
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  # super-admin WITHOUT the capability — role alone must not grant.
+  inv_super_admin_nocap:
+    id: super-2
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      department: null
+      role_codes: ["super-admin"]
+      scopes: []
+      capabilities: []
+      delegated_capabilities: []
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  invoice_same_tenant:
+    id: inv-1
+    kind: invoice
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+
+  invoice_other_tenant:
+    id: inv-2
+    kind: invoice
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: invoice.read — allowed with read capability and matching tenant
+    input:
+      principals: [inv_reader]
+      resources: [invoice_same_tenant]
+      actions: [invoice.read]
+    expected:
+      - principal: inv_reader
+        resource: invoice_same_tenant
+        actions:
+          invoice.read: EFFECT_ALLOW
+
+  - name: invoice.create — allowed with create capability and matching tenant
+    input:
+      principals: [inv_creator]
+      resources: [invoice_same_tenant]
+      actions: [invoice.create]
+    expected:
+      - principal: inv_creator
+        resource: invoice_same_tenant
+        actions:
+          invoice.create: EFFECT_ALLOW
+
+  - name: invoice.update — allowed with update capability and matching tenant
+    input:
+      principals: [inv_updater]
+      resources: [invoice_same_tenant]
+      actions: [invoice.update]
+    expected:
+      - principal: inv_updater
+        resource: invoice_same_tenant
+        actions:
+          invoice.update: EFFECT_ALLOW
+
+  - name: invoice.delete — allowed with delete capability and matching tenant
+    input:
+      principals: [inv_deleter]
+      resources: [invoice_same_tenant]
+      actions: [invoice.delete]
+    expected:
+      - principal: inv_deleter
+        resource: invoice_same_tenant
+        actions:
+          invoice.delete: EFFECT_ALLOW
+
+  - name: invoice.read — allowed via delegated capability
+    input:
+      principals: [inv_delegated_reader]
+      resources: [invoice_same_tenant]
+      actions: [invoice.read]
+    expected:
+      - principal: inv_delegated_reader
+        resource: invoice_same_tenant
+        actions:
+          invoice.read: EFFECT_ALLOW
+
+  - name: invoice.override-price — allowed with override-price capability and matching tenant
+    input:
+      principals: [inv_overrider]
+      resources: [invoice_same_tenant]
+      actions: [invoice.override-price]
+    expected:
+      - principal: inv_overrider
+        resource: invoice_same_tenant
+        actions:
+          invoice.override-price: EFFECT_ALLOW
+
+  - name: invoice.override-price — allowed via delegated capability
+    input:
+      principals: [inv_delegated_overrider]
+      resources: [invoice_same_tenant]
+      actions: [invoice.override-price]
+    expected:
+      - principal: inv_delegated_overrider
+        resource: invoice_same_tenant
+        actions:
+          invoice.override-price: EFFECT_ALLOW
+
+  - name: invoice.override-price — DENIED for a create-only principal (create ≠ override)
+    input:
+      principals: [inv_creator]
+      resources: [invoice_same_tenant]
+      actions: [invoice.override-price]
+    expected:
+      - principal: inv_creator
+        resource: invoice_same_tenant
+        actions:
+          invoice.override-price: EFFECT_DENY
+
+  - name: invoice.override-price — denied when no capability is held (same tenant)
+    input:
+      principals: [inv_nocap]
+      resources: [invoice_same_tenant]
+      actions: [invoice.override-price]
+    expected:
+      - principal: inv_nocap
+        resource: invoice_same_tenant
+        actions:
+          invoice.override-price: EFFECT_DENY
+
+  - name: invoice.override-price — denied cross-tenant despite holding the capability
+    input:
+      principals: [inv_overrider]
+      resources: [invoice_other_tenant]
+      actions: [invoice.override-price]
+    expected:
+      - principal: inv_overrider
+        resource: invoice_other_tenant
+        actions:
+          invoice.override-price: EFFECT_DENY
+
+  - name: invoice — denied for every action when no capability is held (same tenant)
+    input:
+      principals: [inv_nocap]
+      resources: [invoice_same_tenant]
+      actions: [invoice.read, invoice.create, invoice.update, invoice.delete]
+    expected:
+      - principal: inv_nocap
+        resource: invoice_same_tenant
+        actions:
+          invoice.read: EFFECT_DENY
+          invoice.create: EFFECT_DENY
+          invoice.update: EFFECT_DENY
+          invoice.delete: EFFECT_DENY
+
+  - name: invoice — denied cross-tenant despite holding the capability (non super-admin)
+    input:
+      principals: [inv_reader, inv_creator, inv_updater, inv_deleter]
+      resources: [invoice_other_tenant]
+      actions: [invoice.read, invoice.create, invoice.update, invoice.delete]
+    expected:
+      - principal: inv_reader
+        resource: invoice_other_tenant
+        actions:
+          invoice.read: EFFECT_DENY
+      - principal: inv_creator
+        resource: invoice_other_tenant
+        actions:
+          invoice.create: EFFECT_DENY
+      - principal: inv_updater
+        resource: invoice_other_tenant
+        actions:
+          invoice.update: EFFECT_DENY
+      - principal: inv_deleter
+        resource: invoice_other_tenant
+        actions:
+          invoice.delete: EFFECT_DENY
+
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — billing surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: invoice.read — dead string super-admin DENIED cross-tenant even with capability
+    input:
+      principals: [inv_super_admin]
+      resources: [invoice_other_tenant]
+      actions: [invoice.read]
+    expected:
+      - principal: inv_super_admin
+        resource: invoice_other_tenant
+        actions:
+          invoice.read: EFFECT_DENY
+
+  - name: invoice.read — super-admin without capability is denied (role alone grants nothing)
+    input:
+      principals: [inv_super_admin_nocap]
+      resources: [invoice_same_tenant, invoice_other_tenant]
+      actions: [invoice.read]
+    expected:
+      - principal: inv_super_admin_nocap
+        resource: invoice_same_tenant
+        actions:
+          invoice.read: EFFECT_DENY
+      - principal: inv_super_admin_nocap
+        resource: invoice_other_tenant
+        actions:
+          invoice.read: EFFECT_DENY

@@ -1,4 +1,4 @@
-"""Database access for ``departments`` — ``global_master`` vs ``tenant_master``."""
+"""Database access for ``departments`` — ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -67,6 +67,7 @@ class DepartmentRepository:
                     M.name.ilike(term),
                     M.code.ilike(term),
                     M.type.ilike(term),
+                    M.description.ilike(term),
                 )
             )
 

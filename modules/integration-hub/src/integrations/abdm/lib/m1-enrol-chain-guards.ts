@@ -2,7 +2,9 @@ import type { AbdmSession } from "../domain/session.js";
 import { AbdmUseCaseError } from "./m1-errors.js";
 
 /** After Aadhaar verify + enrol-chain mobile OTP, address steps are allowed. */
-export function assertAadhaarEnrolMobileVerified(session: AbdmSession): void {
+export function assertAadhaarEnrolMobileVerified(
+  session: AbdmSession,
+): asserts session is AbdmSession<"abdm.m1.aadhaar-otp.v1"> & { txnId: string } {
   if (session.flowKind !== "abdm.m1.aadhaar-otp.v1") {
     throw new AbdmUseCaseError("invalid session flow", 400);
   }

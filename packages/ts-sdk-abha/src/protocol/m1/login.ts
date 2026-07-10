@@ -154,64 +154,63 @@ export function extractLoginProfileTokens(nha: NhaLoginVerifyResponse): {
   throw new Error("NHA login/verify response missing token / tokens.token / jwtResponse.token");
 }
 
-export function mapNhaLoginAccounts(accounts: unknown): LoginAccountSummary[] {
-  if (!Array.isArray(accounts)) return [];
+/** Returns the first candidate that is a string, else `undefined`. */
+function firstString(...candidates: unknown[]): string | undefined {
+  for (const value of candidates) {
+    if (typeof value === "string") return value;
+  }
+  return undefined;
+}
+
+/** True/false from `kycVerified` boolean, else derived from `kycStatus === "VERIFIED"`. */
+function resolveKycVerified(r: Record<string, unknown>): boolean | undefined {
+  if (typeof r.kycVerified === "boolean") return r.kycVerified;
+  if (typeof r.kycStatus === "string") return r.kycStatus === "VERIFIED";
+  return undefined;
+}
+
+/** Maps rows that pass the object guard through `map`, dropping null/non-object entries. */
+function mapAccountRows(
+  rows: unknown,
+  map: (r: Record<string, unknown>) => LoginAccountSummary | undefined,
+): LoginAccountSummary[] {
+  if (!Array.isArray(rows)) return [];
   const out: LoginAccountSummary[] = [];
-  for (const row of accounts) {
+  for (const row of rows) {
     if (!row || typeof row !== "object") continue;
-    const r = row as Record<string, unknown>;
-    const abhaNumber = typeof r.ABHANumber === "string" ? r.ABHANumber : "";
-    if (!abhaNumber) continue;
-    out.push({
-      abhaNumber,
-      preferredAbhaAddress:
-        typeof r.preferredAbhaAddress === "string" ? r.preferredAbhaAddress : undefined,
-      name: typeof r.name === "string" ? r.name : undefined,
-      gender: typeof r.gender === "string" ? r.gender : undefined,
-      dob: typeof r.dob === "string" ? r.dob : undefined,
-      status: typeof r.status === "string" ? r.status : undefined,
-      kycVerified: typeof r.kycVerified === "boolean" ? r.kycVerified : undefined,
-    });
+    const summary = map(row as Record<string, unknown>);
+    if (summary) out.push(summary);
   }
   return out;
 }
 
+export function mapNhaLoginAccounts(accounts: unknown): LoginAccountSummary[] {
+  return mapAccountRows(accounts, (r) => {
+    const abhaNumber = firstString(r.ABHANumber);
+    if (!abhaNumber) return undefined;
+    return {
+      abhaNumber,
+      preferredAbhaAddress: firstString(r.preferredAbhaAddress),
+      name: firstString(r.name),
+      gender: firstString(r.gender),
+      dob: firstString(r.dob),
+      status: firstString(r.status),
+      kycVerified: typeof r.kycVerified === "boolean" ? r.kycVerified : undefined,
+    };
+  });
+}
+
 /** PHR web login verify returns `users[]` (not `accounts[]`). */
 export function mapNhaPhrLoginUsers(users: unknown): LoginAccountSummary[] {
-  if (!Array.isArray(users)) return [];
-  const out: LoginAccountSummary[] = [];
-  for (const row of users) {
-    if (!row || typeof row !== "object") continue;
-    const r = row as Record<string, unknown>;
-    const abhaNumber =
-      typeof r.abhaNumber === "string"
-        ? r.abhaNumber
-        : typeof r.ABHANumber === "string"
-          ? r.ABHANumber
-          : "";
-    if (!abhaNumber) continue;
-    out.push({
+  return mapAccountRows(users, (r) => {
+    const abhaNumber = firstString(r.abhaNumber, r.ABHANumber);
+    if (!abhaNumber) return undefined;
+    return {
       abhaNumber,
-      preferredAbhaAddress:
-        typeof r.abhaAddress === "string"
-          ? r.abhaAddress
-          : typeof r.preferredAbhaAddress === "string"
-            ? r.preferredAbhaAddress
-            : undefined,
-      name:
-        typeof r.fullName === "string"
-          ? r.fullName
-          : typeof r.name === "string"
-            ? r.name
-            : undefined,
-      status: typeof r.status === "string" ? r.status : undefined,
-      kycVerified:
-        typeof r.kycVerified === "boolean"
-          ? r.kycVerified
-          : typeof r.kycStatus === "string"
-            ? r.kycStatus === "VERIFIED"
-            : undefined,
-    });
-  }
-  return out;
+      preferredAbhaAddress: firstString(r.abhaAddress, r.preferredAbhaAddress),
+      name: firstString(r.fullName, r.name),
+      status: firstString(r.status),
+      kycVerified: resolveKycVerified(r),
+    };
+  });
 }

@@ -1,5 +1,7 @@
+import { randomInt } from "node:crypto";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type { SmsClient } from "../ports.js";
 import type { TenantIntegrationProfile } from "../../../lib/integration-context.js";
 
@@ -42,8 +44,8 @@ export class Msg91OtpSmsClient implements SmsClient {
       throw new Error(`Invalid phone for MSG91: ${phoneNo}`);
     }
 
-    const otp = String(Math.floor(100_000 + Math.random() * 900_000));
-    const url = `${this.config.baseUrl.replace(/\/+$/, "")}/otp`;
+    const otp = String(randomInt(100_000, 1_000_000));
+    const url = `${stripTrailingSlashes(this.config.baseUrl)}/otp`;
     const res = await fetchWithTimeout(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71,7 +73,7 @@ export class Msg91OtpSmsClient implements SmsClient {
     const otp = input.otp.trim();
     if (!/^\d{10}$/.test(mobile) || !/^\d{4,6}$/.test(otp)) return false;
 
-    const url = new URL(`${this.config.baseUrl.replace(/\/+$/, "")}/otp/verify`);
+    const url = new URL(`${stripTrailingSlashes(this.config.baseUrl)}/otp/verify`);
     url.searchParams.set("otp", otp);
     url.searchParams.set("mobile", `91${mobile}`);
     const res = await fetchWithTimeout(url.toString(), {
@@ -189,32 +191,43 @@ function createMsg91ClientFromEnv(): Msg91OtpSmsClient | null {
   });
 }
 
+/**
+ * Stale DB profile often stays `logging` while .env has MSG91 — prefer env when configured.
+ * Returns an env-built client, or `undefined` to fall through to the profile-based switch.
+ */
+function tryEnvSmsFallback(profile: TenantIntegrationProfile): SmsClient | undefined {
+  const envProvider = (process.env["ABDM_SMS_PROVIDER"] ?? "logging").toLowerCase();
+  if (envProvider === "logging") return undefined;
+  try {
+    return createSmsClientFromEnv();
+  } catch (e) {
+    abdmWarn("abdm.m2.sms.env_fallback_failed", {
+      tenantId: profile.iqTenantId,
+      envProvider,
+      message: e instanceof Error ? e.message : String(e),
+    });
+    return undefined;
+  }
+}
+
 /** Build SMS client from `tenant_integration_profiles.sms_provider` + `sms_config`. */
 export function createSmsClientFromProfile(profile: TenantIntegrationProfile): SmsClient {
   const profileProvider = (profile.smsProvider ?? "logging").toLowerCase();
   const config = profile.smsConfig ?? {};
 
-  // Stale DB profile often stays `logging` while .env has MSG91 — prefer env when configured.
   if (profileProvider === "logging") {
-    const envProvider = (process.env["ABDM_SMS_PROVIDER"] ?? "logging").toLowerCase();
-    if (envProvider !== "logging") {
-      try {
-        return createSmsClientFromEnv();
-      } catch (e) {
-        abdmWarn("abdm.m2.sms.env_fallback_failed", {
-          tenantId: profile.iqTenantId,
-          envProvider,
-          message: e instanceof Error ? e.message : String(e),
-        });
-      }
-    }
+    const envClient = tryEnvSmsFallback(profile);
+    if (envClient) return envClient;
   }
 
   switch (profileProvider) {
     case "noop":
       return new NoOpSmsClient();
     case "msg91": {
-      const msg91 = readMsg91Config(config) ?? createMsg91ClientFromEnv();
+      const msg91Config = readMsg91Config(config);
+      const msg91 = msg91Config
+        ? new Msg91OtpSmsClient(msg91Config)
+        : createMsg91ClientFromEnv();
       if (!msg91) {
         throw new Error(
           `MSG91_URL, MSG91_AUTH_KEY, MSG91_TEMPLATE_ID required when sms_provider=msg91 (tenant=${profile.iqTenantId})`,

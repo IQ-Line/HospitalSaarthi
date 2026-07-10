@@ -26,7 +26,8 @@ export class DrizzleTenantApiKeyValidator implements TenantApiKeyValidatorPort {
     }
     if (!verifyTenantApiKeySecret(secret, row.key_hash)) return null;
 
-    void this.repo.touchLastUsed(row.api_key_id).catch(() => undefined);
+    // Fire-and-forget: last-used tracking must never block or fail validation.
+    this.repo.touchLastUsed(row.api_key_id).catch(() => undefined);
 
     return {
       tenantId: row.iq_tenant_id,

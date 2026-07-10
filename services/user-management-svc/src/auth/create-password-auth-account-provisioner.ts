@@ -7,11 +7,12 @@ import type {
 import {
   AuthAccountIdentityMismatchError,
   AuthAccountProvisioningError,
-  AuthEmailConflictError,
+  DuplicateUsernameError,
 } from "@hims/user-management";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { authUser } from "./auth-schema.js";
 import type { HimsBetterAuthInstance } from "./create-hims-better-auth.js";
+import { toSyntheticAuthEmail } from "./synthetic-email.js";
 
 type BetterAuthServerApi = {
   api: {
@@ -28,14 +29,14 @@ type BetterAuthServerApi = {
   };
 };
 
-async function readAuthUserByEmail(
+async function readAuthUserByUsername(
   db: DbInstance,
-  email: string,
-): Promise<{ id: string; email: string } | null> {
+  username: string,
+): Promise<{ id: string } | null> {
   const [row] = await db
-    .select({ id: authUser.id, email: authUser.email })
+    .select({ id: authUser.id })
     .from(authUser)
-    .where(eq(authUser.email, email))
+    .where(eq(authUser.username, username))
     .limit(1);
   return row ?? null;
 }
@@ -43,9 +44,9 @@ async function readAuthUserByEmail(
 async function readAuthUserById(
   db: DbInstance,
   id: string,
-): Promise<{ id: string; email: string } | null> {
+): Promise<{ id: string } | null> {
   const [row] = await db
-    .select({ id: authUser.id, email: authUser.email })
+    .select({ id: authUser.id })
     .from(authUser)
     .where(eq(authUser.id, id))
     .limit(1);
@@ -71,31 +72,40 @@ export function createPasswordAuthAccountProvisioner(
     async createPasswordAccount(
       input: CreatePasswordAuthAccountInput,
     ): Promise<CreatePasswordAuthAccountResult> {
-      const existing = await readAuthUserByEmail(db, input.email);
+      // The username plugin lowercases in place; mirror that so our pre-check matches the stored value.
+      const username = input.username.trim().toLowerCase();
+      // Synthetic, non-routable identity anchor (authn spec §15.1) — a real contact email never
+      // enters the better-auth boundary; it lives only on the platform `users.email`.
+      const email = toSyntheticAuthEmail(username);
+
+      const existing = await readAuthUserByUsername(db, username);
       if (existing !== null) {
-        throw new AuthEmailConflictError(input.email);
+        throw new DuplicateUsernameError(username);
       }
 
       try {
         await serverApi.api.signUpEmail({
           body: {
             name: input.fullName,
-            email: input.email,
+            email,
             password: input.password,
             iq_tenant_id: input.tenantId,
             platform_user_id: input.platformUserId,
-            username: input.username,
+            username,
           },
         });
       } catch (error) {
         if (isUniqueViolation(error)) {
-          throw new AuthEmailConflictError(input.email);
+          // The synthetic email is f(username); a synthetic-email OR username unique collision both
+          // reduce to "this username is taken".
+          throw new DuplicateUsernameError(username);
         }
         throw error;
       }
 
-      const byPlatformId = await readAuthUserById(db, input.platformUserId);
-      const created = byPlatformId ?? (await readAuthUserByEmail(db, input.email));
+      const created =
+        (await readAuthUserById(db, input.platformUserId)) ??
+        (await readAuthUserByUsername(db, username));
       if (created === null) {
         throw new AuthAccountProvisioningError();
       }

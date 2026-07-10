@@ -66,7 +66,7 @@ function affineToUncompressedBytes(point: ReturnType<typeof Point.fromAffine>): 
 
 /** Scalar from private key bytes (Java `new BigInteger(d)` mod n). */
 function scalarFromPrivateBytes(raw: Uint8Array): bigint {
-  let k = bytesToNumberBE(raw) % CURVE_ORDER;
+  const k = bytesToNumberBE(raw) % CURVE_ORDER;
   if (k === 0n) {
     throw new Error("Invalid zero private key scalar");
   }

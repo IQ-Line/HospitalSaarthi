@@ -10,6 +10,7 @@ export const authClient = createAuthClient({
   },
   plugins: [
     jwtClient(),
+    // Username-primary login (authn spec §2 / ADR-0003): surfaces authClient.signIn.username.
     usernameClient(),
     inferAdditionalFields({
       user: {

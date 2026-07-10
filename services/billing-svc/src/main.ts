@@ -1,4 +1,6 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
+import { registerProblemErrorHandler } from "@hims/ts-sdk-errors";
+import { correlationIdPlugin } from "@hims/ts-sdk-observability";
 import { registerOpenApiDocs } from "@hims/ts-sdk-openapi";
 import { tenantPlugin } from "@hims/ts-sdk-tenant";
 import { createDb } from "@hims/ts-sdk-db";
@@ -14,6 +16,7 @@ import {
   principalRoleEnricherPlugin,
 } from "@hims/user-management";
 import { createRouter, createBillingAuthzTargetResolver } from "@hims/billing";
+import { createHttpSequenceConfigLoader } from "@hims/ts-sdk-sequence";
 import { resolveBillingRequestTenantId } from "./resolve-billing-tenant-id.js";
 
 const PORT = Number(process.env["BILLING_SVC_PORT"] ?? 3003);
@@ -25,11 +28,25 @@ const BILLING_DEV_TENANT_ID =
 const USE_MOCK_DATA = process.env["BILLING_USE_MOCK_DATA"] === "true";
 
 async function main() {
+  const app = Fastify({ logger: true });
+  try {
+    await boot(app);
+  } catch (err) {
+    app.log.fatal({ err }, "Failed to start billing-svc");
+    process.exit(1);
+  }
+}
+
+async function boot(app: FastifyInstance): Promise<void> {
+  // Correlation id first (app root): every route gets an id bound to request.log
+  // and echoed on the response header.
+  await app.register(correlationIdPlugin);
+  // RFC 7807 problem+json for every error; inherited by all child scopes.
+  registerProblemErrorHandler(app);
+
   if (!CERBOS_URL) {
     throw new Error("CERBOS_URL environment variable is required");
   }
-
-  const app = Fastify({ logger: true });
 
   await registerOpenApiDocs(app, {
     serviceId: "billing",
@@ -70,6 +87,14 @@ async function main() {
 
   await assertCerbosReachable(CERBOS_URL);
 
+  // op_bill numbering config (numeric code + custom formats) comes from configurator's own internal
+  // route — billing no longer reads configurator's schema.
+  const sequenceConfigLoader = createHttpSequenceConfigLoader({
+    configuratorBaseUrl: configuratorUrl,
+    internalApiKey: process.env["CONFIGURATOR_INTERNAL_API_KEY"],
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+
   await app.register(async (api) => {
     api.addHook("onRequest", async (request) => {
       const tenant = resolveBillingRequestTenantId(request.headers, BILLING_DEV_TENANT_ID);
@@ -91,13 +116,14 @@ async function main() {
       resolveTarget: createBillingAuthzTargetResolver(),
     });
 
-    await api.register(createRouter({ db, useMock: USE_MOCK_DATA }));
+    await api.register(createRouter({ db, useMock: USE_MOCK_DATA, sequenceConfigLoader }));
   }, { prefix: "/api/billing/v1" });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
 }
 
 main().catch((err) => {
+  // Only reached if Fastify construction itself failed — no logger can exist yet.
   console.error("Failed to start billing-svc:", err);
   process.exit(1);
 });

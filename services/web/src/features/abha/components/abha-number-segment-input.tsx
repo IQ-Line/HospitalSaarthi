@@ -28,17 +28,19 @@ export function AbhaNumberSegmentInput({
 
   const updateSegment = (index: number, raw: string) => {
     const maxLen = SEGMENT_LENGTHS[index];
+    if (maxLen === undefined) return;
     const next = [...segments] as [string, string, string, string];
-    next[index] = digitsOnly(raw, maxLen);
+    const cleaned = digitsOnly(raw, maxLen);
+    next[index] = cleaned;
     onChange(next);
-    if (next[index].length === maxLen && index < 3) {
-      refs[index + 1].current?.focus();
+    if (cleaned.length === maxLen && index < 3) {
+      refs[index + 1]?.current?.focus();
     }
   };
 
   const handleKeyDown = (index: number, e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && segments[index].length === 0 && index > 0) {
-      refs[index - 1].current?.focus();
+    if (e.key === 'Backspace' && segments[index]?.length === 0 && index > 0) {
+      refs[index - 1]?.current?.focus();
     }
   };
 
@@ -52,9 +54,9 @@ export function AbhaNumberSegmentInput({
       pasted.slice(6, 10),
       pasted.slice(10, 14),
     ]);
-    if (pasted.length >= 11) refs[3].current?.focus();
-    else if (pasted.length >= 7) refs[2].current?.focus();
-    else if (pasted.length >= 3) refs[1].current?.focus();
+    if (pasted.length >= 11) refs[3]?.current?.focus();
+    else if (pasted.length >= 7) refs[2]?.current?.focus();
+    else if (pasted.length >= 3) refs[1]?.current?.focus();
   };
 
   const segmentClass =
@@ -90,7 +92,7 @@ export function AbhaNumberSegmentInput({
 }
 
 export function isAbhaNumberComplete(segments: [string, string, string, string]): boolean {
-  return SEGMENT_LENGTHS.every((len, i) => segments[i].length === len);
+  return SEGMENT_LENGTHS.every((len, i) => segments[i]?.length === len);
 }
 
 export function abhaNumberFromSegments(segments: [string, string, string, string]): string {

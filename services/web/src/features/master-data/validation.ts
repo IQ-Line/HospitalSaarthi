@@ -88,11 +88,15 @@ export const modulePermissionUpdateSchema = z.object({
 });
 
 export type ModuleFormValues = z.infer<typeof moduleFormSchema>;
+export type ModuleFormInput = z.input<typeof moduleFormSchema>;
 export type PermissionFormValues = z.infer<typeof permissionFormSchema>;
+export type PermissionFormInput = z.input<typeof permissionFormSchema>;
 export type SystemRoleFormValues = z.output<typeof systemRoleFormSchema>;
 export type SystemRoleFormInput = z.input<typeof systemRoleFormSchema>;
 export type ModulePermissionFormValues = z.infer<typeof modulePermissionFormSchema>;
+export type ModulePermissionFormInput = z.input<typeof modulePermissionFormSchema>;
 export type ModulePermissionUpdateValues = z.infer<typeof modulePermissionUpdateSchema>;
+export type ModulePermissionUpdateInput = z.input<typeof modulePermissionUpdateSchema>;
 
 /** Single source of truth for reset / dialog close (avoid drifting defaults). */
 export const EMPTY_MODULE_FORM_VALUES: ModuleFormValues = {

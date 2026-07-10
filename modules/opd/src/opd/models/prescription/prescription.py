@@ -40,20 +40,18 @@ _SCHEMA = {"schema": SCHEMA}
 class PrescriptionModel(TimestampMixin, AuditActorMixin, TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescriptions"
     __table_args__ = (
-        Index("prescriptions_tenant_patient_idx", "tenant_id", "patient_id"),
+        Index("prescriptions_tenant_patient_idx", "iq_tenant_id", "patient_id"),
         Index(
             "prescriptions_tenant_active_idx",
-            "tenant_id",
+            "iq_tenant_id",
             postgresql_where=text("deleted_at IS NULL"),
-            sqlite_where=text("deleted_at IS NULL"),
         ),
         Index(
             "prescriptions_tenant_visit_active_uq",
-            "tenant_id",
+            "iq_tenant_id",
             "visit_id",
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
-            sqlite_where=text("deleted_at IS NULL"),
         ),
         _SCHEMA,
     )
@@ -186,11 +184,11 @@ class PrescriptionStatusHistoryModel(TenantPrimaryKeyMixin, Base):
     __tablename__ = "prescription_status_history"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["tenant_id", "prescription_id"],
-            [f"{SCHEMA}.prescriptions.tenant_id", f"{SCHEMA}.prescriptions.id"],
+            ["iq_tenant_id", "prescription_id"],
+            [f"{SCHEMA}.prescriptions.iq_tenant_id", f"{SCHEMA}.prescriptions.id"],
             ondelete="CASCADE",
         ),
-        Index("prescription_status_history_rx_idx", "tenant_id", "prescription_id"),
+        Index("prescription_status_history_rx_idx", "iq_tenant_id", "prescription_id"),
         _SCHEMA,
     )
 

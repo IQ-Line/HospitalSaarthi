@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [dev, main]
   push:
-    branches: [main]
+    branches: [dev, main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -13,7 +13,6 @@ concurrency:
 env:
   NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
   NODE_VERSION: '24'
-  PNPM_VERSION: '10'
 
 jobs:
   main:
@@ -34,19 +33,14 @@ jobs:
           --health-timeout=5s
           --health-retries=5
 
-      cerbos:
-        image: ghcr.io/cerbos/cerbos:latest
-        ports:
-          - 3593:3593
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # pnpm version comes from the root package.json "packageManager" field —
+      # the single source of truth; passing `version` here too makes the action error.
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v4
         with:
@@ -56,19 +50,68 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - uses: astral-sh/setup-uv@v5
+
       - uses: nrwl/nx-set-shas@v4
 
       # Stage 1: Static analysis
+      # Target conformance: every project must expose its class's canonical nx
+      # targets — guards the drift class (missing lint, phantom test targets)
+      # that plugin inference would have prevented; inference was rejected for
+      # this centralized-config layout (decision D6, cleanup master map).
+      - name: Nx target conformance
+        run: node tools/check-nx-target-conformance.mjs
+
       - name: Lint
         run: npx nx affected -t lint --parallel=3
 
+      # Stage 1b: Drizzle schema-drift gate — every module's src/schema/tables.ts (source of truth)
+      # must match its committed migrations. Closes the "tables.ts vs SQL drift, no gate" gap.
+      - name: Drizzle migration drift check
+        run: |
+          for cfg in modules/*/drizzle.config.ts; do
+            mod=$(dirname "$cfg")
+            echo "drizzle-kit generate :: $mod"
+            (cd "$mod" && pnpm exec drizzle-kit generate)
+          done
+          drift="$(git status --porcelain | grep -E ' modules/[^/]+/migrations/' || true)"
+          if [ -n "$drift" ]; then
+            echo "::error::Drizzle drift: a module's src/schema/tables.ts changed without a committed migration. Run 'nx run <module>:db-generate' and commit the generated migration."
+            echo "$drift"
+            exit 1
+          fi
+          echo "No drizzle schema drift — tables.ts matches committed migrations."
+
+      # Stage 1c: Report-contract codegen drift gate — the pdf-client (TS) and
+      # opd (Python) report types are generated from the vendored JSON-Schema
+      # contract; fail if the committed output is stale vs. a fresh regen.
+      - name: Report contract codegen drift check
+        run: make check-report-contracts
+
       # Stage 2: Type checking
-      # - name: Typecheck
-      #   run: npx nx affected -t typecheck --parallel=3
+      - name: Typecheck
+        run: npx nx affected -t typecheck --parallel=3
 
       # Stage 3: Spec validation (User Management OpenAPI ↔ runtime contract)
       - name: Validate specs
         run: npx nx run user-management-svc:validate-spec
+
+      # The PEP wiring suites (empi-svc, configurator-svc) hit a LIVE Cerbos at
+      # :3593 and need the repo's actual policies loaded. A `services:` container
+      # can't mount the workspace (it starts before checkout), so a policy-less
+      # PDP denies everything and the allow-path assertions fail with 403.
+      # Run Cerbos exactly like the local hims-cerbos instead: repo config + policies.
+      - name: Start Cerbos PDP (repo policies)
+        run: |
+          docker run -d --name cerbos-pdp -p 3592:3592 -p 3593:3593 \
+            -v "${{ github.workspace }}/infra/cerbos/cerbos.yaml:/config/cerbos.yaml:ro" \
+            -v "${{ github.workspace }}/infra/cerbos/policies:/policies:ro" \
+            ghcr.io/cerbos/cerbos:0.53.0 server --config=/config/cerbos.yaml
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3592/_cerbos/health >/dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::Cerbos PDP did not become healthy"; docker logs cerbos-pdp; exit 1
 
       # Stage 4: Unit tests
       - name: Test
@@ -79,15 +122,30 @@ jobs:
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/infra/cerbos:/work"
-          ghcr.io/cerbos/cerbos:latest
+          ghcr.io/cerbos/cerbos:0.53.0
           compile --tests=/work/tests /work/policies --verbose
 
-      # Stage 5: Integration tests
-      # - name: Integration tests
-      #   run: npx nx affected -t test:integration
-      #   env:
-      #     DATABASE_URL: postgresql://hims:hims@localhost:5432/hims_test
-      #     CERBOS_URL: localhost:3593
+      # Stage 5: Integration tests (real-DB, opt-in via TEST_DATABASE_URL).
+      # One database PER MODULE on the Citus service: each module's integration
+      # harness drops + recreates the shared `drizzle` migration schema in
+      # beforeAll, so a single shared DB would race across modules. The
+      # test:integration targets default TEST_DATABASE_URL to
+      # postgresql://hims:hims@127.0.0.1:5432/hims_test_<module> (override the
+      # base locally with TEST_DATABASE_BASE_URL, e.g. the hims-verify Citus).
+      - name: Create per-module integration databases
+        env:
+          PGPASSWORD: hims
+        run: |
+          for db in registration pharmacy user_management configurator empi billing record_foundation inventory master_data opd integration_hub; do
+            psql -h 127.0.0.1 -U hims -d hims_test -c "CREATE DATABASE hims_test_$db;"
+            psql -h 127.0.0.1 -U hims -d "hims_test_$db" -c "CREATE EXTENSION IF NOT EXISTS citus;"
+          done
+      # --parallel=1: per-module DBs isolate data but NOT the Citus coordinator —
+      # its distributed-transaction bookkeeping and deadlock detector are
+      # cluster-wide, and concurrent create_reference_table/DDL across databases
+      # gets aborted with 40P01 "distributed deadlock". Serial is deterministic.
+      - name: Integration tests
+        run: npx nx affected -t test:integration --parallel=1
 
       # Stage 6: E2E tests (when applicable)
       # - name: E2E tests

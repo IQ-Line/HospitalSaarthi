@@ -23,7 +23,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadDiagnoses,
   useVisitpadDiagnosesGlobalLibrary,
   useVisitpadPatch,
@@ -44,10 +44,11 @@ import type { VisitpadDiagnosis } from '@/features/visitpad/types';
 import {
   visitpadDiagnosisCreateFormSchema,
   visitpadDiagnosisEditFormSchema,
+  type VisitpadDiagnosisCreateFormInput,
   type VisitpadDiagnosisCreateFormSchema,
+  type VisitpadDiagnosisEditFormInput,
   type VisitpadDiagnosisEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -63,7 +64,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/diagnoses')({
 
 function VisitpadDiagnosesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-diagnoses');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -341,7 +342,6 @@ function VisitpadDiagnosesPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -360,7 +360,7 @@ function DiagnosisCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadDiagnosisCreateFormSchema>({
+  const form = useForm<VisitpadDiagnosisCreateFormInput, unknown, VisitpadDiagnosisCreateFormSchema>({
     resolver: zodResolver(visitpadDiagnosisCreateFormSchema),
     defaultValues: {
       code: '',
@@ -494,7 +494,7 @@ function DiagnosisEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadDiagnosisEditFormSchema>({
+  const form = useForm<VisitpadDiagnosisEditFormInput, unknown, VisitpadDiagnosisEditFormSchema>({
     resolver: zodResolver(visitpadDiagnosisEditFormSchema),
     defaultValues: {
       display_name: '',

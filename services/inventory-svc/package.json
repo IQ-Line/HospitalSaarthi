@@ -7,15 +7,17 @@
     "@hims/inventory": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/ts-sdk-tenant": "workspace:*",
     "@hims/user-management": "workspace:*",
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
     "@fastify/multipart": "^9.0.3"
   },
   "devDependencies": {
-    "tsx": "^4.20.5"
+    "tsx": "catalog:"
   }
 }

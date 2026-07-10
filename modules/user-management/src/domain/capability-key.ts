@@ -20,6 +20,10 @@ export const RUNTIME_CAPABILITY_ACTIONS = [
   "deactivate",
   "delete",
   "manage",
+  // Privileged desk price/discount override on a charge (see billing invoice policy + GH #94).
+  // A distinct verb — deliberately separate from create/update — so holding it is grantable on
+  // its own without implying full invoice management.
+  "override-price",
   "read",
   "update",
   "view",
@@ -47,6 +51,17 @@ export type ParsedCapabilityKey = {
 
 export function normalizeCapabilityKey(raw: string): string {
   return raw.trim().toLowerCase();
+}
+
+/** Trimmed, lowercased, deduplicated, sorted keys for Cerbos and GET /auth/principal. */
+export function normalizeRuntimeCapabilityKeys(keys: readonly string[]): string[] {
+  const set = new Set<string>();
+  for (const key of keys) {
+    const normalized = normalizeCapabilityKey(key);
+    if (normalized.length === 0) continue;
+    set.add(normalized);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
 }
 
 export function runtimeModuleKeyForCatalogSlug(catalogModuleSlug: string): string {

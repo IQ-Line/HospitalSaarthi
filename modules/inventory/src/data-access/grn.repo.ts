@@ -15,6 +15,8 @@ import { inventoryGrnLines, inventoryGrns, inventoryItems, inventoryLots, invent
 import { GrnValidationError } from "../errors.js";
 import { isPostgresUniqueViolation } from "../lib/postgres-errors.js";
 
+type GrnTx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
+
 function mapGrnRow(row: typeof inventoryGrns.$inferSelect): GrnRow {
   return {
     id: row.id,
@@ -358,6 +360,109 @@ export class DrizzleInventoryGrnRepository {
     });
   }
 
+  private async upsertLotForLine(
+    tx: GrnTx,
+    tenantId: string,
+    grn: typeof inventoryGrns.$inferSelect,
+    line: typeof inventoryGrnLines.$inferSelect,
+  ): Promise<string | null> {
+    const lotNumber = line.lot_number.trim();
+    if (lotNumber.length === 0) return null;
+
+    const normalizedLot = lotNumber.toLowerCase();
+    const [existingLot] = await tx
+      .select({ id: inventoryLots.id })
+      .from(inventoryLots)
+      .where(
+        and(
+          eq(inventoryLots.iq_tenant_id, tenantId),
+          eq(inventoryLots.item_id, line.item_id),
+          eq(inventoryLots.inventory_store_id, grn.inventory_store_id),
+          sql`lower(btrim(${inventoryLots.lot_number})) = ${normalizedLot}`,
+        ),
+      )
+      .limit(1);
+
+    if (existingLot) {
+      await tx
+        .update(inventoryLots)
+        .set({
+          initial_qty: sql`${inventoryLots.initial_qty} + ${line.grn_qty}`,
+          unit_cost: line.purchase_rate,
+          ...(line.expiry_date != null ? { expiry_date: line.expiry_date } : {}),
+          updated_at: new Date(),
+        })
+        .where(
+          and(eq(inventoryLots.iq_tenant_id, tenantId), eq(inventoryLots.id, existingLot.id)),
+        );
+      return existingLot.id;
+    }
+
+    const [createdLot] = await tx
+      .insert(inventoryLots)
+      .values({
+        iq_tenant_id: tenantId,
+        item_id: line.item_id,
+        inventory_store_id: grn.inventory_store_id,
+        lot_number: lotNumber,
+        expiry_date: line.expiry_date,
+        received_date: grn.grn_date,
+        initial_qty: line.grn_qty,
+        unit_cost: line.purchase_rate,
+        notes: line.line_remarks,
+      })
+      .returning({ id: inventoryLots.id });
+    return createdLot?.id ?? null;
+  }
+
+  private async upsertStockForLine(
+    tx: GrnTx,
+    tenantId: string,
+    grn: typeof inventoryGrns.$inferSelect,
+    line: typeof inventoryGrnLines.$inferSelect,
+    lotId: string | null,
+    userId: string,
+  ): Promise<void> {
+    const stockFilters = [
+      eq(inventoryStock.iq_tenant_id, tenantId),
+      eq(inventoryStock.item_id, line.item_id),
+      eq(inventoryStock.inventory_store_id, grn.inventory_store_id),
+      lotId
+        ? eq(inventoryStock.lot_id, lotId)
+        : sql`${inventoryStock.lot_id} IS NULL`,
+    ];
+
+    const [existingStock] = await tx
+      .select({ id: inventoryStock.id })
+      .from(inventoryStock)
+      .where(and(...stockFilters))
+      .limit(1);
+
+    if (existingStock) {
+      await tx
+        .update(inventoryStock)
+        .set({
+          quantity: sql`${inventoryStock.quantity} + ${line.grn_qty}`,
+          updated_by: userId,
+          updated_at: new Date(),
+        })
+        .where(
+          and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, existingStock.id)),
+        );
+      return;
+    }
+
+    await tx.insert(inventoryStock).values({
+      iq_tenant_id: tenantId,
+      item_id: line.item_id,
+      inventory_store_id: grn.inventory_store_id,
+      lot_id: lotId,
+      quantity: line.grn_qty,
+      created_by: userId,
+      updated_by: userId,
+    });
+  }
+
   async submit(tenantId: string, grnId: string, userId: string): Promise<GrnRow | undefined> {
     try {
       return await this.db.transaction(async (tx) => {
@@ -385,93 +490,8 @@ export class DrizzleInventoryGrnRepository {
         }
 
         for (const line of lines) {
-          let lotId: string | null = null;
-          const lotNumber = line.lot_number.trim();
-
-          if (lotNumber.length > 0) {
-            const normalizedLot = lotNumber.toLowerCase();
-            const [existingLot] = await tx
-              .select({ id: inventoryLots.id })
-              .from(inventoryLots)
-              .where(
-                and(
-                  eq(inventoryLots.iq_tenant_id, tenantId),
-                  eq(inventoryLots.item_id, line.item_id),
-                  eq(inventoryLots.inventory_store_id, grn.inventory_store_id),
-                  sql`lower(btrim(${inventoryLots.lot_number})) = ${normalizedLot}`,
-                ),
-              )
-              .limit(1);
-
-            if (existingLot) {
-              lotId = existingLot.id;
-              await tx
-                .update(inventoryLots)
-                .set({
-                  initial_qty: sql`${inventoryLots.initial_qty} + ${line.grn_qty}`,
-                  unit_cost: line.purchase_rate,
-                  ...(line.expiry_date != null ? { expiry_date: line.expiry_date } : {}),
-                  updated_at: new Date(),
-                })
-                .where(
-                  and(eq(inventoryLots.iq_tenant_id, tenantId), eq(inventoryLots.id, existingLot.id)),
-                );
-            } else {
-              const [createdLot] = await tx
-                .insert(inventoryLots)
-                .values({
-                  iq_tenant_id: tenantId,
-                  item_id: line.item_id,
-                  inventory_store_id: grn.inventory_store_id,
-                  lot_number: lotNumber,
-                  expiry_date: line.expiry_date,
-                  received_date: grn.grn_date,
-                  initial_qty: line.grn_qty,
-                  unit_cost: line.purchase_rate,
-                  notes: line.line_remarks,
-                })
-                .returning({ id: inventoryLots.id });
-              lotId = createdLot?.id ?? null;
-            }
-          }
-
-          const stockFilters = [
-            eq(inventoryStock.iq_tenant_id, tenantId),
-            eq(inventoryStock.item_id, line.item_id),
-            eq(inventoryStock.inventory_store_id, grn.inventory_store_id),
-            lotId
-              ? eq(inventoryStock.lot_id, lotId)
-              : sql`${inventoryStock.lot_id} IS NULL`,
-          ];
-
-          const [existingStock] = await tx
-            .select({ id: inventoryStock.id })
-            .from(inventoryStock)
-            .where(and(...stockFilters))
-            .limit(1);
-
-          if (existingStock) {
-            await tx
-              .update(inventoryStock)
-              .set({
-                quantity: sql`${inventoryStock.quantity} + ${line.grn_qty}`,
-                updated_by: userId,
-                updated_at: new Date(),
-              })
-              .where(
-                and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, existingStock.id)),
-              );
-          } else {
-            await tx.insert(inventoryStock).values({
-              iq_tenant_id: tenantId,
-              item_id: line.item_id,
-              inventory_store_id: grn.inventory_store_id,
-              lot_id: lotId,
-              quantity: line.grn_qty,
-              created_by: userId,
-              updated_by: userId,
-            });
-          }
+          const lotId = await this.upsertLotForLine(tx, tenantId, grn, line);
+          await this.upsertStockForLine(tx, tenantId, grn, line, lotId, userId);
         }
 
         const [updated] = await tx

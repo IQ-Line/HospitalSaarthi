@@ -1,4 +1,4 @@
-import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3/hip-data-transfer.js";
+import type { HipHealthInformationRequest } from "@hims/ts-sdk-abha/protocol/m3";
 
 export interface ParsedHiRequest {
   consentId: string;

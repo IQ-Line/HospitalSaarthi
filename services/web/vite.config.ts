@@ -14,6 +14,14 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: [
       { find: '@', replacement: resolve(__dirname, './src') },
+      {
+        find: '@hims/dev-bootstrap',
+        replacement: resolve(__dirname, '../../packages/dev-bootstrap/src/index.ts'),
+      },
+      {
+        find: '@hims/ts-sdk-fhir',
+        replacement: resolve(__dirname, '../../packages/ts-sdk-fhir/src/index.ts'),
+      },
       // Exact match only — do not prefix-match `.../shim/with-selector` (TanStack Store).
       {
         find: /^use-sync-external-store\/shim\/index\.js$/,

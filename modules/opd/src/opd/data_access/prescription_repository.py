@@ -188,17 +188,22 @@ class PrescriptionRepository:
         )
         return existing is not None
 
-    def create(self, payload: PrescriptionCreate) -> PrescriptionModel:
-        if self.visit_has_prescription(payload.tenant_id, payload.visit_id):
+    def create(
+        self,
+        tenant_id: UUID,
+        doctor_id: UUID,
+        payload: PrescriptionCreate,
+    ) -> PrescriptionModel:
+        if self.visit_has_prescription(tenant_id, payload.visit_id):
             raise PrescriptionConflictError(
                 f"Prescription already exists for visit {payload.visit_id}"
             )
 
         rx = PrescriptionModel(
-            tenant_id=payload.tenant_id,
+            tenant_id=tenant_id,
             visit_id=payload.visit_id,
             patient_id=payload.patient_id,
-            doctor_id=payload.doctor_id,
+            doctor_id=doctor_id,
             vitals_schema_version=payload.vitals_schema_version,
             status=PrescriptionStatus.DRAFT,
             created_by=payload.created_by,
@@ -209,7 +214,7 @@ class PrescriptionRepository:
 
         rx.status_history.append(
             PrescriptionStatusHistoryModel(
-                tenant_id=payload.tenant_id,
+                tenant_id=tenant_id,
                 prescription_id=rx.id,
                 from_status=None,
                 to_status=PrescriptionStatus.DRAFT,
@@ -218,7 +223,7 @@ class PrescriptionRepository:
         )
         self._apply_clinical(rx, payload.clinical)
         self._session.flush()
-        return self.get_by_id(payload.tenant_id, rx.id)
+        return self.get_by_id(tenant_id, rx.id)
 
     def update(
         self, tenant_id: UUID, prescription_id: UUID, payload: PrescriptionUpdate
@@ -244,7 +249,12 @@ class PrescriptionRepository:
         return self.get_by_id(tenant_id, prescription_id)
 
     def finalize(
-        self, tenant_id: UUID, prescription_id: UUID, *, changed_by: UUID | None
+        self,
+        tenant_id: UUID,
+        prescription_id: UUID,
+        *,
+        changed_by: UUID | None,
+        doctor_id: UUID | None,
     ) -> PrescriptionModel:
         rx = self._get_root_by_id(tenant_id, prescription_id)
         if rx.status != PrescriptionStatus.DRAFT:
@@ -255,6 +265,11 @@ class PrescriptionRepository:
         rx.status = PrescriptionStatus.FINAL
         rx.finalized_at = now
         rx.updated_by = changed_by
+        # The finalizing doctor is the prescriber of record (see service.finalize).
+        # Only stamp when the finalizer is a known actor — never clobber a real prescriber
+        # with an unknown one. (HTTP callers now always supply the verified doctor.)
+        if doctor_id is not None:
+            rx.doctor_id = doctor_id
         rx.status_history.append(
             PrescriptionStatusHistoryModel(
                 tenant_id=tenant_id,
@@ -405,6 +420,7 @@ class PrescriptionRepository:
                 tenant_id=tenant_id,
                 smoking_status=mh.smoking_status,
                 alcohol_status=mh.alcohol_status,
+                diet_type=mh.diet_type,
                 other_notes=mh.other_notes,
             )
 
@@ -491,6 +507,7 @@ class PrescriptionRepository:
                     external_id=item.external_id,
                     name=item.name,
                     due_by=item.due_by,
+                    when_text=item.when_text,
                     instructions=item.instructions,
                     status=item.status,
                 )

@@ -1,0 +1,279 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: inventory_permissions_test
+description: >-
+  Inventory PEP — every operation requires the matching inventory:<feature>:<action>
+  runtime capability AND tenant (iq_tenant_id) alignment. No platform-operator scope rule on this
+  inventory surface (ADR-0035), so the "super-admin" role string grants nothing cross-tenant.
+  Delegated capabilities are honoured.
+
+principals:
+  inv_reader:
+    id: inv-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "inventory:store:read"
+        - "inventory:item:read"
+        - "inventory:grn:read"
+        - "inventory:stock:read"
+        - "inventory:indent:read"
+        - "inventory:transfer:read"
+      delegated_capabilities: []
+
+  inv_writer:
+    id: inv-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "inventory:store:create"
+        - "inventory:store:update"
+        - "inventory:item:create"
+        - "inventory:grn:create"
+        - "inventory:grn:update"
+        - "inventory:indent:create"
+        - "inventory:indent:update"
+        - "inventory:transfer:create"
+      delegated_capabilities: []
+
+  # Authenticated but holds no inventory capability — proves the "403 authed, no cap" case.
+  inv_nocap:
+    id: inv-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
+  # Holds ONLY store:read — proves per-feature isolation (cannot read GRN).
+  inv_store_reader_only:
+    id: inv-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "inventory:store:read"
+      delegated_capabilities: []
+
+  # store:read arrives only as a delegated capability.
+  inv_delegated_reader:
+    id: inv-user
+    roles: ["receptionist"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities:
+        - "inventory:store:read"
+
+  # super-admin with the capability — bypasses tenant equality.
+  inv_superadmin:
+    id: platform-admin
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities:
+        - "inventory:store:read"
+      delegated_capabilities: []
+
+  # super-admin WITHOUT the capability — still denied (roles are not grants).
+  inv_superadmin_nocap:
+    id: platform-admin
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+
+resources:
+  store_a:
+    id: store-1
+    kind: inventory_store
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+  store_b:
+    id: store-1
+    kind: inventory_store
+    attr: { iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+  item_a:
+    id: item-1
+    kind: inventory_item
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+  grn_a:
+    id: grn-1
+    kind: inventory_grn
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+  stock_a:
+    id: stock-1
+    kind: inventory_stock
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+  stock_b:
+    id: stock-1
+    kind: inventory_stock
+    attr: { iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb" }
+  indent_a:
+    id: indent-1
+    kind: inventory_indent
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+  transfer_a:
+    id: transfer-1
+    kind: inventory_transfer
+    attr: { iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }
+
+tests:
+  - name: store.read — allowed with capability and matching tenant
+    input:
+      principals: [inv_reader]
+      resources: [store_a]
+      actions: [store.read]
+    expected:
+      - principal: inv_reader
+        resource: store_a
+        actions: { store.read: EFFECT_ALLOW }
+
+  # POLICY-LEVEL test of the tenant-eq condition in ISOLATION. The inventory target resolver
+  # (modules/inventory/src/authz/inventory-authz-target-resolver.ts) attaches `request.tenantId`,
+  # which the principal-tenant-hook has already pinned to the verified principal's tenant, as
+  # `resource.attr.iq_tenant_id`. So at runtime this mismatch cannot occur (X == X). Real
+  # cross-tenant isolation is enforced by the repository `WHERE iq_tenant_id` scoping (proven in
+  # the inventory store persistence integration test). This case guards the policy expression so it
+  # stays correct if a resolver is ever changed to attach a resource-LOADED tenant.
+  - name: store.read — denied on tenant mismatch (foreign-tenant target)
+    input:
+      principals: [inv_reader]
+      resources: [store_b]
+      actions: [store.read]
+    expected:
+      - principal: inv_reader
+        resource: store_b
+        actions: { store.read: EFFECT_DENY }
+
+  - name: store.read — denied when authenticated without any inventory capability
+    input:
+      principals: [inv_nocap]
+      resources: [store_a]
+      actions: [store.read]
+    expected:
+      - principal: inv_nocap
+        resource: store_a
+        actions: { store.read: EFFECT_DENY }
+
+  - name: store write — allowed with create/update capability and matching tenant
+    input:
+      principals: [inv_writer]
+      resources: [store_a]
+      actions: [store.create, store.update]
+    expected:
+      - principal: inv_writer
+        resource: store_a
+        actions: { store.create: EFFECT_ALLOW, store.update: EFFECT_ALLOW }
+
+  - name: item — read/create allowed with capability
+    input:
+      principals: [inv_reader, inv_writer]
+      resources: [item_a]
+      actions: [item.read, item.create]
+    expected:
+      - principal: inv_reader
+        resource: item_a
+        actions: { item.read: EFFECT_ALLOW }
+      - principal: inv_writer
+        resource: item_a
+        actions: { item.create: EFFECT_ALLOW }
+
+  - name: grn — read/create/update allowed with capability
+    input:
+      principals: [inv_reader, inv_writer]
+      resources: [grn_a]
+      actions: [grn.read, grn.create, grn.update]
+    expected:
+      - principal: inv_reader
+        resource: grn_a
+        actions: { grn.read: EFFECT_ALLOW }
+      - principal: inv_writer
+        resource: grn_a
+        actions: { grn.create: EFFECT_ALLOW, grn.update: EFFECT_ALLOW }
+
+  # The tenant-mismatch DENY half is a POLICY-LEVEL assertion (see the note on store.read above):
+  # unreachable with the current resolver, where repository scoping is the live isolation control.
+  - name: stock.read — allowed with capability; denied on tenant mismatch
+    input:
+      principals: [inv_reader]
+      resources: [stock_a, stock_b]
+      actions: [stock.read]
+    expected:
+      - principal: inv_reader
+        resource: stock_a
+        actions: { stock.read: EFFECT_ALLOW }
+      - principal: inv_reader
+        resource: stock_b
+        actions: { stock.read: EFFECT_DENY }
+
+  - name: indent — read/create/update allowed with capability
+    input:
+      principals: [inv_reader, inv_writer]
+      resources: [indent_a]
+      actions: [indent.read, indent.create, indent.update]
+    expected:
+      - principal: inv_reader
+        resource: indent_a
+        actions: { indent.read: EFFECT_ALLOW }
+      - principal: inv_writer
+        resource: indent_a
+        actions: { indent.create: EFFECT_ALLOW, indent.update: EFFECT_ALLOW }
+
+  - name: transfer — read/create allowed with capability
+    input:
+      principals: [inv_reader, inv_writer]
+      resources: [transfer_a]
+      actions: [transfer.read, transfer.create]
+    expected:
+      - principal: inv_reader
+        resource: transfer_a
+        actions: { transfer.read: EFFECT_ALLOW }
+      - principal: inv_writer
+        resource: transfer_a
+        actions: { transfer.create: EFFECT_ALLOW }
+
+  - name: feature isolation — store:read capability does not grant grn.read
+    input:
+      principals: [inv_store_reader_only]
+      resources: [grn_a]
+      actions: [grn.read]
+    expected:
+      - principal: inv_store_reader_only
+        resource: grn_a
+        actions: { grn.read: EFFECT_DENY }
+
+  - name: delegated capability — store.read allowed via delegated_capabilities
+    input:
+      principals: [inv_delegated_reader]
+      resources: [store_a]
+      actions: [store.read]
+    expected:
+      - principal: inv_delegated_reader
+        resource: store_a
+        actions: { store.read: EFFECT_ALLOW }
+
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — inventory surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin DENIED store.read cross-tenant even with capability
+    input:
+      principals: [inv_superadmin]
+      resources: [store_b]
+      actions: [store.read]
+    expected:
+      - principal: inv_superadmin
+        resource: store_b
+        actions: { store.read: EFFECT_DENY }
+
+  - name: super-admin — denied without the capability (role is not a grant)
+    input:
+      principals: [inv_superadmin_nocap]
+      resources: [store_a]
+      actions: [store.read]
+    expected:
+      - principal: inv_superadmin_nocap
+        resource: store_a
+        actions: { store.read: EFFECT_DENY }

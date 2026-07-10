@@ -1,4 +1,4 @@
-import type { OnGenerateTokenCallback } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { OnGenerateTokenCallback } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { abdmWarn } from "../../../lib/abdm-adapter-log.js";
 import { completeLinkTokenFromCallback } from "../../../lib/link-token-cache.js";

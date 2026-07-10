@@ -14,7 +14,7 @@ import { cn } from '@pulse/utils';
 import { useInventoryTransferCancel, useInventoryTransferReceive } from '../api/transfer-mutations';
 import { useInventoryIndentDetail } from '../api/queries';
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
-import { canReceiveTransfer, transferHasUnsettledQty } from '../lib/transfer-workflow';
+import { transferAwaitsReceipt, transferHasUnsettledQty } from '../lib/transfer-workflow';
 import type { InventoryTransferLine, InventoryTransferRow } from '../types';
 
 const QTY_EPSILON = 0.0005;
@@ -73,7 +73,7 @@ export function InventoryTransferReceiveDialog({
   const [lines, setLines] = useState<ReceiveLineState[]>([]);
   const [cancelReason, setCancelReason] = useState('');
 
-  const readOnly = transfer != null && !canReceiveTransfer(transfer);
+  const readOnly = transfer != null && !transferAwaitsReceipt(transfer);
   const canCancelRemainder = transfer != null && transferHasUnsettledQty(transfer);
 
   useEffect(() => {

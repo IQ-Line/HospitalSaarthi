@@ -4,7 +4,6 @@ import type {
   BillingWritePort,
   ConfiguratorHttpPort,
   EmpiHttpPort,
-  OpdHttpPort,
   RegistrationRepo,
   VisitRepo,
 } from "../ports.js";
@@ -57,6 +56,39 @@ export type CompleteOpdNewPatientRegistrationResult =
       message: string;
     };
 
+type IntakeFailure = Extract<
+  Awaited<ReturnType<typeof createIntakeForNewPatient>>,
+  { ok: false }
+>;
+
+/**
+ * Translate a failed intake into the `phase: "intake"` completion result,
+ * preserving the duplicate / empi-unavailable / empi-error distinction.
+ */
+function intakeFailureToResult(
+  intake: IntakeFailure,
+): Extract<CompleteOpdNewPatientRegistrationResult, { phase: "intake" }> {
+  if (intake.kind === "duplicate") {
+    return { ok: false, phase: "intake", kind: "duplicate", body: intake.body };
+  }
+  if (intake.kind === "empi_unavailable") {
+    return {
+      ok: false,
+      phase: "intake",
+      kind: "empi_unavailable",
+      status: intake.status,
+      body: intake.body,
+    };
+  }
+  return {
+    ok: false,
+    phase: "intake",
+    kind: "empi_error",
+    status: intake.status,
+    body: intake.body,
+  };
+}
+
 export async function completeOpdNewPatientRegistration(
   deps: {
     registrationRepo: RegistrationRepo;
@@ -64,7 +96,6 @@ export async function completeOpdNewPatientRegistration(
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
-    opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
     billingWritePort?: BillingWritePort;
     billingReadPort?: BillingReadPort;
@@ -86,7 +117,6 @@ export async function completeOpdNewPatientRegistration(
       empiGateway: deps.empiGateway,
       allocateOpVisitId: deps.allocateOpVisitId,
       eventBus: deps.eventBus,
-      opdGateway: deps.opdGateway,
       configuratorGateway: deps.configuratorGateway,
     },
     tenantId,
@@ -95,25 +125,7 @@ export async function completeOpdNewPatientRegistration(
   );
 
   if (!intake.ok) {
-    if (intake.kind === "duplicate") {
-      return { ok: false, phase: "intake", kind: "duplicate", body: intake.body };
-    }
-    if (intake.kind === "empi_unavailable") {
-      return {
-        ok: false,
-        phase: "intake",
-        kind: "empi_unavailable",
-        status: intake.status,
-        body: intake.body,
-      };
-    }
-    return {
-      ok: false,
-      phase: "intake",
-      kind: "empi_error",
-      status: intake.status,
-      body: intake.body,
-    };
+    return intakeFailureToResult(intake);
   }
 
   const { registration, visit } = intake.result;

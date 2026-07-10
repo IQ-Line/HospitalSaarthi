@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1782054245534,
+      "tag": "0000_init",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782054263719,
+      "tag": "0001_better_auth_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782054298175,
+      "tag": "0002_distribute_citus",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1782057100200,
+      "tag": "0003_restore_drifted_constraints",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782071827864,
+      "tag": "0004_add_recovery_tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1783433956351,
+      "tag": "0005_must_change_password",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783448809959,
+      "tag": "0006_platform_admins",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783448909959,
+      "tag": "0007_user_capabilities_overrides",
+      "breakpoints": true
+    }
+  ]
+}

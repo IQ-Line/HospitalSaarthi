@@ -8,7 +8,7 @@ from opd.lib.clinical_report_context import (
     is_ndhm_facility_id,
     resolve_clinical_report_context,
 )
-from opd.lib.default_report_logo import DEFAULT_REPORT_LOGO_DATA_URL, load_report_logo_data_url
+from opd.lib.default_report_logo import load_report_logo_data_url
 
 
 def test_is_ndhm_facility_id_accepts_hfr_strings() -> None:
@@ -72,6 +72,7 @@ def test_resolve_replaces_branch_uuid_with_hip_id(monkeypatch) -> None:
     assert resolved.facility_address == "Main Road, Delhi, 110001"
     assert resolved.patient_address == "12 MG Road, Delhi, Central Delhi, 110001"
     assert resolved.logo_url == load_report_logo_data_url()
+    assert resolved.logo_url is not None
     assert resolved.logo_url.startswith("data:image/svg+xml,")
 
 

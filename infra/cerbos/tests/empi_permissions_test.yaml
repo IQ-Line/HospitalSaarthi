@@ -1,0 +1,201 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: empi_permissions_test
+description: >-
+  EMPI golden-record patient authorization: capability-gated, tenant-isolated. Each action gates
+  on its own empi:patient:{read,create,update,delete} capability (no cross-action grant); delegated
+  capabilities grant. Clinical surface: no platform-operator scope rule (ADR-0035), so the
+  "super-admin" role string grants nothing cross-tenant.
+
+principals:
+  reader:
+    id: clerk-read
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["empi:patient:read"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  creator:
+    id: clerk-create
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["empi:patient:create"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  updater:
+    id: clerk-update
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["empi:patient:update"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  deleter:
+    id: clerk-delete
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["empi:patient:delete"]
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  reader_delegated:
+    id: clerk-delegated
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: ["empi:patient:read"]
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  no_caps:
+    id: clerk-nocaps
+    roles: ["frontdesk"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["frontdesk"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  super_admin_reader:
+    id: super-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["empi:patient:read"]
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  patient_a:
+    id: patient-1
+    kind: empi_patient
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  patient_b:
+    id: patient-2
+    kind: empi_patient
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: read allowed with empi:patient:read in same tenant
+    input:
+      principals: [reader]
+      resources: [patient_a]
+      actions: [patient.read]
+    expected:
+      - principal: reader
+        resource: patient_a
+        actions: { patient.read: EFFECT_ALLOW }
+
+  # POLICY-LEVEL test of the tenant-eq condition in ISOLATION. The current empi target resolver
+  # (modules/empi/src/authz/empi-authz-target-resolver.ts) attaches `request.tenantId` — which
+  # equals the principal's tenant — as `resource.attr.iq_tenant_id`, so at runtime this cross-tenant
+  # mismatch cannot occur (the comparison is always X == X). Real cross-tenant read isolation is
+  # enforced by the repository `WHERE iq_tenant_id` scoping (proven in the empi persistence
+  # integration test). This case guards the policy expression itself so it stays correct if a
+  # resolver is ever changed to attach a resource-LOADED tenant.
+  - name: read denied cross-tenant (non super-admin)
+    input:
+      principals: [reader]
+      resources: [patient_b]
+      actions: [patient.read]
+    expected:
+      - principal: reader
+        resource: patient_b
+        actions: { patient.read: EFFECT_DENY }
+
+  - name: read denied without capability
+    input:
+      principals: [no_caps]
+      resources: [patient_a]
+      actions: [patient.read]
+    expected:
+      - principal: no_caps
+        resource: patient_a
+        actions: { patient.read: EFFECT_DENY }
+
+  - name: read allowed via delegated capability
+    input:
+      principals: [reader_delegated]
+      resources: [patient_a]
+      actions: [patient.read]
+    expected:
+      - principal: reader_delegated
+        resource: patient_a
+        actions: { patient.read: EFFECT_ALLOW }
+
+  - name: create allowed with empi:patient:create; read cap does not grant create
+    input:
+      principals: [creator, reader]
+      resources: [patient_a]
+      actions: [patient.create]
+    expected:
+      - principal: creator
+        resource: patient_a
+        actions: { patient.create: EFFECT_ALLOW }
+      - principal: reader
+        resource: patient_a
+        actions: { patient.create: EFFECT_DENY }
+
+  # The cross-tenant DENY half is a POLICY-LEVEL assertion (see the note on the read case above):
+  # the current resolver cannot produce a resource tenant that differs from the principal's, so this
+  # mismatch is unreachable at runtime and repository scoping is the live isolation control.
+  - name: update allowed with empi:patient:update same tenant, denied cross-tenant
+    input:
+      principals: [updater]
+      resources: [patient_a, patient_b]
+      actions: [patient.update]
+    expected:
+      - principal: updater
+        resource: patient_a
+        actions: { patient.update: EFFECT_ALLOW }
+      - principal: updater
+        resource: patient_b
+        actions: { patient.update: EFFECT_DENY }
+
+  - name: delete (identifier removal) allowed only with empi:patient:delete
+    input:
+      principals: [deleter, updater]
+      resources: [patient_a]
+      actions: [patient.delete]
+    expected:
+      - principal: deleter
+        resource: patient_a
+        actions: { patient.delete: EFFECT_ALLOW }
+      - principal: updater
+        resource: patient_a
+        actions: { patient.delete: EFFECT_DENY }
+
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — clinical surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin role_codes DENIED cross-tenant even with capability
+    input:
+      principals: [super_admin_reader]
+      resources: [patient_b]
+      actions: [patient.read]
+    expected:
+      - principal: super_admin_reader
+        resource: patient_b
+        actions: { patient.read: EFFECT_DENY }

@@ -9,14 +9,8 @@ export function multiplyDecimal(quantity: string, unitAmount: string): number {
   return qty * unit;
 }
 
-function normalizeDiscount(raw: string | null | undefined): number {
-  if (raw == null || raw === '') return 0;
-  const value = Number(raw);
-  if (!Number.isFinite(value) || value < 0) return 0;
-  return value;
-}
-
-function normalizeTaxPercent(raw: string | null | undefined): number {
+/** Parses a non-negative numeric string; empty/invalid/negative all coerce to 0. */
+function normalizeNonNegativeNumber(raw: string | null | undefined): number {
   if (raw == null || raw === '') return 0;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) return 0;
@@ -30,8 +24,8 @@ export function computeLineBilling(line: {
   tax_percent?: string;
 }): { line_total: string; tax_amount: string } {
   const gross = multiplyDecimal(line.quantity_dispensed, line.unit_amount);
-  const lineDiscount = normalizeDiscount(line.line_discount);
-  const taxPercent = normalizeTaxPercent(line.tax_percent);
+  const lineDiscount = normalizeNonNegativeNumber(line.line_discount);
+  const taxPercent = normalizeNonNegativeNumber(line.tax_percent);
   const taxable = Math.max(0, gross - lineDiscount);
   const taxAmount = taxable * (taxPercent / 100);
   const lineTotal = taxable + taxAmount;

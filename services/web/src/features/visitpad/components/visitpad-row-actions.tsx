@@ -1,21 +1,17 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 
 interface VisitpadRowActionsProps {
   onEdit: () => void;
-  onDelete?: () => void;
   disabled?: boolean;
   canEdit?: boolean;
-  canDelete?: boolean;
 }
 
-/** Edit + deactivate for Visitpad catalog tables — matches reference row actions. */
+/** Edit action for Visitpad catalog tables — matches reference row actions. */
 export function VisitpadRowActions({
   onEdit,
-  onDelete,
   disabled = false,
   canEdit = true,
-  canDelete = true,
 }: VisitpadRowActionsProps) {
   return (
     <div className="flex items-center justify-end gap-1">
@@ -29,19 +25,6 @@ export function VisitpadRowActions({
       >
         <Pencil className="size-4" />
       </Button>
-      {canDelete && onDelete ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={onDelete}
-          disabled={disabled}
-          className="text-destructive hover:text-destructive"
-          aria-label="Deactivate row"
-        >
-          <Trash2 className="size-4" />
-        </Button>
-      ) : null}
     </div>
   );
 }

@@ -1,14 +1,28 @@
 {
   "name": "user-management-svc",
   "projectType": "application",
-  "tags": ["type:service", "scope:platform", "language:typescript", "deploy:aks"],
+  "tags": [
+    "type:service",
+    "scope:platform",
+    "language:typescript",
+    "deploy:aks"
+  ],
   "targets": {
     "serve": {
-      "dependsOn": ["user-management:db-migrate", "ts-sdk-authz:build"],
+      "dependsOn": [
+        "user-management:db-migrate",
+        "ts-sdk-authz:build"
+      ],
       "command": "tsx src/main.ts",
       "options": {
         "cwd": "services/user-management-svc",
         "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "seed-platform": {
+      "command": "tsx scripts/seed-platform-bootstrap.ts",
+      "options": {
+        "cwd": "services/user-management-svc"
       }
     },
     "typecheck": {
@@ -23,7 +37,9 @@
         "command": "tsup --config tsup.config.ts",
         "cwd": "services/user-management-svc"
       },
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": [
+        "{projectRoot}/dist"
+      ],
       "cache": true
     },
     "test": {
@@ -42,6 +58,15 @@
       "command": "pnpm run openapi:codegen",
       "options": {
         "cwd": "services/user-management-svc"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/user-management-svc/src/**/*.ts",
+          "services/user-management-svc/test/**/*.ts"
+        ]
       }
     }
   }

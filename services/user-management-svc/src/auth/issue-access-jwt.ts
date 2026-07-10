@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { desc } from "drizzle-orm";
-import { importJWK, importPKCS8, SignJWT, type KeyLike } from "jose";
+import { importJWK, importPKCS8, SignJWT } from "jose";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
   loadIdentityJwtClaims,
@@ -15,7 +15,7 @@ import type { HimsBetterAuthEnv } from "./create-hims-better-auth.js";
 const JWT_EXPIRY_SECONDS = 300;
 
 type SigningMaterial = {
-  key: KeyLike;
+  key: CryptoKey | Uint8Array;
   /** Matches `kid` published in `/api/auth/.well-known/jwks.json` (auth.jwks.id). */
   kid: string;
 };
@@ -41,7 +41,7 @@ async function loadSigningMaterial(
 
   try {
     return {
-      key: (await importJWK(JSON.parse(raw), "RS256")) as KeyLike,
+      key: await importJWK(JSON.parse(raw), "RS256"),
       kid: row.id,
     };
   } catch {
@@ -70,12 +70,18 @@ export function createAccessTokenIssuer(
       }
 
       const { key: signingKey, kid } = await loadSigningMaterial(db, env);
+      // BET4: tenant-less operator token — omit `iq_tenant_id` when platform-scoped (see
+      // create-hims-better-auth.ts / verify.ts). Non-operator tokens keep the hard tenant claim.
+      const isPlatformScoped = claims.scopes.includes("platform");
       const payload: Record<string, unknown> = {
-        iq_tenant_id: claims.iq_tenant_id,
         org_id: claims.org_id,
         roles: claims.roles,
+        scopes: claims.scopes,
         jti: randomUUID(),
       };
+      if (!isPlatformScoped) {
+        payload.iq_tenant_id = claims.iq_tenant_id;
+      }
       if (claims.department) {
         payload.department = claims.department;
       }

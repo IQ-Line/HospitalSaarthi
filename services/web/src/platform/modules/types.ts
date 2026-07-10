@@ -1,3 +1,4 @@
+import type { ModuleCategory } from '@/features/master-data/types';
 import type { NavigationNode } from '@/navigation/types';
 
 /**
@@ -29,6 +30,11 @@ export type ModuleManifest = {
    * Used when multiple catalog rows satisfy one product area (e.g. visitpad).
    */
   requiredModulesAny?: readonly string[];
+  /**
+   * Every one of these catalog slugs must be enabled for the tenant (AND gate),
+   * for modules that compose strictly across several catalog rows.
+   */
+  requiredModules?: readonly string[];
   /** At least one JWT role code required to show this module in the sidebar. */
   requiredRolesAny?: readonly string[];
   /** Lower numbers appear earlier in the sidebar (after dashboard). */
@@ -40,7 +46,7 @@ export type ModuleCatalogEntry = {
   slug: string;
   name: string;
   icon: string | null;
-  category: string;
+  category: ModuleCategory;
   is_active: boolean;
   /** Tree depth from Master Data (`1` = L1 product module). */
   level: number;

@@ -12,7 +12,7 @@ type CerbosPrincipalSnapshot = {
 };
 
 function readCerbosPrincipalSnapshot(request: FastifyRequest): CerbosPrincipalSnapshot | undefined {
-  const raw = (request as FastifyRequest & { cerbosPrincipal?: unknown }).cerbosPrincipal;
+  const raw = (request as { cerbosPrincipal?: unknown }).cerbosPrincipal;
   if (raw == null || typeof raw !== "object") return undefined;
   const snap = raw as Partial<CerbosPrincipalSnapshot>;
   if (typeof snap.id !== "string" || snap.id.length === 0) return undefined;

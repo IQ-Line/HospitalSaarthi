@@ -1,3 +1,4 @@
+import { normalizeIndianMobile } from "@hims/ts-sdk-india";
 import type { EmpiHttpPort, EmpiRegisterPatientResult } from "../ports.js";
 import type { PatientDemographicsSnapshot } from "../domain/registration.types.js";
 import type { EmpiPatientWire } from "./registration-helpers.js";
@@ -9,11 +10,35 @@ function joinUrl(base: string, path: string): string {
   return `${b}${p}`;
 }
 
-/** Align with EMPI desk registration (`+91` + 10 digits). */
-function normalizeIndianPhoneForEmpi(raw: string | undefined | null): string | null {
-  const digits = (raw ?? "").replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  return `+91${digits.slice(-10)}`;
+function firstNonEmptyString(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value) return value;
+  }
+  return null;
+}
+
+/**
+ * Extract a patient id from the assorted shapes EMPI list/get/find endpoints
+ * return: top-level `patientId`/`id`, a nested `patient.id`, or the first row
+ * of a `data[]` array.
+ */
+function extractPatientId(json: Record<string, unknown>): string | null {
+  const topLevel = firstNonEmptyString(json.patientId, json.id);
+  if (topLevel) return topLevel;
+
+  const patient = json.patient;
+  if (patient && typeof patient === "object") {
+    const nested = firstNonEmptyString((patient as Record<string, unknown>).id);
+    if (nested) return nested;
+  }
+
+  const data = json.data;
+  if (Array.isArray(data) && data.length > 0) {
+    const first = data[0] as Record<string, unknown>;
+    return firstNonEmptyString(first.id);
+  }
+
+  return null;
 }
 
 function isPatientWire(value: unknown): value is EmpiPatientWire {
@@ -88,6 +113,130 @@ function parseDuplicate(
       phone_number: "",
     },
     body: json,
+  };
+}
+
+/**
+ * Resolve the patient's ABHA address, preferring the value on the patient wire
+ * and falling back to the first `abha_address` row in the `identifiers[]` list.
+ */
+function resolveAbhaAddress(
+  patientWireValue: string | null,
+  identifiers: unknown,
+): string | null {
+  if (patientWireValue) return patientWireValue;
+  if (!Array.isArray(identifiers)) return null;
+
+  for (const item of identifiers) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    if (row.identifier_type !== "abha_address") continue;
+    const value = typeof row.identifier_value === "string" ? row.identifier_value.trim() : "";
+    if (value) return value;
+  }
+  return null;
+}
+
+/** Keep only well-formed address rows, narrowed to the `{ id, address_type }` shape. */
+function extractAddresses(raw: unknown): Array<{ id: string; address_type: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((item): item is { id: string; address_type: string } => {
+      if (!item || typeof item !== "object") return false;
+      const row = item as Record<string, unknown>;
+      return typeof row.id === "string" && typeof row.address_type === "string";
+    })
+    .map((row) => ({ id: row.id, address_type: row.address_type }));
+}
+
+export type ResolvePatientIdQuery = {
+  patient_id?: string;
+  uhid?: string;
+  abha_number?: string;
+  abha_address?: string;
+  phone_number?: string;
+  first_name?: string;
+  middle_name?: string;
+  last_name?: string;
+  gender?: string;
+  date_of_birth?: string;
+  age_years?: number;
+  age_months?: number;
+  age_days?: number;
+};
+
+/**
+ * The ordered list of single-identifier GET paths to try, in priority order:
+ * direct id, then UHID, ABHA number, ABHA address. Only present fields produce
+ * a path, preserving the original "skip empty, try next" sequencing.
+ */
+function identifierLookupPaths(query: ResolvePatientIdQuery): string[] {
+  const paths: string[] = [];
+
+  const directId = query.patient_id?.trim();
+  if (directId) paths.push(`/api/empi/v1/patients/${encodeURIComponent(directId)}`);
+
+  const uhid = query.uhid?.trim();
+  if (uhid) {
+    paths.push(`/api/empi/v1/patients?${new URLSearchParams({ uhid, limit: "1" }).toString()}`);
+  }
+
+  const abhaNumber = query.abha_number?.trim();
+  if (abhaNumber) {
+    paths.push(
+      `/api/empi/v1/patients?${new URLSearchParams({ abha_number: abhaNumber, limit: "1" }).toString()}`,
+    );
+  }
+
+  const abhaAddress = query.abha_address?.trim();
+  if (abhaAddress) {
+    paths.push(
+      `/api/empi/v1/patients/find?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`,
+    );
+  }
+
+  return paths;
+}
+
+/** A `{ [key]: value }` object when `value` is a finite number, otherwise empty (spread-safe). */
+function finiteAgeField(key: string, value: number | undefined): Record<string, number> {
+  return typeof value === "number" && Number.isFinite(value) ? { [key]: value } : {};
+}
+
+/**
+ * Build the find-by-demographics dedup payload, or `null` when the minimum
+ * signal (normalisable phone + first name + valid gender) is absent.
+ */
+function buildDedupBody(query: ResolvePatientIdQuery): Record<string, unknown> | null {
+  const firstName = query.first_name?.trim() ?? "";
+  const gender = query.gender?.trim().toLowerCase() ?? "";
+  const empiPhone = normalizeIndianMobile(query.phone_number ?? "");
+
+  const hasMinimumSignal =
+    empiPhone != null &&
+    firstName.length >= 1 &&
+    (gender === "male" || gender === "female" || gender === "other");
+  if (!hasMinimumSignal) return null;
+
+  const body: Record<string, unknown> = { first_name: firstName, gender, phone_number: empiPhone };
+
+  const middleName = query.middle_name?.trim();
+  const lastName = query.last_name?.trim();
+  if (middleName) body.middle_name = middleName;
+  if (lastName) body.last_name = lastName;
+
+  const dob = query.date_of_birth?.trim();
+  if (dob) {
+    body.date_of_birth = dob;
+    const year = new Date(dob).getFullYear();
+    if (!Number.isNaN(year) && year > 1900) body.year_of_birth = year;
+  }
+
+  return {
+    ...body,
+    ...finiteAgeField("age_years", query.age_years),
+    ...finiteAgeField("age_months", query.age_months),
+    ...finiteAgeField("age_days", query.age_days),
   };
 }
 
@@ -232,22 +381,10 @@ export class HttpEmpiGateway implements EmpiHttpPort {
 
     try {
       const json = (await res.json()) as Record<string, unknown>;
-      if (typeof json.patientId === "string" && json.patientId) return json.patientId;
-      if (typeof json.id === "string" && json.id) return json.id;
-      const patient = json.patient;
-      if (patient && typeof patient === "object") {
-        const pid = (patient as Record<string, unknown>).id;
-        if (typeof pid === "string" && pid) return pid;
-      }
-      const data = json.data;
-      if (Array.isArray(data) && data.length > 0) {
-        const first = data[0] as Record<string, unknown>;
-        if (typeof first.id === "string" && first.id) return first.id;
-      }
+      return extractPatientId(json);
     } catch {
       return null;
     }
-    return null;
   }
 
   async fetchPatientDetail(
@@ -277,30 +414,9 @@ export class HttpEmpiGateway implements EmpiHttpPort {
       const patientRaw = json.patient ?? json;
       if (!isPatientWire(patientRaw)) return null;
 
-      let abhaNumber: string | null = patientRaw.abha_number?.trim() || null;
-      let abhaAddress: string | null = patientRaw.abha_address?.trim() || null;
-      const identifiers = json.identifiers;
-      if (Array.isArray(identifiers)) {
-        for (const item of identifiers) {
-          if (!item || typeof item !== "object") continue;
-          const row = item as Record<string, unknown>;
-          const value = typeof row.identifier_value === "string" ? row.identifier_value.trim() : "";
-          if (!value) continue;
-          if (row.identifier_type === "abha_address" && !abhaAddress) {
-            abhaAddress = value;
-          }
-        }
-      }
-
-      const addresses = Array.isArray(json.addresses)
-        ? json.addresses
-            .filter((item): item is { id: string; address_type: string } => {
-              if (!item || typeof item !== "object") return false;
-              const row = item as Record<string, unknown>;
-              return typeof row.id === "string" && typeof row.address_type === "string";
-            })
-            .map((row) => ({ id: row.id, address_type: row.address_type }))
-        : [];
+      const abhaNumber: string | null = patientRaw.abha_number?.trim() || null;
+      const abhaAddress = resolveAbhaAddress(patientRaw.abha_address?.trim() || null, json.identifiers);
+      const addresses = extractAddresses(json.addresses);
 
       return { patient: patientRaw, abha_number: abhaNumber, abha_address: abhaAddress, addresses };
     } catch {
@@ -404,113 +520,25 @@ export class HttpEmpiGateway implements EmpiHttpPort {
 
     try {
       const json = (await res.json()) as Record<string, unknown>;
-      if (typeof json.patientId === "string" && json.patientId) return json.patientId;
-      if (typeof json.id === "string" && json.id) return json.id;
+      return firstNonEmptyString(json.patientId, json.id);
     } catch {
       return null;
     }
-    return null;
   }
 
   async resolvePatientId(
     tenantId: string,
-    query: {
-      patient_id?: string;
-      uhid?: string;
-      abha_number?: string;
-      abha_address?: string;
-      phone_number?: string;
-      first_name?: string;
-      middle_name?: string;
-      last_name?: string;
-      gender?: string;
-      date_of_birth?: string;
-      age_years?: number;
-      age_months?: number;
-      age_days?: number;
-    },
+    query: ResolvePatientIdQuery,
     bearerToken?: string,
   ): Promise<string | null> {
-    const directId = query.patient_id?.trim();
-    if (directId) {
-      const byId = await this.fetchFirstPatientId(
-        tenantId,
-        `/api/empi/v1/patients/${encodeURIComponent(directId)}`,
-        bearerToken,
-      );
-      if (byId) return byId;
-    }
-
-    const uhid = query.uhid?.trim();
-    if (uhid) {
-      const match = await this.fetchFirstPatientId(
-        tenantId,
-        `/api/empi/v1/patients?${new URLSearchParams({ uhid, limit: "1" }).toString()}`,
-        bearerToken,
-      );
+    for (const path of identifierLookupPaths(query)) {
+      const match = await this.fetchFirstPatientId(tenantId, path, bearerToken);
       if (match) return match;
     }
 
-    const abhaNumber = query.abha_number?.trim();
-    if (abhaNumber) {
-      const match = await this.fetchFirstPatientId(
-        tenantId,
-        `/api/empi/v1/patients?${new URLSearchParams({ abha_number: abhaNumber, limit: "1" }).toString()}`,
-        bearerToken,
-      );
-      if (match) return match;
-    }
-
-    const abhaAddress = query.abha_address?.trim();
-    if (abhaAddress) {
-      const match = await this.fetchFirstPatientId(
-        tenantId,
-        `/api/empi/v1/patients/find?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`,
-        bearerToken,
-      );
-      if (match) return match;
-    }
-
-    const phoneRaw = query.phone_number ?? "";
-    const firstName = query.first_name?.trim() ?? "";
-    const gender = query.gender?.trim().toLowerCase() ?? "";
-    const empiPhone = normalizeIndianPhoneForEmpi(phoneRaw);
-    const hasDedupDemographics =
-      empiPhone != null &&
-      firstName.length >= 1 &&
-      (gender === "male" || gender === "female" || gender === "other");
-
-    if (hasDedupDemographics) {
-      const dedupBody: Record<string, unknown> = {
-        first_name: firstName,
-        gender,
-        phone_number: empiPhone,
-      };
-      const middleName = query.middle_name?.trim();
-      const lastName = query.last_name?.trim();
-      const dob = query.date_of_birth?.trim();
-      if (middleName) dedupBody.middle_name = middleName;
-      if (lastName) dedupBody.last_name = lastName;
-      if (dob) {
-        dedupBody.date_of_birth = dob;
-        const y = new Date(dob).getFullYear();
-        if (!Number.isNaN(y) && y > 1900) dedupBody.year_of_birth = y;
-      }
-      if (typeof query.age_years === "number" && Number.isFinite(query.age_years)) {
-        dedupBody.age_years = query.age_years;
-      }
-      if (typeof query.age_months === "number" && Number.isFinite(query.age_months)) {
-        dedupBody.age_months = query.age_months;
-      }
-      if (typeof query.age_days === "number" && Number.isFinite(query.age_days)) {
-        dedupBody.age_days = query.age_days;
-      }
-
-      const match = await this.fetchPatientIdFromDemographicsDedup(
-        tenantId,
-        dedupBody,
-        bearerToken,
-      );
+    const dedupBody = buildDedupBody(query);
+    if (dedupBody) {
+      const match = await this.fetchPatientIdFromDemographicsDedup(tenantId, dedupBody, bearerToken);
       if (match) return match;
     }
 

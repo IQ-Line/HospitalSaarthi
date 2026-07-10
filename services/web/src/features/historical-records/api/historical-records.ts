@@ -263,6 +263,22 @@ export async function fetchHistoricalRecordsList(params: {
   return { items, total: visitPage.total };
 }
 
+const NOT_PROVIDED = 'Not provided';
+
+/** EMPI mapper uses '-' / 'N/A' as its "missing" sentinels; the profile uses 'Not provided'. */
+function orNotProvided(value: string, missingSentinel: '-' | 'N/A'): string {
+  return value === missingSentinel ? NOT_PROVIDED : value;
+}
+
+/** Prefer the EMPI value, fall back to the registration snapshot, then to 'Not provided'. */
+function resolveAbhaField(empiValue: string, snapshotValue: string | null | undefined): string {
+  if (empiValue !== 'N/A') return empiValue;
+  const fromSnapshot = snapshotValue?.trim();
+  const resolved = fromSnapshot ? fromSnapshot : NOT_PROVIDED;
+  // Mirror the original's trailing 'N/A' guard in case a snapshot value is itself the sentinel.
+  return resolved === 'N/A' ? NOT_PROVIDED : resolved;
+}
+
 export async function fetchHistoricalPatientProfile(
   patientId: string,
 ): Promise<HistoricalPatientProfile> {
@@ -274,36 +290,22 @@ export async function fetchHistoricalPatientProfile(
 
   const mapped = mapEmpiPatientToOpdDetails(detail);
   const snapshot = registrationByPatientId.get(patientId);
-  const abhaFromSnapshot = snapshot?.abhaNumber?.trim();
-  const abhaAddressFromSnapshot = snapshot?.abhaAddress?.trim();
-  const abhaNumber =
-    mapped.abhaNumber !== 'N/A'
-      ? mapped.abhaNumber
-      : abhaFromSnapshot
-        ? abhaFromSnapshot
-        : 'Not provided';
-  const abhaAddress =
-    mapped.abhaAddress !== 'N/A'
-      ? mapped.abhaAddress
-      : abhaAddressFromSnapshot
-        ? abhaAddressFromSnapshot
-        : 'Not provided';
 
   return {
-    firstName: mapped.firstName === '-' ? 'Not provided' : mapped.firstName,
-    middleName: mapped.middleName === '-' ? 'Not provided' : mapped.middleName,
-    lastName: mapped.lastName === '-' ? 'Not provided' : mapped.lastName,
+    firstName: orNotProvided(mapped.firstName, '-'),
+    middleName: orNotProvided(mapped.middleName, '-'),
+    lastName: orNotProvided(mapped.lastName, '-'),
     uhid: mapped.uhid,
-    abhaNumber: abhaNumber === 'N/A' ? 'Not provided' : abhaNumber,
-    abhaAddress: abhaAddress === 'N/A' ? 'Not provided' : abhaAddress,
-    phoneNumber: mapped.phoneNumber === '-' ? 'Not provided' : mapped.phoneNumber,
-    dateOfBirth: mapped.dateOfBirth === '-' ? 'Not provided' : mapped.dateOfBirth,
+    abhaNumber: resolveAbhaField(mapped.abhaNumber, snapshot?.abhaNumber),
+    abhaAddress: resolveAbhaField(mapped.abhaAddress, snapshot?.abhaAddress),
+    phoneNumber: orNotProvided(mapped.phoneNumber, '-'),
+    dateOfBirth: orNotProvided(mapped.dateOfBirth, '-'),
     ageDisplay: mapped.ageDisplay,
     gender: mapped.gender,
-    streetAddress: mapped.streetAddress === '-' ? 'Not provided' : mapped.streetAddress,
-    district: mapped.district === '-' ? 'Not provided' : mapped.district,
-    state: mapped.state === '-' ? 'Not provided' : mapped.state,
-    pinCode: mapped.pinCode === '-' ? 'Not provided' : mapped.pinCode,
+    streetAddress: orNotProvided(mapped.streetAddress, '-'),
+    district: orNotProvided(mapped.district, '-'),
+    state: orNotProvided(mapped.state, '-'),
+    pinCode: orNotProvided(mapped.pinCode, '-'),
     visitCount: visitPage.total,
     lastUpdated: mapped.lastUpdated,
   };
@@ -358,9 +360,10 @@ export async function fetchHistoricalPatientDocuments(
 }
 
 async function listPatientPrescriptions(patientId: string): Promise<OpdPrescriptionListItem[]> {
-  const tenantId = requireTenantId();
+  // tenant is header-authoritative (apiClient injects iq_tenant_id); guard one is selected.
+  requireTenantId();
   const response = await apiClient<{ data: OpdPrescriptionListItem[]; total: number }>(
-    `${OPD_PREFIX}/prescriptions?tenant_id=${encodeURIComponent(tenantId)}&patient_id=${encodeURIComponent(patientId)}&limit=200`,
+    `${OPD_PREFIX}/prescriptions?patient_id=${encodeURIComponent(patientId)}&limit=200`,
   );
   return response.data;
 }
@@ -421,6 +424,119 @@ function pushClinicalReportsForVisit(
   }
 }
 
+type ReportDateWindow = { startDate?: string; endDate?: string };
+
+type ReportLookups = {
+  visitById: Map<string, RegistrationVisitResponse>;
+  doctorLookup: Map<string, string>;
+};
+
+/** Finalized prescriptions → clinical reports. Mutates `visitsWithClinicalReports` with the visits it covers. */
+function collectPrescriptionReports(
+  prescriptions: OpdPrescriptionListItem[],
+  lookups: ReportLookups,
+  window: ReportDateWindow,
+  visitsWithClinicalReports: Set<string>,
+): HistoricalReportItem[] {
+  const reports: HistoricalReportItem[] = [];
+  for (const rx of prescriptions) {
+    if (rx.status !== 'final') continue;
+    const reportTime = rx.finalized_at ?? rx.updated_at ?? rx.created_at;
+    if (!isWithinDateRange(reportTime, window.startDate ?? '', window.endDate ?? '')) continue;
+
+    const visit = lookups.visitById.get(rx.visit_id);
+    pushClinicalReportsForVisit(reports, {
+      visitId: rx.visit_id,
+      visitNumber: visit ? formatVisitNumber(visit) : '—',
+      doctorName: resolveDoctorName(rx.doctor_id ?? visit?.doctor_id, lookups.doctorLookup),
+      reportTime,
+      prescriptionId: rx.id,
+      viewable: true,
+    });
+    visitsWithClinicalReports.add(rx.visit_id);
+  }
+  return reports;
+}
+
+/** Visits with a finalized OPD overlay but no prescription report → clinical reports. Mutates `visitsWithClinicalReports`. */
+function collectOverlayReports(
+  visits: RegistrationVisitResponse[],
+  overlayByVisitId: Awaited<ReturnType<typeof fetchOpdEncounterOverlaysByVisitIds>>,
+  lookups: ReportLookups,
+  window: ReportDateWindow,
+  visitsWithClinicalReports: Set<string>,
+): HistoricalReportItem[] {
+  const reports: HistoricalReportItem[] = [];
+  for (const visit of visits) {
+    if (visitsWithClinicalReports.has(visit.id)) continue;
+    const overlay = overlayByVisitId.get(visit.id);
+    if (!overlay || overlay.prescriptionStatus !== 'final') continue;
+
+    const reportTime = visit.updated_at ?? visit.created_at;
+    if (!isWithinDateRange(reportTime, window.startDate ?? '', window.endDate ?? '')) continue;
+
+    pushClinicalReportsForVisit(reports, {
+      visitId: visit.id,
+      visitNumber: formatVisitNumber(visit),
+      doctorName: resolveDoctorName(visit.doctor_id, lookups.doctorLookup),
+      reportTime,
+      viewable: true,
+    });
+    visitsWithClinicalReports.add(visit.id);
+  }
+  return reports;
+}
+
+/** Health documents of report-eligible HI types → report items. */
+function collectHealthDocReports(
+  healthDocs: Awaited<ReturnType<typeof fetchPatientHealthDocuments>>['data'],
+  lookups: ReportLookups,
+  window: ReportDateWindow,
+): HistoricalReportItem[] {
+  const reports: HistoricalReportItem[] = [];
+  for (const doc of healthDocs) {
+    if (!REPORT_HI_TYPES.includes(doc.hi_type as HistoricalReportHiType)) continue;
+    if (!isWithinDateRange(doc.uploaded_at, window.startDate ?? '', window.endDate ?? '')) continue;
+
+    const visit = doc.visit_id ? lookups.visitById.get(doc.visit_id) : undefined;
+    reports.push({
+      id: `doc-${doc.id}`,
+      title: doc.document_title,
+      hiType: doc.hi_type as HistoricalReportHiType,
+      visitNumber: visit ? formatVisitNumber(visit) : '—',
+      doctorName: resolveDoctorName(visit?.doctor_id, lookups.doctorLookup),
+      reportTime: doc.uploaded_at,
+      source: 'health_document',
+      documentId: doc.id,
+      visitId: doc.visit_id ?? undefined,
+      downloadUrl: doc.download_url,
+      fileName: doc.file_name,
+      fileType: doc.file_type,
+    });
+  }
+  return reports;
+}
+
+function reportMatchesFilters(
+  report: HistoricalReportItem,
+  options: { hiType?: string; reportCategory?: string } | undefined,
+  search: string,
+): boolean {
+  if (options?.hiType && options.hiType !== 'all' && report.hiType !== options.hiType) return false;
+  if (
+    options?.reportCategory &&
+    options.reportCategory !== 'all' &&
+    report.hiType !== options.reportCategory
+  ) {
+    return false;
+  }
+  if (search) {
+    const hay = `${report.title} ${report.hiType} ${report.visitNumber}`.toLowerCase();
+    if (!hay.includes(search)) return false;
+  }
+  return true;
+}
+
 export async function fetchHistoricalPatientReports(
   patientId: string,
   options?: {
@@ -438,94 +554,30 @@ export async function fetchHistoricalPatientReports(
     listRegistrationVisits({ patient_id: patientId, page: 1, limit: 200 }),
   ]);
 
-  const visitById = new Map(visitPage.data.map((v) => [v.id, v]));
+  const lookups: ReportLookups = {
+    visitById: new Map(visitPage.data.map((v) => [v.id, v])),
+    doctorLookup,
+  };
   const overlayByVisitId = await fetchOpdEncounterOverlaysByVisitIds(
     visitPage.data.map((v) => v.id),
   );
   const search = options?.search?.trim().toLowerCase() ?? '';
-  const reports: HistoricalReportItem[] = [];
   const visitsWithClinicalReports = new Set<string>();
 
-  for (const rx of prescriptions) {
-    if (rx.status !== 'final') continue;
-    const visit = visitById.get(rx.visit_id);
-    const reportTime = rx.finalized_at ?? rx.updated_at ?? rx.created_at;
-    if (!isWithinDateRange(reportTime, options?.startDate ?? '', options?.endDate ?? '')) continue;
-
-    const visitNumber = visit ? formatVisitNumber(visit) : '—';
-    const doctorName = resolveDoctorName(rx.doctor_id ?? visit?.doctor_id, doctorLookup);
-
-    pushClinicalReportsForVisit(reports, {
-      visitId: rx.visit_id,
-      visitNumber,
-      doctorName,
-      reportTime,
-      prescriptionId: rx.id,
-      viewable: true,
-    });
-    visitsWithClinicalReports.add(rx.visit_id);
-  }
-
-  for (const visit of visitPage.data) {
-    if (visitsWithClinicalReports.has(visit.id)) continue;
-    const overlay = overlayByVisitId.get(visit.id);
-    if (!overlay || overlay.prescriptionStatus === 'cancelled') continue;
-    if (overlay.prescriptionStatus !== 'final') continue;
-
-    const reportTime = visit.updated_at ?? visit.created_at;
-    if (!isWithinDateRange(reportTime, options?.startDate ?? '', options?.endDate ?? '')) continue;
-
-    pushClinicalReportsForVisit(reports, {
-      visitId: visit.id,
-      visitNumber: formatVisitNumber(visit),
-      doctorName: resolveDoctorName(visit.doctor_id, doctorLookup),
-      reportTime,
-      viewable: true,
-    });
-    visitsWithClinicalReports.add(visit.id);
-  }
-
-  for (const doc of healthDocs.data) {
-    if (!REPORT_HI_TYPES.includes(doc.hi_type as HistoricalReportHiType)) continue;
-    if (!isWithinDateRange(doc.uploaded_at, options?.startDate ?? '', options?.endDate ?? '')) {
-      continue;
-    }
-
-    const visit = doc.visit_id ? visitById.get(doc.visit_id) : undefined;
-    reports.push({
-      id: `doc-${doc.id}`,
-      title: doc.document_title,
-      hiType: doc.hi_type as HistoricalReportHiType,
-      visitNumber: visit ? formatVisitNumber(visit) : '—',
-      doctorName: resolveDoctorName(visit?.doctor_id, doctorLookup),
-      reportTime: doc.uploaded_at,
-      source: 'health_document',
-      documentId: doc.id,
-      visitId: doc.visit_id ?? undefined,
-      downloadUrl: doc.download_url,
-      fileName: doc.file_name,
-      fileType: doc.file_type,
-    });
-  }
+  const reports = [
+    ...collectPrescriptionReports(prescriptions, lookups, options ?? {}, visitsWithClinicalReports),
+    ...collectOverlayReports(
+      visitPage.data,
+      overlayByVisitId,
+      lookups,
+      options ?? {},
+      visitsWithClinicalReports,
+    ),
+    ...collectHealthDocReports(healthDocs.data, lookups, options ?? {}),
+  ];
 
   return reports
-    .filter((report) => {
-      if (options?.hiType && options.hiType !== 'all' && report.hiType !== options.hiType) {
-        return false;
-      }
-      if (
-        options?.reportCategory &&
-        options.reportCategory !== 'all' &&
-        report.hiType !== options.reportCategory
-      ) {
-        return false;
-      }
-      if (search) {
-        const hay = `${report.title} ${report.hiType} ${report.visitNumber}`.toLowerCase();
-        if (!hay.includes(search)) return false;
-      }
-      return true;
-    })
+    .filter((report) => reportMatchesFilters(report, options, search))
     .sort((a, b) => b.reportTime.localeCompare(a.reportTime));
 }
 

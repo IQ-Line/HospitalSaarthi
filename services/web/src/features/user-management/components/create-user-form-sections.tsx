@@ -34,10 +34,16 @@ export type CreateUserAccessOptions = {
 export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
   return z.object({
     full_name: z.string().min(1, 'Required'),
-    email: z.string().email('Enter a valid email'),
+    // Username-primary login (required). Mixed case accepted here; lowercased before submit so it
+    // matches the wire contract (^[a-z0-9._]+$). Email is optional contact data, not a credential.
+    username: z
+      .string()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username must be at most 30 characters')
+      .regex(/^[a-zA-Z0-9._]+$/, 'Use only letters, digits, "." or "_"'),
+    email: z.union([z.literal(''), z.string().email('Enter a valid email')]),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     phone: indianMobileZodField(),
-    username: z.string(),
     department: z.string(),
     doctor_tariffs: z.array(doctorTariffRowSchema).default([]),
     clearance_tier_required: z.coerce.number().int().min(0).max(3),
@@ -49,10 +55,12 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
 }
 
 export type CreateUserFormValues = z.infer<ReturnType<typeof buildCreateUserFormSchema>>;
+/** Pre-resolution (RHF working) shape: `.default()`/`coerce` make this distinct from the output. */
+export type CreateUserFormInput = z.input<ReturnType<typeof buildCreateUserFormSchema>>;
 
 type SharedFormSectionProps = {
-  register: UseFormRegister<CreateUserFormValues>;
-  errors: FieldErrors<CreateUserFormValues>;
+  register: UseFormRegister<CreateUserFormInput>;
+  errors: FieldErrors<CreateUserFormInput>;
 };
 
 function FieldError({ message }: { message?: string }) {
@@ -93,12 +101,10 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <FieldLabel htmlFor="c_email" required>
-            Email
-          </FieldLabel>
+          <FieldLabel htmlFor="c_email">Email</FieldLabel>
           <Input id="c_email" type="email" autoComplete="email" {...register('email')} />
           <p className="text-xs text-muted-foreground">
-            The user will sign in with this email address.
+            Optional contact email. Not used to sign in.
           </p>
           <FieldError message={errors.email?.message?.toString()} />
         </div>
@@ -136,8 +142,12 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="c_username">Username</Label>
-          <Input id="c_username" {...register('username')} />
+          <FieldLabel htmlFor="c_username" required>
+            Username
+          </FieldLabel>
+          <Input id="c_username" autoComplete="off" {...register('username')} />
+          <p className="text-xs text-muted-foreground">The user signs in with this username.</p>
+          <FieldError message={errors.username?.message?.toString()} />
         </div>
       </div>
     </UserManagementSectionCard>
@@ -145,7 +155,7 @@ export function CreateUserIdentitySection({ register, errors }: SharedFormSectio
 }
 
 type CreateUserWorkplaceSectionProps = SharedFormSectionProps & {
-  control: Control<CreateUserFormValues>;
+  control: Control<CreateUserFormInput, unknown, CreateUserFormValues>;
 };
 
 /** Clearance tier — department assignment is only for doctor roles (see Department & OPD section). */
@@ -200,8 +210,8 @@ type CreateUserAccessSectionProps = {
   roleCapabilities: Capability[];
   roleCapabilitiesPending: boolean;
   roleCapabilitiesError: boolean;
-  control: Control<CreateUserFormValues>;
-  errors: FieldErrors<CreateUserFormValues>;
+  control: Control<CreateUserFormInput, unknown, CreateUserFormValues>;
+  errors: FieldErrors<CreateUserFormInput>;
 };
 
 export function CreateUserAccessSection({
@@ -243,7 +253,7 @@ export function CreateUserAccessSection({
           control={control}
           name="role_template_ids"
           render={({ field, fieldState, formState }) => {
-            const selectedId = field.value[0] ?? '';
+            const selectedId = (field.value ?? [])[0] ?? '';
             const showRoleError =
               Boolean(fieldState.error) && (fieldState.isTouched || formState.isSubmitted);
             return (
@@ -309,7 +319,7 @@ export function CreateUserAccessSection({
         render={({ field }) => (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <Badge variant="secondary">{field.value.length} selected</Badge>
+              <Badge variant="secondary">{(field.value ?? []).length} selected</Badge>
               <CapabilityGate capability={UM_ROLE_ASSIGN}>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -339,7 +349,7 @@ export function CreateUserAccessSection({
             <div className="w-full min-w-0 rounded-md border border-border/60 bg-muted/10 p-2">
               <MasterDataCapabilityPermissionTree
                 capabilities={roleCapabilities}
-                selectedCapabilityIds={field.value}
+                selectedCapabilityIds={field.value ?? []}
                 onSelectedCapabilityIdsChange={field.onChange}
                 editable={umRoleAssign}
               />

@@ -2,20 +2,15 @@
   "name": "user-management",
   "tags": ["type:module", "scope:platform"],
   "targets": {
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+    "db-generate": {
+      "executor": "nx:run-commands",
       "options": {
+        "command": "pnpm exec drizzle-kit generate",
         "cwd": "modules/user-management"
       }
     },
     "db-migrate": {
       "command": "tsx scripts/apply-migration.ts",
-      "options": {
-        "cwd": "modules/user-management"
-      }
-    },
-    "seed-platform": {
-      "command": "tsx scripts/seed-platform-bootstrap.ts",
       "options": {
         "cwd": "modules/user-management"
       }
@@ -27,8 +22,14 @@
         "cwd": "modules/user-management"
       }
     },
-    "typecheck": {
+    "test:integration": {
       "dependsOn": ["^build"],
+      "command": "TEST_DATABASE_URL=\"${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_user_management\" pnpm exec vitest run --no-file-parallelism test/integration",
+      "options": {
+        "cwd": "modules/user-management"
+      }
+    },
+    "typecheck": {
       "command": "tsc -p tsconfig.json --noEmit",
       "options": {
         "cwd": "modules/user-management"

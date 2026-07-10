@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Visitpad ``procedures`` — global_master vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``procedures`` — master_global vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ class VisitpadProcedurePublicModel(TimestampMixin, AuditActorMixin, Base):
             "cpt_code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -49,7 +48,6 @@ class VisitpadProcedureTenantModel(TimestampMixin, AuditActorMixin, Base):
             "cpt_code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

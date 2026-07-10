@@ -2,9 +2,16 @@
   "name": "configurator",
   "tags": ["type:module", "scope:configurator", "language:typescript"],
   "targets": {
-    "db:migrate": {
-      "command": "tsx scripts/apply-migration.ts",
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
       "options": {
+        "cwd": "modules/configurator"
+      }
+    },
+    "db-generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec drizzle-kit generate",
         "cwd": "modules/configurator"
       }
     },
@@ -18,6 +25,13 @@
       "executor": "nx:run-commands",
       "options": {
         "command": "vitest run",
+        "cwd": "modules/configurator"
+      }
+    },
+    "test:integration": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "TEST_DATABASE_URL=\"${TEST_DATABASE_BASE_URL:-postgresql://hims:hims@127.0.0.1:5432}/hims_test_configurator\" vitest run --no-file-parallelism test/integration",
         "cwd": "modules/configurator"
       }
     },

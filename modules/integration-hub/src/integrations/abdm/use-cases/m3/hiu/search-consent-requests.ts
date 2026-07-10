@@ -127,10 +127,7 @@ export function toDisplayStatus(row: M3ConsentRequestRow): ConsentListSession["s
     return errorCode === "REVOKED" ? "REVOKED" : "DENIED";
   }
   if (row.state === M3Hiu.EXPIRED) return "EXPIRED";
-  if (
-    row.dataEraseAt.getTime() < Date.now() &&
-    row.state !== M3Hiu.CONSENT_DENIED
-  ) {
+  if (row.dataEraseAt.getTime() < Date.now()) {
     return "EXPIRED";
   }
   if (

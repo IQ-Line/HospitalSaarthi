@@ -1,4 +1,8 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
+import {
+  isPostgresForeignKeyViolation,
+  isPostgresUniqueViolation,
+  type DbInstance,
+} from "@hims/ts-sdk-db";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   DuplicateRoleCodeError,
@@ -26,24 +30,6 @@ function rowToRole(row: {
     is_system: row.is_system,
     status: row.status as Role["status"],
   };
-}
-
-function isPostgresUniqueViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23505"
-  );
-}
-
-function isPostgresForeignKeyViolation(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: unknown }).code === "23503"
-  );
 }
 
 const roleColumns = {

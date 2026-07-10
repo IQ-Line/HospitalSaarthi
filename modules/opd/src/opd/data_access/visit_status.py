@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,6 +10,13 @@ from sqlalchemy.orm import Session
 
 from opd.data_access.prescription_form_data import prescription_form_data_has_content
 from opd.models.visit import Visit
+
+if TYPE_CHECKING:
+    # Annotation-only: resolvers accept the normalized PrescriptionModel aggregate
+    # (duck-typed on .status/.id). Imported under TYPE_CHECKING so the
+    # `from __future__ import annotations` string annotations resolve for type
+    # checkers + ruff without a runtime import.
+    from opd.models.prescription import PrescriptionModel
 
 
 def _empty_draft_without_clinical_content(
@@ -69,7 +76,7 @@ def resolve_visit_status_for_prescription(
     visit_id: UUID,
     prescription_status: str,
     *,
-    rx: Prescription | None = None,
+    rx: PrescriptionModel | None = None,
 ) -> str:
     """Queue status for normalized prescription reads (joins opd.visits when present)."""
     return resolve_visit_statuses_for_prescriptions(
@@ -85,7 +92,7 @@ def resolve_visit_statuses_for_prescriptions(
     tenant_id: UUID,
     entries: list[tuple[UUID, str]],
     *,
-    rx_by_visit_id: dict[UUID, Prescription] | None = None,
+    rx_by_visit_id: dict[UUID, PrescriptionModel] | None = None,
 ) -> dict[UUID, str]:
     """Batch queue-status resolution for many visit + prescription-status pairs."""
     if not entries:

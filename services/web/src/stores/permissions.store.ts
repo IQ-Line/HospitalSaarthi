@@ -2,15 +2,22 @@ import { create, type StateCreator } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { normalizeCapabilityKey } from '@/lib/principal-capabilities';
 
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- intentional domain vocabulary: CapabilityKey names a capability identifier across ~22 files; inlining `string` would erase that meaning.
 export type CapabilityKey = string;
 
 export interface PermissionsState {
   capabilityKeys: ReadonlySet<CapabilityKey>;
-  /** Cerbos role codes from `GET /auth/principal` (e.g. `super-admin`). */
+  /** Cerbos role codes from `GET /auth/principal` (e.g. `super-admin`, a display label only). */
   roles: readonly string[];
+  /** Bounded platform authority scopes from `GET /auth/principal.attributes.scopes` (e.g. `platform`). */
+  scopes: readonly string[];
   isLoaded: boolean;
 
-  setCapabilityKeys: (keys: readonly CapabilityKey[], roles?: readonly string[]) => void;
+  setCapabilityKeys: (
+    keys: readonly CapabilityKey[],
+    roles?: readonly string[],
+    scopes?: readonly string[],
+  ) => void;
   clearPermissions: () => void;
   hasCapability: (capabilityKey: CapabilityKey) => boolean;
   hasAnyCapability: (capabilityKeys: readonly CapabilityKey[]) => boolean;
@@ -19,16 +26,21 @@ export interface PermissionsState {
 
 const emptyKeys = (): ReadonlySet<CapabilityKey> => new Set();
 
-const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
+const permissionsSlice: StateCreator<PermissionsState, [['zustand/devtools', never]], []> = (
+  set,
+  get,
+) => ({
   capabilityKeys: emptyKeys(),
   roles: [],
+  scopes: [],
   isLoaded: false,
 
-  setCapabilityKeys: (keys, roles = []) =>
+  setCapabilityKeys: (keys, roles = [], scopes = []) =>
     set(
       {
         capabilityKeys: new Set(keys.map((k) => normalizeCapabilityKey(k))),
         roles: [...roles],
+        scopes: [...scopes],
         isLoaded: true,
       },
       false,
@@ -36,7 +48,11 @@ const permissionsSlice: StateCreator<PermissionsState> = (set, get) => ({
     ),
 
   clearPermissions: () => {
-    set({ capabilityKeys: emptyKeys(), roles: [], isLoaded: false }, false, 'clearPermissions');
+    set(
+      { capabilityKeys: emptyKeys(), roles: [], scopes: [], isLoaded: false },
+      false,
+      'clearPermissions',
+    );
   },
 
   hasCapability: (capabilityKey) => {

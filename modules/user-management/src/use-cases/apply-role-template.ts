@@ -105,10 +105,13 @@ export async function applyRoleTemplate(
     ctx.actorId,
   );
 
+  // ADR-0037: the subset (`capabilityIdsToApply`) is still validated above (membership + tenant
+  // entitlement) as a guardrail, but role capabilities are read live from `role_capabilities` at
+  // principal hydration — only the membership is materialized. To restrict a user below their
+  // role's composition, write a deny override via PUT /users/{id}/capabilities.
   const applied = await deps.userAccessRepository.applyRoleTemplate(ctx.tenantId, {
     userId: input.user_id,
     roleId: input.role_id,
-    capabilityIds: capabilityIdsToApply,
     actorId: grantActorId,
   });
   deps.principalRoleProjectionRepository.clearCache();

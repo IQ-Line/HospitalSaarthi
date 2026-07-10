@@ -1,0 +1,194 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: configurator_permissions_test
+description: >-
+  Configurator platform-provisioning authorization: every resource kind is capability-gated with
+  NO tenant equality (capabilities are platform-operator scoped). READS are authorization
+  decisions too (configurator serves cross-tenant platform-admin data). Tenant onboarding adds a
+  second ALLOW rule: org-scoped self-service (principal.org_id == resource.org_id).
+
+principals:
+  super_caps:
+    id: op-super
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      capabilities:
+        - "configurator:organization:create"
+        - "configurator:organization:read"
+        - "configurator:tenant-module:create"
+        - "configurator:tenant-integration-profile:delete"
+        - "configurator:tenant-onboarding:create"
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  reader_only:
+    id: op-reader
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      capabilities: ["configurator:organization:read"]
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  delegated_creator:
+    id: op-deleg
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      capabilities: []
+      delegated_capabilities: ["configurator:tenant-module:create"]
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  org_scoped:
+    id: org-admin-1
+    roles: ["tenant-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: "org-1"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["tenant-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+  no_caps:
+    id: op-none
+    roles: ["platform-operator"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      org_id: null
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["platform-operator"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  org_res:
+    id: org-1
+    kind: configurator:organization
+    attr: {}
+  tenant_module_res:
+    id: tm-1
+    kind: configurator:tenant_module
+    attr: {}
+  tip_res:
+    id: tip-1
+    kind: configurator:tenant_integration_profile
+    attr: {}
+  onb_org1:
+    id: onb-1
+    kind: configurator:tenant_onboarding
+    attr:
+      org_id: "org-1"
+  onb_org2:
+    id: onb-2
+    kind: configurator:tenant_onboarding
+    attr:
+      org_id: "org-2"
+  onb_noorg:
+    id: onb-3
+    kind: configurator:tenant_onboarding
+    attr: {}
+
+tests:
+  - name: organization create/read allowed with the matching capability
+    input:
+      principals: [super_caps]
+      resources: [org_res]
+      actions: [create, read]
+    expected:
+      - principal: super_caps
+        resource: org_res
+        actions: { create: EFFECT_ALLOW, read: EFFECT_ALLOW }
+
+  - name: organization create/read denied without any capability
+    input:
+      principals: [no_caps]
+      resources: [org_res]
+      actions: [create, read]
+    expected:
+      - principal: no_caps
+        resource: org_res
+        actions: { create: EFFECT_DENY, read: EFFECT_DENY }
+
+  - name: read is capability-gated - a reader-only cap grants read but not create
+    input:
+      principals: [reader_only]
+      resources: [org_res]
+      actions: [create, read]
+    expected:
+      - principal: reader_only
+        resource: org_res
+        actions: { create: EFFECT_DENY, read: EFFECT_ALLOW }
+
+  - name: tenant-module create via delegated capability
+    input:
+      principals: [delegated_creator]
+      resources: [tenant_module_res]
+      actions: [create]
+    expected:
+      - principal: delegated_creator
+        resource: tenant_module_res
+        actions: { create: EFFECT_ALLOW }
+
+  - name: tenant-module create denied without cap (delete cap does not grant create)
+    input:
+      principals: [reader_only]
+      resources: [tenant_module_res]
+      actions: [create]
+    expected:
+      - principal: reader_only
+        resource: tenant_module_res
+        actions: { create: EFFECT_DENY }
+
+  - name: integration-profile delete needs the delete capability
+    input:
+      principals: [super_caps, no_caps]
+      resources: [tip_res]
+      actions: [delete]
+    expected:
+      - principal: super_caps
+        resource: tip_res
+        actions: { delete: EFFECT_ALLOW }
+      - principal: no_caps
+        resource: tip_res
+        actions: { delete: EFFECT_DENY }
+
+  - name: onboarding allowed via the platform-operator capability on any org (incl. new-org)
+    input:
+      principals: [super_caps]
+      resources: [onb_org1, onb_org2, onb_noorg]
+      actions: [create]
+    expected:
+      - principal: super_caps
+        resource: onb_org1
+        actions: { create: EFFECT_ALLOW }
+      - principal: super_caps
+        resource: onb_org2
+        actions: { create: EFFECT_ALLOW }
+      - principal: super_caps
+        resource: onb_noorg
+        actions: { create: EFFECT_ALLOW }
+
+  - name: onboarding org-scoped self-service - allowed only under the principal's own org_id
+    input:
+      principals: [org_scoped]
+      resources: [onb_org1, onb_org2, onb_noorg]
+      actions: [create]
+    expected:
+      - principal: org_scoped
+        resource: onb_org1
+        actions: { create: EFFECT_ALLOW }
+      - principal: org_scoped
+        resource: onb_org2
+        actions: { create: EFFECT_DENY }
+      - principal: org_scoped
+        resource: onb_noorg
+        actions: { create: EFFECT_DENY }

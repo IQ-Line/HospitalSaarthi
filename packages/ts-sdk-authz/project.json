@@ -5,6 +5,12 @@
   "projectType": "library",
   "tags": ["scope:sdk", "type:sdk"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "packages/ts-sdk-authz"
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint"
     }

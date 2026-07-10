@@ -48,6 +48,7 @@ export interface MasterDataModuleCatalogPort {
 }
 
 /** @deprecated Use {@link ModuleEntitlementRequestContext}. */
+// eslint-disable-next-line sonarjs/redundant-type-aliases -- exported public type name (deprecated back-compat alias)
 export type EntitlementRequestContext = ModuleEntitlementRequestContext;
 
 /** @deprecated Use {@link TenantModuleEntitlementPort}. */
@@ -55,19 +56,6 @@ export type TenantEntitlementPort = TenantModuleEntitlementPort;
 
 /** @deprecated Use {@link MasterDataModuleCatalogPort}. */
 export type ModuleCatalogPort = MasterDataModuleCatalogPort;
-
-export type DepartmentCatalogRequestContext = {
-  iqTenantId: string;
-  authorization?: string;
-};
-
-/** Master Data authority: resolve department catalog rows by id. */
-export interface DepartmentCatalogPort {
-  resolveDepartmentName(
-    departmentId: string,
-    context: DepartmentCatalogRequestContext,
-  ): Promise<string | null>;
-}
 
 export type DepartmentCatalogRequestContext = {
   iqTenantId: string;

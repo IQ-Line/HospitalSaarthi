@@ -31,7 +31,7 @@
       "cache": true
     },
     "test": {
-      "command": "uv run pytest",
+      "command": "uv run pytest --ignore=tests/integration",
       "options": {
         "cwd": "modules/opd"
       },
@@ -39,8 +39,8 @@
       "inputs": ["default"],
       "cache": true
     },
-    "migrate": {
-      "command": "uv run python -m opd.core.migrations",
+    "test:integration": {
+      "command": "bash scripts/run-integration-tests.sh",
       "options": {
         "cwd": "modules/opd"
       },

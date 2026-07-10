@@ -128,173 +128,202 @@ function SectionCard({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-function RecordDetails({
-  record,
-  sessionId,
-}: {
-  record: ConsentHealthRecord;
-  sessionId?: string;
-}) {
-  const [loadingAttachment, setLoadingAttachment] = useState<string | null>(null);
-  const view = record.viewData;
-  const attachments = view.AttachmentRefs ?? record.entryData?.AttachmentRefs ?? [];
+type CompositionInfo = NonNullable<TransformedBundleView['CompositionInfo']>[number];
+type PractitionerInfo = NonNullable<TransformedBundleView['PractitionerInfo']>[number];
 
-  const visitDate = (() => {
-    const encounter = view.EncounterInfo?.[0];
-    if (!encounter) return null;
-    if (encounter.period) return extractPeriodStart(encounter.period);
-    return null;
-  })();
+function computeVisitDate(view: TransformedBundleView) {
+  const encounter = view.EncounterInfo?.[0];
+  if (!encounter) return null;
+  if (encounter.period) return extractPeriodStart(encounter.period);
+  return null;
+}
 
-  const period = view.EncounterInfo?.[0]?.period
+function computePeriod(view: TransformedBundleView) {
+  return view.EncounterInfo?.[0]?.period
     ? formatPeriodRange(view.EncounterInfo[0].period)
     : { from: 'N/A', until: 'N/A' };
+}
 
-  const patient = view.PatientInfo?.[0];
-  const practitioner = view.PractitionerInfo?.[0];
-  const encounter = view.EncounterInfo?.[0];
-  const composition = view.CompositionInfo?.[0];
-
-  const custodian =
-    composition?.custodian &&
+function computeCustodian(composition: CompositionInfo | undefined, fallback: string): string {
+  return composition?.custodian &&
     typeof composition.custodian === 'object' &&
     typeof (composition.custodian as { display?: string }).display === 'string'
-      ? (composition.custodian as { display: string }).display
-      : record.source;
+    ? (composition.custodian as { display: string }).display
+    : fallback;
+}
 
-  const handleViewAttachment = async (
-    attachment: NonNullable<ConsentListDataPushedEntry['AttachmentRefs']>[number],
-  ) => {
-    const sid = attachment.sessionId || sessionId || record.sessionId;
-    if (!sid) return;
-    const key = `${attachment.bundleId}-${attachment.num}`;
-    setLoadingAttachment(key);
-    try {
-      await downloadM3Attachment(sid, attachment.bundleId, attachment.num);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to load attachment');
-    } finally {
-      setLoadingAttachment(null);
-    }
-  };
-
+function practitionerIdLabel(practitioner: PractitionerInfo | undefined): string {
   const practitionerId = practitioner?.identifier;
-  const practitionerIdValue = Array.isArray(practitionerId) && practitionerId[0]
+  return Array.isArray(practitionerId) && practitionerId[0]
     ? `${typeof practitionerId[0].type === 'string' ? practitionerId[0].type : ''}${practitionerId[0].type ? '- ' : ''}${practitionerId[0].value ?? 'N/A'}`
     : 'N/A';
+}
+
+async function viewAttachment(
+  attachment: NonNullable<ConsentListDataPushedEntry['AttachmentRefs']>[number],
+  sessionId: string | undefined,
+  recordSessionId: string | undefined,
+  setLoadingAttachment: (value: string | null) => void,
+) {
+  const sid = attachment.sessionId || sessionId || recordSessionId;
+  if (!sid) return;
+  const key = `${attachment.bundleId}-${attachment.num}`;
+  setLoadingAttachment(key);
+  try {
+    await downloadM3Attachment(sid, attachment.bundleId, attachment.num);
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : 'Failed to load attachment');
+  } finally {
+    setLoadingAttachment(null);
+  }
+}
+
+function RecordInfoCard({ view, record, sessionId }: { view: TransformedBundleView; record: ConsentHealthRecord; sessionId?: string }) {
+  const [loadingAttachment, setLoadingAttachment] = useState<string | null>(null);
+  const attachments = view.AttachmentRefs ?? record.entryData?.AttachmentRefs ?? [];
+  const visitDate = computeVisitDate(view);
+  const composition = view.CompositionInfo?.[0];
+  const custodian = computeCustodian(composition, record.source);
 
   return (
-    <div className="mt-4 border-t border-gray-200 pt-4" onClick={(e) => e.stopPropagation()}>
-      <SectionCard title="Record Information">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="Visit Date" value={visitDate ? formatRecordDate(String(visitDate)) : 'N/A'} />
-          <DetailField
-            label="Fetched Date"
-            value={record.createdAt ? formatRecordDate(record.createdAt) : 'N/A'}
-          />
-          <DetailField label="Custodian" value={custodian || 'N/A'} />
-          <DetailField
-            label="Status"
-            value={composition?.status ? capitalize(String(composition.status)) : 'N/A'}
-          />
-        </div>
-        {attachments.length > 0 ? (
-          <div className="mt-4">
-            <p className="mb-2 text-xs font-medium text-gray-600">Attachment</p>
-            <div className="flex flex-wrap gap-2">
-              {attachments.map((attachment) => {
-                const key = `${attachment.bundleId}-${attachment.num}`;
-                return (
-                  <Button
-                    key={key}
-                    type="button"
-                    size="sm"
-                    className="h-6 bg-teal-600 text-xs hover:bg-teal-700"
-                    disabled={loadingAttachment === key}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleViewAttachment(attachment);
-                    }}
-                  >
-                    {loadingAttachment === key ? (
-                      <Loader2 className="mr-1 size-3 animate-spin" />
-                    ) : null}
-                    View Report
-                  </Button>
-                );
-              })}
-            </div>
+    <SectionCard title="Record Information">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="Visit Date" value={visitDate ? formatRecordDate(String(visitDate)) : 'N/A'} />
+        <DetailField
+          label="Fetched Date"
+          value={record.createdAt ? formatRecordDate(record.createdAt) : 'N/A'}
+        />
+        <DetailField label="Custodian" value={custodian || 'N/A'} />
+        <DetailField
+          label="Status"
+          value={composition?.status ? capitalize(String(composition.status)) : 'N/A'}
+        />
+      </div>
+      {attachments.length > 0 ? (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-gray-600">Attachment</p>
+          <div className="flex flex-wrap gap-2">
+            {attachments.map((attachment) => {
+              const key = `${attachment.bundleId}-${attachment.num}`;
+              return (
+                <Button
+                  key={key}
+                  type="button"
+                  size="sm"
+                  className="h-6 bg-teal-600 text-xs hover:bg-teal-700"
+                  disabled={loadingAttachment === key}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void viewAttachment(attachment, sessionId, record.sessionId, setLoadingAttachment);
+                  }}
+                >
+                  {loadingAttachment === key ? (
+                    <Loader2 className="mr-1 size-3 animate-spin" />
+                  ) : null}
+                  View Report
+                </Button>
+              );
+            })}
           </div>
-        ) : null}
-      </SectionCard>
+        </div>
+      ) : null}
+    </SectionCard>
+  );
+}
 
-      <SectionCard title="Subject (Patient Info)">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="Name" value={String(patient?.name ?? 'N/A')} />
-          <DetailField label="Gender" value={capitalize(patient?.gender)} />
-          <DetailField
-            label="Telecom"
-            value={
-              Array.isArray(patient?.telecom) && patient.telecom[0]
-                ? String(patient.telecom[0])
-                : 'N/A'
-            }
-          />
-        </div>
-        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField
-            label="Identifier"
-            value={
-              Array.isArray(patient?.identifier) && patient.identifier[0]?.value
-                ? String(patient.identifier[0].value)
-                : 'N/A'
-            }
-          />
-          <DetailField
-            label="Date of Birth"
-            value={
-              patient?.birthDate ? formatRecordDay(String(patient.birthDate)) : 'N/A'
-            }
-          />
-          <DetailField
-            label="ABHA Address"
-            value={record.identifiers?.abha_address ?? 'N/A'}
-          />
-        </div>
-        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="ABHA Number" value={record.identifiers?.abha_number ?? 'N/A'} />
-        </div>
-      </SectionCard>
+function PatientInfoCard({ view, record }: { view: TransformedBundleView; record: ConsentHealthRecord }) {
+  const patient = view.PatientInfo?.[0];
+  return (
+    <SectionCard title="Subject (Patient Info)">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="Name" value={String(patient?.name ?? 'N/A')} />
+        <DetailField label="Gender" value={capitalize(patient?.gender)} />
+        <DetailField
+          label="Telecom"
+          value={
+            Array.isArray(patient?.telecom) && patient.telecom[0]
+              ? String(patient.telecom[0])
+              : 'N/A'
+          }
+        />
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField
+          label="Identifier"
+          value={
+            Array.isArray(patient?.identifier) && patient.identifier[0]?.value
+              ? String(patient.identifier[0].value)
+              : 'N/A'
+          }
+        />
+        <DetailField
+          label="Date of Birth"
+          value={
+            patient?.birthDate ? formatRecordDay(String(patient.birthDate)) : 'N/A'
+          }
+        />
+        <DetailField
+          label="ABHA Address"
+          value={record.identifiers?.abha_address ?? 'N/A'}
+        />
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="ABHA Number" value={record.identifiers?.abha_number ?? 'N/A'} />
+      </div>
+    </SectionCard>
+  );
+}
 
-      <SectionCard title="Author (Practitioner Info)">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="Name" value={String(practitioner?.name ?? 'N/A')} />
-          <DetailField label="Identifier" value={practitionerIdValue} />
-          <DetailField
-            label="Qualification"
-            value={String(practitioner?.qualification ?? 'N/A')}
-          />
-        </div>
-      </SectionCard>
+function PractitionerInfoCard({ view }: { view: TransformedBundleView }) {
+  const practitioner = view.PractitionerInfo?.[0];
+  const practitionerIdValue = practitionerIdLabel(practitioner);
+  return (
+    <SectionCard title="Author (Practitioner Info)">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="Name" value={String(practitioner?.name ?? 'N/A')} />
+        <DetailField label="Identifier" value={practitionerIdValue} />
+        <DetailField
+          label="Qualification"
+          value={String(practitioner?.qualification ?? 'N/A')}
+        />
+      </div>
+    </SectionCard>
+  );
+}
 
-      <SectionCard title="Encounter Info">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="Encounter Type" value={String(encounter?.type ?? 'N/A')} />
-          <DetailField label="Status" value={capitalize(encounter?.status)} />
-          <DetailField label="Period" value={`${period.from} to ${period.until}`} />
-        </div>
-        <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <DetailField label="Class" value={capitalize(encounter?.class)} />
-          <DetailField
-            label="Identifier"
-            value={
-              Array.isArray(encounter?.identifier) && encounter.identifier[0]?.value
-                ? String(encounter.identifier[0].value)
-                : 'N/A'
-            }
-          />
-        </div>
-      </SectionCard>
+function EncounterInfoCard({ view }: { view: TransformedBundleView }) {
+  const encounter = view.EncounterInfo?.[0];
+  const period = computePeriod(view);
+  return (
+    <SectionCard title="Encounter Info">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="Encounter Type" value={String(encounter?.type ?? 'N/A')} />
+        <DetailField label="Status" value={capitalize(encounter?.status)} />
+        <DetailField label="Period" value={`${period.from} to ${period.until}`} />
+      </div>
+      <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <DetailField label="Class" value={capitalize(encounter?.class)} />
+        <DetailField
+          label="Identifier"
+          value={
+            Array.isArray(encounter?.identifier) && encounter.identifier[0]?.value
+              ? String(encounter.identifier[0].value)
+              : 'N/A'
+          }
+        />
+      </div>
+    </SectionCard>
+  );
+}
+
+function RecordDetails({ record, sessionId }: { record: ConsentHealthRecord; sessionId?: string }) {
+  const view = record.viewData;
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-4" onClick={(e) => e.stopPropagation()}>
+      <RecordInfoCard view={view} record={record} sessionId={sessionId} />
+      <PatientInfoCard view={view} record={record} />
+      <PractitionerInfoCard view={view} />
+      <EncounterInfoCard view={view} />
     </div>
   );
 }
@@ -355,13 +384,7 @@ function RecordsPagination({
   );
 }
 
-function ViewDocumentsList({
-  records,
-  sessionId,
-}: {
-  records: ConsentHealthRecord[];
-  sessionId?: string;
-}) {
+function ViewDocumentsList({ records, sessionId }: { records: ConsentHealthRecord[]; sessionId?: string }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
 

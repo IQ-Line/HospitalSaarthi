@@ -1,7 +1,7 @@
 /** True when `DATABASE_URL` looks like a real Postgres URI (not a placeholder). */
 export function isValidPostgresUrl(url: string | undefined): url is string {
   if (!url || url.trim() === "" || url === "...") return false;
-  return /^postgres(?:ql)?(?:\+[\w]+)?:\/\//.test(url.trim());
+  return /^postgres(?:ql)?(?:\+\w+)?:\/\//.test(url.trim());
 }
 
 export function resolveSandboxDatabaseUrl(): string | null {

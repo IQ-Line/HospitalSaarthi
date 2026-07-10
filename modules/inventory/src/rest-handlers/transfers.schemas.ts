@@ -39,7 +39,12 @@ export const listStockTransfersQuerySchema = z.object({
       if (value == null) return undefined;
       if (Array.isArray(value)) return value;
       if (typeof value === "string") {
-        const parts = value.split(",").map((part) => part.trim()).filter(Boolean);
+        const parts = value
+          .split(",")
+          .map((part) => part.trim())
+          .filter((part): part is (typeof transferStatusSchema.options)[number] =>
+            (transferStatusSchema.options as readonly string[]).includes(part),
+          );
         return parts.length ? parts : undefined;
       }
       return [value];

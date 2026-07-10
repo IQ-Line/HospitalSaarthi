@@ -28,7 +28,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadMedicines,
   useVisitpadMedicinesGlobalLibrary,
   useVisitpadPatch,
@@ -68,7 +68,6 @@ import {
   type VisitpadMedicineEditFormInput,
   type VisitpadMedicineEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -91,13 +90,13 @@ function FieldSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function DosageFormSelect<T extends FieldValues>({
+function DosageFormSelect<T extends FieldValues, TT extends FieldValues = T>({
   control,
   name,
   id,
   orphanValue,
 }: {
-  control: Control<T>;
+  control: Control<T, unknown, TT>;
   name: FieldPath<T>;
   id: string;
   orphanValue?: string | null;
@@ -148,7 +147,7 @@ function DosageFormSelect<T extends FieldValues>({
 
 function VisitpadMedicinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-medicines');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [schedule, setSchedule] = useState<string>('all');
@@ -413,7 +412,6 @@ function VisitpadMedicinesPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -432,7 +430,7 @@ function MedicineCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadMedicineCreateFormInput>({
+  const form = useForm<VisitpadMedicineCreateFormInput, unknown, VisitpadMedicineCreateFormSchema>({
     resolver: zodResolver(visitpadMedicineCreateFormSchema),
     defaultValues: { ...emptyMedicineCreateForm(), display_order: nextOrder },
   });
@@ -767,14 +765,14 @@ function MedicineCreateDialog({
   );
 }
 
-function EnumSelectRow<T extends FieldValues, V extends string>({
+function EnumSelectRow<T extends FieldValues, V extends string, TT extends FieldValues = T>({
   control,
   name,
   label,
   options,
   placeholder = 'Select…',
 }: {
-  control: Control<T>;
+  control: Control<T, unknown, TT>;
   name: FieldPath<T>;
   label: string;
   options: readonly { value: V; label: string }[];
@@ -824,7 +822,7 @@ function MedicineEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadMedicineEditFormInput>({
+  const form = useForm<VisitpadMedicineEditFormInput, unknown, VisitpadMedicineEditFormSchema>({
     resolver: zodResolver(visitpadMedicineEditFormSchema),
     defaultValues: emptyMedicineEditForm(),
   });

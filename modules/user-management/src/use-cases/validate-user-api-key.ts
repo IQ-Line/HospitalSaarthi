@@ -18,7 +18,10 @@ export type ValidateUserApiKeyResult = {
 };
 
 function toPublicUser(row: UserApiKeyRecord): User {
-  const { iq_tenant_id: _tenantId, api_key_hash: _hash, ...user } = row;
+  // Strip the tenant scope and credential hash so only public `User` fields cross the boundary.
+  const user: User & { iq_tenant_id?: string; api_key_hash?: string } = { ...row };
+  delete user.iq_tenant_id;
+  delete user.api_key_hash;
   return user;
 }
 

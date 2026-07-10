@@ -52,51 +52,60 @@ export function dispenseLineHasDraftContent(line: DispenseLineDraft): boolean {
   return false;
 }
 
+function validateMedicine(line: DispenseLineDraft): string | undefined {
+  const medicineId = line.medicine_id?.trim();
+  if (!medicineId || !UUID_RE.test(medicineId)) {
+    return 'Choose a medicine from the catalog.';
+  }
+  if (!line.medicine_display_name.trim()) {
+    return 'Medicine name is required.';
+  }
+  return undefined;
+}
+
+/** Validate an optional numeric field; returns its error message, or undefined when empty/valid. */
+function validateOptionalNonNegative(raw: string, label: string): string | undefined {
+  if (!raw.trim()) return undefined;
+  const parsed = parseNonNegativeNumber(raw, label);
+  return typeof parsed === 'number' ? undefined : parsed.error;
+}
+
+function validateLineDiscount(
+  line: DispenseLineDraft,
+  qty: number | { error: string },
+  unit: number | { error: string },
+): string | undefined {
+  if (!line.line_discount.trim()) return undefined;
+
+  const lineDiscount = parseNonNegativeNumber(line.line_discount, 'Line discount');
+  if (typeof lineDiscount !== 'number') return lineDiscount.error;
+
+  if (typeof qty !== 'number' || typeof unit !== 'number') return undefined;
+  const gross = multiplyDecimal(line.quantity_dispensed, line.unit_amount);
+  if (lineDiscount > gross) return 'Line discount cannot exceed line amount.';
+  return undefined;
+}
+
 function validateDispenseLine(line: DispenseLineDraft): DispenseLineFieldErrors {
   const errors: DispenseLineFieldErrors = {};
 
-  const medicineId = line.medicine_id?.trim();
-  if (!medicineId || !UUID_RE.test(medicineId)) {
-    errors.medicine = 'Choose a medicine from the catalog.';
-  } else if (!line.medicine_display_name.trim()) {
-    errors.medicine = 'Medicine name is required.';
-  }
+  const medicine = validateMedicine(line);
+  if (medicine) errors.medicine = medicine;
 
   const qty = parsePositiveNumber(line.quantity_dispensed, 'Dispensed quantity');
-  if (typeof qty !== 'number') {
-    errors.quantity_dispensed = qty.error;
-  }
+  if (typeof qty !== 'number') errors.quantity_dispensed = qty.error;
 
   const unit = parseNonNegativeNumber(line.unit_amount, 'Unit price');
-  if (typeof unit !== 'number') {
-    errors.unit_amount = unit.error;
-  }
+  if (typeof unit !== 'number') errors.unit_amount = unit.error;
 
-  if (line.line_discount.trim()) {
-    const lineDiscount = parseNonNegativeNumber(line.line_discount, 'Line discount');
-    if (typeof lineDiscount !== 'number') {
-      errors.line_discount = lineDiscount.error;
-    } else if (typeof qty === 'number' && typeof unit === 'number') {
-      const gross = multiplyDecimal(line.quantity_dispensed, line.unit_amount);
-      if (lineDiscount > gross) {
-        errors.line_discount = 'Line discount cannot exceed line amount.';
-      }
-    }
-  }
+  const lineDiscount = validateLineDiscount(line, qty, unit);
+  if (lineDiscount) errors.line_discount = lineDiscount;
 
-  if (line.tax_percent.trim()) {
-    const taxPercent = parseNonNegativeNumber(line.tax_percent, 'Tax');
-    if (typeof taxPercent !== 'number') {
-      errors.tax_percent = taxPercent.error;
-    }
-  }
+  const tax = validateOptionalNonNegative(line.tax_percent, 'Tax');
+  if (tax) errors.tax_percent = tax;
 
-  if (line.prescribed_quantity.trim()) {
-    const prescribed = parseNonNegativeNumber(line.prescribed_quantity, 'Prescribed quantity');
-    if (typeof prescribed !== 'number') {
-      errors.prescribed_quantity = prescribed.error;
-    }
-  }
+  const prescribed = validateOptionalNonNegative(line.prescribed_quantity, 'Prescribed quantity');
+  if (prescribed) errors.prescribed_quantity = prescribed;
 
   return errors;
 }

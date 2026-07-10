@@ -1,4 +1,4 @@
-"""Resolve inventory master ORM classes for the current :class:`~app.core.catalog_scope.CatalogScope`."""
+"""Resolve inventory ORM classes for the current :class:`~app.core.catalog_scope.CatalogScope`."""
 
 from __future__ import annotations
 

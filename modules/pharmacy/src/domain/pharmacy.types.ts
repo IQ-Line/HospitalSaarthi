@@ -127,9 +127,6 @@ export type QueueProjectionRow = {
   last_synced_at: Date;
 };
 
-/** @deprecated Use `QueueProjectionRow`. */
-export type OpdQueueProjectionRow = QueueProjectionRow;
-
 export type QueueProjectionUpsertInput = {
   source_kind?: PharmacyQueueSourceKind;
   source_ref_id: string;
@@ -152,9 +149,6 @@ export type QueueProjectionUpsertInput = {
   dispense_status: PharmacyDispenseStatus;
   context_json?: Record<string, unknown>;
 };
-
-/** @deprecated Use `QueueProjectionUpsertInput`. */
-export type OpdQueueProjectionUpsertInput = QueueProjectionUpsertInput;
 
 export type WalkInQueueSummary = {
   record_id: string;

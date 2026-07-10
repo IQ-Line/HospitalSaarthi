@@ -4,6 +4,8 @@ This document shows the canonical capability-based model in realistic flows.
 
 > **Phase 1A admin API (PR #56):** Role template access uses `POST/GET/DELETE /users/{id}/roles` and materialized grants in `user_capabilities`. There is **no** `/role-assignments` surface. Snapshot semantics (apply, re-apply subset sync, detach revoke) are defined in [ADR-0031](../../adr/0031-um-role-template-snapshot-semantics.md).
 
+> **Superseded 2026-07-09 (issue #60, Phase 1.5):** the snapshot semantics above — `user_capabilities` populated by copy-on-apply, `grant_source`/`source_role_id`, re-apply sync, detach-revokes — describe the Phase 1 (PR #56) shape only. As of [ADR-0037](../../adr/0037-user-capability-live-join-grant-deny-overrides.md), `user_capabilities` is an override-only table (`effect: grant|deny`, `reason`) and role composition is read live from `user_roles ⨝ role_capabilities` on every request; there is no snapshot-on-apply or re-apply-sync step anymore. This section is left as-is below for historical trace of the Phase 1 design — read it as superseded, not current.
+
 > **Legacy sections below (§9+):** Detailed walkthroughs may still reference target-state `role_assignments`, ward scoping, and live join resolution. Treat those as forward-looking unless explicitly mapped to Phase 1A tables.
 
 ## 1. Tenant onboarding

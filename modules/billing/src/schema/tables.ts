@@ -1,12 +1,15 @@
 import {
+  bigint,
   boolean,
   date,
   jsonb,
   numeric,
   pgSchema,
   primaryKey,
+  sql,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   tenantColumn,
 } from "@hims/ts-sdk-db";
@@ -130,5 +133,31 @@ export const payments = billingSchema.table(
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    // Defense-in-depth backstop for the atomic number allocator: a duplicate
+    // payment/receipt number can never be persisted even if allocation regresses.
+    uniqueIndex("uq_payments_tenant_payment_number").on(
+      t.iq_tenant_id,
+      t.payment_number,
+    ),
+    uniqueIndex("uq_payments_tenant_receipt_number")
+      .on(t.iq_tenant_id, t.receipt_number)
+      .where(sql`${t.receipt_number} IS NOT NULL`),
+  ],
+);
+
+// ─── sequence_counters ───────────────────────────────────────────────────────
+// Billing owns its OWN counter table (op_bill / billing_payment / billing_receipt
+// streams) so no module writes into another module's schema. Shape mirrors
+// empi.sequence_counters exactly — the runtime allocator (ts-sdk-sequence) builds
+// an identical table instance targeting the "billing" schema.
+export const sequenceCounters = billingSchema.table(
+  "sequence_counters",
+  {
+    ...tenantColumn(),
+    sequence_name: text("sequence_name").notNull(),
+    current_value: bigint("current_value", { mode: "number" }).notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.sequence_name] })],
 );

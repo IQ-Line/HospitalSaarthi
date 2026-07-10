@@ -10,11 +10,13 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from enum import StrEnum
 from typing import Any, TypedDict
 from uuid import UUID
 
 from hims_sdk_fhir import (
     NRCES_PROFILES,
+    Bundle,
     NrcesProfile,
     build_health_document_bundle,
     build_immunization_bundle,
@@ -27,8 +29,11 @@ from sqlalchemy.orm import Session
 from opd.core.config import get_service_integration_settings, get_settings
 from opd.core.database import get_session_factory
 from opd.data_access.health_document_repo import HealthDocumentRepository
-from opd.data_access.prescription_bundle import get_prescription_by_visit_id
-from opd.data_access.prescription_form_data import _merge_form_data, effective_form_data
+from opd.data_access.prescription_form_data import build_form_data_from_prescription_model
+from opd.data_access.prescription_repository import (
+    PrescriptionNotFoundError,
+    PrescriptionRepository,
+)
 from opd.data_access.registration_patient_snapshot import load_op_consult_patient_fields
 from opd.data_access.registration_patient_source import load_visit_patient_source
 from opd.integrations.clinical_form_helpers import (
@@ -36,7 +41,6 @@ from opd.integrations.clinical_form_helpers import (
     clinical_summary_from_form_data,
     has_immunization_data,
     has_prescription_clinical_data,
-    immunization_rows_from_form_data,
     text,
 )
 from opd.integrations.fhir_bundle_mappers import (
@@ -49,11 +53,10 @@ from opd.integrations.fhir_bundle_mappers import (
     to_practitioner_input,
     to_prescription_input,
 )
-from opd.integrations.op_consult_report import (
+from opd.integrations.report_constants import (
     OP_CONSULT_HI_TYPE,
     OPD_SLIP_HI_TYPE,
 )
-from opd.models.prescription_row import Prescription
 from opd.lib import azure_blob_storage
 from opd.lib.clinical_report_context import ClinicalReportContext, resolve_clinical_report_context
 from opd.services.clinical_documents_service import (
@@ -81,6 +84,40 @@ class M2CareContext(TypedDict):
     referenceNumber: str
     display: str
     hiType: str
+
+
+class M2ShareStatus(StrEnum):
+    """Observable outcome of the opd->integration-hub M2 publish.
+
+    SKIPPED  -> the publish was never attempted (M2 disabled, nothing to share,
+                or the hub URL is not configured).
+    SUCCEEDED-> the hub accepted the M2 orchestration POST (HTTP < 400).
+    FAILED   -> the publish was attempted and the hub rejected it or was
+                unreachable. This is the "botched share" an operator must see.
+    """
+
+    SKIPPED = "skipped"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class M2ShareResult:
+    """Honest, caller-visible share outcome (returned, not a fire-and-forget void).
+
+    ``persist_visit_abdm_bundles`` already returns the care contexts it minted; this
+    surfaces whether those contexts actually reached the integration hub so a caller
+    (or a test) can distinguish "share succeeded" from "share attempted + failed"
+    from "share skipped" without scraping stdout.
+    """
+
+    status: M2ShareStatus
+    care_context_count: int
+    reason: str | None = None
+
+    @property
+    def attempted(self) -> bool:
+        return self.status in (M2ShareStatus.SUCCEEDED, M2ShareStatus.FAILED)
 
 
 @dataclass(frozen=True)
@@ -114,14 +151,14 @@ def health_document_care_context_ref(document_id: UUID) -> str:
     return f"{document_id}_HealthDocument"
 
 
-def stamp_bundle_identifier(bundle: dict[str, Any], care_context_ref: str) -> None:
+def stamp_bundle_identifier(bundle: Bundle, care_context_ref: str) -> None:
     bundle["identifier"] = {
         "system": BUNDLE_IDENTIFIER_SYSTEM,
         "value": care_context_ref,
     }
 
 
-def _bundle_json_byte_size(bundle_json: dict[str, Any]) -> int:
+def _bundle_json_byte_size(bundle_json: Bundle) -> int:
     return len(json.dumps(bundle_json, separators=(",", ":")).encode("utf-8"))
 
 
@@ -208,44 +245,21 @@ def _log_abdm_m2_exception(message: str, *args: Any) -> None:
     traceback.print_exc()
 
 
-# Public alias for HTTP handlers that queue the background pipeline.
-log_abdm_m2_console = _log_abdm_m2
-
-
-def _resolve_abdm_form_data(
-    session: Session,
-    rx: Prescription,
-    *,
-    form_data_override: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Merge DB + normalized clinical with optional end-consult payload."""
-    effective = effective_form_data(session, rx)
-    if not form_data_override:
-        return effective
-
-    merged = _merge_form_data(effective, form_data_override)
-    override_rows = immunization_rows_from_form_data(form_data_override)
-    if override_rows:
-        merged["immunizations"] = override_rows
-    elif not immunization_rows_from_form_data(merged):
-        fallback_rows = immunization_rows_from_form_data(effective)
-        if fallback_rows:
-            merged["immunizations"] = fallback_rows
-    return merged
-
-
 def _load_visit_clinical_snapshot(
     session: Session,
     tenant_id: UUID,
     visit_id: UUID,
-    *,
-    form_data_override: dict[str, Any] | None = None,
 ) -> _VisitClinicalSnapshot | None:
-    bundle = get_prescription_by_visit_id(session, tenant_id, visit_id)
-    if bundle is None:
+    try:
+        # get_by_visit_id filters deleted_at IS NULL — a soft-deleted prescription is
+        # intentionally NOT sourced for ABDM-M2 (we never push a deleted record to ABDM).
+        # Deliberate semantics change from the replaced JSONB get_prescription_by_visit_id,
+        # which had no such filter; locked by a test in test_abdm_m2_sourcing_equivalence.py.
+        rx = PrescriptionRepository(session).get_by_visit_id(tenant_id, visit_id)
+    except PrescriptionNotFoundError:
         return None
 
-    patient_fields = load_op_consult_patient_fields(session, tenant_id, bundle.patient_id) or {}
+    patient_fields = load_op_consult_patient_fields(session, tenant_id, rx.patient_id) or {}
     patient_name = text(patient_fields.get("patient_name")) or "Patient"
     gender_raw = text(patient_fields.get("gender")).lower()
     patient_gender: str | None = None
@@ -261,11 +275,7 @@ def _load_visit_clinical_snapshot(
     if not isinstance(birth_date, date):
         birth_date = None
 
-    form_data = _resolve_abdm_form_data(
-        session,
-        bundle.rx,
-        form_data_override=form_data_override,
-    )
+    form_data = build_form_data_from_prescription_model(rx)
     _log_abdm_m2(
         "visit %s clinical snapshot immunization gate: %s",
         visit_id,
@@ -275,13 +285,13 @@ def _load_visit_clinical_snapshot(
     visit_number = source.visit_number if source else str(visit_id)
 
     return _VisitClinicalSnapshot(
-        patient_id=bundle.patient_id,
+        patient_id=rx.patient_id,
         patient_name=patient_name,
         patient_gender=patient_gender,
         patient_birth_date=birth_date,
         patient_abha_address=abha_address,
-        practitioner_name=_resolve_practitioner_name(tenant_id, bundle.rx.doctor_id),
-        practitioner_registration_id=str(bundle.rx.doctor_id),
+        practitioner_name=_resolve_practitioner_name(tenant_id, rx.doctor_id),
+        practitioner_registration_id=str(rx.doctor_id),
         clinical_summary=clinical_summary_from_form_data(form_data),
         form_data=form_data,
         visit_number=visit_number,
@@ -322,7 +332,7 @@ def _persist_care_context_bundle(
     display: str,
     source_record_type: str,
     profile: NrcesProfile,
-    bundle_json: dict[str, Any],
+    bundle_json: Bundle,
     produced_at: datetime,
 ) -> M2CareContext | None:
     _log_abdm_m2(
@@ -565,7 +575,9 @@ def _persist_op_consult(
         produced_at=now,
     )
     if ctx is None:
-        _log_abdm_m2("visit %s OPCONSULTATION bundle persist failed care_ref=%s", visit_id, care_ref)
+        _log_abdm_m2(
+            "visit %s OPCONSULTATION bundle persist failed care_ref=%s", visit_id, care_ref
+        )
     else:
         _log_abdm_m2("visit %s OPCONSULTATION bundle persist ok care_ref=%s", visit_id, care_ref)
     return ctx
@@ -582,7 +594,8 @@ def _persist_prescription(
 ) -> M2CareContext | None:
     has_rx = has_prescription_clinical_data(snapshot.form_data)
     _log_abdm_m2(
-        "visit %s PRESCRIPTION gate has_prescription_clinical_data=%s diagnosis_len=%s medicines_len=%s",
+        "visit %s PRESCRIPTION gate has_prescription_clinical_data=%s "
+        "diagnosis_len=%s medicines_len=%s",
         visit_id,
         has_rx,
         len(snapshot.form_data.get("diagnosis") or []),
@@ -729,7 +742,8 @@ def _persist_health_documents(
     for doc in documents:
         if doc.hi_type in (OP_CONSULT_HI_TYPE, OPD_SLIP_HI_TYPE):
             _log_abdm_m2(
-                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s reason=system_generated_type",
+                "visit %s HEALTHDOCUMENTRECORD skip doc_id=%s hi_type=%s "
+                "reason=system_generated_type",
                 visit_id,
                 doc.id,
                 doc.hi_type,
@@ -824,7 +838,6 @@ def persist_visit_abdm_bundles(
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
-    form_data: dict[str, Any] | None = None,
 ) -> list[M2CareContext]:
     """
     Create care contexts + store FHIR bundles in Record Foundation for all applicable HI-Types.
@@ -846,12 +859,7 @@ def persist_visit_abdm_bundles(
     session = get_session_factory()()
     contexts: list[M2CareContext] = []
     try:
-        snapshot = _load_visit_clinical_snapshot(
-            session,
-            tenant_id,
-            visit_id,
-            form_data_override=form_data,
-        )
+        snapshot = _load_visit_clinical_snapshot(session, tenant_id, visit_id)
         if snapshot is None:
             _log_abdm_m2(
                 "visit %s bundle persist skipped — no prescription snapshot found",
@@ -860,7 +868,8 @@ def persist_visit_abdm_bundles(
             return []
 
         _log_abdm_m2(
-            "visit %s bundle persist pipeline: OPCONSULTATION -> PRESCRIPTION -> IMMUNIZATIONRECORD -> HEALTHDOCUMENTRECORD",
+            "visit %s bundle persist pipeline: OPCONSULTATION -> PRESCRIPTION -> "
+            "IMMUNIZATIONRECORD -> HEALTHDOCUMENTRECORD",
             visit_id,
         )
 
@@ -960,45 +969,57 @@ def persist_op_consult_to_record_foundation(
     )
 
 
-def trigger_m2_after_end_consultation(
+def _log_m2_share_failure(
     *,
     tenant_id: UUID,
     patient_id: UUID,
     visit_id: UUID,
-    form_data: dict[str, Any] | None = None,
+    contexts: list[M2CareContext],
+    reason: str,
+    exc: BaseException | None = None,
 ) -> None:
+    """LOUD failure: a botched M2 share must reach an operator, not a black hole.
+
+    Emitted at ERROR (not the stdout ``_log_abdm_m2`` trace) with the full context an
+    operator needs to reconcile the missed share: tenant, patient, visit, the exact
+    care-context refs/hiTypes that failed to publish, the failing step, and the
+    upstream status/exception.
     """
-    Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
-    Non-blocking best-effort — failures are logged only.
-    """
-    _log_abdm_m2(
-        "visit %s end-consultation trigger started form_data_passed=%s immunization_debug=%s",
+    logger.error(
+        "%s M2 share FAILED step=m2-orchestrate-publish tenant=%s patient=%s visit=%s "
+        "reason=%s careContexts=%s",
+        ABDM_M2_LOG_PREFIX,
+        tenant_id,
+        patient_id,
         visit_id,
-        form_data is not None,
-        abdm_immunization_debug(form_data or {}),
-    )
-    contexts = persist_visit_abdm_bundles(
-        tenant_id=tenant_id,
-        patient_id=patient_id,
-        visit_id=visit_id,
-        form_data=form_data,
+        reason,
+        [{"hiType": c["hiType"], "ref": c["referenceNumber"]} for c in contexts],
+        exc_info=exc,
     )
 
-    settings = get_settings()
-    if not settings.abdm_m2_enabled or not contexts:
-        _log_abdm_m2(
-            "visit %s M2 orchestration skipped enabled=%s context_count=%s",
-            visit_id,
-            settings.abdm_m2_enabled,
-            len(contexts),
-        )
-        return
 
-    base = _integration_hub_base_url()
-    if not base:
-        _log_abdm_m2("visit %s M2 orchestration skipped — integration hub URL missing", visit_id)
-        return
+def _publish_m2_to_hub(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+    base: str,
+    contexts: list[M2CareContext],
+) -> M2ShareResult:
+    """Publish the minted care contexts to the integration hub's M2 orchestration.
 
+    OUTBOX SEAM: this function is the single opd->integration-hub M2 publish boundary.
+
+    Under the ratified HTTP-first orchestration model (ADR orchestration-decision-phase-1)
+    the publish is a direct, in-request fire-and-forget POST to the hub, done here inline.
+    Under the documented durable-execution target (Temporal), THIS function body is what
+    gets replaced: instead of ``urllib.request.urlopen``-ing the hub inline, it enqueues a
+    durable outbox row / workflow signal keyed by (tenant_id, patient_id, visit_id,
+    careContexts) that a worker drains with at-least-once retry. Per the Phase-1
+    portability rules the enqueue must be the ONLY thing that changes here — the caller
+    contract (careContexts computed upstream in, ``M2ShareResult`` out) stays identical, so
+    the transform is mechanical. Grep for ``OUTBOX SEAM`` to find every such boundary.
+    """
     _log_abdm_m2(
         "visit %s M2 orchestration POST careContexts=%s",
         visit_id,
@@ -1020,28 +1041,116 @@ def trigger_m2_after_end_consultation(
     try:
         with urllib.request.urlopen(req, timeout=30) as res:
             if res.status >= 400:
-                _log_abdm_m2(
-                    "visit %s M2 orchestration returned HTTP %s",
-                    visit_id,
-                    res.status,
+                reason = f"hub returned HTTP {res.status}"
+                _log_m2_share_failure(
+                    tenant_id=tenant_id,
+                    patient_id=patient_id,
+                    visit_id=visit_id,
+                    contexts=contexts,
+                    reason=reason,
                 )
-            else:
-                _log_abdm_m2("visit %s M2 orchestration HTTP %s ok", visit_id, res.status)
+                return M2ShareResult(
+                    status=M2ShareStatus.FAILED,
+                    care_context_count=len(contexts),
+                    reason=reason,
+                )
+            _log_abdm_m2("visit %s M2 orchestration HTTP %s ok", visit_id, res.status)
+            return M2ShareResult(
+                status=M2ShareStatus.SUCCEEDED,
+                care_context_count=len(contexts),
+            )
     except urllib.error.HTTPError as exc:
-        _log_abdm_m2(
-            "visit %s M2 orchestration HTTP error status=%s reason=%s",
-            visit_id,
-            exc.code,
-            exc.reason,
+        reason = f"hub HTTP error status={exc.code} reason={exc.reason}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
         )
     except urllib.error.URLError as exc:
-        _log_abdm_m2(
-            "visit %s M2 orchestration unreachable reason=%s",
-            visit_id,
-            exc.reason,
+        reason = f"hub unreachable reason={exc.reason}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
         )
     except OSError as exc:
-        _log_abdm_m2("visit %s M2 orchestration failed error=%s", visit_id, exc)
+        reason = f"transport error {exc}"
+        _log_m2_share_failure(
+            tenant_id=tenant_id,
+            patient_id=patient_id,
+            visit_id=visit_id,
+            contexts=contexts,
+            reason=reason,
+            exc=exc,
+        )
+    return M2ShareResult(
+        status=M2ShareStatus.FAILED,
+        care_context_count=len(contexts),
+        reason=reason,
+    )
+
+
+def trigger_m2_after_end_consultation(
+    *,
+    tenant_id: UUID,
+    patient_id: UUID,
+    visit_id: UUID,
+) -> M2ShareResult:
+    """
+    Persist consultation bundles to Record Foundation, then POST integration-hub M2 orchestration.
+
+    Runs as a FastAPI background task AFTER the clinical write has committed, so it can never
+    fail the OPD encounter. Its share OUTCOME is nonetheless made observable: it returns an
+    ``M2ShareResult`` (skipped / succeeded / failed+reason) and, on failure, logs LOUDLY at
+    ERROR — a botched share is surfaced, not silently swallowed.
+    """
+    _log_abdm_m2("visit %s end-consultation trigger started", visit_id)
+    contexts = persist_visit_abdm_bundles(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+    )
+
+    settings = get_settings()
+    if not settings.abdm_m2_enabled or not contexts:
+        reason = (
+            f"M2 disabled or nothing to share "
+            f"(enabled={settings.abdm_m2_enabled}, contexts={len(contexts)})"
+        )
+        _log_abdm_m2(
+            "visit %s M2 orchestration skipped enabled=%s context_count=%s",
+            visit_id,
+            settings.abdm_m2_enabled,
+            len(contexts),
+        )
+        return M2ShareResult(
+            status=M2ShareStatus.SKIPPED,
+            care_context_count=len(contexts),
+            reason=reason,
+        )
+
+    base = _integration_hub_base_url()
+    if not base:
+        _log_abdm_m2("visit %s M2 orchestration skipped — integration hub URL missing", visit_id)
+        return M2ShareResult(
+            status=M2ShareStatus.SKIPPED,
+            care_context_count=len(contexts),
+            reason="integration hub URL not configured",
+        )
+
+    return _publish_m2_to_hub(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        visit_id=visit_id,
+        base=base,
+        contexts=contexts,
+    )
 
 
 # Re-export for tests that import clinical summary helpers from this module.

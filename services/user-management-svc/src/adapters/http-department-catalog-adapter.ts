@@ -6,6 +6,7 @@ import {
   fetchJsonWithResilience,
   type ClassifiedUpstreamError,
 } from "./http-resilience.js";
+import { stripTrailingSlashes } from "../lib/strip-trailing-slashes.js";
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -24,10 +25,6 @@ export type HttpDepartmentCatalogAdapterOptions = {
   log?: (event: Record<string, unknown>, message: string) => void;
 };
 
-function trimTrailingSlash(url: string): string {
-  return url.replace(/\/+$/, "");
-}
-
 export class HttpDepartmentCatalogAdapter implements DepartmentCatalogPort {
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
@@ -35,7 +32,7 @@ export class HttpDepartmentCatalogAdapter implements DepartmentCatalogPort {
   private readonly log?: HttpDepartmentCatalogAdapterOptions["log"];
 
   constructor(options: HttpDepartmentCatalogAdapterOptions) {
-    this.baseUrl = trimTrailingSlash(options.baseUrl);
+    this.baseUrl = stripTrailingSlashes(options.baseUrl);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxAttempts = options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
     this.log = options.log;

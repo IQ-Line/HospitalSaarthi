@@ -1,10 +1,10 @@
-"""SQLAlchemy models for module↔permission junction: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for module↔permission junction: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, Uuid, text
+from sqlalchemy import Boolean, ForeignKey, Index, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class ModulePermissionPublicModel(TimestampMixin, Base):
-    """Platform-wide junction rows (``global_master``)."""
+    """Platform-wide junction rows (``master_global``)."""
 
     __tablename__ = "module_permissions"
     __table_args__ = (
@@ -21,7 +21,6 @@ class ModulePermissionPublicModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "module_permissions_module_permission_active_key",
@@ -29,7 +28,6 @@ class ModulePermissionPublicModel(TimestampMixin, Base):
             "permission_id",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -64,7 +62,6 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_module_permissions_module_permission_active_key",
@@ -73,7 +70,6 @@ class ModulePermissionTenantModel(TimestampMixin, Base):
             "permission_id",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

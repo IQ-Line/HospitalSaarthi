@@ -1,18 +1,17 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { isPostgresUniqueViolation, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq } from "drizzle-orm";
 import {
   DuplicateUsernameError,
   UnexpectedPersistenceError,
 } from "../domain/errors.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
-import { isPostgresUniqueViolation } from "./postgres-errors.js";
-import { syncRoleTemplateCapabilitySnapshot } from "./role-template-grant-writes.js";
 import type {
   ProvisionUserWithAccessInput,
   UserProvisioningRepository,
 } from "../ports/user-provisioning-repository.js";
+import type { RecoveryTier } from "../domain/types.js";
 import type { User } from "../ports/index.js";
-import { capabilities, roles, user_capabilities, user_roles, users } from "../schema/tables.js";
+import { roles, user_capabilities, user_roles, users } from "../schema/tables.js";
 
 const userColumns = {
   id: users.id,
@@ -22,6 +21,7 @@ const userColumns = {
   auth_user_id: users.auth_user_id,
   status: users.status,
   username: users.username,
+  recovery_tier: users.recovery_tier,
   org_id: users.org_id,
   department: users.department,
   clearance_tier_required: users.clearance_tier_required,
@@ -35,6 +35,7 @@ function rowToUser(row: {
   auth_user_id: string | null;
   status: string;
   username: string | null;
+  recovery_tier: RecoveryTier;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
@@ -46,6 +47,7 @@ function rowToUser(row: {
     phone: row.phone,
     auth_user_id: row.auth_user_id,
     username: row.username,
+    recovery_tier: row.recovery_tier,
     org_id: row.org_id,
     department: row.department,
     clearance_tier_required: row.clearance_tier_required,
@@ -71,6 +73,7 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
             email: input.user.email ?? null,
             phone: input.user.phone ?? null,
             username: input.user.username ?? null,
+            recovery_tier: input.recoveryTier,
             org_id: input.user.org_id ?? null,
             department: input.user.department ?? null,
             clearance_tier_required:
@@ -97,7 +100,7 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
         const userId = linked.id;
 
         if (input.manualCapabilityIds.length > 0) {
-          await replaceManualCapabilityGrantsInTx(tx, tenantId, {
+          await writeGrantOverridesInTx(tx, tenantId, {
             userId,
             capabilityIds: input.manualCapabilityIds,
             actorId: input.actorId,
@@ -108,7 +111,6 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
           await applyRoleTemplateInTx(tx, tenantId, {
             userId,
             roleId: grant.roleId,
-            capabilityIds: grant.capabilityIds,
             actorId: input.actorId,
           });
         }
@@ -126,7 +128,11 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
 
 type Tx = Parameters<Parameters<DbInstance["transaction"]>[0]>[0];
 
-async function replaceManualCapabilityGrantsInTx(
+/**
+ * Persists creation-time direct capabilities as `effect='grant'` override rows (ADR-0037).
+ * Idempotent per capability via the `UNIQUE(tenant,user,capability)` upsert.
+ */
+async function writeGrantOverridesInTx(
   tx: Tx,
   tenantId: string,
   input: {
@@ -136,77 +142,36 @@ async function replaceManualCapabilityGrantsInTx(
   },
 ): Promise<void> {
   const desiredIds = [...new Set(input.capabilityIds)];
-  const current = await tx
-    .select({
-      id: user_capabilities.id,
-      capability_id: user_capabilities.capability_id,
-      grant_source: user_capabilities.grant_source,
-    })
-    .from(user_capabilities)
-    .where(
-      and(
-        eq(user_capabilities.iq_tenant_id, tenantId),
-        eq(user_capabilities.user_id, input.userId),
-        isNull(user_capabilities.revoked_at),
-      ),
-    );
-
-  const activeByCapabilityId = new Set(current.map((row) => row.capability_id));
-  const manualGrantIdsToRevoke = current
-    .filter((row) => row.grant_source === "manual" && !desiredIds.includes(row.capability_id))
-    .map((row) => row.id);
-
-  if (manualGrantIdsToRevoke.length > 0) {
-    await tx
-      .update(user_capabilities)
-      .set({
-        revoked_at: new Date(),
-        revoked_by_user_id: input.actorId,
-      })
-      .where(
-        and(
-          eq(user_capabilities.iq_tenant_id, tenantId),
-          inArray(user_capabilities.id, manualGrantIdsToRevoke),
-        ),
-      );
+  if (desiredIds.length === 0) {
+    return;
   }
-
-  const missingCapabilityIds = desiredIds.filter(
-    (capabilityId) => !activeByCapabilityId.has(capabilityId),
-  );
-  if (missingCapabilityIds.length > 0) {
-    const grantedAt = new Date();
-    await tx
-      .insert(user_capabilities)
-      .values(
-        missingCapabilityIds.map((capabilityId) => ({
-          iq_tenant_id: tenantId,
-          user_id: input.userId,
-          capability_id: capabilityId,
-          grant_source: "manual" as const,
-          source_role_id: null,
-          granted_by_user_id: input.actorId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [
-          user_capabilities.iq_tenant_id,
-          user_capabilities.user_id,
-          user_capabilities.capability_id,
-        ],
-        set: {
-          grant_source: "manual",
-          source_role_id: null,
-          granted_by_user_id: input.actorId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        },
-      });
-  }
+  const grantedAt = new Date();
+  await tx
+    .insert(user_capabilities)
+    .values(
+      desiredIds.map((capabilityId) => ({
+        iq_tenant_id: tenantId,
+        user_id: input.userId,
+        capability_id: capabilityId,
+        effect: "grant" as const,
+        reason: null,
+        granted_by_user_id: input.actorId,
+        granted_at: grantedAt,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [
+        user_capabilities.iq_tenant_id,
+        user_capabilities.user_id,
+        user_capabilities.capability_id,
+      ],
+      set: {
+        effect: "grant",
+        reason: null,
+        granted_by_user_id: input.actorId,
+        granted_at: grantedAt,
+      },
+    });
 }
 
 async function applyRoleTemplateInTx(
@@ -215,7 +180,6 @@ async function applyRoleTemplateInTx(
   input: {
     userId: string;
     roleId: string;
-    capabilityIds: string[];
     actorId: string | null;
   },
 ): Promise<void> {
@@ -228,8 +192,6 @@ async function applyRoleTemplateInTx(
       assigned_by_user_id: input.actorId,
     })
     .onConflictDoNothing();
-
-  await syncRoleTemplateCapabilitySnapshot(tx, tenantId, input);
 
   const [roleRow] = await tx
     .select({ id: roles.id })

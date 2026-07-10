@@ -1,4 +1,4 @@
-"""SQLAlchemy models for Visitpad ``rx_columns`` — global_master vs ``tenant_master``."""
+"""SQLAlchemy models for Visitpad ``rx_columns`` — master_global vs ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -20,7 +20,6 @@ class VisitpadRxColumnPublicModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -45,7 +44,6 @@ class VisitpadRxColumnTenantModel(TimestampMixin, AuditActorMixin, Base):
             "code",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

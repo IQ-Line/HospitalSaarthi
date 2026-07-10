@@ -24,7 +24,7 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0017](0017-in-process-event-bus-phase-0.md) | InProcessEventBus as Phase 0 event transport | Proposed |
 | [0018](0018-frontend-stack-zustand-tanstack-router.md) | Frontend stack: Zustand, TanStack Router, TanStack Query | Proposed |
 | [0019](0019-fastify-node24-lts.md) | Fastify v5 as HTTP framework, Node.js 24 LTS as runtime | Proposed |
-| [0020](0020-master-data-catalog-dual-schema.md) | Master Data Visitpad catalogs: dual schemas (`public` vs `tenant_master`) | Accepted |
+| [0020](0020-master-data-catalog-dual-schema.md) | Master Data Visitpad catalogs: dual schemas (`master_global` vs `master_tenant`) | Accepted |
 | [0021](0021-master-data-catalog-tenant-key-type.md) | Master Data catalog tenant key: UUID `iq_tenant_id` (aligned with platform) | Accepted |
 | [0022](0022-immutable-fhir-document-storage.md) | Immutable FHIR Document Bundles (byte-exact storage, no UPDATE) | Proposed |
 | [0023](0023-distributed-fhir-assembly.md) | Distributed FHIR assembly via per-module serialisers + central Composition | Proposed |
@@ -36,8 +36,14 @@ Decisions are recorded as Markdown ADRs ([MADR format](https://adr.github.io/mad
 | [0029](0029-registration-as-encounter-intake-owner.md) | Registration module owns encounter-intake; clinical modules own clinical encounters | Accepted |
 | [0030](0030-abdm-adapter-prototype-phase.md) | ABDM Adapter prototype phase — ship M1 against sandbox before FSM engine lands | Accepted |
 | [0031](0031-um-role-template-snapshot-semantics.md) | User Management role-template snapshot semantics (PR #56) | Accepted |
+| [0032](0032-runtime-effective-capabilities-entitlement-intersection.md) | Runtime effective capabilities = stored grants ∩ tenant entitlement | Accepted |
+| [0033](0033-abdm-m3-mock-harness-strategy.md) | ABDM Adapter M3 mock harness — curl-injectable CM + loopback HIU | Accepted |
+| [0034](0034-polyglot-boundary-freeze.md) | Freeze the polyglot language boundary where it stands | Accepted |
+| [0035](0035-bounded-platform-operator-scope.md) | Phase-4 authorization — bounded platform-operator scope replaces god-mode super-admin | Accepted |
+| [0036](0036-external-pdf-reporting-platform.md) | `pdf-platform` is the report service; HIMS consumes one contract generated from its schema (drift-gated in CI) | Accepted |
+| [0037](0037-user-capability-live-join-grant-deny-overrides.md) | User capability resolution — live JOIN base + grant/deny overrides (Phase 1.5, issue #60) | Accepted |
 
-> Numbering note: ADRs 0027 and 0028 were originally drafted as 0020 and 0021 on `feat/integration-platform-lld`. They were renumbered when that branch merged with `dev`, where Master Data's 0020 and 0021 had landed in parallel. The MADR convention is that the number is a permanent identifier; this is the first renumber in the project's history, performed to resolve the collision.
+> Numbering note: ADRs 0027 and 0028 were originally drafted as 0020 and 0021 on `feat/integration-platform-lld`. They were renumbered when that branch merged with `dev`, where Master Data's 0020 and 0021 had landed in parallel. The MADR convention is that the number is a permanent identifier; this is the first renumber in the project's history, performed to resolve the collision. A second collision (two ADRs numbered 0031 — UM role-template snapshot semantics and ABDM M3 mock-harness strategy) was resolved on `dev--improved-v1` (2026-06-21): the ABDM M3 mock-harness ADR moved to **0033**; the UM role-template ADR (referenced earlier and far more widely) kept **0031**.
 
 ## How to use
 

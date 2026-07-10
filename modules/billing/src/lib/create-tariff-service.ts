@@ -1,5 +1,7 @@
 /** Helpers for POST /services — single row or doctor multi-department bulk create. */
 
+type OptionalPriceLike = string | number | undefined;
+
 export type DepartmentTariffItem = {
   department_id: string;
   base_price: string | number;
@@ -43,54 +45,51 @@ export function isBulkDoctorCreate(body: CreateServiceBody): body is CreateServi
   );
 }
 
+/** True when v is a non-empty price literal (string|number, not null/undefined). */
+function isPriceLike(v: unknown): v is string | number {
+  return v !== undefined && v !== null && (typeof v === "string" || typeof v === "number");
+}
+
+/** Normalize a nullable string field: keep strings, coerce null/undefined/non-string to null. */
+function asNullableString(v: unknown): string | null {
+  return typeof v === "string" ? v : null;
+}
+
+/** Parse one raw department_tariffs entry; returns null when it fails minimum shape. */
+function parseDepartmentTariffItem(raw: unknown): DepartmentTariffItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const item = raw as Record<string, unknown>;
+  if (typeof item.department_id !== "string") return null;
+  if (!isPriceLike(item.base_price)) return null;
+  return {
+    department_id: item.department_id,
+    base_price: item.base_price,
+    tax_percentage: item.tax_percentage as OptionalPriceLike,
+    service_code: typeof item.service_code === "string" ? item.service_code : undefined,
+    service_name: typeof item.service_name === "string" ? item.service_name : undefined,
+  } satisfies DepartmentTariffItem;
+}
+
+/** Parse the optional department_tariffs array; undefined when the field isn't an array. */
+function parseDepartmentTariffs(value: unknown): DepartmentTariffItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map(parseDepartmentTariffItem)
+    .filter((x): x is DepartmentTariffItem => x !== null);
+}
+
 export function parseCreateServiceBody(body: unknown): CreateServiceBody | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
 
-  const department_tariffs = Array.isArray(b.department_tariffs)
-    ? b.department_tariffs
-        .map((raw) => {
-          if (!raw || typeof raw !== "object") return null;
-          const item = raw as Record<string, unknown>;
-          if (typeof item.department_id !== "string") return null;
-          if (
-            item.base_price === undefined ||
-            item.base_price === null ||
-            (typeof item.base_price !== "string" && typeof item.base_price !== "number")
-          ) {
-            return null;
-          }
-          return {
-            department_id: item.department_id,
-            base_price: item.base_price as string | number,
-            tax_percentage: item.tax_percentage as string | number | undefined,
-            service_code: typeof item.service_code === "string" ? item.service_code : undefined,
-            service_name: typeof item.service_name === "string" ? item.service_name : undefined,
-          } satisfies DepartmentTariffItem;
-        })
-        .filter((x): x is DepartmentTariffItem => x !== null)
-    : undefined;
-
-  const provider_id =
-    b.provider_id === null || b.provider_id === undefined
-      ? null
-      : typeof b.provider_id === "string"
-        ? b.provider_id
-        : null;
-
   const parsed: CreateServiceBody = {
     service_code: typeof b.service_code === "string" ? b.service_code : undefined,
     service_name: typeof b.service_name === "string" ? b.service_name : undefined,
-    base_price: b.base_price as string | number | undefined,
-    tax_percentage: b.tax_percentage as string | number | undefined,
+    base_price: b.base_price as OptionalPriceLike,
+    tax_percentage: b.tax_percentage as OptionalPriceLike,
     description: (b.description as string | null | undefined) ?? null,
-    provider_id,
-    department_id:
-      b.department_id === null || b.department_id === undefined
-        ? null
-        : typeof b.department_id === "string"
-          ? b.department_id
-          : null,
+    provider_id: asNullableString(b.provider_id),
+    department_id: asNullableString(b.department_id),
     category: (b.category as string | null | undefined) ?? null,
     sub_category: (b.sub_category as string | null | undefined) ?? null,
     tax_type: (b.tax_type as string | null | undefined) ?? null,
@@ -102,7 +101,7 @@ export function parseCreateServiceBody(body: unknown): CreateServiceBody | null 
         : typeof b.effective_to === "string"
           ? b.effective_to
           : undefined,
-    department_tariffs,
+    department_tariffs: parseDepartmentTariffs(b.department_tariffs),
   };
 
   if (isBulkDoctorCreate(parsed)) return parsed;
@@ -110,13 +109,7 @@ export function parseCreateServiceBody(body: unknown): CreateServiceBody | null 
   if (typeof parsed.service_code !== "string" || typeof parsed.service_name !== "string") {
     return null;
   }
-  if (
-    parsed.base_price === undefined ||
-    parsed.base_price === null ||
-    (typeof parsed.base_price !== "string" && typeof parsed.base_price !== "number")
-  ) {
-    return null;
-  }
+  if (!isPriceLike(parsed.base_price)) return null;
   return parsed;
 }
 

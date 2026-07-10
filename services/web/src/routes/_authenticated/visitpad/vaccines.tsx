@@ -14,7 +14,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -34,10 +34,11 @@ import type { VisitpadVaccine } from '@/features/visitpad/types';
 import {
   visitpadVaccineCreateFormSchema,
   visitpadVaccineEditFormSchema,
+  type VisitpadVaccineCreateFormInput,
   type VisitpadVaccineCreateFormSchema,
+  type VisitpadVaccineEditFormInput,
   type VisitpadVaccineEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -53,7 +54,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/vaccines')({
 
 function VisitpadVaccinesPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-vaccines');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -276,7 +277,6 @@ function VisitpadVaccinesPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -295,7 +295,7 @@ function VaccineCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadVaccineCreateFormSchema>({
+  const form = useForm<VisitpadVaccineCreateFormInput, unknown, VisitpadVaccineCreateFormSchema>({
     resolver: zodResolver(visitpadVaccineCreateFormSchema),
     defaultValues: {
       code: '',
@@ -397,7 +397,7 @@ function VaccineEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadVaccineEditFormSchema>({
+  const form = useForm<VisitpadVaccineEditFormInput, unknown, VisitpadVaccineEditFormSchema>({
     resolver: zodResolver(visitpadVaccineEditFormSchema),
     defaultValues: {
       display_name: '',

@@ -1,0 +1,139 @@
+import { randomUUID } from "node:crypto";
+import { describe, expect, it, vi } from "vitest";
+import { createDb } from "@hims/ts-sdk-db";
+import { DrizzleAbdmSessionsRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-sessions.repo.js";
+import { DrizzleInboundMessagesRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-inbound-messages.repo.js";
+import { DrizzleM3ConsentRequestsRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-consent-requests.repo.js";
+import { DrizzleM3ConsentArtefactsHiuRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-consent-artefacts-hiu.repo.js";
+import { DrizzleM3DataTransfersRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-m3-data-transfers.repo.js";
+import { DrizzleCareContextLinkStateRepo } from "../../../../../../src/integrations/abdm/data-access/abdm-care-context-link-state.repo.js";
+import { NoOpRegistrationClient } from "../../../../../../src/integrations/abdm/data-access/registration-client.http.js";
+import {
+  MockEmpiClient,
+  MockRecordFoundationClient,
+} from "../../../../../../src/integrations/abdm/data-access/mock-platform-clients.js";
+import { FideliusEncryptor } from "../../../../../../src/integrations/abdm/data-access/fidelius.js";
+import { LoggingSmsClient } from "../../../../../../src/integrations/abdm/data-access/sms-client.js";
+import { EnvSecretsClient } from "../../../../../../src/integrations/abdm/data-access/env-secrets.client.js";
+import { InMemoryLinkOtpStore } from "../../../../../../src/integrations/abdm/lib/link-otp-store.js";
+import { HttpGatewayClient } from "../../../../../../src/integrations/abdm/data-access/gateway-client.http.js";
+import type { AbdmAdapterDeps } from "../../../../../../src/integrations/abdm/ports.js";
+import { assertFlowKind } from "../../../../../../src/integrations/abdm/domain/session.js";
+import { handleDiscoverCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-discover-callback.js";
+import { handleLinkInitCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-link-init-callback.js";
+import { handleLinkConfirmCallback } from "../../../../../../src/integrations/abdm/use-cases/m2/user-initiated-link/handle-link-confirm-callback.js";
+
+import { resolveSandboxDatabaseUrl } from "../../../../../../src/integrations/abdm/test-utils/sandbox-env.js";
+
+const RUN = process.env["RUN_ABDM_SANDBOX_TESTS"] === "1";
+const DB_URL = resolveSandboxDatabaseUrl();
+
+function buildDeps(): AbdmAdapterDeps {
+  const db = createDb(DB_URL!);
+  const secrets = new EnvSecretsClient();
+  const gateway = new HttpGatewayClient({
+    gatewayBaseUrl:
+      process.env["ABDM_GATEWAY_BASE_URL"] ?? "https://dev.abdm.gov.in",
+    abhaApiBaseUrl:
+      process.env["ABDM_ABHA_API_BASE_URL"] ??
+      "https://abhasbx.abdm.gov.in/abha/api",
+    xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
+    secrets,
+  });
+  return {
+    sessions: new DrizzleAbdmSessionsRepo(db),
+    gateway,
+    fidelius: new FideliusEncryptor(),
+    secrets,
+    inboundMessages: new DrizzleInboundMessagesRepo(db),
+    linkTokens: {
+      findFresh: async () => null,
+      claimAcquisition: async () => "claimed" as const,
+      completeAcquisition: async () => undefined,
+      invalidate: async () => undefined,
+    } as never,
+    consentArtefacts: { upsert: async () => true, findById: async () => null } as never,
+    empi: new MockEmpiClient(process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx"),
+    registration: new NoOpRegistrationClient(),
+    recordFoundation: new MockRecordFoundationClient(
+      process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx",
+    ),
+    careContextLinkState: new DrizzleCareContextLinkStateRepo(db),
+    m3ConsentRequests: new DrizzleM3ConsentRequestsRepo(db),
+    m3ConsentArtefactsHiu: new DrizzleM3ConsentArtefactsHiuRepo(db),
+    m3DataTransfers: new DrizzleM3DataTransfersRepo(db),
+    payloadEncryptor: { encrypt: (s) => s, decrypt: (s) => s },
+    linkOtpStore: new InMemoryLinkOtpStore(),
+    sms: new LoggingSmsClient(),
+    xHipId: process.env["ABDM_X_HIP_ID"] ?? "IN3610001625",
+    xHiuId: process.env["ABDM_X_HIU_ID"] ?? "IN3610001625",
+    xCmId: process.env["ABDM_X_CM_ID"] ?? "sbx",
+  };
+}
+
+describe.skipIf(!RUN || !DB_URL)("M2 user-initiated link — in-process chain", () => {
+  const tenantId =
+    process.env["ABDM_SANDBOX_TEST_TENANT_ID"] ??
+    process.env["ABDM_DEV_TENANT_ID"] ??
+    "00000000-0000-4000-8000-0000000000aa";
+  const abha = process.env["ABDM_MOCK_ABHA_ADDRESS"] ?? "test.user@sbx";
+
+  it("runs discover → init → confirm with mocked EMPI/RF", async () => {
+    const post = vi.fn().mockResolvedValue({});
+    const deps = buildDeps();
+    deps.gateway = { post } as never;
+
+    const txnId = randomUUID();
+    await handleDiscoverCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        patient: [{ id: abha }],
+      },
+      deps,
+    );
+
+    await handleLinkInitCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        transactionId: txnId,
+        link: {
+          referenceNumber: randomUUID(),
+          authenticationType: "DIRECT",
+          meta: {
+            communicationMedium: "MOBILE",
+            communicationHint: "OTP",
+            communicationExpiry: new Date(Date.now() + 600_000).toISOString(),
+          },
+        },
+      },
+      deps,
+    );
+
+    const afterInit = await deps.sessions.findUserLinkByTransactionId({
+      iqTenantId: tenantId,
+      transactionId: txnId,
+    });
+    if (!afterInit) throw new Error("user-link session missing after init");
+    assertFlowKind(afterInit, "abdm.m2.user-initiated-link.v1");
+    const linkRefNumber = String(afterInit.context.linkRefNumber ?? "");
+    const otp = (deps.linkOtpStore as InMemoryLinkOtpStore).peekOtp(
+      tenantId,
+      linkRefNumber,
+    );
+    expect(otp).toBeTruthy();
+
+    await handleLinkConfirmCallback(
+      {
+        iqTenantId: tenantId,
+        inboundRequestId: randomUUID(),
+        confirmation: { token: otp!, linkRefNumber },
+      },
+      deps,
+    );
+
+    expect(post.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+});

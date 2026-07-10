@@ -34,6 +34,8 @@ const UUID_RE =
 export type RoleHandlersDeps = {
   getTenantId: (request: FastifyRequest) => string;
   getActorId: (request: FastifyRequest) => string;
+  /** True only for the platform super-admin — gates the platform-controlled `is_system` flag. */
+  getCanManageSystemFlag: (request: FastifyRequest) => boolean;
   listCapabilitiesDeps: ListCapabilitiesDeps;
   listAssignableRuntimeCapabilitiesDeps: ListAssignableRuntimeCapabilitiesDeps;
   getCapabilityDeps: GetCapabilityDeps;
@@ -128,9 +130,14 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const actorId = deps.getActorId(request);
+      const canManageSystemFlag = deps.getCanManageSystemFlag(request);
       const cid = request.correlationId ?? request.id;
       try {
-        const role = await createRole(deps.createRoleDeps, { tenantId, actorId, correlationId: cid }, request.body);
+        const role = await createRole(
+          deps.createRoleDeps,
+          { tenantId, actorId, correlationId: cid, canManageSystemFlag },
+          request.body,
+        );
         return reply.status(201).send(role);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
@@ -165,7 +172,14 @@ export function registerRoleHandlers(fastify: FastifyInstance, deps: RoleHandler
       try {
         const tenantId = deps.getTenantId(request);
         const roleId = requireUuidRouteId(request.params.id);
-        const role = await updateRole(deps.updateRoleDeps, tenantId, roleId, request.body);
+        const canManageSystemFlag = deps.getCanManageSystemFlag(request);
+        const role = await updateRole(
+          deps.updateRoleDeps,
+          tenantId,
+          roleId,
+          request.body,
+          canManageSystemFlag,
+        );
         if (role === null) {
           return replyWithUserManagementError(reply, new RoleNotFoundError(roleId), cid);
         }

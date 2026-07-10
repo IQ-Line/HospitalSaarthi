@@ -56,7 +56,10 @@ class VisitpadChronicIllnessCreate(BaseModel):
         min_length=3,
         max_length=9,
         pattern=VISITPAD_CATALOG_CODE_PATTERN,
-        description="Tenant-stable chronic illness code (legacy ``code`` / e.g. dm2). Stored in ``icd10_code`` column.",
+        description=(
+            "Tenant-stable chronic illness code (legacy ``code`` / e.g. dm2). "
+            "Stored in ``icd10_code`` column."
+        ),
     )
     category: VisitpadChronicIllnessCategory = VisitpadChronicIllnessCategory.other
     snomed_code: str | None = Field(default=None, max_length=64)

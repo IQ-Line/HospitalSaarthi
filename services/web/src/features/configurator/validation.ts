@@ -23,6 +23,7 @@ export const organizationFormSchema = z
   })
   .superRefine((data, ctx) => {
     const email = data.contact_email?.trim();
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

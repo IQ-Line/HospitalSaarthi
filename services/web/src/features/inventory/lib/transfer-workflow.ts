@@ -2,11 +2,11 @@ import type { InventoryTransferRow } from '../types';
 
 export type TransferListDirection = 'outgoing' | 'incoming';
 
-export function canShowOutgoingTransfersTab(): boolean {
+export function shouldShowOutgoingTransfersTab(): boolean {
   return true;
 }
 
-export function canShowIncomingTransfersTab(): boolean {
+export function shouldShowIncomingTransfersTab(): boolean {
   return true;
 }
 
@@ -31,20 +31,20 @@ export const INCOMING_TRANSFER_STATUSES: InventoryTransferRow['status'][] = [
 
 export const OUTGOING_DISPATCHABLE_STATUSES: InventoryTransferRow['status'][] = ['Draft'];
 
-export function canReceiveTransfer(
+export function transferAwaitsReceipt(
   transfer: Pick<InventoryTransferRow, 'status'>,
 ): boolean {
   return transfer.status === 'Dispatched' || transfer.status === 'Partially received';
 }
 
-export function canDispatchTransfer(
+export function transferAwaitsDispatch(
   transfer: Pick<InventoryTransferRow, 'status'>,
 ): boolean {
   return transfer.status === 'Draft';
 }
 
 /** Draft cancel — sending store. In-transit cancel — receiving store closes unsettled qty. */
-export function canCancelTransfer(
+export function transferSupportsCancel(
   transfer: Pick<InventoryTransferRow, 'status'>,
   direction: TransferListDirection,
 ): boolean {

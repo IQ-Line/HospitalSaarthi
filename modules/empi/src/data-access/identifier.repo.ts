@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, ilike, sql } from "@hims/ts-sdk-db";
+import { and, eq, sql } from "@hims/ts-sdk-db";
 import { patientIdentifiers } from "../schema/tables.js";
 import type { IdentifierRepo } from "../ports.js";
 import type {

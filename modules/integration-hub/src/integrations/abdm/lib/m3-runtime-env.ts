@@ -1,3 +1,5 @@
+import { stripTrailingSlashes } from "./http-url.js";
+
 export function isM3MockGateway(): boolean {
   return process.env["ABDM_M3_MOCK_GATEWAY"] === "true";
 }
@@ -28,7 +30,7 @@ export function m3AdapterPublicBaseUrl(): string {
   const fromEnv =
     process.env["ABDM_ADAPTER_PUBLIC_BASE_URL"]?.trim() ||
     process.env["INTEGRATION_HUB_PUBLIC_BASE_URL"]?.trim();
-  return fromEnv?.replace(/\/+$/, "") ?? `http://localhost:${port}`;
+  return fromEnv ? stripTrailingSlashes(fromEnv) : `http://localhost:${port}`;
 }
 
 /**
@@ -46,10 +48,7 @@ export function m3DataPushMinimalHeaders(
   try {
     const targetHost = new URL(targetUrl).hostname.toLowerCase();
     const adapterHost = new URL(adapterBaseUrl).hostname.toLowerCase();
-    if (targetHost === adapterHost || targetHost === "localhost") {
-      return false;
-    }
-    return true;
+    return !(targetHost === adapterHost || targetHost === "localhost");
   } catch {
     return false;
   }

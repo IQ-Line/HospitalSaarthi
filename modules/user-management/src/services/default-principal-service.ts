@@ -1,7 +1,11 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
-import type { TenantEntitlementResolverPort } from "../ports/module-integration-ports.js";
+import type {
+  ModuleEntitlementRequestContext,
+  TenantEntitlementResolverPort,
+} from "../ports/module-integration-ports.js";
 import type {
   AuthContext,
+  PlatformAdminRepository,
   Principal,
   PrincipalAuthorizationRepository,
   PrincipalRoleProjectionRepository,
@@ -21,6 +25,12 @@ export type DefaultPrincipalServiceDeps = {
   userRepository: UserRepository;
   principalRoleProjectionRepository: PrincipalRoleProjectionRepository;
   principalAuthorizationRepository: PrincipalAuthorizationRepository;
+  /**
+   * Bounded `scope:platform` membership source. Optional: services that don't provision platforms
+   * (clinical PEPs) omit it, and the principal emits `scopes: []`. Present in UM-svc and
+   * configurator-svc, where the platform scope additively allows provisioning actions.
+   */
+  platformAdminRepository?: PlatformAdminRepository;
   /** When set with `runtimeEntitlementIntersection`, intersects stored grants with tenant entitlement. */
   tenantEntitlementResolver?: TenantEntitlementResolverPort;
   /** When false, principal emits stored grants only (rollback / tests). Default true when resolver is set. */
@@ -83,6 +93,53 @@ function asIdentityPrincipal(requestUser: unknown): IdentityPrincipal | null {
 }
 
 /**
+ * Resolve a single ABAC string attribute from the persisted user row.
+ *
+ * The value comes only from persistence; when absent we emit a warning that
+ * distinguishes "a JWT claim was present but ignored" from "no value anywhere".
+ * Returns the persisted (or null) attribute — JWT is never used as a fallback.
+ */
+function resolveAbacAttribute(args: {
+  tenantId: string;
+  userId: string;
+  field: "department" | "org_id";
+  persistedValue: string | null | undefined;
+  jwtValue: string | null;
+}): string | null {
+  const value = abacStringFromPersistence(args.persistedValue);
+  if (value !== null) return value;
+
+  if (args.jwtValue !== null) {
+    warnJwtAbacAttrIgnoredForCerbos({
+      tenantId: args.tenantId,
+      userId: args.userId,
+      field: args.field,
+      jwtValue: args.jwtValue,
+    });
+  } else {
+    warnAbacAttrAbsentFromPersistence({
+      tenantId: args.tenantId,
+      userId: args.userId,
+      field: args.field,
+    });
+  }
+  return null;
+}
+
+/** Non-empty `orgId` from a validated identity principal claim, else null. */
+function jwtOrgIdClaim(requestUser: unknown): string | null {
+  const jwt = asIdentityPrincipal(requestUser);
+  if (jwt === null) return null;
+  return jwt.orgId.trim().length > 0 ? jwt.orgId : null;
+}
+
+type ResolvedCapabilities = {
+  capabilities: string[];
+  delegatedCapabilities: string[];
+  tenantEntitlementRevision: string | undefined;
+};
+
+/**
  * Single source of truth for Cerbos-facing principal material.
  *
  * ## Capability enrichment (ADR-0032)
@@ -111,7 +168,7 @@ export class DefaultPrincipalService {
       context.userId,
     );
 
-    const [storedDirectKeys, clearances, storedDelegatedKeys] = await Promise.all([
+    const [storedDirectKeys, clearances, storedDelegatedKeys, isPlatformAdmin] = await Promise.all([
       this.deps.principalAuthorizationRepository.listEffectiveCapabilityKeys(
         context.tenantId,
         context.userId,
@@ -124,100 +181,29 @@ export class DefaultPrincipalService {
         context.tenantId,
         context.userId,
       ),
+      // DB is the source of truth for platform scope (not the JWT), closing the ~5-min stale-token
+      // window: a de-listed operator loses the PDP scope on the next enrichment. Keyed by the
+      // resolved GLOBAL platform user id (tenant-less membership).
+      this.deps.platformAdminRepository?.isPlatformAdmin(context.userId) ?? Promise.resolve(false),
     ]);
 
-    const department = abacStringFromPersistence(user.department);
-    const orgIdAttr = abacStringFromPersistence(user.org_id);
+    const department = resolveAbacAttribute({
+      tenantId: context.tenantId,
+      userId: context.userId,
+      field: "department",
+      persistedValue: user.department,
+      jwtValue: pickJwtDepartment(context.requestUser),
+    });
+    const orgIdAttr = resolveAbacAttribute({
+      tenantId: context.tenantId,
+      userId: context.userId,
+      field: "org_id",
+      persistedValue: user.org_id,
+      jwtValue: jwtOrgIdClaim(context.requestUser),
+    });
 
-    const jwtDept = pickJwtDepartment(context.requestUser);
-    if (department === null) {
-      if (jwtDept !== null) {
-        warnJwtAbacAttrIgnoredForCerbos({
-          tenantId: context.tenantId,
-          userId: context.userId,
-          field: "department",
-          jwtValue: jwtDept,
-        });
-      } else {
-        warnAbacAttrAbsentFromPersistence({
-          tenantId: context.tenantId,
-          userId: context.userId,
-          field: "department",
-        });
-      }
-    }
-
-    const jwt = asIdentityPrincipal(context.requestUser);
-    if (orgIdAttr === null) {
-      if (jwt !== null && jwt.orgId.trim().length > 0) {
-        warnJwtAbacAttrIgnoredForCerbos({
-          tenantId: context.tenantId,
-          userId: context.userId,
-          field: "org_id",
-          jwtValue: jwt.orgId,
-        });
-      } else {
-        warnAbacAttrAbsentFromPersistence({
-          tenantId: context.tenantId,
-          userId: context.userId,
-          field: "org_id",
-        });
-      }
-    }
-
-    const intersectionEnabled =
-      this.deps.tenantEntitlementResolver !== undefined &&
-      (this.deps.runtimeEntitlementIntersection ?? true);
-
-    let capabilities: string[];
-    let delegatedCapabilities: string[];
-    let tenantEntitlementRevision: string | undefined;
-
-    if (intersectionEnabled && this.deps.tenantEntitlementResolver !== undefined) {
-      const entitlementContext =
-        context.authorization !== undefined || context.entitlementCachePolicy !== undefined
-          ? {
-              ...(context.authorization !== undefined
-                ? { authorization: context.authorization }
-                : {}),
-              ...(context.entitlementCachePolicy !== undefined
-                ? { cachePolicy: context.entitlementCachePolicy }
-                : {}),
-            }
-          : undefined;
-      const entitlement = await this.deps.tenantEntitlementResolver.resolveTenantEntitlement(
-        context.tenantId,
-        entitlementContext,
-      );
-      tenantEntitlementRevision = entitlement.tenantEntitlementRevision;
-      const effective = computeEffectivePrincipalCapabilities(
-        storedDirectKeys,
-        storedDelegatedKeys,
-        entitlement.entitledCapabilityKeys,
-      );
-      capabilities = effective.capabilities;
-      delegatedCapabilities = effective.delegated_capabilities;
-
-      const metrics = entitlementIntersectionMetrics(
-        storedDirectKeys,
-        storedDelegatedKeys,
-        effective,
-      );
-      if (metrics.filteredDirectCount > 0 || metrics.filteredDelegatedCount > 0) {
-        this.deps.logEntitlementIntersection?.(
-          {
-            event: "principal_entitlement_intersection_filtered",
-            tenantId: context.tenantId,
-            ...metrics,
-          },
-          "Stored capability grants filtered by tenant entitlement",
-        );
-      }
-    } else {
-      const stored = computeStoredPrincipalCapabilities(storedDirectKeys, storedDelegatedKeys);
-      capabilities = stored.capabilities;
-      delegatedCapabilities = stored.delegated_capabilities;
-    }
+    const { capabilities, delegatedCapabilities, tenantEntitlementRevision } =
+      await this.resolveCapabilities(context, storedDirectKeys, storedDelegatedKeys);
 
     const um_clearance_effective_tier = effectiveUmClearanceTierFromClearances(clearances);
 
@@ -229,6 +215,7 @@ export class DefaultPrincipalService {
         department,
         org_id: orgIdAttr,
         role_codes: roles,
+        scopes: isPlatformAdmin ? ["platform"] : [],
         capabilities,
         delegated_capabilities: delegatedCapabilities,
         clearances,
@@ -239,6 +226,88 @@ export class DefaultPrincipalService {
       },
     };
   }
+
+  /**
+   * Merge stored capability grants into the principal's effective set.
+   *
+   * When tenant-entitlement intersection is enabled and a resolver is wired,
+   * stored direct/delegated grants are intersected with the tenant's entitled
+   * keys (emitting filter metrics); otherwise stored grants pass through as-is.
+   */
+  private async resolveCapabilities(
+    context: AuthContext,
+    storedDirectKeys: string[],
+    storedDelegatedKeys: string[],
+  ): Promise<ResolvedCapabilities> {
+    const resolver = this.deps.tenantEntitlementResolver;
+    const intersectionEnabled =
+      resolver !== undefined && (this.deps.runtimeEntitlementIntersection ?? true);
+
+    if (!intersectionEnabled || resolver === undefined) {
+      const stored = computeStoredPrincipalCapabilities(storedDirectKeys, storedDelegatedKeys);
+      return {
+        capabilities: stored.capabilities,
+        delegatedCapabilities: stored.delegated_capabilities,
+        tenantEntitlementRevision: undefined,
+      };
+    }
+
+    const entitlement = await resolver.resolveTenantEntitlement(
+      context.tenantId,
+      buildEntitlementContext(context),
+    );
+    const effective = computeEffectivePrincipalCapabilities(
+      storedDirectKeys,
+      storedDelegatedKeys,
+      entitlement.entitledCapabilityKeys,
+    );
+
+    this.logIntersectionFilter(context.tenantId, storedDirectKeys, storedDelegatedKeys, effective);
+
+    return {
+      capabilities: effective.capabilities,
+      delegatedCapabilities: effective.delegated_capabilities,
+      tenantEntitlementRevision: entitlement.tenantEntitlementRevision,
+    };
+  }
+
+  private logIntersectionFilter(
+    tenantId: string,
+    storedDirectKeys: string[],
+    storedDelegatedKeys: string[],
+    effective: ReturnType<typeof computeEffectivePrincipalCapabilities>,
+  ): void {
+    const metrics = entitlementIntersectionMetrics(
+      storedDirectKeys,
+      storedDelegatedKeys,
+      effective,
+    );
+    if (metrics.filteredDirectCount > 0 || metrics.filteredDelegatedCount > 0) {
+      this.deps.logEntitlementIntersection?.(
+        {
+          event: "principal_entitlement_intersection_filtered",
+          tenantId,
+          ...metrics,
+        },
+        "Stored capability grants filtered by tenant entitlement",
+      );
+    }
+  }
+}
+
+/** Pass-through context for the entitlement resolver; undefined when nothing to forward. */
+function buildEntitlementContext(
+  context: AuthContext,
+): ModuleEntitlementRequestContext | undefined {
+  if (context.authorization === undefined && context.entitlementCachePolicy === undefined) {
+    return undefined;
+  }
+  return {
+    ...(context.authorization !== undefined ? { authorization: context.authorization } : {}),
+    ...(context.entitlementCachePolicy !== undefined
+      ? { cachePolicy: context.entitlementCachePolicy }
+      : {}),
+  };
 }
 
 export function createDefaultPrincipalService(

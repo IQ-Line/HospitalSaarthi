@@ -6,21 +6,16 @@ import type {
   AppliedRoleTemplate,
   Capability,
   AuthContext,
+  CapabilityOverrideInput,
   CreateUserInput,
   CreateRoleInput,
   Principal,
   ReplaceRoleCapabilitiesInput,
-  ReplaceUserCapabilitiesInput,
   Role,
   UpdateRoleInput,
   UpdateUserInput,
-  UserCapabilitiesSnapshot,
   UserCapabilityGrant,
-  UserCapabilityGrantSource,
-  UserEffectiveCapabilities,
   User,
-  RoleStatus,
-  UserStatus,
 } from "../domain/types.js";
 
 import type { UserReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
@@ -29,6 +24,8 @@ export type {
   AppliedRoleTemplate,
   Capability,
   AuthContext,
+  CapabilityOverrideEffect,
+  CapabilityOverrideInput,
   CreateUserInput,
   CreateRoleInput,
   Principal,
@@ -41,7 +38,6 @@ export type {
   UpdateUserInput,
   UserCapabilitiesSnapshot,
   UserCapabilityGrant,
-  UserCapabilityGrantSource,
   UserEffectiveCapabilities,
   User,
   UserStatus,
@@ -49,11 +45,21 @@ export type {
 
 export type { UserReadListResourceAbac };
 
+export type { UserActivationFacts } from "../domain/user-activation.js";
+export type { UserActivationStatusReaderPort } from "./user-activation-status-reader.js";
+
 export type ListUsersOptions = {
   /** When set, repository applies SQL/in-memory resource ABAC aligned with `user.read` (department + clearance). */
   userReadResourceAbac?: UserReadListResourceAbac;
   /** When set, filters to users whose `department` column matches exactly. */
   department?: string;
+  /**
+   * When true, the row includes each user's assigned role display names
+   * (`role_display_names`). Costs a LEFT JOIN over `user_roles` + `roles` and a
+   * GROUP BY, so callers that don't render role names (e.g. the provider
+   * picklist) leave it off to keep the common read path a plain projection.
+   */
+  includeRoleDisplayNames?: boolean;
 };
 
 /** Platform user plus owning tenant (for JWT `iq_tenant_id` resolution by global user id). */
@@ -63,9 +69,13 @@ export type CreatePasswordAuthAccountInput = {
   platformUserId: string;
   tenantId: string;
   fullName: string;
-  email: string;
-  password: string;
+  /**
+   * Username-primary login handle. The better-auth adapter derives the synthetic identity-anchor
+   * email (`{username}@auth.internal`) from this; real contact email never enters this boundary
+   * (authn spec §10.2 / §15.1).
+   */
   username: string;
+  password: string;
 };
 
 export type CreatePasswordAuthAccountResult = {
@@ -169,12 +179,16 @@ export interface RoleCapabilityRepository {
 }
 
 export interface UserAccessRepository {
+  /**
+   * Assigns a role-template membership (`user_roles`). Under ADR-0037 this writes ONLY the
+   * membership — role capabilities are read live from `role_capabilities` at principal
+   * hydration, never copied into `user_capabilities`.
+   */
   applyRoleTemplate(
     tenantId: string,
     input: {
       userId: string;
       roleId: string;
-      capabilityIds: string[];
       actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate>;
@@ -187,12 +201,18 @@ export interface UserAccessRepository {
     },
   ): Promise<AppliedRoleTemplate | null>;
   listRoleTemplatesByUser(tenantId: string, userId: string): Promise<AppliedRoleTemplate[]>;
+  /** All override rows (grant and deny) for the user. */
   listActiveCapabilityGrantsByUser(tenantId: string, userId: string): Promise<UserCapabilityGrant[]>;
-  replaceManualCapabilityGrants(
+  /**
+   * Full-replace of the user's override rows (ADR-0037). Delete-all-then-insert of `grant`/`deny`
+   * override rows. A capability present in both `grants` and `denies` resolves as deny (deny wins).
+   */
+  replaceCapabilityOverrides(
     tenantId: string,
     input: {
       userId: string;
-      capabilityIds: string[];
+      grants: CapabilityOverrideInput[];
+      denies: CapabilityOverrideInput[];
       actorId: string | null;
     },
   ): Promise<UserCapabilityGrant[]>;
@@ -207,6 +227,17 @@ export interface PrincipalRoleProjectionRepository {
   listRoleCodesByUser(tenantId: string, userId: string): Promise<string[]>;
   /** Clears instance-scoped projection cache (e.g. after role mutations in the same process). */
   clearCache(): void;
+}
+
+/**
+ * Platform-operator membership lookup — the bounded `scope:platform` source of truth.
+ * Tenant-less: keyed by the GLOBAL platform user id (`users.id`). Backs both JWT `scopes`
+ * issuance and the Cerbos `principal.attr.scopes` enrichment. Membership carries no
+ * capabilities; it grants only the additive platform-provisioning scope.
+ */
+export interface PlatformAdminRepository {
+  /** True when the global platform user is a bounded platform operator (`scope:platform`). */
+  isPlatformAdmin(globalUserId: string): Promise<boolean>;
 }
 
 /**

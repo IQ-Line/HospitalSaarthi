@@ -1,12 +1,6 @@
-import type { AbdmSession } from "../domain/session.js";
+import type { AbdmSession, M1FlowKind } from "../domain/session.js";
 import type { AbdmSessionsPort } from "../ports.js";
 import { AbdmUseCaseError } from "./m1-errors.js";
-
-const PROFILE_READ_FLOWS = new Set<AbdmSession["flowKind"]>([
-  "abdm.m1.aadhaar-otp.v1",
-  "abdm.m1.login.v1",
-  "abdm.m1.verify-existing.v1",
-]);
 
 const PROFILE_READ_STATES = new Set<AbdmSession["state"]>([
   "ABHA_CREATED",
@@ -20,12 +14,18 @@ export async function loadM1ProfileSession(
   sessions: AbdmSessionsPort,
   iqTenantId: string,
   sessionId: string,
-): Promise<AbdmSession> {
+): Promise<AbdmSession<M1FlowKind>> {
   const session = await sessions.findById({ iqTenantId, sessionId });
   if (!session) {
     throw new AbdmUseCaseError("session not found", 404, "NOT_FOUND");
   }
-  if (!PROFILE_READ_FLOWS.has(session.flowKind)) {
+  // Explicit discriminant checks (not a Set.has) so TS narrows `session` to the
+  // three M1 flows, whose context is `Record<string, unknown>`.
+  if (
+    session.flowKind !== "abdm.m1.aadhaar-otp.v1" &&
+    session.flowKind !== "abdm.m1.login.v1" &&
+    session.flowKind !== "abdm.m1.verify-existing.v1"
+  ) {
     throw new AbdmUseCaseError("invalid session flow for profile read", 400);
   }
   if (!PROFILE_READ_STATES.has(session.state)) {

@@ -3,7 +3,6 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type {
   ConfiguratorHttpPort,
   EmpiHttpPort,
-  OpdHttpPort,
   PicklistReadPort,
   RegistrationRepo,
   VisitRepo,
@@ -21,7 +20,10 @@ import {
   createIntakeForNewPatient,
   createVisitForExistingPatient,
 } from "../use-cases/create-intake-for-new-patient.js";
-import { completeOpdNewPatientRegistration } from "../use-cases/complete-opd-new-patient-registration.js";
+import {
+  completeOpdNewPatientRegistration,
+  type CompleteOpdNewPatientRegistrationResult,
+} from "../use-cases/complete-opd-new-patient-registration.js";
 import { getVisitTypeDecision } from "../use-cases/get-visit-type-decision.js";
 import {
   dashboardStatsQuerySchema,
@@ -34,7 +36,6 @@ import {
 } from "./route-schemas.js";
 import { getDashboardMetrics } from "../use-cases/get-dashboard-metrics.js";
 import {
-  serializeRegistration,
   serializeRegistrationWithVisit,
   type PicklistLabelMaps,
 } from "./serialize-registration.js";
@@ -56,6 +57,8 @@ interface ListQuery {
   uhid?: string;
   mobile?: string;
   name?: string;
+  abha_number?: string;
+  abha_address?: string;
   patient_id?: string;
 }
 
@@ -66,7 +69,6 @@ export interface RegistrationsHandlerDeps {
   empiGateway: EmpiHttpPort | undefined;
   configuratorGateway?: ConfiguratorHttpPort;
   eventBus: EventBus;
-  opdGateway?: OpdHttpPort;
   picklistReadPort?: PicklistReadPort;
   billingWritePort?: BillingWritePort;
   billingReadPort?: BillingReadPort;
@@ -80,6 +82,60 @@ async function loadPicklistLabelMaps(
   return {
     visitTypes: maps.visitTypes,
     registrationStatuses: maps.registrationStatuses,
+  };
+}
+
+/**
+ * Map a failed OPD-complete outcome to the HTTP status and response body,
+ * keeping the per-phase (intake / billing / complete) shaping in one place.
+ */
+function opdCompleteFailureResponse(
+  outcome: Extract<CompleteOpdNewPatientRegistrationResult, { ok: false }>,
+): { status: number; body: Record<string, unknown> } {
+  if (outcome.phase === "intake") {
+    if (outcome.kind === "duplicate") {
+      return { status: 409, body: outcome.body };
+    }
+    if (outcome.kind === "empi_unavailable") {
+      return {
+        status: 503,
+        body: {
+          statusCode: 503,
+          error: "Service Unavailable",
+          message: outcome.body,
+          code: "empi_unavailable",
+        },
+      };
+    }
+    return {
+      status: outcome.status >= 400 ? outcome.status : 502,
+      body: {
+        statusCode: outcome.status,
+        error: "Upstream EMPI error",
+        message: outcome.body,
+      },
+    };
+  }
+  if (outcome.phase === "billing") {
+    return {
+      status: outcome.status,
+      body: {
+        statusCode: outcome.status,
+        error: "Billing Error",
+        message: outcome.message,
+        code: outcome.code,
+        details: outcome.body,
+      },
+    };
+  }
+  return {
+    status: 500,
+    body: {
+      statusCode: 500,
+      error: "Internal Server Error",
+      message: outcome.message,
+      code: "visit_complete_failed",
+    },
   };
 }
 
@@ -234,8 +290,8 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
+            logger: request.log,
           },
           request.tenantId,
           request.body,
@@ -308,8 +364,8 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
+            logger: request.log,
           },
           request.tenantId,
           request.body,
@@ -398,7 +454,6 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
             billingWritePort: deps.billingWritePort,
             billingReadPort: deps.billingReadPort,
@@ -413,39 +468,8 @@ export function registerRegistrationsHandler(
         );
 
         if (!outcome.ok) {
-          if (outcome.phase === "intake") {
-            if (outcome.kind === "duplicate") {
-              return reply.code(409).send(outcome.body);
-            }
-            if (outcome.kind === "empi_unavailable") {
-              return reply.code(503).send({
-                statusCode: 503,
-                error: "Service Unavailable",
-                message: outcome.body,
-                code: "empi_unavailable",
-              });
-            }
-            return reply.code(outcome.status >= 400 ? outcome.status : 502).send({
-              statusCode: outcome.status,
-              error: "Upstream EMPI error",
-              message: outcome.body,
-            });
-          }
-          if (outcome.phase === "billing") {
-            return reply.code(outcome.status).send({
-              statusCode: outcome.status,
-              error: "Billing Error",
-              message: outcome.message,
-              code: outcome.code,
-              details: outcome.body,
-            });
-          }
-          return reply.code(500).send({
-            statusCode: 500,
-            error: "Internal Server Error",
-            message: outcome.message,
-            code: "visit_complete_failed",
-          });
+          const failure = opdCompleteFailureResponse(outcome);
+          return reply.code(failure.status).send(failure.body);
         }
 
         const status = outcome.created ? 201 : 200;

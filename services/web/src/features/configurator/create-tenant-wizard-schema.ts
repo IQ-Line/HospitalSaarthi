@@ -82,6 +82,7 @@ export const createTenantStep0Schema = z
   .superRefine((d, ctx) => {
     optionalWebsiteRefine(d.organisationWebsite, ctx, 'organisationWebsite');
     const email = d.organisationEmail?.trim();
+    // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -112,7 +113,7 @@ export const createTenantStep1Schema = z
     block: z.string().optional(),
     district: z.string().min(1, 'District is required'),
     state: z.string().min(1, 'State is required'),
-    pinCode: z.string().regex(/^[0-9]{6}$/, 'PIN code must be 6 digits'),
+    pinCode: z.string().regex(/^\d{6}$/, 'PIN code must be 6 digits'),
   })
   .superRefine((d, ctx) => {
     const g = d.gstin?.trim().toUpperCase();
@@ -124,7 +125,7 @@ export const createTenantStep1Schema = z
       });
     }
     const p = d.pan?.trim().toUpperCase();
-    if (p && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(p)) {
+    if (p && !/^[A-Z]{5}\d{4}[A-Z]$/.test(p)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Invalid PAN format (e.g. ABCDE1234F)',
@@ -140,8 +141,12 @@ export const createTenantStep3Schema = z
   .object({
     adminFirstName: z.string().min(1, 'First name is required'),
     adminLastName: z.string().optional(),
-    adminEmail: z.string().email('Valid admin email is required'),
-    adminUsername: z.string().optional(),
+    adminUsername: z
+      .string()
+      .min(3, 'Username must be at least 3 characters')
+      .max(30, 'Username must be at most 30 characters')
+      .regex(/^[a-zA-Z0-9._]+$/, 'Use only letters, digits, "." or "_"'),
+    adminEmail: z.union([z.literal(''), z.string().email('Enter a valid email')]),
     adminMobile: z.string().optional(),
     password: z.string().min(8, 'Password must be at least 8 characters'),
     confirmPassword: z.string().min(1, 'Confirm the password'),

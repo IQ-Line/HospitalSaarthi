@@ -35,7 +35,9 @@ export function isSameAuthPrincipalScope(
 export function authPrincipalQueryOptions(scope: AuthPrincipalQueryScope) {
   return queryOptions({
     queryKey: authPrincipalQueryKeys.detail(scope),
-    queryFn: fetchAuthPrincipal,
+    // Wrap so TanStack Query's QueryFunctionContext isn't passed as fetchAuthPrincipal's
+    // options arg (that breaks TData inference → `unknown` cascades into every consumer).
+    queryFn: () => fetchAuthPrincipal(),
     staleTime: AUTH_PRINCIPAL_STALE_TIME_MS,
   });
 }

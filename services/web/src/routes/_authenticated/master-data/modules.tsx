@@ -43,6 +43,7 @@ import {
   EMPTY_MODULE_FORM_VALUES,
   moduleFormSchema,
   type ModuleFormValues,
+  type ModuleFormInput,
 } from '@/features/master-data/validation';
 import type { Module, ModuleCategory } from '@/features/master-data/types';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
@@ -75,12 +76,12 @@ function ModulesPage() {
   const createMutation = useCreateModule();
   const updateMutation = useUpdateModule();
 
-  const createForm = useForm<ModuleFormValues>({
+  const createForm = useForm<ModuleFormInput, unknown, ModuleFormValues>({
     resolver: zodResolver(moduleFormSchema),
     defaultValues: EMPTY_MODULE_FORM_VALUES,
   });
 
-  const editForm = useForm<ModuleFormValues>({
+  const editForm = useForm<ModuleFormInput, unknown, ModuleFormValues>({
     resolver: zodResolver(moduleFormSchema),
     defaultValues: EMPTY_MODULE_FORM_VALUES,
   });
@@ -326,7 +327,7 @@ function ModulesPage() {
 }
 
 interface ModuleFormFieldsProps {
-  form: ReturnType<typeof useForm<ModuleFormValues>>;
+  form: ReturnType<typeof useForm<ModuleFormInput, unknown, ModuleFormValues>>;
   modules: Module[];
 }
 

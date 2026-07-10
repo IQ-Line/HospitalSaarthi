@@ -21,11 +21,20 @@ import {
   useInventoryGrnUpdate,
 } from '../api/mutations';
 import { mapUiGrnTypeToApi } from '../api/mappers';
-import { useInventoryGrnDetail, useInventoryIndentByNumber, useInventoryItems, useInventoryStores } from '../api/queries';
-import { useManufacturerMasterLookup } from '@/features/inventory-masters/api/manufacturer-lookup';
+import {
+  useInventoryGrnDetail,
+  useInventoryIndentByNumber,
+  useInventoryItems,
+  useInventoryStores,
+} from '../api/queries';
+import {
+  useManufacturerMasterLookup,
+  type ManufacturerMasterOption,
+} from '@/features/inventory-masters/api/manufacturer-lookup';
 import {
   findUomMasterOption,
   useUomMasterLookup,
+  type UomMasterOption,
 } from '@/features/inventory-masters/api/uom-lookup';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
@@ -45,7 +54,7 @@ import {
   resolveManufacturerIdForPayload,
 } from '../lib/resolve-manufacturer-id';
 import { EMPTY_GRN_LINE } from '../mock/fixtures';
-import type { InventoryGrnLineDraft, InventoryGrnType } from '../types';
+import type { InventoryGrnLineDraft, InventoryGrnType, InventoryItemOption } from '../types';
 import { calcGrnLineAmount } from '../types';
 import { InventoryPanel } from './inventory-kpi-card';
 import { InventoryPageShell } from './inventory-page-shell';
@@ -79,6 +88,391 @@ function mapApiLinesToDraft(lines: InventorySvcGrnDetail['lines']): InventoryGrn
     storage: line.storage_location ?? '',
     remarks: line.line_remarks ?? '',
   }));
+}
+
+type GrnVendorFieldProps = {
+  grnType: InventoryGrnType;
+  manufacturerId: string;
+  manufacturers: ManufacturerMasterOption[];
+  isLoadingManufacturers: boolean;
+  manufacturersError: boolean;
+  isReadOnly: boolean;
+  errorMessage?: string;
+  onManufacturerIdChange: (id: string) => void;
+  onClearVendorError: () => void;
+};
+
+function GrnVendorField({
+  grnType,
+  manufacturerId,
+  manufacturers,
+  isLoadingManufacturers,
+  manufacturersError,
+  isReadOnly,
+  errorMessage,
+  onManufacturerIdChange,
+  onClearVendorError,
+}: GrnVendorFieldProps) {
+  return (
+    <div className="space-y-2">
+      <Label>
+        Vendor
+        {grnType === 'Purchase' ? <span className="text-destructive"> *</span> : null}
+      </Label>
+      <Select
+        value={manufacturerId || '__none__'}
+        onValueChange={(value) => {
+          onManufacturerIdChange(value === '__none__' ? '' : value);
+          onClearVendorError();
+        }}
+        disabled={isReadOnly || isLoadingManufacturers}
+      >
+        <SelectTrigger className={cn(errorMessage && 'border-destructive')}>
+          <SelectValue
+            placeholder={
+              isLoadingManufacturers
+                ? 'Loading vendors…'
+                : manufacturersError
+                  ? 'Failed to load vendors'
+                  : 'Select vendor'
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">Select vendor</SelectItem>
+          {manufacturers.map((manufacturer) => (
+            <SelectItem key={manufacturer.id} value={manufacturer.id}>
+              {manufacturer.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {errorMessage ? (
+        <p className="text-xs text-destructive">{errorMessage}</p>
+      ) : null}
+      {manufacturersError ? (
+        <p className="text-xs text-destructive">
+          Could not load vendor master. Ensure master-data service is running.
+        </p>
+      ) : null}
+      {!manufacturersError && !isLoadingManufacturers && manufacturers.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          No vendors in master. Add suppliers under{' '}
+          <Link to="/inventory-supply-masters/manufacturers" className="text-primary underline">
+            Inventory Supply Masters → Manufacturers
+          </Link>{' '}
+          until Vendor Master is available.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+type GrnLineRowProps = {
+  line: InventoryGrnLineDraft;
+  errors: GrnLineFieldErrors;
+  items: InventoryItemOption[];
+  uoms: UomMasterOption[];
+  isReadOnly: boolean;
+  isLoadingUoms: boolean;
+  uomsError: boolean;
+  removeDisabled: boolean;
+  onItemSelect: (lineId: string, itemId: string) => void;
+  onPurchaseUomSelect: (lineId: string, uomId: string) => void;
+  onUpdateLine: (lineId: string, patch: Partial<InventoryGrnLineDraft>) => void;
+  onClearLineError: (lineId: string, field: keyof GrnLineFieldErrors) => void;
+  onRemove: () => void;
+};
+
+function GrnLineRow({
+  line,
+  errors,
+  items,
+  uoms,
+  isReadOnly,
+  isLoadingUoms,
+  uomsError,
+  removeDisabled,
+  onItemSelect,
+  onPurchaseUomSelect,
+  onUpdateLine,
+  onClearLineError,
+  onRemove,
+}: GrnLineRowProps) {
+  return (
+    <tr className="border-b align-top">
+      <td className="px-2 py-2 text-muted-foreground">{line.item_code || '—'}</td>
+      <td className="px-2 py-2">
+        <Select
+          value={line.item_id || ''}
+          onValueChange={(value) => onItemSelect(line.id, value)}
+        >
+          <SelectTrigger className={cn('min-w-[240px]', errors.item_id && 'border-destructive')}>
+            <SelectValue placeholder="Search by code or name…" />
+          </SelectTrigger>
+          <SelectContent>
+            {items.map((item) => (
+              <SelectItem key={item.id} value={item.id}>
+                {item.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.item_id ? (
+          <p className="mt-1 text-xs text-destructive">{errors.item_id}</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2 text-muted-foreground">{line.uom || '—'}</td>
+      <td className="px-2 py-2">
+        <Select
+          value={findUomMasterOption(line.purchase_uom, uoms)?.id ?? '__none__'}
+          onValueChange={(value) => onPurchaseUomSelect(line.id, value)}
+          disabled={isReadOnly || isLoadingUoms}
+        >
+          <SelectTrigger className="min-w-[120px]">
+            <SelectValue
+              placeholder={
+                isLoadingUoms
+                  ? 'Loading…'
+                  : uomsError
+                    ? 'UOM unavailable'
+                    : 'Select unit'
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">—</SelectItem>
+            {uoms.map((uom) => (
+              <SelectItem key={uom.id} value={uom.id}>
+                {uom.abbreviation} — {uom.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {uomsError ? (
+          <p className="mt-1 text-xs text-destructive">Could not load UOM master</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2 text-muted-foreground tabular-nums">
+        {line.required_qty != null ? line.required_qty : '—'}
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          type="number"
+          min={0}
+          step="any"
+          className={cn('w-20', errors.grn_qty && 'border-destructive')}
+          value={line.grn_qty}
+          disabled={isReadOnly}
+          aria-invalid={Boolean(errors.grn_qty)}
+          onChange={(event) => {
+            onUpdateLine(line.id, { grn_qty: Number(event.target.value) || 0 });
+            onClearLineError(line.id, 'grn_qty');
+          }}
+        />
+        {errors.grn_qty ? (
+          <p className="mt-1 text-xs text-destructive">{errors.grn_qty}</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          type="number"
+          min={0}
+          step="any"
+          className={cn('w-24', errors.purchase_rate && 'border-destructive')}
+          value={line.purchase_rate}
+          disabled={isReadOnly}
+          aria-invalid={Boolean(errors.purchase_rate)}
+          onChange={(event) => {
+            onUpdateLine(line.id, { purchase_rate: Number(event.target.value) || 0 });
+            onClearLineError(line.id, 'purchase_rate');
+          }}
+        />
+        {errors.purchase_rate ? (
+          <p className="mt-1 text-xs text-destructive">{errors.purchase_rate}</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2 text-muted-foreground tabular-nums">
+        {calcGrnLineAmount(line.grn_qty, line.purchase_rate).toFixed(2)}
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          placeholder="Batch"
+          value={line.batch_no}
+          disabled={isReadOnly}
+          aria-invalid={Boolean(errors.batch_no)}
+          className={cn(errors.batch_no && 'border-destructive')}
+          onChange={(event) => {
+            onUpdateLine(line.id, { batch_no: event.target.value });
+            onClearLineError(line.id, 'batch_no');
+          }}
+        />
+        {errors.batch_no ? (
+          <p className="mt-1 text-xs text-destructive">{errors.batch_no}</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          type="date"
+          value={line.expiry_date}
+          disabled={isReadOnly}
+          aria-invalid={Boolean(errors.expiry_date)}
+          className={cn(errors.expiry_date && 'border-destructive')}
+          onChange={(event) => {
+            onUpdateLine(line.id, { expiry_date: event.target.value });
+            onClearLineError(line.id, 'expiry_date');
+          }}
+        />
+        {errors.expiry_date ? (
+          <p className="mt-1 text-xs text-destructive">{errors.expiry_date}</p>
+        ) : null}
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          placeholder="Location"
+          value={line.storage}
+          onChange={(event) => onUpdateLine(line.id, { storage: event.target.value })}
+        />
+      </td>
+      <td className="px-2 py-2">
+        <Input
+          placeholder="Remarks…"
+          value={line.remarks}
+          onChange={(event) => onUpdateLine(line.id, { remarks: event.target.value })}
+        />
+      </td>
+      <td className="px-2 py-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Remove line"
+          disabled={removeDisabled}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function GrnIndentNumberField({
+  indentNumber,
+  isReadOnly,
+  isLookingUpIndent,
+  errorMessage,
+  lastAutofilledIndentRef,
+  onIndentNumberChange,
+  onClearError,
+}: {
+  indentNumber: string;
+  isReadOnly: boolean;
+  isLookingUpIndent: boolean;
+  errorMessage: string | undefined;
+  lastAutofilledIndentRef: { current: string | null };
+  onIndentNumberChange: (value: string) => void;
+  onClearError: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="indent-number">
+        Indent no. (procurement) <span className="text-destructive">*</span>
+      </Label>
+      <div className="relative">
+        <Input
+          id="indent-number"
+          value={indentNumber}
+          placeholder="e.g. IND-202606-00020"
+          disabled={isReadOnly}
+          aria-invalid={Boolean(errorMessage)}
+          className={cn(isLookingUpIndent && 'pr-9', errorMessage && 'border-destructive')}
+          onChange={(event) => {
+            onIndentNumberChange(event.target.value);
+            onClearError();
+            if (event.target.value.trim() !== lastAutofilledIndentRef.current) {
+              lastAutofilledIndentRef.current = null;
+            }
+          }}
+        />
+        {isLookingUpIndent ? (
+          <Loader2
+            className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
+            aria-hidden
+          />
+        ) : null}
+      </div>
+      {errorMessage ? (
+        <p className="text-xs text-destructive">{errorMessage}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Enter a procurement indent number to autofill GRN header and line items.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function useIndentGrnAutofill(params: {
+  indentLookup: Parameters<typeof validateIndentForGrnPrefill>[0] | undefined;
+  indentLookupFailed: boolean;
+  debouncedIndentNumber: string;
+  grnId: string | null;
+  uoms: Parameters<typeof mapIndentToGrnPrefill>[1];
+  items: Parameters<typeof mapIndentToGrnPrefill>[2];
+  isReadOnly: boolean;
+  isLoadingUoms: boolean;
+  isLoadingItems: boolean;
+  lastAutofilledIndentRef: { current: string | null };
+  applyPrefill: (prefill: ReturnType<typeof mapIndentToGrnPrefill>) => void;
+}): void {
+  const {
+    indentLookup,
+    indentLookupFailed,
+    debouncedIndentNumber,
+    grnId,
+    uoms,
+    items,
+    isReadOnly,
+    isLoadingUoms,
+    isLoadingItems,
+    lastAutofilledIndentRef,
+    applyPrefill,
+  } = params;
+
+  useEffect(() => {
+    if (isReadOnly || isLoadingUoms || isLoadingItems || !indentLookup) return;
+    if (indentLookup.indent_number.trim() !== debouncedIndentNumber) return;
+    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
+
+    const validation = validateIndentForGrnPrefill(indentLookup, grnId);
+    if (!validation.ok) {
+      toast.error(validation.message);
+      lastAutofilledIndentRef.current = debouncedIndentNumber;
+      return;
+    }
+
+    applyPrefill(mapIndentToGrnPrefill(validation.indent, uoms, items));
+    lastAutofilledIndentRef.current = debouncedIndentNumber;
+    toast.success(`GRN details filled from indent ${debouncedIndentNumber}`);
+  }, [
+    debouncedIndentNumber,
+    grnId,
+    indentLookup,
+    isLoadingItems,
+    isLoadingUoms,
+    isReadOnly,
+    items,
+    uoms,
+  ]);
+
+  useEffect(() => {
+    if (!indentLookupFailed || !debouncedIndentNumber || isReadOnly) return;
+    if (!isCompleteIndentNumber(debouncedIndentNumber)) return;
+    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
+    toast.error(`No indent found with number ${debouncedIndentNumber}.`);
+    lastAutofilledIndentRef.current = debouncedIndentNumber;
+  }, [debouncedIndentNumber, indentLookupFailed, isReadOnly]);
 }
 
 export function InventoryGrnFormPage() {
@@ -209,45 +603,26 @@ export function InventoryGrnFormPage() {
     lastAutofilledIndentRef.current = existingGrn.indent_number?.trim() || null;
   }, [existingGrn]);
 
-  useEffect(() => {
-    if (isReadOnly || isLoadingUoms || isLoadingItems || !indentLookup) return;
-    if (indentLookup.indent_number.trim() !== debouncedIndentNumber) return;
-    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
-
-    const validation = validateIndentForGrnPrefill(indentLookup, grnId);
-    if (!validation.ok) {
-      toast.error(validation.message);
-      lastAutofilledIndentRef.current = debouncedIndentNumber;
-      return;
-    }
-
-    const prefill = mapIndentToGrnPrefill(validation.indent, uoms, items);
-    setGrnType(prefill.grnType);
-    setGrnDate(prefill.grnDate);
-    setStoreId(prefill.storeId);
-    setVoucherNumber(prefill.voucherNumber);
-    setRemarks(prefill.remarks);
-    setLines(prefill.lines);
-    lastAutofilledIndentRef.current = debouncedIndentNumber;
-    toast.success(`GRN details filled from indent ${debouncedIndentNumber}`);
-  }, [
+  useIndentGrnAutofill({
+    indentLookup,
+    indentLookupFailed,
     debouncedIndentNumber,
     grnId,
-    indentLookup,
-    isLoadingItems,
-    isLoadingUoms,
-    isReadOnly,
-    items,
     uoms,
-  ]);
-
-  useEffect(() => {
-    if (!indentLookupFailed || !debouncedIndentNumber || isReadOnly) return;
-    if (!isCompleteIndentNumber(debouncedIndentNumber)) return;
-    if (lastAutofilledIndentRef.current === debouncedIndentNumber) return;
-    toast.error(`No indent found with number ${debouncedIndentNumber}.`);
-    lastAutofilledIndentRef.current = debouncedIndentNumber;
-  }, [debouncedIndentNumber, indentLookupFailed, isReadOnly]);
+    items,
+    isReadOnly,
+    isLoadingUoms,
+    isLoadingItems,
+    lastAutofilledIndentRef,
+    applyPrefill: (prefill) => {
+      setGrnType(prefill.grnType);
+      setGrnDate(prefill.grnDate);
+      setStoreId(prefill.storeId);
+      setVoucherNumber(prefill.voucherNumber);
+      setRemarks(prefill.remarks);
+      setLines(prefill.lines);
+    },
+  });
 
   useEffect(() => {
     if (grnIdFromUrl) setGrnId(grnIdFromUrl);
@@ -468,95 +843,26 @@ export function InventoryGrnFormPage() {
               <p className="text-xs text-destructive">{headerErrors.store_id}</p>
             ) : null}
           </div>
-          <div className="space-y-2">
-            <Label>
-              Vendor
-              {grnType === 'Purchase' ? <span className="text-destructive"> *</span> : null}
-            </Label>
-            <Select
-              value={manufacturerId || '__none__'}
-              onValueChange={(value) => {
-                setManufacturerId(value === '__none__' ? '' : value);
-                clearHeaderError('vendor_id');
-              }}
-              disabled={isReadOnly || isLoadingManufacturers}
-            >
-              <SelectTrigger className={cn(headerErrors.vendor_id && 'border-destructive')}>
-                <SelectValue
-                  placeholder={
-                    isLoadingManufacturers
-                      ? 'Loading vendors…'
-                      : manufacturersError
-                        ? 'Failed to load vendors'
-                        : 'Select vendor'
-                  }
-                />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Select vendor</SelectItem>
-                {manufacturers.map((manufacturer) => (
-                  <SelectItem key={manufacturer.id} value={manufacturer.id}>
-                    {manufacturer.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {headerErrors.vendor_id ? (
-              <p className="text-xs text-destructive">{headerErrors.vendor_id}</p>
-            ) : null}
-            {manufacturersError ? (
-              <p className="text-xs text-destructive">
-                Could not load vendor master. Ensure master-data service is running.
-              </p>
-            ) : null}
-            {!manufacturersError && !isLoadingManufacturers && manufacturers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No vendors in master. Add suppliers under{' '}
-                <Link to="/inventory-supply-masters/manufacturers" className="text-primary underline">
-                  Inventory Supply Masters → Manufacturers
-                </Link>{' '}
-                until Vendor Master is available.
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="indent-number">
-              Indent no. (procurement) <span className="text-destructive">*</span>
-            </Label>
-            <div className="relative">
-              <Input
-                id="indent-number"
-                value={indentNumber}
-                placeholder="e.g. IND-202606-00020"
-                disabled={isReadOnly}
-                aria-invalid={Boolean(headerErrors.indent_number)}
-                className={cn(
-                  isLookingUpIndent && 'pr-9',
-                  headerErrors.indent_number && 'border-destructive',
-                )}
-                onChange={(event) => {
-                  setIndentNumber(event.target.value);
-                  clearHeaderError('indent_number');
-                  if (event.target.value.trim() !== lastAutofilledIndentRef.current) {
-                    lastAutofilledIndentRef.current = null;
-                  }
-                }}
-              />
-              {isLookingUpIndent ? (
-                <Loader2
-                  className="absolute top-1/2 right-2.5 size-4 -translate-y-1/2 animate-spin text-muted-foreground"
-                  aria-hidden
-                />
-              ) : null}
-            </div>
-            {headerErrors.indent_number ? (
-              <p className="text-xs text-destructive">{headerErrors.indent_number}</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Enter a procurement indent number to autofill GRN header and line items.
-              </p>
-            )}
-          </div>
+          <GrnVendorField
+            grnType={grnType}
+            manufacturerId={manufacturerId}
+            manufacturers={manufacturers}
+            isLoadingManufacturers={isLoadingManufacturers}
+            manufacturersError={manufacturersError}
+            isReadOnly={isReadOnly}
+            errorMessage={headerErrors.vendor_id}
+            onManufacturerIdChange={setManufacturerId}
+            onClearVendorError={() => clearHeaderError('vendor_id')}
+          />
+          <GrnIndentNumberField
+            indentNumber={indentNumber}
+            isReadOnly={isReadOnly}
+            isLookingUpIndent={isLookingUpIndent}
+            errorMessage={headerErrors.indent_number}
+            lastAutofilledIndentRef={lastAutofilledIndentRef}
+            onIndentNumberChange={setIndentNumber}
+            onClearError={() => clearHeaderError('indent_number')}
+          />
           <div className="space-y-2">
             <Label htmlFor="voucher-number">Voucher / Invoice no.</Label>
             <Input
@@ -653,165 +959,24 @@ export function InventoryGrnFormPage() {
               </tr>
             </thead>
             <tbody>
-              {lines.map((line) => {
-                const errors = lineErrors[line.id] ?? {};
-                return (
-                <tr key={line.id} className="border-b align-top">
-                  <td className="px-2 py-2 text-muted-foreground">{line.item_code || '—'}</td>
-                  <td className="px-2 py-2">
-                    <Select
-                      value={line.item_id || ''}
-                      onValueChange={(value) => handleItemSelect(line.id, value)}
-                    >
-                      <SelectTrigger className={cn('min-w-[240px]', errors.item_id && 'border-destructive')}>
-                        <SelectValue placeholder="Search by code or name…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {items.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {errors.item_id ? (
-                      <p className="mt-1 text-xs text-destructive">{errors.item_id}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2 text-muted-foreground">{line.uom || '—'}</td>
-                  <td className="px-2 py-2">
-                    <Select
-                      value={findUomMasterOption(line.purchase_uom, uoms)?.id ?? '__none__'}
-                      onValueChange={(value) => handlePurchaseUomSelect(line.id, value)}
-                      disabled={isReadOnly || isLoadingUoms}
-                    >
-                      <SelectTrigger className="min-w-[120px]">
-                        <SelectValue
-                          placeholder={
-                            isLoadingUoms
-                              ? 'Loading…'
-                              : uomsError
-                                ? 'UOM unavailable'
-                                : 'Select unit'
-                          }
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">—</SelectItem>
-                        {uoms.map((uom) => (
-                          <SelectItem key={uom.id} value={uom.id}>
-                            {uom.abbreviation} — {uom.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {uomsError ? (
-                      <p className="mt-1 text-xs text-destructive">Could not load UOM master</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2 text-muted-foreground tabular-nums">
-                    {line.required_qty != null ? line.required_qty : '—'}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="any"
-                      className={cn('w-20', errors.grn_qty && 'border-destructive')}
-                      value={line.grn_qty}
-                      disabled={isReadOnly}
-                      aria-invalid={Boolean(errors.grn_qty)}
-                      onChange={(event) => {
-                        updateLine(line.id, { grn_qty: Number(event.target.value) || 0 });
-                        clearLineError(line.id, 'grn_qty');
-                      }}
-                    />
-                    {errors.grn_qty ? (
-                      <p className="mt-1 text-xs text-destructive">{errors.grn_qty}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      type="number"
-                      min={0}
-                      step="any"
-                      className={cn('w-24', errors.purchase_rate && 'border-destructive')}
-                      value={line.purchase_rate}
-                      disabled={isReadOnly}
-                      aria-invalid={Boolean(errors.purchase_rate)}
-                      onChange={(event) => {
-                        updateLine(line.id, { purchase_rate: Number(event.target.value) || 0 });
-                        clearLineError(line.id, 'purchase_rate');
-                      }}
-                    />
-                    {errors.purchase_rate ? (
-                      <p className="mt-1 text-xs text-destructive">{errors.purchase_rate}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2 text-muted-foreground tabular-nums">
-                    {calcGrnLineAmount(line.grn_qty, line.purchase_rate).toFixed(2)}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      placeholder="Batch"
-                      value={line.batch_no}
-                      disabled={isReadOnly}
-                      aria-invalid={Boolean(errors.batch_no)}
-                      className={cn(errors.batch_no && 'border-destructive')}
-                      onChange={(event) => {
-                        updateLine(line.id, { batch_no: event.target.value });
-                        clearLineError(line.id, 'batch_no');
-                      }}
-                    />
-                    {errors.batch_no ? (
-                      <p className="mt-1 text-xs text-destructive">{errors.batch_no}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      type="date"
-                      value={line.expiry_date}
-                      disabled={isReadOnly}
-                      aria-invalid={Boolean(errors.expiry_date)}
-                      className={cn(errors.expiry_date && 'border-destructive')}
-                      onChange={(event) => {
-                        updateLine(line.id, { expiry_date: event.target.value });
-                        clearLineError(line.id, 'expiry_date');
-                      }}
-                    />
-                    {errors.expiry_date ? (
-                      <p className="mt-1 text-xs text-destructive">{errors.expiry_date}</p>
-                    ) : null}
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      placeholder="Location"
-                      value={line.storage}
-                      onChange={(event) => updateLine(line.id, { storage: event.target.value })}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <Input
-                      placeholder="Remarks…"
-                      value={line.remarks}
-                      onChange={(event) => updateLine(line.id, { remarks: event.target.value })}
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Remove line"
-                      disabled={lines.length <= 1}
-                      onClick={() => setLines((prev) => prev.filter((entry) => entry.id !== line.id))}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </td>
-                </tr>
-              );
-              })}
+              {lines.map((line) => (
+                <GrnLineRow
+                  key={line.id}
+                  line={line}
+                  errors={lineErrors[line.id] ?? {}}
+                  items={items}
+                  uoms={uoms}
+                  isReadOnly={isReadOnly}
+                  isLoadingUoms={isLoadingUoms}
+                  uomsError={uomsError}
+                  removeDisabled={lines.length <= 1}
+                  onItemSelect={handleItemSelect}
+                  onPurchaseUomSelect={handlePurchaseUomSelect}
+                  onUpdateLine={updateLine}
+                  onClearLineError={clearLineError}
+                  onRemove={() => setLines((prev) => prev.filter((entry) => entry.id !== line.id))}
+                />
+              ))}
             </tbody>
           </table>
         </div>

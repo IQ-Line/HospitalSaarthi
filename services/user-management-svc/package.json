@@ -6,7 +6,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "test": "vitest run",
-    "openapi:codegen": "openapi-typescript ../../specs/openapi/user-management.v1.yaml -o src/generated/user-management.v1.ts",
+    "openapi:codegen": "openapi-typescript ../../specs/openapi/user-management.v1.yaml -o src/generated/user-management.v1.gen.ts",
     "validate-spec": "tsx scripts/validate-user-management-openapi.mts"
   },
   "dependencies": {
@@ -18,13 +18,15 @@
     "@hims/ts-sdk-api-key": "workspace:*",
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
+    "@hims/ts-sdk-errors": "workspace:*",
     "@hims/ts-sdk-events": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
+    "@hims/ts-sdk-observability": "workspace:*",
     "@hims/ts-sdk-openapi": "workspace:*",
     "@hims/user-management": "workspace:*",
     "better-auth": "^1.6.10",
-    "drizzle-orm": "^0.45.2",
-    "fastify": "^5.0.0",
+    "drizzle-orm": "catalog:",
+    "fastify": "catalog:",
     "jose": "^6.2.3",
     "pg": "^8.20.0",
     "@apidevtools/swagger-parser": "^12.1.0",
@@ -32,13 +34,13 @@
     "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
-    "@cerbos/core": "0.21.1",
+    "@cerbos/core": "catalog:",
     "@hims/ts-sdk-http": "workspace:*",
-    "@types/node": "^22.19.18",
-    "fastify-plugin": "^5.1.0",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.5",
+    "@types/node": "catalog:",
+    "fastify-plugin": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
     "openapi-typescript": "^7.10.1"
   }
 }

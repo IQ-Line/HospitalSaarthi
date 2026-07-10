@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:inventory", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/inventory-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
@@ -19,6 +25,12 @@
         "envFile": "{workspaceRoot}/.env"
       },
       "dependsOn": ["inventory:db-migrate"]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": ["services/inventory-svc/src/**/*.ts"]
+      }
     }
   }
 }

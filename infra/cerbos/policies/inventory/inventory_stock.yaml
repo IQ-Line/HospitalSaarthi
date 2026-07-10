@@ -1,0 +1,21 @@
+---
+# Inventory — on-hand stock balances and batch positions (read-only surface).
+# Capabilities: inventory:stock:{read}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_stock"
+  version: default
+  rules:
+    - actions:
+        - "stock.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:stock:read" in request.principal.attr.capabilities ||
+              "inventory:stock:read" in request.principal.attr.delegated_capabilities
+            )

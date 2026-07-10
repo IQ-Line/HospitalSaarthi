@@ -3,7 +3,7 @@ import { betterAuth, type Auth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { symmetricDecrypt } from "better-auth/crypto";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { bearer, jwt, username } from "better-auth/plugins";
+import { admin, bearer, jwt, username } from "better-auth/plugins";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import {
   assertUserCanAuthenticate,
@@ -90,6 +90,8 @@ export function createHimsBetterAuth(
   return betterAuth({
     baseURL: env.authBaseUrl,
     basePath: "/api/auth",
+    // Prevent unauthenticated username enumeration via the username plugin's public check.
+    disabledPaths: ["/is-username-available"],
     secret: env.secret,
     trustedOrigins: env.trustedOrigins,
     database: drizzleAdapter(db, {
@@ -97,7 +99,11 @@ export function createHimsBetterAuth(
       schema: authSchema,
     }),
     emailAndPassword: {
+      // Kept enabled: the username plugin's sign-up route is /sign-up/email, and reset flows
+      // live here. Login is username-primary (signIn.username); email is the synthetic anchor.
       enabled: true,
+      // Off by default in better-auth — required by the authn spec (§14) so a password reset
+      // invalidates existing sessions.
       revokeSessionsOnPasswordReset: true,
     },
     user: {
@@ -154,16 +160,31 @@ export function createHimsBetterAuth(
     },
     plugins: [
       bearer(),
-      username({ minUsernameLength: 3, maxUsernameLength: 64 }),
+      // Username-primary login (ADR-0003): globally unique, lowercased in place; displayUsername
+      // preserves casing. The /is-username-available endpoint is disabled above (enumeration).
+      username({
+        minUsernameLength: 3,
+        maxUsernameLength: 30,
+      }),
+      // Admin endpoints (auth.api.createUser / setUserPassword / revokeUserSessions / ban) backing
+      // platform provisioning + recovery Flow A. Authorization is enforced by the platform
+      // (PrincipalService / Cerbos) before invoking these server-side; better-auth's own role check
+      // is bypassed for trusted server-side calls (no request headers).
+      admin(),
       jwt({
         jwks: {
           jwksPath: "/.well-known/jwks.json",
           keyPairConfig: { alg: "RS256", modulusLength: 2048 },
           disablePrivateKeyEncryption: env.disableJwtPrivateKeyEncryption,
+          // Explicit key rotation (disabled by default in better-auth). Lazy/sign-driven; seconds.
+          rotationInterval: 60 * 60 * 24 * 7, // 7 days
+          gracePeriod: 60 * 60 * 24 * 14, // 14 days — old keys still verify during overlap
         },
         jwt: {
           issuer: env.jwtIssuer,
           audience: env.jwtAudience,
+          // 5 min today. The authn spec's <=2 min target is coupled to the BFF Token Handler
+          // (seamless refresh); dropping to 2 min before that ships would force re-login every 2 min.
           expirationTime: "5m",
           definePayload: async ({ user }) => {
             const authUser = user as Record<string, unknown>;
@@ -186,6 +207,7 @@ export function createHimsBetterAuth(
                 iq_tenant_id: authUser.iq_tenant_id ?? null,
                 org_id: null,
                 roles: [],
+                scopes: [],
                 jti: randomUUID(),
               } as never;
             }
@@ -194,13 +216,20 @@ export function createHimsBetterAuth(
               claims.org_id === null || claims.org_id === undefined
                 ? null
                 : String(claims.org_id).trim();
+            // BET4: the operator token is tenant-LESS — its authority is the platform scope, not a
+            // tenant. Omit `iq_tenant_id` when `scopes` includes "platform"; the SDK relaxes its
+            // tenant requirement ONLY for scoped tokens (verify.ts). Non-operator tokens keep it.
+            const isPlatformScoped = claims.scopes.includes("platform");
             const payload: Record<string, unknown> = {
               sub: user.id,
-              iq_tenant_id: claims.iq_tenant_id,
               org_id: org === "" ? null : org,
               roles: claims.roles,
+              scopes: claims.scopes,
               jti: randomUUID(),
             };
+            if (!isPlatformScoped) {
+              payload.iq_tenant_id = claims.iq_tenant_id;
+            }
             const dept = claims.department;
             if (dept !== null && dept !== undefined && String(dept).trim() !== "") {
               payload.department = String(dept).trim();

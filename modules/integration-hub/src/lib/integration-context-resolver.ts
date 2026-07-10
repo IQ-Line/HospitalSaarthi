@@ -56,7 +56,9 @@ export function registerPlatformRoutesWithIntegrationContext(
  * @deprecated Use {@link registerPlatformRoutesWithIntegrationContext} and register routes in its callback.
  */
 export function integrationContextResolver(sharedInfra: IntegrationHubSharedInfra) {
-  return registerPlatformRoutesWithIntegrationContext(sharedInfra, async () => {});
+  return registerPlatformRoutesWithIntegrationContext(sharedInfra, async () => {
+    // Deprecated shim: registers no routes of its own.
+  });
 }
 
 export { IntegrationProfileNotFoundError };

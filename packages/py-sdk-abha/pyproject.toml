@@ -7,6 +7,9 @@ dependencies = [
     "hims_sdk_fhir",
 ]
 
+[tool.uv.sources]
+hims_sdk_fhir = { path = "../py-sdk-fhir", editable = true }
+
 [dependency-groups]
 dev = [
     "pytest",

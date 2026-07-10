@@ -49,7 +49,7 @@ export function ResetUserPasswordDialog({
 
   const onSubmit = form.handleSubmit((values) => {
     reset.mutate(
-      { password: values.password },
+      { new_password: values.password },
       {
         onSuccess: () => {
           form.reset();

@@ -8,7 +8,7 @@ import type {
   TenantAdminProvisioningPort,
 } from "../ports.js";
 import type { ProvisionTenantInput } from "../domain/onboarding.types.js";
-import { assertTenantOnboardingAllowed } from "../http/tenant-onboarding-access.js";
+import { getRequestActorId } from "../http/request-actor.js";
 import { provisionTenant } from "../use-cases/provision-tenant.js";
 import { tenantOnboardingBodySchema } from "./tenant-onboarding.schemas.js";
 
@@ -36,11 +36,11 @@ export function registerTenantOnboardingHandler(
       schema: {
         body: tenantOnboardingBodySchema,
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      assertTenantOnboardingAllowed(request, request.body);
       const correlationId = randomUUID();
-      const actorId = resolveActorId(request) ?? correlationId;
+      const actorId = getRequestActorId(request) ?? correlationId;
       const authorization =
         typeof request.headers.authorization === "string"
           ? request.headers.authorization
@@ -63,16 +63,4 @@ export function registerTenantOnboardingHandler(
       return reply.code(201).send(result);
     },
   );
-}
-
-/**
- * Best-effort actor ID extraction from the request.
- * In production this comes from the JWT `sub` claim after auth middleware runs.
- * Falls back to null if no authenticated user context is present.
- */
-function resolveActorId(request: { user?: unknown }): string | null {
-  const user = request.user as Record<string, unknown> | undefined;
-  if (!user) return null;
-  const sub = user["sub"] ?? user["id"] ?? user["userId"];
-  return typeof sub === "string" && sub.length > 0 ? sub : null;
 }

@@ -16,17 +16,15 @@ class InventoryStoreTypePublicModel(TimestampMixin, AuditActorMixin, Base):
     __table_args__ = (
         Index(
             "inventory_store_types_code_active_key",
-            text("lower(btrim(code))"),
+            text("lower(trim(code))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "inventory_store_types_name_active_key",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -54,18 +52,16 @@ class InventoryStoreTypeTenantModel(TimestampMixin, AuditActorMixin, Base):
         Index(
             "tm_inventory_store_types_code_active_key",
             "iq_tenant_id",
-            text("lower(btrim(code))"),
+            text("lower(trim(code))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         Index(
             "tm_inventory_store_types_name_active_key",
             "iq_tenant_id",
-            text("lower(btrim(name))"),
+            text("lower(trim(name))"),
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

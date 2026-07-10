@@ -4,7 +4,15 @@ export {
   tenantFilter,
   tenantAnd,
 } from "./tenant-scope.js";
-export { createDb, type DbInstance } from "./connection.js";
+export { createDb, createPool, type DbInstance } from "./connection.js";
+export {
+  isPostgresUniqueViolation,
+  isPostgresForeignKeyViolation,
+} from "./errors.js";
+export {
+  applyMigrations,
+  type ApplyMigrationsOptions,
+} from "./migrate.js";
 export {
   parsePostgresDatabaseName,
   resolveDatabaseUrl,

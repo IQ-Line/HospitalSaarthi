@@ -1,7 +1,8 @@
-import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { isPostgresForeignKeyViolation, type DbInstance } from "@hims/ts-sdk-db";
+import { and, eq } from "drizzle-orm";
 import type {
   AppliedRoleTemplate,
+  CapabilityOverrideInput,
   UserAccessRepository,
   UserCapabilityGrant,
 } from "../ports/index.js";
@@ -10,18 +11,13 @@ import {
   UnexpectedPersistenceError,
   UserNotFoundError,
 } from "../domain/errors.js";
-import { isPostgresForeignKeyViolation } from "./postgres-errors.js";
-import {
-  revokeRoleTemplateCapabilitySnapshot,
-  syncRoleTemplateCapabilitySnapshot,
-} from "./role-template-grant-writes.js";
 import { capabilities, roles, user_capabilities, user_roles } from "../schema/tables.js";
 
 function asIsoString(value: Date): string {
   return value.toISOString();
 }
 
-function mapCapabilityGrantRow(row: {
+function mapCapabilityOverrideRow(row: {
   id: string;
   user_id: string;
   capability_id: string;
@@ -31,12 +27,10 @@ function mapCapabilityGrantRow(row: {
   action: string;
   display_name: string;
   description: string | null;
-  grant_source: "manual" | "role_template" | "delegated" | "system";
-  source_role_id: string | null;
+  effect: "grant" | "deny";
+  reason: string | null;
   granted_by_user_id: string | null;
   granted_at: Date;
-  revoked_at: Date | null;
-  revoked_by_user_id: string | null;
 }): UserCapabilityGrant {
   return {
     id: row.id,
@@ -48,14 +42,28 @@ function mapCapabilityGrantRow(row: {
     action: row.action,
     display_name: row.display_name,
     description: row.description,
-    grant_source: row.grant_source,
-    source_role_id: row.source_role_id,
+    effect: row.effect,
+    reason: row.reason,
     granted_by_user_id: row.granted_by_user_id,
     granted_at: asIsoString(row.granted_at),
-    revoked_at: row.revoked_at ? asIsoString(row.revoked_at) : null,
-    revoked_by_user_id: row.revoked_by_user_id,
   };
 }
+
+const capabilityOverrideColumns = {
+  id: user_capabilities.id,
+  user_id: user_capabilities.user_id,
+  capability_id: user_capabilities.capability_id,
+  capability_key: capabilities.capability_key,
+  module: capabilities.module,
+  feature: capabilities.feature,
+  action: capabilities.action,
+  display_name: capabilities.display_name,
+  description: capabilities.description,
+  effect: user_capabilities.effect,
+  reason: user_capabilities.reason,
+  granted_by_user_id: user_capabilities.granted_by_user_id,
+  granted_at: user_capabilities.granted_at,
+} as const;
 
 function mapAppliedRoleTemplateRow(row: {
   id: string;
@@ -125,6 +133,25 @@ async function selectRoleTemplateByUserAndRole(
   return row ? mapAppliedRoleTemplateRow(row) : null;
 }
 
+/**
+ * Merges a PUT's grant and deny override lists into one row per capability. Deny wins: a
+ * capability present in both lists resolves as a single `deny` row (ADR-0037 / issue #60 risk 3),
+ * which the `UNIQUE(iq_tenant_id, user_id, capability_id)` shape structurally requires.
+ */
+function mergeOverrides(
+  grants: CapabilityOverrideInput[],
+  denies: CapabilityOverrideInput[],
+): Array<{ capability_id: string; effect: "grant" | "deny"; reason: string | null }> {
+  const merged = new Map<string, { effect: "grant" | "deny"; reason: string | null }>();
+  for (const grant of grants) {
+    merged.set(grant.capability_id, { effect: "grant", reason: grant.reason ?? null });
+  }
+  for (const deny of denies) {
+    merged.set(deny.capability_id, { effect: "deny", reason: deny.reason ?? null });
+  }
+  return [...merged.entries()].map(([capability_id, value]) => ({ capability_id, ...value }));
+}
+
 export class DrizzleUserAccessRepository implements UserAccessRepository {
   constructor(private readonly db: DbInstance) {}
 
@@ -133,7 +160,6 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
     input: {
       userId: string;
       roleId: string;
-      capabilityIds: string[];
       actorId: string | null;
     },
   ): Promise<AppliedRoleTemplate> {
@@ -148,8 +174,6 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
             assigned_by_user_id: input.actorId,
           })
           .onConflictDoNothing();
-
-        await syncRoleTemplateCapabilitySnapshot(tx, tenantId, input);
 
         const applied = await selectRoleTemplateByUserAndRole(tx, tenantId, input.userId, input.roleId);
         if (applied === null) {
@@ -197,12 +221,6 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
           ),
         );
 
-      await revokeRoleTemplateCapabilitySnapshot(tx, tenantId, {
-        userId: input.userId,
-        roleId: input.roleId,
-        actorId: input.actorId,
-      });
-
       return existing;
     });
   }
@@ -237,150 +255,69 @@ export class DrizzleUserAccessRepository implements UserAccessRepository {
     userId: string,
   ): Promise<UserCapabilityGrant[]> {
     const rows = await this.db
-      .select({
-        id: user_capabilities.id,
-        user_id: user_capabilities.user_id,
-        capability_id: user_capabilities.capability_id,
-        capability_key: capabilities.capability_key,
-        module: capabilities.module,
-        feature: capabilities.feature,
-        action: capabilities.action,
-        display_name: capabilities.display_name,
-        description: capabilities.description,
-        grant_source: user_capabilities.grant_source,
-        source_role_id: user_capabilities.source_role_id,
-        granted_by_user_id: user_capabilities.granted_by_user_id,
-        granted_at: user_capabilities.granted_at,
-        revoked_at: user_capabilities.revoked_at,
-        revoked_by_user_id: user_capabilities.revoked_by_user_id,
-      })
+      .select(capabilityOverrideColumns)
       .from(user_capabilities)
       .innerJoin(capabilities, eq(user_capabilities.capability_id, capabilities.id))
       .where(
         and(
           eq(user_capabilities.iq_tenant_id, tenantId),
           eq(user_capabilities.user_id, userId),
-          isNull(user_capabilities.revoked_at),
         ),
       );
 
     return rows
-      .map((row) => mapCapabilityGrantRow(row))
+      .map((row) => mapCapabilityOverrideRow(row))
       .sort((left, right) => left.capability_key.localeCompare(right.capability_key));
   }
 
-  async replaceManualCapabilityGrants(
+  async replaceCapabilityOverrides(
     tenantId: string,
     input: {
       userId: string;
-      capabilityIds: string[];
+      grants: CapabilityOverrideInput[];
+      denies: CapabilityOverrideInput[];
       actorId: string | null;
     },
   ): Promise<UserCapabilityGrant[]> {
     return this.db.transaction(async (tx) => {
-      const desiredIds = [...new Set(input.capabilityIds)];
-      const current = await tx
-        .select({
-          id: user_capabilities.id,
-          capability_id: user_capabilities.capability_id,
-          grant_source: user_capabilities.grant_source,
-        })
-        .from(user_capabilities)
+      await tx
+        .delete(user_capabilities)
         .where(
           and(
             eq(user_capabilities.iq_tenant_id, tenantId),
             eq(user_capabilities.user_id, input.userId),
-            isNull(user_capabilities.revoked_at),
           ),
         );
 
-      const activeByCapabilityId = new Set(current.map((row) => row.capability_id));
-      const manualGrantIdsToRevoke = current
-        .filter(
-          (row) => row.grant_source === "manual" && !desiredIds.includes(row.capability_id),
-        )
-        .map((row) => row.id);
-
-      if (manualGrantIdsToRevoke.length > 0) {
-        await tx
-          .update(user_capabilities)
-          .set({
-            revoked_at: new Date(),
-            revoked_by_user_id: input.actorId,
-          })
-          .where(
-            and(
-              eq(user_capabilities.iq_tenant_id, tenantId),
-              inArray(user_capabilities.id, manualGrantIdsToRevoke),
-            ),
-          );
-      }
-
-      const missingCapabilityIds = desiredIds.filter((capabilityId) => !activeByCapabilityId.has(capabilityId));
-      if (missingCapabilityIds.length > 0) {
+      const merged = mergeOverrides(input.grants, input.denies);
+      if (merged.length > 0) {
         const grantedAt = new Date();
-        await tx
-          .insert(user_capabilities)
-          .values(
-            missingCapabilityIds.map((capabilityId) => ({
-              iq_tenant_id: tenantId,
-              user_id: input.userId,
-              capability_id: capabilityId,
-              grant_source: "manual" as const,
-              source_role_id: null,
-              granted_by_user_id: input.actorId,
-              granted_at: grantedAt,
-              revoked_at: null,
-              revoked_by_user_id: null,
-            })),
-          )
-          .onConflictDoUpdate({
-            target: [
-              user_capabilities.iq_tenant_id,
-              user_capabilities.user_id,
-              user_capabilities.capability_id,
-            ],
-            set: {
-              grant_source: "manual",
-              source_role_id: null,
-              granted_by_user_id: input.actorId,
-              granted_at: grantedAt,
-              revoked_at: null,
-              revoked_by_user_id: null,
-            },
-          });
+        await tx.insert(user_capabilities).values(
+          merged.map((override) => ({
+            iq_tenant_id: tenantId,
+            user_id: input.userId,
+            capability_id: override.capability_id,
+            effect: override.effect,
+            reason: override.reason,
+            granted_by_user_id: input.actorId,
+            granted_at: grantedAt,
+          })),
+        );
       }
 
       const rows = await tx
-        .select({
-          id: user_capabilities.id,
-          user_id: user_capabilities.user_id,
-          capability_id: user_capabilities.capability_id,
-          capability_key: capabilities.capability_key,
-          module: capabilities.module,
-          feature: capabilities.feature,
-          action: capabilities.action,
-          display_name: capabilities.display_name,
-          description: capabilities.description,
-          grant_source: user_capabilities.grant_source,
-          source_role_id: user_capabilities.source_role_id,
-          granted_by_user_id: user_capabilities.granted_by_user_id,
-          granted_at: user_capabilities.granted_at,
-          revoked_at: user_capabilities.revoked_at,
-          revoked_by_user_id: user_capabilities.revoked_by_user_id,
-        })
+        .select(capabilityOverrideColumns)
         .from(user_capabilities)
         .innerJoin(capabilities, eq(user_capabilities.capability_id, capabilities.id))
         .where(
           and(
             eq(user_capabilities.iq_tenant_id, tenantId),
             eq(user_capabilities.user_id, input.userId),
-            isNull(user_capabilities.revoked_at),
           ),
         );
 
       return rows
-        .map((row) => mapCapabilityGrantRow(row))
+        .map((row) => mapCapabilityOverrideRow(row))
         .sort((left, right) => left.capability_key.localeCompare(right.capability_key));
     });
   }

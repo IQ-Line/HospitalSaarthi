@@ -6,7 +6,6 @@ import {
   WIZARD_MODULE_TREE_MAX_LEVEL,
 } from '@/features/configurator/components/create-tenant-wizard/wizard-module-tree';
 import type { Module } from '@/features/master-data/types';
-import { canonicalizeRuntimeCapabilityKey } from '@/lib/legacy-capability-key-remap';
 import type { Capability } from '../types';
 
 export { WIZARD_MODULE_TREE_MAX_LEVEL as MASTER_DATA_PERMISSION_TREE_MAX_LEVEL };
@@ -25,7 +24,7 @@ function indexModulesBySlug(modules: Module[]): Map<string, Module[]> {
 
 /**
  * Resolves the Master Data `modules.slug` for a runtime capability row.
- * Role-capability API responses may omit provenance; legacy keys use `um:*` / `user-management:*`.
+ * Role-capability API responses may omit provenance; fall back to the key's module segment.
  */
 export function resolveCapabilityCatalogModuleSlug(
   capability: Capability,
@@ -34,7 +33,7 @@ export function resolveCapabilityCatalogModuleSlug(
   const bySlug = indexModulesBySlug(modules);
   const candidates = [
     capability.source_module_slug?.trim(),
-    canonicalizeRuntimeCapabilityKey(capability.capability_key).split(':')[0]?.trim(),
+    capability.capability_key.trim().toLowerCase().split(':')[0]?.trim(),
     capability.module?.trim(),
   ].filter((value): value is string => Boolean(value?.length));
 
@@ -46,6 +45,7 @@ export function resolveCapabilityCatalogModuleSlug(
       matches
         .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
         .sort((a, b) => b.level - a.level)[0] ?? matches[0];
+    if (!preferred) continue;
     return normalizeSlug(preferred.slug);
   }
 
@@ -65,7 +65,9 @@ function findModuleForCapability(capability: Capability, modules: Module[]): Mod
   return (
     matches
       .filter((module) => module.level <= WIZARD_MODULE_TREE_MAX_LEVEL)
-      .sort((a, b) => b.level - a.level)[0] ?? matches[0]
+      .sort((a, b) => b.level - a.level)[0] ??
+    matches[0] ??
+    null
   );
 }
 
@@ -100,6 +102,21 @@ export function capabilitiesToMasterDataPermissionOptions(
   });
 }
 
+/** Adds `module` and each active (non-deleted) ancestor's id to `enabled`, walking up via `byId`. */
+function addActiveModuleAndAncestors(
+  module: Module,
+  byId: Map<string, Module>,
+  enabled: Set<string>,
+): void {
+  let current: Module | undefined = module;
+  while (current) {
+    if (current.is_active && !current.is_deleted) {
+      enabled.add(current.id);
+    }
+    current = current.parent_id ? byId.get(current.parent_id) : undefined;
+  }
+}
+
 /** Module ids on the catalog path for each role capability (includes L4+ leaves for rollup). */
 export function enabledModuleIdsForRoleCapabilities(
   modules: Module[],
@@ -108,22 +125,10 @@ export function enabledModuleIdsForRoleCapabilities(
   const byId = new Map(modules.map((module) => [module.id, module]));
   const enabled = new Set<string>();
 
-  const addModuleAndAncestors = (module: Module) => {
-    let current: Module | undefined = module;
-    while (current) {
-      if (!current.is_active || current.is_deleted) {
-        current = current.parent_id ? byId.get(current.parent_id) : undefined;
-        continue;
-      }
-      enabled.add(current.id);
-      current = current.parent_id ? byId.get(current.parent_id) : undefined;
-    }
-  };
-
   for (const capability of capabilities) {
     const module = findModuleForCapability(capability, modules);
     if (module) {
-      addModuleAndAncestors(module);
+      addActiveModuleAndAncestors(module, byId, enabled);
     }
   }
 
@@ -139,23 +144,11 @@ export function enabledModuleIdsForPermissionOptions(
   const bySlug = indexModulesBySlug(modules);
   const enabled = new Set<string>();
 
-  const addModuleAndAncestors = (module: Module) => {
-    let current: Module | undefined = module;
-    while (current) {
-      if (!current.is_active || current.is_deleted) {
-        current = current.parent_id ? byId.get(current.parent_id) : undefined;
-        continue;
-      }
-      enabled.add(current.id);
-      current = current.parent_id ? byId.get(current.parent_id) : undefined;
-    }
-  };
-
   for (const option of permissionOptions) {
     const slug = normalizeSlug(option.moduleSlug);
     const matches = bySlug.get(slug) ?? [];
     for (const module of matches) {
-      addModuleAndAncestors(module);
+      addActiveModuleAndAncestors(module, byId, enabled);
     }
   }
 

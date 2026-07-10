@@ -1,10 +1,10 @@
-"""SQLAlchemy models for permission catalog: ``global_master`` vs ``tenant_master``."""
+"""SQLAlchemy models for permission catalog: ``master_global`` vs ``master_tenant``."""
 
 from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, String, Text, Uuid, text
+from sqlalchemy import Boolean, CheckConstraint, Index, String, Text, Uuid, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.catalog_schemas import GLOBAL_SCHEMA, TENANT_SCHEMA
@@ -12,7 +12,7 @@ from app.models.base import Base, TimestampMixin
 
 
 class PermissionPublicModel(TimestampMixin, Base):
-    """Platform-wide permission definitions (``global_master``)."""
+    """Platform-wide permission definitions (``master_global``)."""
 
     __tablename__ = "permissions"
     __table_args__ = (
@@ -25,7 +25,6 @@ class PermissionPublicModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": GLOBAL_SCHEMA},
     )
@@ -56,7 +55,6 @@ class PermissionTenantModel(TimestampMixin, Base):
             "slug",
             unique=True,
             postgresql_where=text("NOT is_deleted"),
-            sqlite_where=text("is_deleted = 0"),
         ),
         {"schema": TENANT_SCHEMA},
     )

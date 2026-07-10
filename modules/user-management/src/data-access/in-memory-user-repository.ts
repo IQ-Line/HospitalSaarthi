@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { userMatchesReadListResourceAbac } from "../domain/user-read-list-resource-filter.js";
 import { clampClearanceTierRequired } from "../domain/um-clearance-tier.js";
+import type { RecoveryTier } from "../domain/types.js";
 import type {
   CreateUserInput,
   ListUsersOptions,
@@ -20,6 +21,7 @@ type StoredUser = {
   auth_user_id: string | null;
   status: UserStatus;
   username: string | null;
+  recovery_tier: RecoveryTier;
   org_id: string | null;
   department: string | null;
   clearance_tier_required: number;
@@ -47,6 +49,7 @@ export class InMemoryUserRepository implements UserRepository {
       phone: row.phone,
       auth_user_id: row.auth_user_id,
       username: row.username,
+      recovery_tier: row.recovery_tier,
       org_id: row.org_id,
       department: row.department,
       clearance_tier_required: row.clearance_tier_required,
@@ -59,7 +62,12 @@ export class InMemoryUserRepository implements UserRepository {
    * Bootstrap helper (tests / dev issuance): persist a user with a deterministic id so JWT `sub`
    * resolves before role assignment workflows exist.
    */
-  insertUserWithId(tenantId: string, userId: string, input: CreateUserInput): User {
+  insertUserWithId(
+    tenantId: string,
+    userId: string,
+    input: CreateUserInput,
+    recoveryTier: RecoveryTier = "standard",
+  ): User {
     const key = rowKey(tenantId, userId);
     const row: StoredUser = {
       id: userId,
@@ -69,6 +77,7 @@ export class InMemoryUserRepository implements UserRepository {
       auth_user_id: null,
       status: "active",
       username: input.username ?? null,
+      recovery_tier: recoveryTier,
       org_id: input.org_id ?? null,
       department: input.department ?? null,
       clearance_tier_required:
@@ -92,6 +101,8 @@ export class InMemoryUserRepository implements UserRepository {
       auth_user_id: null,
       status: "active",
       username: input.username ?? null,
+      // Parity with the create-user use-case derivation (real email -> self-serve recovery later).
+      recovery_tier: input.email ? "standard" : "admin_only",
       org_id: input.org_id ?? null,
       department: input.department ?? null,
       clearance_tier_required:

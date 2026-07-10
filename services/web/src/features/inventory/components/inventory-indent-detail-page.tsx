@@ -35,9 +35,9 @@ import {
   useInventoryStores,
 } from '../api/queries';
 import {
-  canApproveIndent,
-  canFulfillIndent,
   indentApprovalRequiresStockCheck,
+  indentAwaitsApproval,
+  indentAwaitsFulfillment,
   indentStockSupplyStoreId,
   indentTransferFromStoreId,
   isPartialApproval,
@@ -46,7 +46,15 @@ import {
   type IndentListDirection,
 } from '../lib/indent-workflow';
 import { EMPTY_INDENT_LINE } from '../mock/fixtures';
-import type { InventoryIndentLine, InventoryIndentStatus } from '../types';
+import type {
+  InventoryIndentActiveMatch,
+  InventoryIndentLine,
+  InventoryIndentRow,
+  InventoryIndentStatus,
+  InventoryIndentStoreOption,
+  InventoryItemOption,
+  InventoryStore,
+} from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryPanel } from './inventory-kpi-card';
 
@@ -77,6 +85,1045 @@ type InventoryIndentDetailPageProps = {
 
 function isEditableStatus(status: InventoryIndentStatus | undefined, isNew: boolean) {
   return isNew || status === 'draft';
+}
+
+type IndentListSearch = { tab: IndentListDirection; storeId: string | undefined };
+type IndentFulfillment = 'stock_transfer' | 'procurement';
+type IndentTypeValue = 'store_transfer' | 'pharmacy_refill' | 'emergency';
+type IndentPriority = 'normal' | 'urgent' | 'stat';
+
+type IndentActionsProps = {
+  isNew: boolean;
+  status: InventoryIndentStatus | undefined;
+  listSearch: IndentListSearch;
+  editable: boolean;
+  saveDraftPending: boolean;
+  submitPending: boolean;
+  cancelPending: boolean;
+  submitAttempted: boolean;
+  draftValid: boolean;
+  onSaveDraft: () => void;
+  onSubmit: () => void;
+  onCancelDraft: () => void;
+};
+
+function IndentActions({
+  isNew,
+  status,
+  listSearch,
+  editable,
+  saveDraftPending,
+  submitPending,
+  cancelPending,
+  submitAttempted,
+  draftValid,
+  onSaveDraft,
+  onSubmit,
+  onCancelDraft,
+}: IndentActionsProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {!isNew && status ? (
+        <Badge variant={indentStatusBadgeVariant(status)}>{indentStatusLabel(status)}</Badge>
+      ) : null}
+      <Button type="button" variant="ghost" size="sm" className="gap-1.5" asChild>
+        <Link to="/inventory/indents" search={listSearch}>
+          <ArrowLeft className="size-4" aria-hidden />
+          Back
+        </Link>
+      </Button>
+      {editable ? (
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onSaveDraft}
+            disabled={saveDraftPending || (submitAttempted && !draftValid)}
+          >
+            Save draft
+          </Button>
+          {!isNew ? (
+            <>
+              <Button
+                type="button"
+                onClick={onSubmit}
+                disabled={submitPending || (submitAttempted && !draftValid)}
+              >
+                Submit
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={onCancelDraft}
+                disabled={cancelPending}
+              >
+                Cancel draft
+              </Button>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+type IndentDetailsFieldsProps = {
+  editable: boolean;
+  isProcurement: boolean;
+  indentDate: string;
+  onIndentDateChange: (value: string) => void;
+  fulfillment: IndentFulfillment;
+  onFulfillmentChange: (value: IndentFulfillment) => void;
+  procurementStores: InventoryStore[];
+  purchaseIndentNumber: string;
+  onPurchaseIndentNumberChange: (value: string) => void;
+  fromStoreId: string;
+  onFromStoreIdChange: (value: string) => void;
+  toStoreId: string;
+  onToStoreIdChange: (value: string) => void;
+  indentType: IndentTypeValue;
+  onIndentTypeChange: (value: IndentTypeValue) => void;
+  priority: IndentPriority;
+  onPriorityChange: (value: IndentPriority) => void;
+  remarks: string;
+  onRemarksChange: (value: string) => void;
+  stores: InventoryStore[];
+  submitAttempted: boolean;
+  headerErrors: Record<string, string>;
+};
+
+function IndentDetailsFields({
+  editable,
+  isProcurement,
+  indentDate,
+  onIndentDateChange,
+  fulfillment,
+  onFulfillmentChange,
+  procurementStores,
+  purchaseIndentNumber,
+  onPurchaseIndentNumberChange,
+  fromStoreId,
+  onFromStoreIdChange,
+  toStoreId,
+  onToStoreIdChange,
+  indentType,
+  onIndentTypeChange,
+  priority,
+  onPriorityChange,
+  remarks,
+  onRemarksChange,
+  stores,
+  submitAttempted,
+  headerErrors,
+}: IndentDetailsFieldsProps) {
+  return (
+    <>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="space-y-2">
+          <Label htmlFor="indent-date">Indent date</Label>
+          <Input
+            id="indent-date"
+            type="date"
+            value={indentDate}
+            disabled={!editable}
+            onChange={(event) => onIndentDateChange(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Fulfillment</Label>
+          <Select
+            value={fulfillment}
+            disabled={!editable}
+            onValueChange={(v) => onFulfillmentChange(v as IndentFulfillment)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FULFILLMENT_OPTIONS.map((option) => (
+                <SelectItem
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.value === 'procurement' && procurementStores.length === 0}
+                >
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {isProcurement ? (
+            <p className="text-xs text-muted-foreground">
+              Stock is procured from an external supplier. No internal store transfer.
+            </p>
+          ) : null}
+        </div>
+        {isProcurement ? (
+          <div className="space-y-2">
+            <Label>Purchase indent #</Label>
+            <Input
+              value={purchaseIndentNumber}
+              disabled={!editable}
+              onChange={(e) => onPurchaseIndentNumberChange(e.target.value)}
+            />
+            {submitAttempted && headerErrors.purchase_indent_number ? (
+              <p className="text-xs text-destructive">
+                {headerErrors.purchase_indent_number}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {isProcurement ? (
+          <div className="space-y-2">
+            <Label>Receiving store</Label>
+            <Select
+              value={fromStoreId || undefined}
+              disabled={!editable}
+              onValueChange={onFromStoreIdChange}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select" />
+              </SelectTrigger>
+              <SelectContent>
+                {procurementStores.map((store) => (
+                  <SelectItem key={store.id} value={store.id}>
+                    {store.store_code} — {store.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {submitAttempted && headerErrors.from_store_id ? (
+              <p className="text-xs text-destructive">
+                {headerErrors.from_store_id}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label>From store</Label>
+              <Select
+                value={fromStoreId || undefined}
+                disabled={!editable}
+                onValueChange={onFromStoreIdChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.store_code} — {store.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {submitAttempted && headerErrors.from_store_id ? (
+                <p className="text-xs text-destructive">
+                  {headerErrors.from_store_id}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label>To store</Label>
+              <Select
+                value={toStoreId || undefined}
+                disabled={!editable}
+                onValueChange={onToStoreIdChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stores.map((store) => (
+                    <SelectItem key={store.id} value={store.id}>
+                      {store.store_code} — {store.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {submitAttempted && headerErrors.to_store_id ? (
+                <p className="text-xs text-destructive">
+                  {headerErrors.to_store_id}
+                </p>
+              ) : null}
+            </div>
+          </>
+        )}
+        <div className="space-y-2">
+          <Label>Indent type</Label>
+          <Select
+            value={indentType}
+            disabled={!editable}
+            onValueChange={(v) => onIndentTypeChange(v as IndentTypeValue)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INDENT_TYPES.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <Label>Priority</Label>
+        <ToggleGroup
+          type="single"
+          value={priority}
+          disabled={!editable}
+          onValueChange={(value) => {
+            if (value) onPriorityChange(value as IndentPriority);
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="normal">Normal</ToggleGroupItem>
+          <ToggleGroupItem value="urgent">Urgent</ToggleGroupItem>
+          <ToggleGroupItem value="stat">STAT</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      <div className="mt-4 space-y-2">
+        <Label htmlFor="indent-remarks">Remarks</Label>
+        <Textarea
+          id="indent-remarks"
+          value={remarks}
+          disabled={!editable}
+          onChange={(event) => onRemarksChange(event.target.value)}
+          rows={2}
+        />
+      </div>
+    </>
+  );
+}
+
+function resolveLineAvailableDisplay(
+  line: Pick<InventoryIndentLine, 'item_id' | 'item_code'>,
+  availableQtyByItemId: Map<string, number>,
+  availableQtyByItemCode: Map<string, number>,
+): number | '—' {
+  if (!line.item_id && !line.item_code) return '—';
+  return (
+    (line.item_id ? availableQtyByItemId.get(line.item_id) : undefined) ??
+    (line.item_code ? availableQtyByItemCode.get(line.item_code) : undefined) ??
+    0
+  );
+}
+
+type IndentLineRowProps = {
+  line: InventoryIndentLine;
+  index: number;
+  editable: boolean;
+  showAvailableQty: boolean;
+  showApproval: boolean;
+  showApprovedQtyReadOnly: boolean;
+  items: InventoryItemOption[];
+  availableQtyByItemCode: Map<string, number>;
+  availableQtyByItemId: Map<string, number>;
+  approvedQtyByLine: Record<string, string>;
+  activeMatches: InventoryIndentActiveMatch[] | undefined;
+  lineTableColSpan: number;
+  onItemSelect: (lineId: string, itemId: string) => void;
+  onUpdateLine: (lineId: string, patch: Partial<InventoryIndentLine>) => void;
+  onApprovedQtyChange: (lineId: string, value: string) => void;
+  onRemove: () => void;
+};
+
+function IndentLineRow({
+  line,
+  index,
+  editable,
+  showAvailableQty,
+  showApproval,
+  showApprovedQtyReadOnly,
+  items,
+  availableQtyByItemCode,
+  availableQtyByItemId,
+  approvedQtyByLine,
+  activeMatches,
+  lineTableColSpan,
+  onItemSelect,
+  onUpdateLine,
+  onApprovedQtyChange,
+  onRemove,
+}: IndentLineRowProps) {
+  return (
+    <Fragment>
+      <tr className="border-b align-top">
+        <td className="px-2 py-2 tabular-nums text-muted-foreground">{index + 1}</td>
+        <td className="px-2 py-2">
+          {editable ? (
+            <Select
+              value={line.item_id || undefined}
+              onValueChange={(value) => onItemSelect(line.id, value)}
+            >
+              <SelectTrigger className="min-w-[220px]">
+                <SelectValue placeholder="Search or select item…" />
+              </SelectTrigger>
+              <SelectContent>
+                {items.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.code} — {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            line.item_name
+          )}
+        </td>
+        <td className="px-2 py-2 text-muted-foreground">{line.item_code || '—'}</td>
+        <td className="px-2 py-2">{line.uom || '—'}</td>
+        {showAvailableQty ? (
+          <td className="px-2 py-2 tabular-nums">
+            {resolveLineAvailableDisplay(line, availableQtyByItemId, availableQtyByItemCode)}
+          </td>
+        ) : null}
+        <td className="px-2 py-2">
+          {editable ? (
+            <Input
+              type="number"
+              min={0}
+              className="w-24"
+              value={line.requested_qty}
+              onChange={(e) =>
+                onUpdateLine(line.id, { requested_qty: Number(e.target.value) })
+              }
+            />
+          ) : (
+            line.requested_qty
+          )}
+        </td>
+        {showApproval ? (
+          <td className="px-2 py-2">
+            <Input
+              type="number"
+              min={0}
+              className="w-24"
+              value={approvedQtyByLine[line.id] ?? ''}
+              onChange={(e) =>
+                onApprovedQtyChange(line.id, e.target.value)
+              }
+            />
+          </td>
+        ) : showApprovedQtyReadOnly ? (
+          <td className="px-2 py-2 tabular-nums">
+            {line.approved_qty ?? approvedQtyByLine[line.id] ?? '—'}
+          </td>
+        ) : null}
+        <td className="px-2 py-2">
+          {editable ? (
+            <Input
+              value={line.remarks ?? ''}
+              onChange={(e) => onUpdateLine(line.id, { remarks: e.target.value })}
+            />
+          ) : (
+            (line.remarks ?? '—')
+          )}
+        </td>
+        {editable ? (
+          <td className="px-2 py-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onRemove}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </td>
+        ) : null}
+      </tr>
+      {activeMatches && activeMatches.length > 0 ? (
+        <tr className="border-b bg-amber-50/60 dark:bg-amber-950/20">
+          <td
+            colSpan={lineTableColSpan}
+            className="px-3 py-1.5 text-[11px] leading-tight text-amber-700 dark:text-amber-400"
+          >
+            Already on{' '}
+            {activeMatches.map((match, matchIndex) => (
+              <Fragment key={match.indent_id}>
+                {matchIndex > 0 ? ', ' : null}
+                <Link
+                  to="/inventory/indents/$indentId"
+                  params={{ indentId: match.indent_id }}
+                  className="font-mono underline underline-offset-2"
+                >
+                  {match.indent_number}
+                </Link>{' '}
+                ({indentStatusLabel(match.status)})
+              </Fragment>
+            ))}
+            . Consider updating the existing indent instead.
+          </td>
+        </tr>
+      ) : null}
+    </Fragment>
+  );
+}
+
+type IndentItemsPanelProps = {
+  isIncoming: boolean;
+  showAvailableQty: boolean;
+  showApproval: boolean;
+  showApprovedQtyReadOnly: boolean;
+  editable: boolean;
+  lines: InventoryIndentLine[];
+  items: InventoryItemOption[];
+  approvalRemarks: string;
+  onApprovalRemarksChange: (value: string) => void;
+  availableQtyByItemCode: Map<string, number>;
+  availableQtyByItemId: Map<string, number>;
+  approvedQtyByLine: Record<string, string>;
+  onApprovedQtyChange: (lineId: string, value: string) => void;
+  activeIndentWarningsByLine: Record<string, InventoryIndentActiveMatch[]>;
+  lineTableColSpan: number;
+  onItemSelect: (lineId: string, itemId: string) => void;
+  onUpdateLine: (lineId: string, patch: Partial<InventoryIndentLine>) => void;
+  onRemoveLine: (lineId: string) => void;
+  onAddRow: () => void;
+};
+
+function IndentItemsPanel({
+  isIncoming,
+  showAvailableQty,
+  showApproval,
+  showApprovedQtyReadOnly,
+  editable,
+  lines,
+  items,
+  approvalRemarks,
+  onApprovalRemarksChange,
+  availableQtyByItemCode,
+  availableQtyByItemId,
+  approvedQtyByLine,
+  onApprovedQtyChange,
+  activeIndentWarningsByLine,
+  lineTableColSpan,
+  onItemSelect,
+  onUpdateLine,
+  onRemoveLine,
+  onAddRow,
+}: IndentItemsPanelProps) {
+  return (
+    <InventoryPanel title={isIncoming ? `Item details (${lines.length})` : `Requested items (${lines.length})`}>
+      {showApproval ? (
+        <div className="mb-4 space-y-2">
+          <Label htmlFor="approval-remarks">Approval remarks (required for partial approval)</Label>
+          <Textarea
+            id="approval-remarks"
+            value={approvalRemarks}
+            onChange={(event) => onApprovalRemarksChange(event.target.value)}
+            rows={2}
+            placeholder="Explain why approved quantity is less than requested"
+          />
+        </div>
+      ) : null}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[960px] text-sm">
+          <thead>
+            <tr className="border-b text-left text-muted-foreground">
+              <th className="px-2 py-2 font-medium">#</th>
+              <th className="px-2 py-2 font-medium">Item</th>
+              <th className="px-2 py-2 font-medium">Item code</th>
+              <th className="px-2 py-2 font-medium">Base UOM</th>
+              {showAvailableQty ? <th className="px-2 py-2 font-medium">Available qty</th> : null}
+              <th className="px-2 py-2 font-medium">Req. qty</th>
+              {showApproval || showApprovedQtyReadOnly ? (
+                <th className="px-2 py-2 font-medium">Approved qty</th>
+              ) : null}
+              <th className="px-2 py-2 font-medium">Remarks</th>
+              {editable ? <th className="px-2 py-2" /> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {lines.map((line, index) => (
+              <IndentLineRow
+                key={line.id}
+                line={line}
+                index={index}
+                editable={editable}
+                showAvailableQty={showAvailableQty}
+                showApproval={showApproval}
+                showApprovedQtyReadOnly={showApprovedQtyReadOnly}
+                items={items}
+                availableQtyByItemCode={availableQtyByItemCode}
+                availableQtyByItemId={availableQtyByItemId}
+                approvedQtyByLine={approvedQtyByLine}
+                activeMatches={activeIndentWarningsByLine[line.id]}
+                lineTableColSpan={lineTableColSpan}
+                onItemSelect={onItemSelect}
+                onUpdateLine={onUpdateLine}
+                onApprovedQtyChange={onApprovedQtyChange}
+                onRemove={() => onRemoveLine(line.id)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {editable ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-3 gap-1.5"
+          onClick={onAddRow}
+        >
+          <Plus className="size-4" />
+          Add row
+        </Button>
+      ) : null}
+    </InventoryPanel>
+  );
+}
+
+function toErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function computeLineTableColSpan(
+  showAvailableQty: boolean,
+  showApproval: boolean,
+  showApprovedQtyReadOnly: boolean,
+  editable: boolean,
+) {
+  return (
+    6 +
+    (showAvailableQty ? 1 : 0) +
+    (showApproval || showApprovedQtyReadOnly ? 1 : 0) +
+    (editable ? 1 : 0)
+  );
+}
+
+function buildAvailableQtyMap(rows: Array<{ item_code: string; quantity: number }>) {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.item_code, row.quantity);
+  }
+  return map;
+}
+
+type BuildIndentPayloadInput = {
+  indentDate: string;
+  fromStoreId: string;
+  toStoreId: string;
+  isProcurement: boolean;
+  indentType: IndentTypeValue;
+  priority: IndentPriority;
+  fulfillment: IndentFulfillment;
+  purchaseIndentNumber: string;
+  remarks: string;
+  lines: InventoryIndentLine[];
+};
+
+function buildIndentPayload({
+  indentDate,
+  fromStoreId,
+  toStoreId,
+  isProcurement,
+  indentType,
+  priority,
+  fulfillment,
+  purchaseIndentNumber,
+  remarks,
+  lines,
+}: BuildIndentPayloadInput) {
+  return {
+    indent_date: indentDate,
+    from_store_id: fromStoreId,
+    to_store_id: isProcurement ? null : toStoreId || null,
+    indent_type: indentType,
+    priority,
+    fulfillment_route: fulfillment,
+    purchase_indent_number: fulfillment === 'procurement' ? purchaseIndentNumber : null,
+    remarks: remarks || null,
+    lines: lines
+      .filter((line) => line.item_id)
+      .map((line, index) => ({
+        item_id: line.item_id!,
+        requested_qty: Number(line.requested_qty),
+        line_remarks: line.remarks || null,
+        sort_order: index,
+      })),
+  };
+}
+
+function buildApprovalLines(
+  lines: InventoryIndentLine[],
+  approvedQtyByLine: Record<string, string>,
+) {
+  return lines
+    .filter((line) => line.id && line.item_id)
+    .map((line) => ({
+      line_id: line.id,
+      approved_qty: Number(approvedQtyByLine[line.id] ?? line.requested_qty),
+    }));
+}
+
+function approvalExceedsRequested(
+  lines: InventoryIndentLine[],
+  approvalLines: Array<{ line_id: string; approved_qty: number }>,
+) {
+  for (const line of approvalLines) {
+    const source = lines.find((entry) => entry.id === line.line_id);
+    if (line.approved_qty > Number(source?.requested_qty ?? 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+type IndentWorkflowItemListProps = {
+  lines: InventoryIndentLine[];
+  status: InventoryIndentStatus | undefined;
+  showApproval: boolean;
+  requiresApprovalStockCheck: boolean;
+  stockStoreName: string | null;
+  availableQtyByItemId: Map<string, number>;
+  availableQtyByItemCode: Map<string, number>;
+  approvedQtyByLine: Record<string, string>;
+  onApprovedQtyChange: (lineId: string, value: string) => void;
+};
+
+function IndentWorkflowItemList({
+  lines,
+  status,
+  showApproval,
+  requiresApprovalStockCheck,
+  stockStoreName,
+  availableQtyByItemId,
+  availableQtyByItemCode,
+  approvedQtyByLine,
+  onApprovedQtyChange,
+}: IndentWorkflowItemListProps) {
+  return (
+    <ul className="flex flex-col gap-2">
+      {lines
+        .filter((line) => line.item_id)
+        .map((line) => (
+          <li key={line.id} className="rounded-md border bg-muted/40 px-3 py-2">
+            <div className="font-medium">{line.item_name}</div>
+            <div className="text-xs text-muted-foreground">
+              {line.item_code} · requested {line.requested_qty} {line.uom}
+              {status !== 'submitted' && line.approved_qty != null
+                ? ` · approved ${line.approved_qty}`
+                : null}
+            </div>
+            {showApproval ? (
+              <>
+                {requiresApprovalStockCheck && (line.item_code || line.item_id) ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Available at {stockStoreName ?? 'supply store'}:{' '}
+                    {resolveLineAvailableDisplay(line, availableQtyByItemId, availableQtyByItemCode)}{' '}
+                    {line.uom}
+                  </p>
+                ) : null}
+                <div className="mt-2 flex items-center gap-2">
+                  <Label className="text-xs">Approved qty</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="h-8 w-24"
+                    value={approvedQtyByLine[line.id] ?? ''}
+                    onChange={(e) => onApprovedQtyChange(line.id, e.target.value)}
+                  />
+                </div>
+              </>
+            ) : null}
+          </li>
+        ))}
+    </ul>
+  );
+}
+
+function IndentFulfillmentLinks({
+  detail,
+  fulfillmentDir,
+}: {
+  detail: InventoryIndentRow;
+  fulfillmentDir: IndentListDirection;
+}) {
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Fulfillment in progress — complete the linked document to mark this indent fulfilled.
+      </p>
+      {detail.inventory_stock_transfer_id ? (
+        <Button type="button" className="w-full" asChild>
+          <Link
+            to="/inventory/transfers"
+            search={{
+              transferId: detail.inventory_stock_transfer_id,
+              tab: fulfillmentDir === 'incoming' ? 'outgoing' : 'incoming',
+              storeId:
+                fulfillmentDir === 'incoming'
+                  ? detail.from_store_id
+                  : detail.to_store_id ?? undefined,
+            }}
+          >
+            Open transfers
+          </Link>
+        </Button>
+      ) : null}
+      {detail.inventory_grn_id ? (
+        <Button type="button" variant="outline" className="w-full" asChild>
+          <Link to="/inventory/grn-logs/new" search={{ grnId: detail.inventory_grn_id }}>
+            Open GRN
+          </Link>
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+type IndentWorkflowViewProps = {
+  detail: InventoryIndentRow;
+  status: InventoryIndentStatus | undefined;
+  showApproval: boolean;
+  requiresApprovalStockCheck: boolean;
+  stockStoreName: string | null;
+  availableQtyByItemId: Map<string, number>;
+  availableQtyByItemCode: Map<string, number>;
+  approvedQtyByLine: Record<string, string>;
+  approvalRemarks: string;
+  rejectReason: string;
+  canFulfill: boolean;
+  totalQty: number;
+  lines: InventoryIndentLine[];
+  activeStoreId: string | undefined;
+  approvePending: boolean;
+  rejectPending: boolean;
+  fulfillPending: boolean;
+  onApprovedQtyChange: (lineId: string, value: string) => void;
+  onApprovalRemarksChange: (value: string) => void;
+  onRejectReasonChange: (value: string) => void;
+  onApprove: () => void;
+  onReject: () => void;
+  onInitiateFulfillment: () => void;
+};
+
+function IndentWorkflowView({
+  detail,
+  status,
+  showApproval,
+  requiresApprovalStockCheck,
+  stockStoreName,
+  availableQtyByItemId,
+  availableQtyByItemCode,
+  approvedQtyByLine,
+  approvalRemarks,
+  rejectReason,
+  canFulfill,
+  totalQty,
+  lines,
+  activeStoreId,
+  approvePending,
+  rejectPending,
+  fulfillPending,
+  onApprovedQtyChange,
+  onApprovalRemarksChange,
+  onRejectReasonChange,
+  onApprove,
+  onReject,
+  onInitiateFulfillment,
+}: IndentWorkflowViewProps) {
+  const fulfillmentDir = resolveIndentDetailDirection(detail, activeStoreId);
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
+      <div className="space-y-4">
+        <div className="space-y-1 text-sm">
+          <p>
+            <span className="text-muted-foreground">From: </span>
+            <span className="font-medium">{detail.from_store}</span>
+          </p>
+          {detail.route !== 'procurement' ? (
+            <p>
+              <span className="text-muted-foreground">To: </span>
+              <span className="font-medium">{detail.to_store}</span>
+            </p>
+          ) : null}
+          <p>
+            <span className="text-muted-foreground">Type: </span>
+            <span className="font-medium">{indentTypeLabel(detail.indent_type)}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Priority: </span>
+            <span className="font-medium uppercase">{detail.priority}</span>
+          </p>
+          <p>
+            <span className="text-muted-foreground">Route: </span>
+            <span className="font-medium">{fulfillmentRouteLabel(detail.route)}</span>
+          </p>
+        </div>
+
+        <InventoryPanel title="Items">
+          <IndentWorkflowItemList
+            lines={lines}
+            status={status}
+            showApproval={showApproval}
+            requiresApprovalStockCheck={requiresApprovalStockCheck}
+            stockStoreName={stockStoreName}
+            availableQtyByItemId={availableQtyByItemId}
+            availableQtyByItemCode={availableQtyByItemCode}
+            approvedQtyByLine={approvedQtyByLine}
+            onApprovedQtyChange={onApprovedQtyChange}
+          />
+
+          {showApproval ? (
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="approval-remarks">
+                  Approval remarks (required for partial approval)
+                </Label>
+                <Textarea
+                  id="approval-remarks"
+                  value={approvalRemarks}
+                  onChange={(event) => onApprovalRemarksChange(event.target.value)}
+                  rows={2}
+                  placeholder="Explain why approved quantity is less than requested"
+                />
+              </div>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={onApprove}
+                disabled={approvePending}
+              >
+                Save approval
+              </Button>
+              <div className="space-y-2">
+                <Label className="text-xs" htmlFor="reject-reason">
+                  Reject reason
+                </Label>
+                <Textarea
+                  id="reject-reason"
+                  value={rejectReason}
+                  onChange={(e) => onRejectReasonChange(e.target.value)}
+                  rows={2}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="destructive"
+                className="w-full"
+                onClick={onReject}
+                disabled={rejectPending || !rejectReason.trim()}
+              >
+                Reject indent
+              </Button>
+            </div>
+          ) : null}
+
+          {canFulfill ? (
+            <div className="mt-4">
+              <Button
+                type="button"
+                className="w-full"
+                onClick={onInitiateFulfillment}
+                disabled={fulfillPending}
+              >
+                Initiate fulfillment (
+                {detail.route === 'procurement' ? 'PR + GRN' : 'stock transfer'})
+              </Button>
+            </div>
+          ) : null}
+
+          {status === 'in_fulfillment' ? (
+            <IndentFulfillmentLinks detail={detail} fulfillmentDir={fulfillmentDir} />
+          ) : null}
+        </InventoryPanel>
+      </div>
+
+      <InventoryPanel title="Summary">
+        <dl className="space-y-3 text-sm">
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Total requested qty</dt>
+            <dd className="font-medium tabular-nums">{totalQty}</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-muted-foreground">Line items</dt>
+            <dd className="font-medium tabular-nums">{lines.filter((l) => l.item_id).length}</dd>
+          </div>
+          {detail.inventory_grn_id ? (
+            <div className="flex justify-between gap-2">
+              <dt className="text-muted-foreground">Linked GRN</dt>
+              <dd>
+                <Link
+                  to="/inventory/grn-logs/new"
+                  search={{ grnId: detail.inventory_grn_id }}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Open GRN
+                </Link>
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+      </InventoryPanel>
+    </div>
+  );
+}
+
+function resolveStockStoreName(
+  detail: InventoryIndentRow | undefined,
+  stockStoreId: string,
+  indentStores: InventoryIndentStoreOption[],
+): string | null {
+  if (!detail || !stockStoreId) return null;
+  const match = indentStores.find((store) => store.id === stockStoreId);
+  if (match) return match.name;
+  return stockStoreId === detail.from_store_id ? detail.from_store : detail.to_store;
+}
+
+type IndentViewFlags = {
+  listDirection: IndentListDirection;
+  isIncoming: boolean;
+  status: InventoryIndentStatus | undefined;
+  editable: boolean;
+  showApproval: boolean;
+  showWorkflowView: boolean;
+  canFulfill: boolean;
+  requiresApprovalStockCheck: boolean;
+  showAvailableQty: boolean;
+  showApprovedQtyReadOnly: boolean;
+};
+
+function deriveIndentViewFlags(
+  detail: InventoryIndentRow | undefined,
+  isNew: boolean,
+  view: IndentListDirection | undefined,
+  activeStoreId: string | undefined,
+): IndentViewFlags {
+  const listDirection =
+    view ?? (detail ? resolveIndentDetailDirection(detail, activeStoreId) : 'outgoing');
+  const isIncoming = listDirection === 'incoming';
+  const status = isNew ? 'draft' : detail?.status;
+  const editable = !isIncoming && isEditableStatus(status, isNew);
+  const showApproval = detail ? indentAwaitsApproval(detail) : false;
+  const canFulfill = detail ? indentAwaitsFulfillment(detail) : false;
+  const requiresApprovalStockCheck = detail
+    ? indentApprovalRequiresStockCheck(detail.route)
+    : false;
+  return {
+    listDirection,
+    isIncoming,
+    status,
+    editable,
+    showApproval,
+    showWorkflowView: !isNew && status !== 'draft',
+    canFulfill,
+    requiresApprovalStockCheck,
+    showAvailableQty: requiresApprovalStockCheck && (showApproval || canFulfill),
+    showApprovedQtyReadOnly:
+      !showApproval &&
+      status != null &&
+      !['draft', 'submitted', 'cancelled'].includes(status),
+  };
 }
 
 export function InventoryIndentDetailPage({
@@ -120,40 +1167,30 @@ export function InventoryIndentDetailPage({
     [stores],
   );
 
-  const listDirection =
-    view ??
-    (detail ? resolveIndentDetailDirection(detail, activeStoreId) : 'outgoing');
-  const isIncoming = listDirection === 'incoming';
-  const status = isNew ? 'draft' : detail?.status;
-  const editable = !isIncoming && isEditableStatus(status, isNew);
-  const showApproval = detail ? canApproveIndent(detail) : false;
-  const showWorkflowView = !isNew && status !== 'draft';
-  const canFulfill = detail ? canFulfillIndent(detail) : false;
-  const requiresApprovalStockCheck = detail ? indentApprovalRequiresStockCheck(detail.route) : false;
-  const showAvailableQty = (showApproval && requiresApprovalStockCheck) || (canFulfill && requiresApprovalStockCheck);
-  const showApprovedQtyReadOnly =
-    !showApproval &&
-    status != null &&
-    !['draft', 'submitted', 'cancelled'].includes(status);
+  const {
+    listDirection,
+    isIncoming,
+    status,
+    editable,
+    showApproval,
+    showWorkflowView,
+    canFulfill,
+    requiresApprovalStockCheck,
+    showAvailableQty,
+    showApprovedQtyReadOnly,
+  } = deriveIndentViewFlags(detail, isNew, view, activeStoreId);
   const stockStoreId = detail ? indentStockSupplyStoreId(detail) : toStoreId;
-  const stockStoreName =
-    detail && stockStoreId
-      ? (indentStores.find((store) => store.id === stockStoreId)?.name ??
-        (stockStoreId === detail.from_store_id ? detail.from_store : detail.to_store))
-      : null;
+  const stockStoreName = resolveStockStoreName(detail, stockStoreId, indentStores);
 
   const { data: stockData } = useInventoryStock({
     store_id: showAvailableQty ? stockStoreId : undefined,
     status: 'all',
   });
 
-  const availableQtyByItemCode = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of stockData?.data ?? []) {
-      map.set(row.item_code, row.quantity);
-    }
-    return map;
-  }, [stockData?.data]);
+  const availableQtyByItemCode = useMemo(
+    () => buildAvailableQtyMap(stockData?.data ?? []),
+    [stockData?.data],
+  );
 
   const availableQtyByItemId = useMemo(() => {
     const map = new Map<string, number>();
@@ -236,8 +1273,12 @@ export function InventoryIndentDetailPage({
     indentId,
   );
 
-  const lineTableColSpan =
-    6 + (showAvailableQty ? 1 : 0) + (showApproval || showApprovedQtyReadOnly ? 1 : 0) + (editable ? 1 : 0);
+  const lineTableColSpan = computeLineTableColSpan(
+    showAvailableQty,
+    showApproval,
+    showApprovedQtyReadOnly,
+    editable,
+  );
 
   const updateLine = (lineId: string, patch: Partial<InventoryIndentLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)));
@@ -269,24 +1310,19 @@ export function InventoryIndentDetailPage({
     }
   };
 
-  const buildPayload = () => ({
-    indent_date: indentDate,
-    from_store_id: fromStoreId,
-    to_store_id: isProcurement ? null : toStoreId || null,
-    indent_type: indentType,
-    priority,
-    fulfillment_route: fulfillment,
-    purchase_indent_number: fulfillment === 'procurement' ? purchaseIndentNumber : null,
-    remarks: remarks || null,
-    lines: lines
-      .filter((line) => line.item_id)
-      .map((line, index) => ({
-        item_id: line.item_id!,
-        requested_qty: Number(line.requested_qty),
-        line_remarks: line.remarks || null,
-        sort_order: index,
-      })),
-  });
+  const buildPayload = () =>
+    buildIndentPayload({
+      indentDate,
+      fromStoreId,
+      toStoreId,
+      isProcurement,
+      indentType,
+      priority,
+      fulfillment,
+      purchaseIndentNumber,
+      remarks,
+      lines,
+    });
 
   const handleSaveDraft = async () => {
     setSubmitAttempted(true);
@@ -310,7 +1346,7 @@ export function InventoryIndentDetailPage({
         void refetch();
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save indent');
+      toast.error(toErrorMessage(error, 'Failed to save indent'));
     }
   };
 
@@ -341,24 +1377,16 @@ export function InventoryIndentDetailPage({
         },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to submit indent');
+      toast.error(toErrorMessage(error, 'Failed to submit indent'));
     }
   };
 
   const handleApprove = async () => {
-    const approvalLines = lines
-      .filter((line) => line.id && line.item_id)
-      .map((line) => ({
-        line_id: line.id,
-        approved_qty: Number(approvedQtyByLine[line.id] ?? line.requested_qty),
-      }));
+    const approvalLines = buildApprovalLines(lines, approvedQtyByLine);
 
-    for (const line of approvalLines) {
-      const source = lines.find((entry) => entry.id === line.line_id);
-      if (line.approved_qty > Number(source?.requested_qty ?? 0)) {
-        toast.error('Approved quantity cannot exceed requested quantity.');
-        return;
-      }
+    if (approvalExceedsRequested(lines, approvalLines)) {
+      toast.error('Approved quantity cannot exceed requested quantity.');
+      return;
     }
 
     const partial = isPartialApproval(lines, approvedQtyByLine);
@@ -401,7 +1429,7 @@ export function InventoryIndentDetailPage({
       toast.success(partial ? 'Partial approval saved' : 'Indent approved');
       void refetch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to approve indent');
+      toast.error(toErrorMessage(error, 'Failed to approve indent'));
     }
   };
 
@@ -416,7 +1444,7 @@ export function InventoryIndentDetailPage({
       toast.success('Draft indent cancelled');
       void navigate({ to: '/inventory/indents', search: { tab: 'outgoing', storeId: activeStoreId } });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to cancel indent');
+      toast.error(toErrorMessage(error, 'Failed to cancel indent'));
     }
   };
 
@@ -427,7 +1455,7 @@ export function InventoryIndentDetailPage({
       toast.success('Indent rejected');
       void refetch();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to reject indent');
+      toast.error(toErrorMessage(error, 'Failed to reject indent'));
     }
   };
 
@@ -449,7 +1477,7 @@ export function InventoryIndentDetailPage({
         search: { tab: 'outgoing', storeId: indentTransferFromStoreId(detail), indentId: detail.id },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to initiate fulfillment');
+      toast.error(toErrorMessage(error, 'Failed to initiate fulfillment'));
     }
   };
 
@@ -475,48 +1503,20 @@ export function InventoryIndentDetailPage({
       title={title}
       breadcrumbs={breadcrumbs}
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          {!isNew && status ? (
-            <Badge variant={indentStatusBadgeVariant(status)}>{indentStatusLabel(status)}</Badge>
-          ) : null}
-          <Button type="button" variant="ghost" size="sm" className="gap-1.5" asChild>
-            <Link to="/inventory/indents" search={listSearch}>
-              <ArrowLeft className="size-4" aria-hidden />
-              Back
-            </Link>
-          </Button>
-          {editable ? (
-            <>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void handleSaveDraft()}
-                disabled={saveDraft.isPending || (submitAttempted && !draftValidation.isValid)}
-              >
-                Save draft
-              </Button>
-              {!isNew ? (
-                <>
-                  <Button
-                    type="button"
-                    onClick={() => void handleSubmit()}
-                    disabled={submitIndent.isPending || (submitAttempted && !draftValidation.isValid)}
-                  >
-                    Submit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => void handleCancelDraft()}
-                    disabled={cancelIndent.isPending}
-                  >
-                    Cancel draft
-                  </Button>
-                </>
-              ) : null}
-            </>
-          ) : null}
-        </div>
+        <IndentActions
+          isNew={isNew}
+          status={status}
+          listSearch={listSearch}
+          editable={editable}
+          saveDraftPending={saveDraft.isPending}
+          submitPending={submitIndent.isPending}
+          cancelPending={cancelIndent.isPending}
+          submitAttempted={submitAttempted}
+          draftValid={draftValidation.isValid}
+          onSaveDraft={() => void handleSaveDraft()}
+          onSubmit={() => void handleSubmit()}
+          onCancelDraft={() => void handleCancelDraft()}
+        />
       }
     >
       {detail?.rejection_reason ? (
@@ -532,180 +1532,86 @@ export function InventoryIndentDetailPage({
       ) : null}
 
       {showWorkflowView && detail ? (
+        <IndentWorkflowView
+          detail={detail}
+          status={status}
+          showApproval={showApproval}
+          requiresApprovalStockCheck={requiresApprovalStockCheck}
+          stockStoreName={stockStoreName}
+          availableQtyByItemId={availableQtyByItemId}
+          availableQtyByItemCode={availableQtyByItemCode}
+          approvedQtyByLine={approvedQtyByLine}
+          approvalRemarks={approvalRemarks}
+          rejectReason={rejectReason}
+          canFulfill={canFulfill}
+          totalQty={totalQty}
+          lines={lines}
+          activeStoreId={activeStoreId}
+          approvePending={approveIndent.isPending}
+          rejectPending={rejectIndent.isPending}
+          fulfillPending={fulfillIndent.isPending}
+          onApprovedQtyChange={(lineId, value) =>
+            setApprovedQtyByLine((prev) => ({ ...prev, [lineId]: value }))
+          }
+          onApprovalRemarksChange={setApprovalRemarks}
+          onRejectReasonChange={setRejectReason}
+          onApprove={() => void handleApprove()}
+          onReject={() => void handleReject()}
+          onInitiateFulfillment={() => void handleInitiateFulfillment()}
+        />
+      ) : (
         <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
           <div className="space-y-4">
-            <div className="space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">From: </span>
-                <span className="font-medium">{detail.from_store}</span>
-              </p>
-              {detail.route !== 'procurement' ? (
-                <p>
-                  <span className="text-muted-foreground">To: </span>
-                  <span className="font-medium">{detail.to_store}</span>
-                </p>
-              ) : null}
-              <p>
-                <span className="text-muted-foreground">Type: </span>
-                <span className="font-medium">{indentTypeLabel(detail.indent_type)}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Priority: </span>
-                <span className="font-medium uppercase">{detail.priority}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Route: </span>
-                <span className="font-medium">{fulfillmentRouteLabel(detail.route)}</span>
-              </p>
-            </div>
-
-            <InventoryPanel title="Items">
-              <ul className="flex flex-col gap-2">
-                {lines
-                  .filter((line) => line.item_id)
-                  .map((line) => (
-                    <li key={line.id} className="rounded-md border bg-muted/40 px-3 py-2">
-                      <div className="font-medium">{line.item_name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {line.item_code} · requested {line.requested_qty} {line.uom}
-                        {status !== 'submitted' && line.approved_qty != null
-                          ? ` · approved ${line.approved_qty}`
-                          : null}
-                      </div>
-                      {showApproval ? (
-                        <>
-                          {requiresApprovalStockCheck && (line.item_code || line.item_id) ? (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Available at {stockStoreName ?? 'supply store'}:{' '}
-                              {(line.item_id
-                                ? availableQtyByItemId.get(line.item_id)
-                                : undefined) ??
-                                (line.item_code
-                                  ? availableQtyByItemCode.get(line.item_code)
-                                  : undefined) ??
-                                0}{' '}
-                              {line.uom}
-                            </p>
-                          ) : null}
-                          <div className="mt-2 flex items-center gap-2">
-                            <Label className="text-xs">Approved qty</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              className="h-8 w-24"
-                              value={approvedQtyByLine[line.id] ?? ''}
-                              onChange={(e) =>
-                                setApprovedQtyByLine((prev) => ({
-                                  ...prev,
-                                  [line.id]: e.target.value,
-                                }))
-                              }
-                            />
-                          </div>
-                        </>
-                      ) : null}
-                    </li>
-                  ))}
-              </ul>
-
-              {showApproval ? (
-                <div className="mt-4 flex flex-col gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="approval-remarks">
-                      Approval remarks (required for partial approval)
-                    </Label>
-                    <Textarea
-                      id="approval-remarks"
-                      value={approvalRemarks}
-                      onChange={(event) => setApprovalRemarks(event.target.value)}
-                      rows={2}
-                      placeholder="Explain why approved quantity is less than requested"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full"
-                    onClick={() => void handleApprove()}
-                    disabled={approveIndent.isPending}
-                  >
-                    Save approval
-                  </Button>
-                  <div className="space-y-2">
-                    <Label className="text-xs" htmlFor="reject-reason">
-                      Reject reason
-                    </Label>
-                    <Textarea
-                      id="reject-reason"
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      rows={2}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    className="w-full"
-                    onClick={() => void handleReject()}
-                    disabled={rejectIndent.isPending || !rejectReason.trim()}
-                  >
-                    Reject indent
-                  </Button>
-                </div>
-              ) : null}
-
-              {canFulfill ? (
-                <div className="mt-4">
-                  <Button
-                    type="button"
-                    className="w-full"
-                    onClick={() => void handleInitiateFulfillment()}
-                    disabled={fulfillIndent.isPending}
-                  >
-                    Initiate fulfillment (
-                    {detail.route === 'procurement' ? 'PR + GRN' : 'stock transfer'})
-                  </Button>
-                </div>
-              ) : null}
-
-              {status === 'in_fulfillment' ? (
-                <div className="mt-4 flex flex-col gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    Fulfillment in progress — complete the linked document to mark this indent
-                    fulfilled.
-                  </p>
-                  {detail.inventory_stock_transfer_id ? (
-                    <Button type="button" className="w-full" asChild>
-                      <Link
-                        to="/inventory/transfers"
-                        search={{
-                          transferId: detail.inventory_stock_transfer_id,
-                          tab:
-                            resolveIndentDetailDirection(detail, activeStoreId) === 'incoming'
-                              ? 'outgoing'
-                              : 'incoming',
-                          storeId:
-                            resolveIndentDetailDirection(detail, activeStoreId) === 'incoming'
-                              ? detail.from_store_id
-                              : detail.to_store_id,
-                        }}
-                      >
-                        Open transfers
-                      </Link>
-                    </Button>
-                  ) : null}
-                  {detail.inventory_grn_id ? (
-                    <Button type="button" variant="outline" className="w-full" asChild>
-                      <Link
-                        to="/inventory/grn-logs/new"
-                        search={{ grnId: detail.inventory_grn_id }}
-                      >
-                        Open GRN
-                      </Link>
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
+            <InventoryPanel title="Indent details">
+              <IndentDetailsFields
+                editable={editable}
+                isProcurement={isProcurement}
+                indentDate={indentDate}
+                onIndentDateChange={setIndentDate}
+                fulfillment={fulfillment}
+                onFulfillmentChange={handleFulfillmentChange}
+                procurementStores={procurementStores}
+                purchaseIndentNumber={purchaseIndentNumber}
+                onPurchaseIndentNumberChange={setPurchaseIndentNumber}
+                fromStoreId={fromStoreId}
+                onFromStoreIdChange={setFromStoreId}
+                toStoreId={toStoreId}
+                onToStoreIdChange={setToStoreId}
+                indentType={indentType}
+                onIndentTypeChange={setIndentType}
+                priority={priority}
+                onPriorityChange={setPriority}
+                remarks={remarks}
+                onRemarksChange={setRemarks}
+                stores={stores}
+                submitAttempted={submitAttempted}
+                headerErrors={draftValidation.headerErrors}
+              />
             </InventoryPanel>
+
+            <IndentItemsPanel
+              isIncoming={isIncoming}
+              showAvailableQty={showAvailableQty}
+              showApproval={showApproval}
+              showApprovedQtyReadOnly={showApprovedQtyReadOnly}
+              editable={editable}
+              lines={lines}
+              items={items}
+              approvalRemarks={approvalRemarks}
+              onApprovalRemarksChange={setApprovalRemarks}
+              availableQtyByItemCode={availableQtyByItemCode}
+              availableQtyByItemId={availableQtyByItemId}
+              approvedQtyByLine={approvedQtyByLine}
+              onApprovedQtyChange={(lineId, value) =>
+                setApprovedQtyByLine((prev) => ({ ...prev, [lineId]: value }))
+              }
+              activeIndentWarningsByLine={activeIndentWarningsByLine}
+              lineTableColSpan={lineTableColSpan}
+              onItemSelect={handleItemSelect}
+              onUpdateLine={updateLine}
+              onRemoveLine={(lineId) => setLines((prev) => prev.filter((entry) => entry.id !== lineId))}
+              onAddRow={() => setLines((prev) => [...prev, EMPTY_INDENT_LINE()])}
+            />
           </div>
 
           <InventoryPanel title="Summary">
@@ -718,7 +1624,7 @@ export function InventoryIndentDetailPage({
                 <dt className="text-muted-foreground">Line items</dt>
                 <dd className="font-medium tabular-nums">{lines.filter((l) => l.item_id).length}</dd>
               </div>
-              {detail.inventory_grn_id ? (
+              {detail?.inventory_grn_id ? (
                 <div className="flex justify-between gap-2">
                   <dt className="text-muted-foreground">Linked GRN</dt>
                   <dd>
@@ -735,399 +1641,7 @@ export function InventoryIndentDetailPage({
             </dl>
           </InventoryPanel>
         </div>
-      ) : (
-      <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
-        <div className="space-y-4">
-          <InventoryPanel title="Indent details">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="indent-date">Indent date</Label>
-                <Input
-                  id="indent-date"
-                  type="date"
-                  value={indentDate}
-                  disabled={!editable}
-                  onChange={(event) => setIndentDate(event.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Fulfillment</Label>
-                <Select
-                  value={fulfillment}
-                  disabled={!editable}
-                  onValueChange={(v) => handleFulfillmentChange(v as typeof fulfillment)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FULFILLMENT_OPTIONS.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.value === 'procurement' && procurementStores.length === 0}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {isProcurement ? (
-                  <p className="text-xs text-muted-foreground">
-                    Stock is procured from an external supplier. No internal store transfer.
-                  </p>
-                ) : null}
-              </div>
-              {isProcurement ? (
-                <div className="space-y-2">
-                  <Label>Purchase indent #</Label>
-                  <Input
-                    value={purchaseIndentNumber}
-                    disabled={!editable}
-                    onChange={(e) => setPurchaseIndentNumber(e.target.value)}
-                  />
-                  {submitAttempted && draftValidation.headerErrors.purchase_indent_number ? (
-                    <p className="text-xs text-destructive">
-                      {draftValidation.headerErrors.purchase_indent_number}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-              {isProcurement ? (
-                <div className="space-y-2">
-                  <Label>Receiving store</Label>
-                  <Select
-                    value={fromStoreId || undefined}
-                    disabled={!editable}
-                    onValueChange={setFromStoreId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {procurementStores.map((store) => (
-                        <SelectItem key={store.id} value={store.id}>
-                          {store.store_code} — {store.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {submitAttempted && draftValidation.headerErrors.from_store_id ? (
-                    <p className="text-xs text-destructive">
-                      {draftValidation.headerErrors.from_store_id}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label>From store</Label>
-                    <Select
-                      value={fromStoreId || undefined}
-                      disabled={!editable}
-                      onValueChange={setFromStoreId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stores.map((store) => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.store_code} — {store.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {submitAttempted && draftValidation.headerErrors.from_store_id ? (
-                      <p className="text-xs text-destructive">
-                        {draftValidation.headerErrors.from_store_id}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>To store</Label>
-                    <Select
-                      value={toStoreId || undefined}
-                      disabled={!editable}
-                      onValueChange={setToStoreId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stores.map((store) => (
-                          <SelectItem key={store.id} value={store.id}>
-                            {store.store_code} — {store.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {submitAttempted && draftValidation.headerErrors.to_store_id ? (
-                      <p className="text-xs text-destructive">
-                        {draftValidation.headerErrors.to_store_id}
-                      </p>
-                    ) : null}
-                  </div>
-                </>
-              )}
-              <div className="space-y-2">
-                <Label>Indent type</Label>
-                <Select
-                  value={indentType}
-                  disabled={!editable}
-                  onValueChange={(v) => setIndentType(v as typeof indentType)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INDENT_TYPES.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <Label>Priority</Label>
-              <ToggleGroup
-                type="single"
-                value={priority}
-                disabled={!editable}
-                onValueChange={(value) => {
-                  if (value) setPriority(value as typeof priority);
-                }}
-                variant="outline"
-                size="sm"
-              >
-                <ToggleGroupItem value="normal">Normal</ToggleGroupItem>
-                <ToggleGroupItem value="urgent">Urgent</ToggleGroupItem>
-                <ToggleGroupItem value="stat">STAT</ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <Label htmlFor="indent-remarks">Remarks</Label>
-              <Textarea
-                id="indent-remarks"
-                value={remarks}
-                disabled={!editable}
-                onChange={(event) => setRemarks(event.target.value)}
-                rows={2}
-              />
-            </div>
-          </InventoryPanel>
-
-          <InventoryPanel title={isIncoming ? `Item details (${lines.length})` : `Requested items (${lines.length})`}>
-            {showApproval ? (
-              <div className="mb-4 space-y-2">
-                <Label htmlFor="approval-remarks">Approval remarks (required for partial approval)</Label>
-                <Textarea
-                  id="approval-remarks"
-                  value={approvalRemarks}
-                  onChange={(event) => setApprovalRemarks(event.target.value)}
-                  rows={2}
-                  placeholder="Explain why approved quantity is less than requested"
-                />
-              </div>
-            ) : null}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[960px] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="px-2 py-2 font-medium">#</th>
-                    <th className="px-2 py-2 font-medium">Item</th>
-                    <th className="px-2 py-2 font-medium">Item code</th>
-                    <th className="px-2 py-2 font-medium">Base UOM</th>
-                    {showAvailableQty ? <th className="px-2 py-2 font-medium">Available qty</th> : null}
-                    <th className="px-2 py-2 font-medium">Req. qty</th>
-                    {showApproval || showApprovedQtyReadOnly ? (
-                      <th className="px-2 py-2 font-medium">Approved qty</th>
-                    ) : null}
-                    <th className="px-2 py-2 font-medium">Remarks</th>
-                    {editable ? <th className="px-2 py-2" /> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, index) => {
-                    const activeMatches = activeIndentWarningsByLine[line.id];
-                    return (
-                      <Fragment key={line.id}>
-                        <tr className="border-b align-top">
-                          <td className="px-2 py-2 tabular-nums text-muted-foreground">{index + 1}</td>
-                          <td className="px-2 py-2">
-                            {editable ? (
-                              <Select
-                                value={line.item_id || undefined}
-                                onValueChange={(value) => handleItemSelect(line.id, value)}
-                              >
-                                <SelectTrigger className="min-w-[220px]">
-                                  <SelectValue placeholder="Search or select item…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {items.map((item) => (
-                                    <SelectItem key={item.id} value={item.id}>
-                                      {item.code} — {item.name}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              line.item_name
-                            )}
-                          </td>
-                          <td className="px-2 py-2 text-muted-foreground">{line.item_code || '—'}</td>
-                          <td className="px-2 py-2">{line.uom || '—'}</td>
-                          {showAvailableQty ? (
-                            <td className="px-2 py-2 tabular-nums">
-                              {line.item_id || line.item_code
-                                ? (line.item_id
-                                    ? availableQtyByItemId.get(line.item_id)
-                                    : undefined) ??
-                                  (line.item_code
-                                    ? availableQtyByItemCode.get(line.item_code)
-                                    : undefined) ??
-                                  0
-                                : '—'}
-                            </td>
-                          ) : null}
-                          <td className="px-2 py-2">
-                            {editable ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                className="w-24"
-                                value={line.requested_qty}
-                                onChange={(e) =>
-                                  updateLine(line.id, { requested_qty: Number(e.target.value) })
-                                }
-                              />
-                            ) : (
-                              line.requested_qty
-                            )}
-                          </td>
-                          {showApproval ? (
-                            <td className="px-2 py-2">
-                              <Input
-                                type="number"
-                                min={0}
-                                className="w-24"
-                                value={approvedQtyByLine[line.id] ?? ''}
-                                onChange={(e) =>
-                                  setApprovedQtyByLine((prev) => ({
-                                    ...prev,
-                                    [line.id]: e.target.value,
-                                  }))
-                                }
-                              />
-                            </td>
-                          ) : showApprovedQtyReadOnly ? (
-                            <td className="px-2 py-2 tabular-nums">
-                              {line.approved_qty ?? approvedQtyByLine[line.id] ?? '—'}
-                            </td>
-                          ) : null}
-                          <td className="px-2 py-2">
-                            {editable ? (
-                              <Input
-                                value={line.remarks ?? ''}
-                                onChange={(e) => updateLine(line.id, { remarks: e.target.value })}
-                              />
-                            ) : (
-                              (line.remarks ?? '—')
-                            )}
-                          </td>
-                          {editable ? (
-                            <td className="px-2 py-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() =>
-                                  setLines((prev) => prev.filter((entry) => entry.id !== line.id))
-                                }
-                              >
-                                <Trash2 className="size-4" />
-                              </Button>
-                            </td>
-                          ) : null}
-                        </tr>
-                        {activeMatches && activeMatches.length > 0 ? (
-                          <tr className="border-b bg-amber-50/60 dark:bg-amber-950/20">
-                            <td
-                              colSpan={lineTableColSpan}
-                              className="px-3 py-1.5 text-[11px] leading-tight text-amber-700 dark:text-amber-400"
-                            >
-                              Already on{' '}
-                              {activeMatches.map((match, matchIndex) => (
-                                <Fragment key={match.indent_id}>
-                                  {matchIndex > 0 ? ', ' : null}
-                                  <Link
-                                    to="/inventory/indents/$indentId"
-                                    params={{ indentId: match.indent_id }}
-                                    className="font-mono underline underline-offset-2"
-                                  >
-                                    {match.indent_number}
-                                  </Link>{' '}
-                                  ({indentStatusLabel(match.status)})
-                                </Fragment>
-                              ))}
-                              . Consider updating the existing indent instead.
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            {editable ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="mt-3 gap-1.5"
-                onClick={() => setLines((prev) => [...prev, EMPTY_INDENT_LINE()])}
-              >
-                <Plus className="size-4" />
-                Add row
-              </Button>
-            ) : null}
-          </InventoryPanel>
-        </div>
-
-        <InventoryPanel title="Summary">
-          <dl className="space-y-3 text-sm">
-            <div className="flex justify-between gap-2">
-              <dt className="text-muted-foreground">Total requested qty</dt>
-              <dd className="font-medium tabular-nums">{totalQty}</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-muted-foreground">Line items</dt>
-              <dd className="font-medium tabular-nums">{lines.filter((l) => l.item_id).length}</dd>
-            </div>
-            {detail?.inventory_grn_id ? (
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted-foreground">Linked GRN</dt>
-                <dd>
-                  <Link
-                    to="/inventory/grn-logs/new"
-                    search={{ grnId: detail.inventory_grn_id }}
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    Open GRN
-                  </Link>
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-        </InventoryPanel>
-      </div>
       )}
-
     </InventoryPageShell>
   );
 }

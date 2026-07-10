@@ -17,7 +17,9 @@ export function registerCareContextHandlers(
   app: FastifyInstance,
   deps: HandlerDeps,
 ): void {
-  app.get<{ Querystring: { patient_id?: string; status?: string } }>(
+  app.get<{
+    Querystring: { patient_id?: string; status?: string; limit?: number; offset?: number };
+  }>(
     "/care-contexts",
     { schema: { querystring: listCareContextsQuerySchema } },
     async (request, reply) => {
@@ -27,7 +29,7 @@ export function registerCareContextHandlers(
       const result = await listCareContexts(
         { careContextRepo: deps.careContextRepo },
         tenantId,
-        { patient_id: q.patient_id, status: q.status },
+        { patient_id: q.patient_id, status: q.status, limit: q.limit, offset: q.offset },
       );
 
       return reply.send(result);
@@ -85,7 +87,9 @@ export function registerCareContextHandlers(
         },
       );
 
-      return reply.code(201).send({ data: result });
+      // 201 on a fresh create; 200 when an identical source-tuple context already
+      // existed (idempotent replay — see createCareContext).
+      return reply.code(result.created ? 201 : 200).send({ data: result.row });
     },
   );
 }

@@ -6,15 +6,16 @@
   "dependencies": {
     "@hims/ts-sdk-authz": "workspace:*",
     "@hims/ts-sdk-db": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "catalog:"
   },
   "peerDependencies": {
     "fastify": "^5.3.3",
     "fastify-plugin": "^5.0.1"
   },
   "devDependencies": {
-    "fastify": "^5.3.3",
-    "fastify-plugin": "^5.0.1",
-    "vitest": "^3.1.3"
+    "fastify": "catalog:",
+    "fastify-plugin": "catalog:",
+    "vitest": "catalog:",
+    "drizzle-kit": "^0.31.4"
   }
 }

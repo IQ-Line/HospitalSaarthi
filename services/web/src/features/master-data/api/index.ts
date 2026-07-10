@@ -36,7 +36,6 @@ export {
   useDepartmentPlatformImport,
   useCreateDepartment,
   useUpdateDepartment,
-  useDeleteDepartment,
   DEPARTMENT_CATALOG_DEFAULT_PAGE_SIZE,
   DEPARTMENT_CATALOG_PAGE_SIZES,
   DEPARTMENT_CATALOG_FORM_PAGE,

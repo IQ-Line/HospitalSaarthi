@@ -2,17 +2,15 @@ import type { PdfRendererPort } from "@hims/pdf-client";
 import { PdfPlatformRenderError } from "@hims/pdf-client";
 import type { RegistrationRepo, BillingReadPort, VisitRepo } from "../ports.js";
 import { getRegistration } from "./get-registration.js";
-import { buildOpdSlipPayload } from "./build-opd-slip-payload.js";
-import { buildOpdReceiptPayload } from "./build-opd-receipt-payload.js";
-import {
-  renderOpdReceiptDocumentHtml,
-  renderOpdSlipDocumentHtml,
-} from "../lib/registration-reports.js";
-import { inlineReportHtmlImagesForPdf } from "../lib/inline-report-html-images.js";
+import { buildOpdSlipReportRequest } from "./build-opd-slip-report-request.js";
+import { buildOpdReceiptReportRequest } from "./build-opd-receipt-report-request.js";
 import { isRegistrationDocumentEligible } from "../lib/registration-helpers.js";
 import { parseVisitStatus } from "../lib/visit-helpers.js";
 import type { ReportDocumentContext } from "../lib/report-document-context.js";
 import type { RegistrationDocumentSource } from "../lib/registration-document-source.js";
+
+const OPD_SLIP_SLUG = "opd-slip";
+const OPD_RECEIPT_SLUG = "opd-receipt";
 
 function pdfErrorMessage(err: unknown): string {
   if (err instanceof PdfPlatformRenderError) return err.message;
@@ -75,68 +73,44 @@ async function loadRegistrationForDocuments(
   return { ok: true, source: { registration: record, visit } };
 }
 
-async function renderRegistrationPdf(
-  deps: RegistrationDocumentsDeps,
-  html: string,
-  context: ReportDocumentContext | undefined,
-  options: {
-    format: "A4";
-    marginTop: string;
-    marginBottom: string;
-    marginLeft: string;
-    marginRight: string;
-  },
-): Promise<DocumentResult<Buffer>> {
-  if (!deps.pdfRenderer) {
-    return {
-      ok: false,
-      code: "PDF_UNAVAILABLE",
-      message: "PDF renderer not configured on this service instance",
-    };
-  }
-
-  try {
-    const pdfHtml = await inlineReportHtmlImagesForPdf(html, context);
-    const pdf = await deps.pdfRenderer.renderHtml({
-      html: pdfHtml,
-      options,
-      requestId: context?.requestId,
-    });
-    return { ok: true, data: pdf };
-  } catch (err) {
-    return { ok: false, code: "PDF_UNAVAILABLE", message: pdfErrorMessage(err) };
-  }
-}
-
-export async function getOpdSlipHtml(
+async function buildSlipRequest(
   deps: RegistrationDocumentsDeps,
   tenantId: string,
   registrationId: string,
-  context?: ReportDocumentContext,
-): Promise<DocumentResult<string>> {
+  context: ReportDocumentContext | undefined,
+): Promise<
+  | { ok: true; request: Record<string, unknown> }
+  | { ok: false; code: "NOT_FOUND" }
+  | { ok: false; code: "NOT_PRINTABLE"; message: string }
+> {
   const loaded = await loadRegistrationForDocuments(deps, tenantId, registrationId);
   if (!loaded.ok) return loaded;
 
-  const payload = await buildOpdSlipPayload(
+  const request = await buildOpdSlipReportRequest(
     { billingReadPort: deps.billingReadPort },
     tenantId,
     loaded.source,
     context,
   );
-  return { ok: true, data: renderOpdSlipDocumentHtml(payload, context) };
+  return { ok: true, request: request as unknown as Record<string, unknown> };
 }
 
-export async function getOpdReceiptHtml(
+async function buildReceiptRequest(
   deps: RegistrationDocumentsDeps,
   tenantId: string,
   registrationId: string,
   billId: string,
-  context?: ReportDocumentContext,
-): Promise<DocumentResult<string>> {
+  context: ReportDocumentContext | undefined,
+): Promise<
+  | { ok: true; request: Record<string, unknown> }
+  | { ok: false; code: "NOT_FOUND" }
+  | { ok: false; code: "NOT_PRINTABLE"; message: string }
+  | { ok: false; code: "BILL_NOT_FOUND"; message: string }
+> {
   const loaded = await loadRegistrationForDocuments(deps, tenantId, registrationId);
   if (!loaded.ok) return loaded;
 
-  const built = await buildOpdReceiptPayload(
+  const built = await buildOpdReceiptReportRequest(
     { billingReadPort: deps.billingReadPort },
     tenantId,
     loaded.source,
@@ -150,7 +124,60 @@ export async function getOpdReceiptHtml(
     return { ok: false, code: "NOT_PRINTABLE", message: built.message };
   }
 
-  return { ok: true, data: renderOpdReceiptDocumentHtml(built.payload, context) };
+  return { ok: true, request: built.request as unknown as Record<string, unknown> };
+}
+
+async function renderReportPdf(
+  deps: RegistrationDocumentsDeps,
+  slug: string,
+  request: Record<string, unknown>,
+  requestId: string | undefined,
+): Promise<DocumentResult<Buffer>> {
+  if (!deps.pdfRenderer) {
+    return {
+      ok: false,
+      code: "PDF_UNAVAILABLE",
+      message: "PDF renderer not configured on this service instance",
+    };
+  }
+  try {
+    const pdf = await deps.pdfRenderer.renderReport(slug, request, requestId);
+    return { ok: true, data: pdf };
+  } catch (err) {
+    return { ok: false, code: "PDF_UNAVAILABLE", message: pdfErrorMessage(err) };
+  }
+}
+
+async function renderReportHtml(
+  deps: RegistrationDocumentsDeps,
+  slug: string,
+  request: Record<string, unknown>,
+  requestId: string | undefined,
+): Promise<DocumentResult<string>> {
+  if (!deps.pdfRenderer) {
+    return {
+      ok: false,
+      code: "PDF_UNAVAILABLE",
+      message: "PDF renderer not configured on this service instance",
+    };
+  }
+  try {
+    const html = await deps.pdfRenderer.renderReportHtml(slug, request, requestId);
+    return { ok: true, data: html };
+  } catch (err) {
+    return { ok: false, code: "PDF_UNAVAILABLE", message: pdfErrorMessage(err) };
+  }
+}
+
+export async function getOpdSlipHtml(
+  deps: RegistrationDocumentsDeps,
+  tenantId: string,
+  registrationId: string,
+  context?: ReportDocumentContext,
+): Promise<DocumentResult<string>> {
+  const built = await buildSlipRequest(deps, tenantId, registrationId, context);
+  if (!built.ok) return built;
+  return renderReportHtml(deps, OPD_SLIP_SLUG, built.request, context?.requestId);
 }
 
 export async function getOpdSlipPdf(
@@ -159,16 +186,21 @@ export async function getOpdSlipPdf(
   registrationId: string,
   context?: ReportDocumentContext,
 ): Promise<DocumentResult<Buffer>> {
-  const htmlResult = await getOpdSlipHtml(deps, tenantId, registrationId, context);
-  if (!htmlResult.ok) return htmlResult;
+  const built = await buildSlipRequest(deps, tenantId, registrationId, context);
+  if (!built.ok) return built;
+  return renderReportPdf(deps, OPD_SLIP_SLUG, built.request, context?.requestId);
+}
 
-  return renderRegistrationPdf(deps, htmlResult.data, context, {
-    format: "A4",
-    marginTop: "0",
-    marginBottom: "0",
-    marginLeft: "0",
-    marginRight: "0",
-  });
+export async function getOpdReceiptHtml(
+  deps: RegistrationDocumentsDeps,
+  tenantId: string,
+  registrationId: string,
+  billId: string,
+  context?: ReportDocumentContext,
+): Promise<DocumentResult<string>> {
+  const built = await buildReceiptRequest(deps, tenantId, registrationId, billId, context);
+  if (!built.ok) return built;
+  return renderReportHtml(deps, OPD_RECEIPT_SLUG, built.request, context?.requestId);
 }
 
 export async function getOpdReceiptPdf(
@@ -178,14 +210,7 @@ export async function getOpdReceiptPdf(
   billId: string,
   context?: ReportDocumentContext,
 ): Promise<DocumentResult<Buffer>> {
-  const htmlResult = await getOpdReceiptHtml(deps, tenantId, registrationId, billId, context);
-  if (!htmlResult.ok) return htmlResult;
-
-  return renderRegistrationPdf(deps, htmlResult.data, context, {
-    format: "A4",
-    marginTop: "0.39in",
-    marginBottom: "0.39in",
-    marginLeft: "0.39in",
-    marginRight: "0.39in",
-  });
+  const built = await buildReceiptRequest(deps, tenantId, registrationId, billId, context);
+  if (!built.ok) return built;
+  return renderReportPdf(deps, OPD_RECEIPT_SLUG, built.request, context?.requestId);
 }

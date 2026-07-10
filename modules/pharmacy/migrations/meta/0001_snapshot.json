@@ -1,0 +1,521 @@
+{
+  "id": "531d41e8-1e0f-4819-8a9f-dbc9046a3832",
+  "prevId": "aa7c099a-b9ba-4b3f-ba67-02f5dda1e906",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "pharmacy.dispense": {
+      "name": "dispense",
+      "schema": "pharmacy",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "visit_id": {
+          "name": "visit_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opd_prescription_id": {
+          "name": "opd_prescription_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department_id": {
+          "name": "department_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "inventory_store_id": {
+          "name": "inventory_store_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'routine'"
+        },
+        "subtotal": {
+          "name": "subtotal",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "discount": {
+          "name": "discount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "total_amount": {
+          "name": "total_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dispense_status": {
+          "name": "dispense_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'issued'"
+        },
+        "dispense_draft_json": {
+          "name": "dispense_draft_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "uq_pharmacy_dispense_tenant_visit": {
+          "name": "uq_pharmacy_dispense_tenant_visit",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "visit_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "dispense_iq_tenant_id_id_pk": {
+          "name": "dispense_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "pharmacy.dispense_line_items": {
+      "name": "dispense_line_items",
+      "schema": "pharmacy",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dispense_id": {
+          "name": "dispense_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "medicine_id": {
+          "name": "medicine_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "medicine_display_name": {
+          "name": "medicine_display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opd_prescription_item_id": {
+          "name": "opd_prescription_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "opd_prescription_line_no": {
+          "name": "opd_prescription_line_no",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "prescribed_quantity": {
+          "name": "prescribed_quantity",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quantity_dispensed": {
+          "name": "quantity_dispensed",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "unit_amount": {
+          "name": "unit_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "line_discount": {
+          "name": "line_discount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "tax_percent": {
+          "name": "tax_percent",
+          "type": "numeric(8, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "tax_amount": {
+          "name": "tax_amount",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "line_total": {
+          "name": "line_total",
+          "type": "numeric(18, 4)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
+        "stock_batch_id": {
+          "name": "stock_batch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_substitution": {
+          "name": "is_substitution",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "substitute_of_line_id": {
+          "name": "substitute_of_line_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "substitution_reason": {
+          "name": "substitution_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "line_remarks": {
+          "name": "line_remarks",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dispense_line_items_dispense_fk": {
+          "name": "dispense_line_items_dispense_fk",
+          "tableFrom": "dispense_line_items",
+          "columnsFrom": [
+            "iq_tenant_id",
+            "dispense_id"
+          ],
+          "tableTo": "dispense",
+          "schemaTo": "pharmacy",
+          "columnsTo": [
+            "iq_tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "dispense_line_items_iq_tenant_id_id_pk": {
+          "name": "dispense_line_items_iq_tenant_id_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "pharmacy.queue_projection": {
+      "name": "queue_projection",
+      "schema": "pharmacy",
+      "columns": {
+        "queue_item_id": {
+          "name": "queue_item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_kind": {
+          "name": "source_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'opd'"
+        },
+        "source_ref_id": {
+          "name": "source_ref_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encounter_id": {
+          "name": "encounter_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_id": {
+          "name": "patient_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prescription_id": {
+          "name": "prescription_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "doctor_id": {
+          "name": "doctor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "visit_status": {
+          "name": "visit_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prescription_status": {
+          "name": "prescription_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "medicine_count": {
+          "name": "medicine_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'routine'"
+        },
+        "queued_at": {
+          "name": "queued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "patient_name": {
+          "name": "patient_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "uhid": {
+          "name": "uhid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "age_years": {
+          "name": "age_years",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gender": {
+          "name": "gender",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "doctor_name": {
+          "name": "doctor_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "formatted_visit_id": {
+          "name": "formatted_visit_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dispense_status": {
+          "name": "dispense_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "context_json": {
+          "name": "context_json",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "last_synced_at": {
+          "name": "last_synced_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "queue_projection_iq_tenant_id_queue_item_id_pk": {
+          "name": "queue_projection_iq_tenant_id_queue_item_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "queue_item_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "pharmacy": "pharmacy"
+  },
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

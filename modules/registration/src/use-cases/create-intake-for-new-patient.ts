@@ -1,5 +1,12 @@
 import type { EventBus } from "@hims/ts-sdk-events";
-import type { EmpiHttpPort, OpdHttpPort, RegistrationRepo, VisitRepo, ConfiguratorHttpPort } from "../ports.js";
+import type {
+  EmpiHttpPort,
+  EmpiRegisterPatientResult,
+  RegistrationRepo,
+  VisitRepo,
+  ConfiguratorHttpPort,
+  RegistrationLogger,
+} from "../ports.js";
 import type {
   ExistingPatientVisitInput,
   NewPatientIntakeInput,
@@ -25,21 +32,7 @@ export type IntakeContext = {
   bearerToken?: string;
 };
 
-export async function createIntakeForNewPatient(
-  deps: {
-    registrationRepo: RegistrationRepo;
-    visitRepo: VisitRepo;
-    empiGateway: EmpiHttpPort;
-    eventBus: EventBus;
-    allocateOpVisitId: (tenantId: string) => Promise<string>;
-    opdGateway?: OpdHttpPort;
-    configuratorGateway?: ConfiguratorHttpPort;
-  },
-  tenantId: string,
-  input: NewPatientIntakeInput,
-  ctx: IntakeContext,
-): Promise<
-  | { ok: true; result: RegistrationWithVisitRecord; created: boolean }
+type NewPatientIntakeFailure =
   | {
       ok: false;
       kind: "duplicate";
@@ -51,7 +44,72 @@ export async function createIntakeForNewPatient(
       };
     }
   | { ok: false; kind: "empi_error"; status: number; body: string }
-  | { ok: false; kind: "empi_unavailable"; status: number; body: string }
+  | { ok: false; kind: "empi_unavailable"; status: number; body: string };
+
+/**
+ * Translate a failed EMPI register-patient result into the intake failure
+ * response. Cohesive policy: a real duplicate (with an existing id) becomes a
+ * structured `duplicate`; a duplicate without an id, or any other EMPI error,
+ * is surfaced as `empi_error`; an unavailable EMPI is passed through verbatim.
+ */
+function empiFailureToResult(
+  empiResult: Extract<EmpiRegisterPatientResult, { ok: false }>,
+): NewPatientIntakeFailure {
+  if (empiResult.kind === "duplicate") {
+    if (empiResult.existingPatientId) {
+      return {
+        ok: false,
+        kind: "duplicate",
+        body: {
+          code: "patient_already_exists",
+          message: "Patient already exists.",
+          patient_id: empiResult.existingPatientId,
+          patient_snapshot: empiResult.snapshot,
+        },
+      };
+    }
+    return {
+      ok: false,
+      kind: "empi_error",
+      status: 409,
+      body:
+        typeof empiResult.body === "string"
+          ? empiResult.body
+          : JSON.stringify(empiResult.body ?? "EMPI duplicate response unrecognised"),
+    };
+  }
+  if (empiResult.kind === "empi_unavailable") {
+    return {
+      ok: false,
+      kind: "empi_unavailable",
+      status: empiResult.status,
+      body: empiResult.body,
+    };
+  }
+  return {
+    ok: false,
+    kind: "empi_error",
+    status: empiResult.status,
+    body: empiResult.body,
+  };
+}
+
+export async function createIntakeForNewPatient(
+  deps: {
+    registrationRepo: RegistrationRepo;
+    visitRepo: VisitRepo;
+    empiGateway: EmpiHttpPort;
+    eventBus: EventBus;
+    allocateOpVisitId: (tenantId: string) => Promise<string>;
+    configuratorGateway?: ConfiguratorHttpPort;
+    logger?: RegistrationLogger;
+  },
+  tenantId: string,
+  input: NewPatientIntakeInput,
+  ctx: IntakeContext,
+): Promise<
+  | { ok: true; result: RegistrationWithVisitRecord; created: boolean }
+  | NewPatientIntakeFailure
 > {
   const existingVisit = await deps.visitRepo.findByIdempotencyKey(
     tenantId,
@@ -80,43 +138,7 @@ export async function createIntakeForNewPatient(
   );
 
   if (!empiResult.ok) {
-    if (empiResult.kind === "duplicate") {
-      if (empiResult.existingPatientId) {
-        return {
-          ok: false,
-          kind: "duplicate",
-          body: {
-            code: "patient_already_exists",
-            message: "Patient already exists.",
-            patient_id: empiResult.existingPatientId,
-            patient_snapshot: empiResult.snapshot,
-          },
-        };
-      }
-      return {
-        ok: false,
-        kind: "empi_error",
-        status: 409,
-        body:
-          typeof empiResult.body === "string"
-            ? empiResult.body
-            : JSON.stringify(empiResult.body ?? "EMPI duplicate response unrecognised"),
-      };
-    }
-    if (empiResult.kind === "empi_unavailable") {
-      return {
-        ok: false,
-        kind: "empi_unavailable",
-        status: empiResult.status,
-        body: empiResult.body,
-      };
-    }
-    return {
-      ok: false,
-      kind: "empi_error",
-      status: empiResult.status,
-      body: empiResult.body,
-    };
+    return empiFailureToResult(empiResult);
   }
 
   const registrationResult = await createRegistration(
@@ -132,13 +154,19 @@ export async function createIntakeForNewPatient(
 
   const abhaAddress = abhaAddressFromIntake(input.patient);
   if (abhaAddress) {
-    await deps.empiGateway.linkAbhaAddress(
+    const link = await deps.empiGateway.linkAbhaAddress(
       tenantId,
       empiResult.patientId,
       abhaAddress,
       ctx.actorId,
       ctx.bearerToken,
     );
+    if (!link.ok) {
+      deps.logger?.warn(
+        { tenantId, patientId: empiResult.patientId, abhaAddress, reason: link.reason, status: link.status },
+        "EMPI linkAbhaAddress failed during new-patient intake; ABHA address not linked",
+      );
+    }
   }
 
   const visitResult = await createVisit(
@@ -179,8 +207,8 @@ export async function createVisitForExistingPatient(
     empiGateway: EmpiHttpPort;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     eventBus: EventBus;
-    opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
+    logger?: RegistrationLogger;
   },
   tenantId: string,
   input: ExistingPatientVisitInput,
@@ -234,13 +262,19 @@ export async function createVisitForExistingPatient(
 
   const abhaAddress = abhaAddressFromIntake(intakeOverlay);
   if (abhaAddress) {
-    await deps.empiGateway.linkAbhaAddress(
+    const link = await deps.empiGateway.linkAbhaAddress(
       tenantId,
       input.patient_id,
       abhaAddress,
       ctx.actorId,
       ctx.bearerToken,
     );
+    if (!link.ok) {
+      deps.logger?.warn(
+        { tenantId, patientId: input.patient_id, abhaAddress, reason: link.reason, status: link.status },
+        "EMPI linkAbhaAddress failed during existing-patient intake; ABHA address not linked",
+      );
+    }
   }
 
   const empiAddress = mapRegistrationAddressToEmpiBody(input.permanent_address);

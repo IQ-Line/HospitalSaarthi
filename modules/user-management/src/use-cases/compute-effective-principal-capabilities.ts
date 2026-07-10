@@ -1,5 +1,5 @@
 import { intersectCapabilityKeys } from "../domain/intersect-capability-keys.js";
-import { canonicalizeRuntimeCapabilityKeys } from "../domain/legacy-capability-key-remap.js";
+import { normalizeRuntimeCapabilityKeys } from "../domain/capability-key.js";
 
 export type EffectivePrincipalCapabilities = {
   capabilities: string[];
@@ -31,8 +31,8 @@ export function computeStoredPrincipalCapabilities(
   storedDelegatedKeys: readonly string[],
 ): EffectivePrincipalCapabilities {
   return {
-    capabilities: canonicalizeRuntimeCapabilityKeys(storedDirectKeys),
-    delegated_capabilities: canonicalizeRuntimeCapabilityKeys(storedDelegatedKeys),
+    capabilities: normalizeRuntimeCapabilityKeys(storedDirectKeys),
+    delegated_capabilities: normalizeRuntimeCapabilityKeys(storedDelegatedKeys),
   };
 }
 

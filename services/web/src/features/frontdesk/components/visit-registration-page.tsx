@@ -1,7 +1,7 @@
 import { RotateCcw, Save } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useRouterState } from '@tanstack/react-router';
-import { useForm, useWatch, type SubmitHandler } from 'react-hook-form';
+import { useForm, useWatch, type SubmitHandler, type UseFormReturn } from 'react-hook-form';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -38,10 +38,7 @@ import {
 } from '@/features/frontdesk/components/visit-registration-sections';
 import { useVisitRegistrationSectionsStore } from '@/features/frontdesk/visit-registration-sections.store';
 import type { CreateVisitRequestBody } from '@/features/frontdesk/types';
-import {
-  applyFollowUpPrefill,
-  type OpdRegistrationFollowUpState,
-} from '@/features/frontdesk/lib/apply-follow-up-prefill';
+import { applyFollowUpPrefill } from '@/features/frontdesk/lib/apply-follow-up-prefill';
 import {
   ageYmdSinceBirth,
   birthDateFromAgeYmd,
@@ -63,7 +60,6 @@ import { useDebouncedValue } from '@/lib/use-debounced-value';
 import { useSyncRegistrationBillingTariffs } from '@/features/frontdesk/hooks/use-sync-registration-billing-tariffs';
 import { useSyncRegistrationAppointmentRoom } from '@/features/frontdesk/hooks/use-sync-registration-appointment-room';
 import { useVisitRegistrationTariffs } from '@/features/frontdesk/hooks/use-visit-registration-tariffs';
-import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { useProviderList } from '@/features/user-management/api/queries';
 import { useTenantStore } from '@/stores/tenant.store';
 
@@ -78,17 +74,131 @@ type FormValues = CreateVisitRequestBody;
 
 type VisitSubmitPayload = CreateVisitRequestBody & { existingPatientId?: string };
 
+function resolveScanShareDisabledReason(
+  reason: string | undefined,
+  isLoading: boolean,
+): string {
+  return (
+    reason ??
+    (isLoading
+      ? 'Checking ABDM scan-and-share…'
+      : 'ABDM scan-and-share is not available for this tenant.')
+  );
+}
+
+function buildVisitTypeHint(
+  visitDecisionMeta: VisitTypeDecisionResult | null,
+): string | null {
+  return visitDecisionMeta?.consultation_type === 'free-followup' && visitDecisionMeta.valid_till
+    ? `Free follow-up valid till ${new Date(visitDecisionMeta.valid_till).toLocaleDateString()} · fee ₹${visitDecisionMeta.fee}`
+    : visitDecisionMeta
+      ? `Consultation fee ₹${visitDecisionMeta.fee}`
+      : null;
+}
+
+function applyAbhaAddressToForm(
+  form: UseFormReturn<FormValues>,
+  address: NonNullable<AbhaCreatedPayload['address']>,
+) {
+  const { line1, state, district, pincode } = address;
+  if (line1) {
+    form.setValue('permanent_address.line1', line1, { shouldValidate: true });
+  }
+  if (pincode) {
+    form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
+  }
+  if (state) {
+    form.setValue('permanent_address.state', state, { shouldValidate: true });
+    if (district) {
+      form.setValue('permanent_address.district', district, { shouldValidate: true });
+    }
+  }
+}
+
+function applyVisitRegistrationBlockerErrors(
+  form: UseFormReturn<FormValues>,
+  blockers: string[],
+) {
+  if (blockers.includes('10-digit phone')) {
+    form.setError('patient.phone', {
+      type: 'required',
+      message: 'Enter a valid 10-digit mobile number (must start with 6, 7, 8, or 9)',
+    });
+  }
+  if (blockers.includes('first name')) {
+    form.setError('patient.first_name', {
+      type: 'required',
+      message: 'First name is required',
+    });
+  }
+  if (blockers.includes('gender')) {
+    form.setError('patient.gender', {
+      type: 'required',
+      message: 'Gender is required',
+    });
+  }
+  if (blockers.includes('department')) {
+    form.setError('appointment.department_id', {
+      type: 'required',
+      message: 'Department is required',
+    });
+  }
+  if (blockers.includes('doctor')) {
+    form.setError('appointment.provider_id', {
+      type: 'required',
+      message: 'Doctor is required',
+    });
+  }
+  if (blockers.includes('visit type')) {
+    form.setError('appointment.visit_type_code', {
+      type: 'required',
+      message: 'Visit type is required',
+    });
+  }
+  if (blockers.includes('payment mode')) {
+    form.setError('billing.payment_mode', {
+      type: 'required',
+      message: 'Payment mode is required',
+    });
+  }
+  if (blockers.some((b) => b.startsWith('valid amount paid'))) {
+    form.setError('billing.amount_paid', {
+      type: 'validate',
+      message: 'Enter exact total, floor, or ceiling of grand total',
+    });
+  }
+}
+
+function RegistrationReportsModalMount({
+  config,
+  open,
+  onOpenChange,
+}: {
+  config: ReportsModalConfig | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!config) return null;
+  return (
+    <RegistrationReportsModal
+      open={open}
+      onOpenChange={onOpenChange}
+      registrationId={config.registrationId}
+      reportContext={config.reportContext}
+      singleView={config.singleView}
+      footerMode={config.footerMode}
+    />
+  );
+}
+
 export function OpdRegistrationCreatePage() {
   const navigate = useNavigate();
   const followUpFrom = useRouterState({
-    select: (s) => (s.location.state as OpdRegistrationFollowUpState | undefined)?.followUpFrom,
+    select: (s) => s.location.state.followUpFrom,
   });
   const followUpAppliedRef = useRef<string | null>(null);
   const [abhaDialogOpen, setAbhaDialogOpen] = useState(false);
   const [abhaDialogFlow, setAbhaDialogFlow] = useState<'create' | 'verify'>('create');
-  const { canCreate } = useCatalogModuleCrud('registration', {
-    productModuleSlug: 'frontdesk',
-  });
   const [abhaRegistration, setAbhaRegistration] = useState<RegistrationAbhaContext | null>(
     null,
   );
@@ -100,11 +210,10 @@ export function OpdRegistrationCreatePage() {
   const pendingScanShareTokenRef = useRef<number | null>(null);
   const scanShareStatusQuery = useScanShareStatus();
   const scanShareAvailable = scanShareStatusQuery.data?.available === true;
-  const scanShareDisabledReason =
-    scanShareStatusQuery.data?.reason ??
-    (scanShareStatusQuery.isLoading
-      ? 'Checking ABDM scan-and-share…'
-      : 'ABDM scan-and-share is not available for this tenant.');
+  const scanShareDisabledReason = resolveScanShareDisabledReason(
+    scanShareStatusQuery.data?.reason,
+    scanShareStatusQuery.isLoading,
+  );
   const tenantName = useTenantStore((s) => s.tenantName);
   const branches = useTenantStore((s) => s.branches);
   const activeBranch = useTenantStore((s) => s.activeBranch);
@@ -112,7 +221,6 @@ export function OpdRegistrationCreatePage() {
     branches.find((b) => b.id === activeBranch)?.name ?? 'Main branch';
   const branchLabel = [tenantName, branchName].filter(Boolean).join(' — ') || 'Noida — Main Branch';
 
-  const [showExtendedPatient, setShowExtendedPatient] = useState(false);
   const [existingPatientId, setExistingPatientId] = useState<string | null>(null);
   const abhaIdentifierSyncKeyRef = useRef<string | null>(null);
   const [visitDecisionMeta, setVisitDecisionMeta] = useState<VisitTypeDecisionResult | null>(null);
@@ -227,7 +335,6 @@ export function OpdRegistrationCreatePage() {
     appointmentProviderId,
     appointmentDepartmentId,
     appointmentVisitTypeCode,
-    appointmentDepartmentName,
     dateOfBirth,
     ageYears,
     ageMonths,
@@ -250,7 +357,6 @@ export function OpdRegistrationCreatePage() {
       'appointment.provider_id',
       'appointment.department_id',
       'appointment.visit_type_code',
-      'appointment.department_name',
       'patient.date_of_birth',
       'patient.age_years',
       'patient.age_months',
@@ -393,12 +499,7 @@ export function OpdRegistrationCreatePage() {
     };
   }, [debouncedVisitTypeDecisionKey, appointmentDepartmentId, visitTypeDecisionPatient, form]);
 
-  const visitTypeHint =
-    visitDecisionMeta?.consultation_type === 'free-followup' && visitDecisionMeta.valid_till
-      ? `Free follow-up valid till ${new Date(visitDecisionMeta.valid_till).toLocaleDateString()} · fee ₹${visitDecisionMeta.fee}`
-      : visitDecisionMeta
-        ? `Consultation fee ₹${visitDecisionMeta.fee}`
-        : null;
+  const visitTypeHint = buildVisitTypeHint(visitDecisionMeta);
 
   const formGate = {
     phone: patientPhone,
@@ -419,7 +520,7 @@ export function OpdRegistrationCreatePage() {
     registrationItemCode: billingRegistrationFee?.item_code,
     consultationItemCode: billingConsultationFee?.item_code,
   };
-  const canCreateVisit = isVisitRegistrationFormComplete(formGate);
+  const visitFormComplete = isVisitRegistrationFormComplete(formGate);
   const createVisitBlockHint = visitRegistrationBlockHint(formGate);
 
   useEffect(() => {
@@ -509,19 +610,7 @@ export function OpdRegistrationCreatePage() {
     }
 
     if (payload.address) {
-      const { line1, state, district, pincode } = payload.address;
-      if (line1) {
-        form.setValue('permanent_address.line1', line1, { shouldValidate: true });
-      }
-      if (pincode) {
-        form.setValue('permanent_address.pincode', pincode, { shouldValidate: true });
-      }
-      if (state) {
-        form.setValue('permanent_address.state', state, { shouldValidate: true });
-        if (district) {
-          form.setValue('permanent_address.district', district, { shouldValidate: true });
-        }
-      }
+      applyAbhaAddressToForm(form, payload.address);
     }
   };
 
@@ -651,54 +740,7 @@ export function OpdRegistrationCreatePage() {
     };
     const blockers = visitRegistrationFormBlockers(gate);
     if (blockers.length > 0) {
-      if (blockers.includes('10-digit phone')) {
-        form.setError('patient.phone', {
-          type: 'required',
-          message: 'Enter a valid 10-digit mobile number (must start with 6, 7, 8, or 9)',
-        });
-      }
-      if (blockers.includes('first name')) {
-        form.setError('patient.first_name', {
-          type: 'required',
-          message: 'First name is required',
-        });
-      }
-      if (blockers.includes('gender')) {
-        form.setError('patient.gender', {
-          type: 'required',
-          message: 'Gender is required',
-        });
-      }
-      if (blockers.includes('department')) {
-        form.setError('appointment.department_id', {
-          type: 'required',
-          message: 'Department is required',
-        });
-      }
-      if (blockers.includes('doctor')) {
-        form.setError('appointment.provider_id', {
-          type: 'required',
-          message: 'Doctor is required',
-        });
-      }
-      if (blockers.includes('visit type')) {
-        form.setError('appointment.visit_type_code', {
-          type: 'required',
-          message: 'Visit type is required',
-        });
-      }
-      if (blockers.includes('payment mode')) {
-        form.setError('billing.payment_mode', {
-          type: 'required',
-          message: 'Payment mode is required',
-        });
-      }
-      if (blockers.some((b) => b.startsWith('valid amount paid'))) {
-        form.setError('billing.amount_paid', {
-          type: 'validate',
-          message: 'Enter exact total, floor, or ceiling of grand total',
-        });
-      }
+      applyVisitRegistrationBlockerErrors(form, blockers);
       toast.error(visitRegistrationBlockHint(gate) ?? 'Complete all required fields.');
       return;
     }
@@ -822,7 +864,7 @@ export function OpdRegistrationCreatePage() {
                 <footer className="flex flex-wrap items-center justify-end gap-3 pt-2">
                   <Button
                     type="submit"
-                    disabled={mutation.isPending || !canCreateVisit}
+                    disabled={mutation.isPending || !visitFormComplete}
                     title={createVisitBlockHint ?? undefined}
                     className="h-10 gap-2 bg-primary px-6 text-primary-foreground hover:bg-primary/90"
                   >
@@ -862,25 +904,20 @@ export function OpdRegistrationCreatePage() {
         onSuccess={handleAbhaCreated}
       />
 
-      {reportsModal ? (
-        <RegistrationReportsModal
-          open={reportsModalOpen}
-          onOpenChange={(open) => {
-            setReportsModalOpen(open);
-            if (!open) {
-              const fromRegistrationFlow = reportsModal.footerMode === 'registration';
-              setReportsModal(null);
-              if (fromRegistrationFlow) {
-                void navigate({ to: '/frontdesk/opd-registration' });
-              }
+      <RegistrationReportsModalMount
+        config={reportsModal}
+        open={reportsModalOpen}
+        onOpenChange={(open) => {
+          setReportsModalOpen(open);
+          if (!open) {
+            const fromRegistrationFlow = reportsModal?.footerMode === 'registration';
+            setReportsModal(null);
+            if (fromRegistrationFlow) {
+              void navigate({ to: '/frontdesk/opd-registration' });
             }
-          }}
-          registrationId={reportsModal.registrationId}
-          reportContext={reportsModal.reportContext}
-          singleView={reportsModal.singleView}
-          footerMode={reportsModal.footerMode}
-        />
-      ) : null}
+          }
+        }}
+      />
     </div>
   );
 }

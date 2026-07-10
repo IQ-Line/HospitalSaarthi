@@ -317,6 +317,55 @@ export function coerceAgePartValue(value: unknown): number | null {
 
 // ─── API payload mapping ─────────────────────────────────────────────────────
 
+/** Assign `key` to the trimmed value only when it is a non-empty string. */
+function assignTrimmed(
+  target: Record<string, unknown>,
+  key: string,
+  value: string | undefined | null,
+): void {
+  const trimmed = value?.trim();
+  if (trimmed) target[key] = trimmed;
+}
+
+/** Assign `key` only when the value is a real (non-NaN) number. */
+function assignFiniteNumber(
+  target: Record<string, unknown>,
+  key: string,
+  value: number | undefined | null,
+): void {
+  if (typeof value === 'number' && !Number.isNaN(value)) target[key] = value;
+}
+
+/** `year_of_birth` derived from an ISO DOB — only set when it parses past 1900. */
+function deriveYearOfBirth(dob: string): number | undefined {
+  const y = new Date(dob).getFullYear();
+  return !Number.isNaN(y) && y > 1900 ? y : undefined;
+}
+
+function assignEmpiPatientDemographics(
+  body: Record<string, unknown>,
+  p: CreateVisitRequestBody['patient'],
+): void {
+  assignTrimmed(body, 'middle_name', p.middle_name);
+  assignTrimmed(body, 'last_name', p.last_name);
+  assignTrimmed(body, 'date_of_birth', p.date_of_birth);
+  assignFiniteNumber(body, 'age_years', p.age_years);
+  assignFiniteNumber(body, 'age_months', p.age_months);
+  assignFiniteNumber(body, 'age_days', p.age_days);
+
+  const bg = p.blood_group?.trim();
+  if (bg && EMPI_BLOOD_GROUP_SET.has(bg)) body.blood_group = bg;
+
+  assignTrimmed(body, 'abha_number', p.abha_number);
+  assignTrimmed(body, 'abha_address', p.abha_address);
+
+  const dob = p.date_of_birth?.trim();
+  if (dob) {
+    const year = deriveYearOfBirth(dob);
+    if (year !== undefined) body.year_of_birth = year;
+  }
+}
+
 export function mapVisitRegistrationToEmpiCreatePatient(
   data: CreateVisitRequestBody,
 ): Record<string, unknown> {
@@ -330,52 +379,14 @@ export function mapVisitRegistrationToEmpiCreatePatient(
     phone_number: `+91${p.phone}`,
   };
 
-  const mn = p.middle_name?.trim();
-  if (mn) body.middle_name = mn;
+  assignEmpiPatientDemographics(body, p);
 
-  const ln = p.last_name?.trim();
-  if (ln) body.last_name = ln;
+  assignTrimmed(body, 'education', o?.education);
+  assignTrimmed(body, 'occupation', o?.occupation);
 
-  const dob = p.date_of_birth?.trim();
-  if (dob) body.date_of_birth = dob;
-
-  if (typeof p.age_years === 'number' && !Number.isNaN(p.age_years)) {
-    body.age_years = p.age_years;
-  }
-  if (typeof p.age_months === 'number' && !Number.isNaN(p.age_months)) {
-    body.age_months = p.age_months;
-  }
-  if (typeof p.age_days === 'number' && !Number.isNaN(p.age_days)) {
-    body.age_days = p.age_days;
-  }
-
-  const bg = p.blood_group?.trim();
-  if (bg && EMPI_BLOOD_GROUP_SET.has(bg)) {
-    body.blood_group = bg;
-  }
-
-  const abha = p.abha_number?.trim();
-  if (abha) body.abha_number = abha;
-
-  const abhaAddr = p.abha_address?.trim();
-  if (abhaAddr) body.abha_address = abhaAddr;
-
-  if (dob) {
-    const y = new Date(dob).getFullYear();
-    if (!Number.isNaN(y) && y > 1900) body.year_of_birth = y;
-  }
-
-  if (o?.education?.trim()) body.education = o.education.trim();
-  if (o?.occupation?.trim()) body.occupation = o.occupation.trim();
-
-  const en = a.name?.trim();
-  if (en) body.emergency_contact_name = en;
-
-  const er = a.relation?.trim();
-  if (er) body.emergency_contact_relationship = er;
-
-  const ep = a.phone?.trim();
-  if (ep) body.emergency_contact_phone = ep;
+  assignTrimmed(body, 'emergency_contact_name', a.name);
+  assignTrimmed(body, 'emergency_contact_relationship', a.relation);
+  assignTrimmed(body, 'emergency_contact_phone', a.phone);
 
   return body;
 }
@@ -497,47 +508,30 @@ export function buildVisitTypeDecisionPatientPayload(input: {
   abhaAddress?: string | null;
   uhid?: string | null;
 }): VisitTypeDecisionPatientPayload | undefined {
-  const payload: VisitTypeDecisionPatientPayload = {};
-  const patientId = input.patientId?.trim();
-  if (patientId) payload.patient_id = patientId;
+  const payload: Record<string, unknown> = {};
 
-  const uhid = input.uhid?.trim();
-  if (uhid) payload.uhid = uhid;
-
-  const abhaNumber = input.abhaNumber?.trim();
-  if (abhaNumber) payload.abha_number = abhaNumber;
-
-  const abhaAddress = input.abhaAddress?.trim();
-  if (abhaAddress) payload.abha_address = abhaAddress;
+  assignTrimmed(payload, 'patient_id', input.patientId);
+  assignTrimmed(payload, 'uhid', input.uhid);
+  assignTrimmed(payload, 'abha_number', input.abhaNumber);
+  assignTrimmed(payload, 'abha_address', input.abhaAddress);
 
   const phone = normalizeVisitTypeDecisionPhone(input.phone);
   if (phone) payload.phone_number = phone;
 
-  const firstName = input.firstName?.trim();
-  if (firstName) payload.first_name = firstName;
-
-  const middleName = input.middleName?.trim();
-  if (middleName) payload.middle_name = middleName;
-
-  const lastName = input.lastName?.trim();
-  if (lastName) payload.last_name = lastName;
+  assignTrimmed(payload, 'first_name', input.firstName);
+  assignTrimmed(payload, 'middle_name', input.middleName);
+  assignTrimmed(payload, 'last_name', input.lastName);
 
   if (isValidRegistrationGender(input.gender)) payload.gender = input.gender;
 
-  const dob = input.dateOfBirth?.trim();
-  if (dob) payload.date_of_birth = dob;
+  assignTrimmed(payload, 'date_of_birth', input.dateOfBirth);
+  assignFiniteNumber(payload, 'age_years', input.ageYears);
+  assignFiniteNumber(payload, 'age_months', input.ageMonths);
+  assignFiniteNumber(payload, 'age_days', input.ageDays);
 
-  if (typeof input.ageYears === 'number' && !Number.isNaN(input.ageYears)) {
-    payload.age_years = input.ageYears;
-  }
-  if (typeof input.ageMonths === 'number' && !Number.isNaN(input.ageMonths)) {
-    payload.age_months = input.ageMonths;
-  }
-  if (typeof input.ageDays === 'number' && !Number.isNaN(input.ageDays)) {
-    payload.age_days = input.ageDays;
-  }
-
-  return Object.keys(payload).length > 0 ? payload : undefined;
+  return Object.keys(payload).length > 0
+    ? (payload as VisitTypeDecisionPatientPayload)
+    : undefined;
 }
 
 /** Stable key for visit-type-decision fetches — avoids duplicate calls on resolved patient id. */

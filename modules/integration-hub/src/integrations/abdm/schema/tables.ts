@@ -24,9 +24,13 @@ import {
   jsonb,
   boolean,
   smallint,
+  integer,
+  date,
   index,
   primaryKey,
+  unique,
   timestamp,
+  sql,
   tenantColumn,
 } from "@hims/ts-sdk-db";
 
@@ -229,5 +233,73 @@ export const abdmConsentArtefacts = abdmAdapterSchema.table(
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.consent_id] }),
     index("ix_abdm_consent_patient").on(t.iq_tenant_id, t.patient_id),
+  ],
+);
+
+/**
+ * ABDM scan-and-share token counter — one row per (facility, day); holds the
+ * next sequential token number handed out at the registration desk.
+ */
+export const abdmShareTokens = abdmAdapterSchema.table(
+  "abdm_share_tokens",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    integration_id: uuid("integration_id").notNull(),
+    facility_id_ref: text("facility_id_ref").notNull(),
+    issue_date: date("issue_date")
+      .notNull()
+      .default(sql`(current_date at time zone 'Asia/Kolkata')::date`),
+    next_token_number: integer("next_token_number").notNull().default(1),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    unique("uq_share_token_per_facility_day").on(
+      t.iq_tenant_id,
+      t.facility_id_ref,
+      t.issue_date,
+    ),
+  ],
+);
+
+/**
+ * ABDM scan-and-share issuances — one row per token handed to a walk-in, with
+ * the shared profile snapshot and redemption window.
+ */
+export const abdmShareTokenIssuances = abdmAdapterSchema.table(
+  "abdm_share_token_issuances",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    integration_id: uuid("integration_id").notNull(),
+    facility_id_ref: text("facility_id_ref").notNull(),
+    issue_date: date("issue_date")
+      .notNull()
+      .default(sql`(current_date at time zone 'Asia/Kolkata')::date`),
+    token_number: integer("token_number").notNull(),
+    patient_id: uuid("patient_id"),
+    abha_address: text("abha_address").notNull(),
+    profile_json: jsonb("profile_json")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    issued_at: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    redeemed_at: timestamp("redeemed_at", { withTimezone: true }),
+    expires_at: timestamp("expires_at", { withTimezone: true }).notNull(),
+    active: boolean("active").notNull().default(true),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    unique("uq_share_token_issuance").on(
+      t.iq_tenant_id,
+      t.facility_id_ref,
+      t.issue_date,
+      t.token_number,
+    ),
+    index("idx_share_issuance_abha").on(t.iq_tenant_id, t.abha_address),
+    index("idx_share_issuance_active")
+      .on(t.iq_tenant_id, t.facility_id_ref, t.issue_date, t.active)
+      .where(sql`${t.redeemed_at} is null`),
   ],
 );

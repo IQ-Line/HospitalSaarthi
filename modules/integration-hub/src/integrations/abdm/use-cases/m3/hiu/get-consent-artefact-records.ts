@@ -2,7 +2,6 @@ import type {
   AbdmAdapterDeps,
   AbdmTenantInput,
   M3ConsentArtefactHiuRow,
-  M3ConsentRequestRow,
 } from "../../../ports.js";
 import {
   isConsentHealthDataAccessible,

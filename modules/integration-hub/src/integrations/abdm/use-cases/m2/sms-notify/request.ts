@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { SmsNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2/index.js";
+import type { SmsNotifyRequest } from "@hims/ts-sdk-abha/protocol/m2";
 import type { AbdmTenantInput, AbdmAdapterDeps } from "../../../ports.js";
 import { M2_GATEWAY_PATHS } from "../../../lib/m2-gateway-paths.js";
 import type { M2SmsNotifyContext } from "../../../domain/session.js";

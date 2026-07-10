@@ -64,7 +64,11 @@ def post_hsn_gst(
     return InventoryHsnGstSingleResponse(data=InventoryHsnGstResponse.model_validate(row))
 
 
-@router.get("/{hsn_gst_id}", response_model=InventoryHsnGstSingleResponse, summary="Get HSN/GST row")
+@router.get(
+    "/{hsn_gst_id}",
+    response_model=InventoryHsnGstSingleResponse,
+    summary="Get HSN/GST row",
+)
 def get_hsn_gst(
     hsn_gst_id: UUID,
     repository: Annotated[InventoryHsnGstRepository, Depends(get_inventory_hsn_gst_repository)],

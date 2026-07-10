@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:billing", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/billing-svc"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
@@ -17,6 +23,22 @@
       "options": {
         "cwd": "services/billing-svc",
         "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "services/billing-svc"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/billing-svc/src/**/*.ts",
+          "services/billing-svc/test/**/*.ts"
+        ]
       }
     }
   }

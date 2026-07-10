@@ -1,7 +1,6 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { assertValidRuntimeCapabilityRow } from "../domain/capability-key.js";
-import { projectCapabilityRowToCanonical } from "../domain/legacy-capability-key-remap.js";
 import { normalizeCapabilityProvenance } from "../domain/capability-provenance.js";
 import { assertValidModuleSlug, normalizeModuleSlugSet } from "../domain/module-slug.js";
 import type { Capability, CapabilityRepository } from "../ports/index.js";
@@ -22,22 +21,21 @@ export type CapabilityDbRow = {
 };
 
 export function mapCapabilityRowFromDb(row: CapabilityDbRow): Capability {
-  const projected = projectCapabilityRowToCanonical(row);
-  const module = assertValidModuleSlug(projected.module, "capabilities.module");
+  const module = assertValidModuleSlug(row.module, "capabilities.module");
   const provenance = normalizeCapabilityProvenance({
-    source_module_slug: projected.source_module_slug,
-    source_permission_slug: projected.source_permission_slug,
-    source_catalog: projected.source_catalog,
+    source_module_slug: row.source_module_slug,
+    source_permission_slug: row.source_permission_slug,
+    source_catalog: row.source_catalog,
   });
   const capability = {
-    id: projected.id,
-    capability_key: projected.capability_key,
+    id: row.id,
+    capability_key: row.capability_key,
     module,
-    feature: projected.feature,
-    action: projected.action,
-    display_name: projected.display_name,
-    description: projected.description,
-    is_active: projected.is_active,
+    feature: row.feature,
+    action: row.action,
+    display_name: row.display_name,
+    description: row.description,
+    is_active: row.is_active,
     ...provenance,
   };
   if (capability.is_active) {

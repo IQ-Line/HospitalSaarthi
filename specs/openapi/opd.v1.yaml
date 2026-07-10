@@ -1,15 +1,16 @@
 openapi: 3.1.0
 info:
-  title: OPD — Visits and prescriptions
+  title: OPD — Prescriptions
   version: 1.0.0
-  description: 'OPD module API: visit lifecycle (Create RX / Visitpad) and normalized prescription aggregate.
-
-
-    **Visit-centric routes** persist encounter state and form_data for the active UI flows.
+  description: 'OPD module API: normalized prescription aggregate (Create RX).
 
 
     **REST /prescriptions routes** expose tenant-scoped draft/final/cancel lifecycle with normalized clinical child tables.
     Prescriptions are 1:1 with a registration visit_id (logical ref; no cross-schema FK).
+
+
+    **Tenancy/actor:** resolved from request headers — ``iq_tenant_id`` (tenant) and ``x-user-id``
+    (acting doctor) — never a query parameter or request body field.
 
 
     **Distribution:** All prescription tables use tenant_id in primary/unique keys for Citus.
@@ -18,12 +19,6 @@ info:
     **Visit uniqueness:** At most one active prescription per (tenant_id, visit_id); soft-deleted rows do not block a new
     prescription for the same visit.'
 tags:
-- name: OpdPatients
-  description: Patient queue sourced from registration visits.
-- name: OpdVisits
-  description: OPD visit lifecycle rows.
-- name: OpdPrescriptions
-  description: Visit-scoped prescription form_data upserts.
 - name: Prescriptions
   description: Normalized prescription REST aggregate.
 - name: OpdHealthDocuments
@@ -32,327 +27,6 @@ servers:
 - url: /api/v1/opd
   description: Local opd-svc (OPD_SVC_PORT; default 8020)
 paths:
-  /patients:
-    get:
-      operationId: listOpdPatients
-      summary: List patients with latest registration visit for the active tenant
-      description: 'Patients queue sourced from ``registration.visit`` (filtered by ``iq_tenant_id``).
-
-        ``prescription_status`` is overlaid from ``opd.prescriptions`` when a clinical row exists.
-
-        '
-      tags:
-      - OpdPatients
-      parameters:
-      - name: status
-        in: query
-        schema:
-          type: string
-          enum:
-          - registered
-          - in_progress
-          - completed
-          - cancelled
-      - name: page
-        in: query
-        schema:
-          type: integer
-          minimum: 1
-          default: 1
-      - name: limit
-        in: query
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 100
-          default: 50
-      responses:
-        '200':
-          description: Latest encounter per patient
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - items
-                - total
-                - page
-                - limit
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/OpdPatientEncounterSummary'
-                  total:
-                    type: integer
-                  page:
-                    type: integer
-                  limit:
-                    type: integer
-  /visits:
-    get:
-      operationId: listOpdVisits
-      summary: List OPD visits for the active tenant
-      tags:
-      - OpdVisits
-      parameters:
-      - name: patient_id
-        in: query
-        schema:
-          type: string
-          format: uuid
-      - name: status
-        in: query
-        schema:
-          type: string
-          enum:
-          - registered
-          - in_progress
-          - completed
-          - cancelled
-      - name: limit
-        in: query
-        schema:
-          type: integer
-          minimum: 1
-          maximum: 100
-          default: 50
-      responses:
-        '200':
-          description: Visit rows
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                - items
-                properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/OpdVisitSummary'
-
-  /visits/{visitId}/encounter:
-    put:
-      operationId: ensureRegistrationEncounter
-      summary: Create OPD visit and draft prescription for a registration visit id
-      description: 'Idempotent link from ``registration.visit`` to ``opd.visits`` + ``opd.prescriptions``
-
-        using the same ``visit_id``. Called from registration desk and Create RX when the
-
-        clinical row does not exist yet.
-
-        '
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - name: visitId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdEnsureEncounterRequest'
-      responses:
-        '200':
-          description: Visit + draft prescription (existing or newly created)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '400':
-          description: Missing doctor_id or patient mismatch
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Tenant mismatch on existing OPD visit
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-  /visits/{visitId}/prescription/pre-consult:
-    put:
-      operationId: upsertVisitNursePreConsult
-      summary: Save nurse pre-consult vitals and notes for a visit
-      description: 'Creates OPD visit + prescription from ``registration.visit`` when the desk flow
-
-        skipped ``PUT /visits/{visitId}/encounter``.
-
-        '
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - name: visitId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
-      responses:
-        '200':
-          description: Saved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Visit prescription is read-only
-  /visits/{visitId}/prescription:
-    get:
-      operationId: getVisitPrescription
-      summary: Prescription for a specific OPD visit
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - name: visitId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        '200':
-          description: Visit + prescription payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      operationId: upsertVisitPrescription
-      summary: Save prescription draft for a specific visit
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - name: visitId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
-      responses:
-        '200':
-          description: Saved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Visit prescription is read-only
-  /visits/{visitId}/prescription/end:
-    post:
-      operationId: endVisitConsultation
-      summary: Finalize consultation for a specific visit
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - name: visitId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
-      responses:
-        '200':
-          description: Finalized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: Visit prescription is read-only
-  /patients/{patientId}/prescription:
-    get:
-      operationId: getPatientPrescription
-      summary: Latest visit prescription for a patient (visit must have a prescription row)
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - $ref: '#/components/parameters/PatientId'
-      responses:
-        '200':
-          description: Visit + prescription payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    put:
-      operationId: upsertPatientPrescription
-      summary: Save prescription draft (creates visit when needed)
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - $ref: '#/components/parameters/PatientId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
-      responses:
-        '200':
-          description: Saved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
-  /patients/{patientId}/prescription/end:
-    post:
-      operationId: endPatientConsultation
-      summary: Finalize consultation and prescription
-      tags:
-      - OpdPrescriptions
-      parameters:
-      - $ref: '#/components/parameters/PatientId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OpdPrescriptionUpsertRequest'
-      responses:
-        '200':
-          description: Consultation ended
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OpdPrescriptionResponse'
   /prescriptions:
     get:
       operationId: listPrescriptions
@@ -360,7 +34,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: patient_id
         in: query
         required: true
@@ -414,7 +87,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: visit_id
         in: path
         required: true
@@ -437,7 +109,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - name: visit_ids
         in: query
         required: false
@@ -461,7 +132,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       responses:
         '200':
@@ -478,7 +148,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -503,7 +172,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       responses:
         '204':
@@ -517,7 +185,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -543,7 +210,6 @@ paths:
       tags:
       - Prescriptions
       parameters:
-      - $ref: '#/components/parameters/TenantIdQuery'
       - $ref: '#/components/parameters/PrescriptionId'
       requestBody:
         required: true
@@ -677,14 +343,6 @@ components:
       schema:
         type: string
         format: uuid
-    TenantIdQuery:
-      name: tenant_id
-      in: query
-      required: true
-      description: Tenant isolation key (Citus distribution column).
-      schema:
-        type: string
-        format: uuid
     PrescriptionId:
       name: prescription_id
       in: path
@@ -707,137 +365,6 @@ components:
       properties:
         detail:
           type: string
-    OpdVisitSummary:
-      type: object
-      required:
-      - visit_id
-      - patient_id
-      - status
-      - updated_at
-      properties:
-        visit_id:
-          type: string
-          format: uuid
-        patient_id:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum:
-          - registered
-          - in_progress
-          - completed
-          - cancelled
-        updated_at:
-          type: string
-          format: date-time
-
-    OpdPatientEncounterSummary:
-      type: object
-      required:
-      - patient_id
-      - visit_id
-      - visit_status
-      - updated_at
-      - created_at
-      properties:
-        patient_id:
-          type: string
-          format: uuid
-        visit_id:
-          type: string
-          format: uuid
-        visit_status:
-          type: string
-          enum:
-          - registered
-          - in_progress
-          - completed
-          - cancelled
-        prescription_status:
-          type: string
-          enum:
-          - draft
-          - final
-          - cancelled
-        updated_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-    OpdEnsureEncounterRequest:
-      type: object
-      required:
-      - patient_id
-      additionalProperties: false
-      properties:
-        patient_id:
-          type: string
-          format: uuid
-        doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-          description: Optional; resolved from registration.visit when omitted.
-    OpdPrescriptionUpsertRequest:
-      type: object
-      properties:
-        form_data:
-          type: object
-          additionalProperties: true
-          default: {}
-          description: Create RX form payload (vitals, chief complaints, etc.)
-        finalize:
-          type: boolean
-          default: false
-          description: When true on PUT, marks the prescription final (consultation clinical save). Visit lifecycle status is owned by registration.
-    OpdPrescriptionResponse:
-      type: object
-      required:
-      - prescription_id
-      - visit_id
-      - patient_id
-      - visit_status
-      - prescription_status
-      - is_read_only
-      - form_data
-      properties:
-        prescription_id:
-          type: string
-          format: uuid
-        visit_id:
-          type: string
-          format: uuid
-        patient_id:
-          type: string
-          format: uuid
-        visit_status:
-          type: string
-          enum:
-          - registered
-          - in_progress
-          - completed
-          - cancelled
-        prescription_status:
-          type: string
-          enum:
-          - draft
-          - final
-          - cancelled
-        is_read_only:
-          type: boolean
-        doctor_id:
-          type: string
-          format: uuid
-          nullable: true
-        finalized_at:
-          type: string
-          format: date-time
-          nullable: true
-        form_data:
-          type: object
-          additionalProperties: true
     PrescriptionStatus:
       type: string
       enum:
@@ -968,6 +495,9 @@ components:
         alcohol_status:
           type: string
           nullable: true
+        diet_type:
+          type: string
+          nullable: true
         other_notes:
           type: string
           nullable: true
@@ -1088,6 +618,9 @@ components:
         due_by:
           type: string
           format: date-time
+          nullable: true
+        when_text:
+          type: string
           nullable: true
         instructions:
           type: string
@@ -1264,21 +797,13 @@ components:
     PrescriptionCreate:
       type: object
       required:
-      - tenant_id
       - visit_id
       - patient_id
-      - doctor_id
       properties:
-        tenant_id:
-          type: string
-          format: uuid
         visit_id:
           type: string
           format: uuid
         patient_id:
-          type: string
-          format: uuid
-        doctor_id:
           type: string
           format: uuid
         vitals_schema_version:

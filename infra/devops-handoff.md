@@ -2,7 +2,7 @@
 
 **Audience:** DevOps engineers wiring up Jenkins → ACR → AKS for the HIMS platform.
 **Assumes:** Familiarity with Jenkins, Docker, ACR, AKS, `kubectl`. **No prior Nx or monorepo experience required.**
-**Last updated:** 2026-05-20.
+**Last updated:** 2026-07-09 (added §6.5 — the fast build path; adopt it, it is measured ~5–7× cheaper per image).
 
 This document is a tutorial. Read sections 1–5 end-to-end before writing any pipeline code. Then keep sections 6–11 open as reference while you build.
 
@@ -47,6 +47,10 @@ There are exactly **9** images the pipeline ever has to produce:
 **`cerbos-policies` is the Nx project name; `cerbos` is the image name.** When Nx tells you "cerbos-policies is affected", the corresponding image is `hims.azurecr.io/cerbos:<sha>` (and the k8s Deployment is named `cerbos`). The §6 skeleton handles this rewrite explicitly.
 
 All images build with **repo root** as context (the final positional arg to `docker build`). `tools/dockerfile-for-svc.sh` returns the (Dockerfile, context) pair for each service — use it rather than hardcoding paths, so new services can be added without changing the Jenkinsfile loop.
+
+> **Faster path:** the Dockerfiles in this table are the self-contained fallback. For CI, use
+> the build-once/package-N flow in **§6.5** — one shared `nx build` on the agent, then thin
+> images (`*.thin.Dockerfile`) that just COPY prebuilt output. Measured ~18 s vs ~2 min per image.
 
 ---
 
@@ -313,6 +317,77 @@ pipeline {
 - `echo "$mapping" | awk '{print $1}'` is the portable equivalent of `read -r DOCKERFILE CONTEXT < <(./tools/dockerfile-for-svc.sh "$svc")` — same result, runs in any POSIX shell.
 - `docker push` of both the SHA tag and the `<branch>-latest` tag is intentional. The SHA tag is the immutable canonical reference manifests target; `<branch>-latest` is for human convenience (e.g. when debugging on a dev cluster).
 - The `Move deployment tag` stage runs **only on dev/master** and **only after** all builds + pushes succeed. PR builds never move the tag.
+
+---
+
+## 6.5. The fast build path — build once, package N times (ADOPT THIS)
+
+The §6 skeleton's build loop runs a **full in-image `pnpm install` + `nx build` for every
+affected service** (~2 min/image, serial — measured 1473 s for a 14-service affected set on the
+dev pipeline, 84% of total deploy time). The fix: do the install+build **once on the agent**,
+then each image is a thin COPY of prebuilt output.
+
+Measured (kaniko, same service, see `docs/architecture/cleanup/jenkins-demo/RESULTS.md`):
+
+| | Full in-image build (today) | Thin image (this section) |
+|---|---|---|
+| Per affected service | ~110–150 s, serial | **~18 s** (+ ONE shared `nx build` for the whole set — ~8 s warm, minutes on a cold agent; see notes) |
+| Kaniko cache flags alone | saves ~5 s/image — **not the fix** | n/a |
+
+**Replace the §6 `Build & push images` stage body with:**
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+SHA=$(git rev-parse --short HEAD)
+
+# One install + one nx build for all affected services, then stage
+# per-service image contexts under dist-images/. Emits dist-images/manifest.txt:
+#   <nx-project> <image-name> <build-context> <dockerfile>
+./tools/build-images.sh $(echo "$AFFECTED" | jq -r '.[]')
+
+# Docker agents:
+while read -r svc image ctx df; do
+  echo "=== building $image ==="
+  DOCKER_BUILDKIT=1 docker build -f "$df" --build-arg SERVICE_NAME="$svc" \
+    -t "$REGISTRY/$image:$SHA" -t "$REGISTRY/$image:$BRANCH-latest" "$ctx"
+  docker push "$REGISTRY/$image:$SHA"
+  docker push "$REGISTRY/$image:$BRANCH-latest"
+done < dist-images/manifest.txt
+```
+
+```bash
+# Kaniko agents (K8s pod, no docker daemon) — same manifest, kaniko executor.
+# Thin contexts are tiny, so these are safe to parallelize (xargs -P4).
+while read -r svc image ctx df; do
+  /kaniko/executor \
+    --context "dir://$WORKSPACE/$ctx" \
+    --dockerfile "$WORKSPACE/$df" \
+    --build-arg "SERVICE_NAME=$svc" \
+    --destination "$REGISTRY/$image:$SHA" \
+    --destination "$REGISTRY/$image:$BRANCH-latest"
+done < dist-images/manifest.txt
+```
+
+Notes:
+
+- `tools/build-images.sh` handles ALL deployables: TS services + `web` get thin contexts
+  (`infra/docker/node-svc.thin.Dockerfile` / `web.thin.Dockerfile`); `master-data`,
+  `cerbos-policies`, `opd-svc` pass through with their existing self-contained Dockerfiles and
+  repo-root context. The `cerbos-policies` → `cerbos` image-name rewrite is already in the
+  manifest — delete the special-casing from your loop.
+- The `Setup` stage's `pnpm install --frozen-lockfile` is reused; the script only installs if
+  `node_modules` is missing. A **persistent agent workspace (or PVC-backed pnpm store + `.nx`
+  cache)** makes the shared build near-constant across runs; add a self-hosted Nx remote cache
+  (e.g. `nx-remotecache-azure` on an org blob container — no SaaS) to share it across agents.
+- Rollout: the §6 `kubectl set image ...:$SHA` stage already does the right thing — per-service,
+  immutable tags, `rollout undo` works. If a job instead does `kubectl apply` + `rollout restart`
+  with a mutable `<branch>-latest` tag (the dev job does today), switch it to the §6 stage:
+  it restarts ALL services on every deploy and cannot roll back. No manifest changes needed —
+  `kubectl set image` overrides the manifest's tag after the initial apply.
+- Kaniko cache flags (`--cache=true --cache-repo=...`) are measured as a ~5 s/image win under
+  the current Dockerfile shape and its COPY-layer caching was observed missing on unchanged
+  layers — do not expect them to substitute for this section.
 
 ---
 
@@ -721,6 +796,6 @@ If A.1 through A.7 all pass on your machine, the Jenkinsfile in §6 should behav
 
 - **BuildKit must be enabled** on Jenkins agents (default on modern Docker; confirm via `docker version` showing BuildKit).
 - **ACR registry auth + push** instead of local `:local` image tags.
-- **Network access** to `ghcr.io/cerbos/cerbos:0.42.0` for the Cerbos base image pull.
+- **Network access** to `ghcr.io/cerbos/cerbos:0.53.0` for the Cerbos base image pull.
 
 If verification passes locally and breaks in Jenkins, the difference is almost always one of those three.

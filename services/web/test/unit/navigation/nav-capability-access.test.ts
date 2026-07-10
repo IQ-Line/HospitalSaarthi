@@ -1,0 +1,236 @@
+import { describe, expect, it } from 'vitest';
+import { CFG_SHELL_ACCESS } from '@/lib/runtime-capability-keys';
+import {
+  buildNavCapabilityAccessInput,
+  buildPrincipalCapabilityModuleSegments,
+  capabilityKeysGrantModuleSlugAccess,
+  catalogSlugMatchesRouteSegment,
+  principalGrantsNavNodeAccess,
+  principalHasL1ProductShellAccess,
+  principalHasProductWideNavCapability,
+  resolveCatalogModuleSlugsForNavRoute,
+} from '../../../src/navigation/nav-capability-access';
+import { capabilityKeysGrantProductAccess } from '../../../src/navigation/module-product-access';
+import type { ModuleCatalogIndex } from '@/platform/modules/types';
+
+const catalogIndex: ModuleCatalogIndex = {
+  byId: new Map(),
+  bySlug: new Map([
+    [
+      'chronic-illnesses',
+      {
+        id: 'ci',
+        slug: 'chronic-illnesses',
+        name: 'Chronic illnesses',
+        icon: null,
+        category: 'clinical',
+        is_active: true,
+        level: 2,
+        parent_id: 'vp',
+      },
+    ],
+    [
+      'allergy-reactions',
+      {
+        id: 'ar',
+        slug: 'allergy-reactions',
+        name: 'Reactions',
+        icon: null,
+        category: 'clinical',
+        is_active: true,
+        level: 2,
+        parent_id: 'vp',
+      },
+    ],
+  ]),
+};
+
+describe('principalHasL1ProductShellAccess', () => {
+  it('grants configurator nav for configurator:shell:access', () => {
+    expect(principalHasL1ProductShellAccess(new Set([CFG_SHELL_ACCESS]), ['configurator'])).toBe(
+      true,
+    );
+  });
+
+  it('does not grant visitpad-master for unrelated shell keys', () => {
+    expect(principalHasL1ProductShellAccess(new Set([CFG_SHELL_ACCESS]), ['visitpad-master'])).toBe(
+      false,
+    );
+  });
+
+  it('does not grant visitpad routes for master-data:shell:access only', () => {
+    const keys = new Set(['master-data:shell:access']);
+    expect(
+      principalHasL1ProductShellAccess(keys, ['master-data', 'visitpad-master'], '/visitpad/units'),
+    ).toBe(false);
+    expect(
+      principalHasL1ProductShellAccess(keys, ['master-data', 'visitpad-master'], undefined),
+    ).toBe(false);
+  });
+
+  it('grants master-data routes for master-data:shell:access', () => {
+    const keys = new Set(['master-data:shell:access']);
+    expect(principalHasL1ProductShellAccess(keys, ['master-data'], '/master-data/departments')).toBe(
+      true,
+    );
+  });
+});
+
+describe('catalogSlugMatchesRouteSegment', () => {
+  it('matches hyphen-normalized slugs', () => {
+    expect(catalogSlugMatchesRouteSegment('rxcolumns', 'rx-columns')).toBe(true);
+  });
+
+  it('matches plural catalog slugs', () => {
+    expect(catalogSlugMatchesRouteSegment('chronic-illnesses', 'chronic-illness')).toBe(true);
+  });
+
+  it('matches tenant-modules from tenant route segment', () => {
+    expect(catalogSlugMatchesRouteSegment('tenant-modules', 'tenant')).toBe(true);
+  });
+
+  it('does not treat unit capability segment as conversions module slug', () => {
+    expect(catalogSlugMatchesRouteSegment('conversions', 'unit')).toBe(false);
+    expect(catalogSlugMatchesRouteSegment('unit-conversions', 'unit')).toBe(true);
+  });
+});
+
+describe('resolveCatalogModuleSlugsForNavRoute', () => {
+  it('resolves visitpad allergens from route segment', () => {
+    const slugs = resolveCatalogModuleSlugsForNavRoute('/visitpad/allergens', {
+      routePrefix: '/visitpad',
+    });
+    expect(slugs).toContain('allergens');
+  });
+
+  it('uses catalogModuleSlug override for chronic illness route', () => {
+    const slugs = resolveCatalogModuleSlugsForNavRoute('/visitpad/chronic-illness', {
+      routePrefix: '/visitpad',
+      catalogModuleSlug: 'chronic-illnesses',
+      catalogIndex,
+    });
+    expect(slugs).toContain('chronic-illnesses');
+  });
+});
+
+describe('principalHasProductWideNavCapability', () => {
+  it('grants visitpad-master for visitpad:view shell key', () => {
+    const keys = new Set(['visitpad-master:visitpad:view']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-master'])).toBe(true);
+  });
+
+  it('denies when resource segment is not product-wide', () => {
+    const keys = new Set(['visitpad-master:catalog:read']);
+    expect(principalHasProductWideNavCapability(keys, ['visitpad-master'])).toBe(false);
+  });
+});
+
+describe('principalGrantsNavNodeAccess', () => {
+  const ndwadPrincipal = new Set([
+    'allergens:allergens:read',
+    'vitals:vitals:read',
+    'modules:modules:read',
+    'tenant-modules:tenant-modules:read',
+    'users:users:read',
+    'visitpad-master:catalog:read',
+  ]);
+
+  const segments = buildPrincipalCapabilityModuleSegments(ndwadPrincipal);
+
+  function accessInput(keys: ReadonlySet<string>) {
+    return buildNavCapabilityAccessInput(
+      keys,
+      catalogIndex,
+      false,
+      (productSlugs) => capabilityKeysGrantProductAccess(keys, productSlugs, catalogIndex),
+    );
+  }
+
+  it('shows visitpad allergens without visitpad:view shell key', () => {
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(ndwadPrincipal),
+        { id: 'visitpad-allergens', label: 'Allergens', route: '/visitpad/allergens' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(true);
+  });
+
+  it('denies visitpad child when principal has no visitpad or L3 keys', () => {
+    const usersOnly = new Set(['users:users:read']);
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(usersOnly),
+        { id: 'visitpad-conversions', label: 'Conversions', route: '/visitpad/conversions' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(false);
+  });
+
+  it('shows visitpad L3 leaves for visitpad-master shell keys (view or catalog:read)', () => {
+    const shellViewOnly = new Set(['visitpad-master:visitpad:view']);
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(shellViewOnly),
+        { id: 'visitpad-vitals', label: 'Vitals', route: '/visitpad/vitals' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(true);
+
+    const shellCatalogRead = new Set(['visitpad-master:catalog:read']);
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(shellCatalogRead),
+        { id: 'visitpad-units', label: 'Units', route: '/visitpad/units' },
+        { parentProductSlugs: ['visitpad-master'], routePrefix: '/visitpad' },
+      ),
+    ).toBe(true);
+  });
+
+  it('shows master-data modules page for modules:modules:read', () => {
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(ndwadPrincipal),
+        { id: 'master-data-modules', label: 'Modules', route: '/master-data/modules' },
+        { parentProductSlugs: ['master-data'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('shows configurator tenant for configurator:shell:access only', () => {
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(new Set([CFG_SHELL_ACCESS])),
+        {
+          id: 'configurator-tenant',
+          label: 'Tenant',
+          route: '/configurator/tenant',
+          catalogModuleSlug: 'tenant-modules',
+          requiredModulesAny: ['configurator'],
+        },
+        { parentProductSlugs: ['configurator'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('shows configurator tenant for tenant-modules:* principal', () => {
+    expect(
+      principalGrantsNavNodeAccess(
+        accessInput(ndwadPrincipal),
+        {
+          id: 'configurator-tenant',
+          label: 'Tenant',
+          route: '/configurator/tenant',
+          catalogModuleSlug: 'tenant-modules',
+        },
+        { parentProductSlugs: ['configurator'] },
+      ),
+    ).toBe(true);
+  });
+
+  it('grants user-management users leaf via catalogModuleSlug', () => {
+    expect(
+      capabilityKeysGrantModuleSlugAccess(segments, ['users']),
+    ).toBe(true);
+  });
+});

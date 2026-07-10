@@ -1,5 +1,5 @@
 import type { Principal as IdentityPrincipal } from "@hims/ts-sdk-identity";
-import type { FastifyInstance, FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
 import { ModuleEntitlementLookupError, UserManagementError } from "./domain/errors.js";
 import {

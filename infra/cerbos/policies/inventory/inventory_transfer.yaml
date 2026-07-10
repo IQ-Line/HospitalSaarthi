@@ -1,0 +1,34 @@
+---
+# Inventory — inter-store stock transfers.
+# Capabilities: inventory:transfer:{read,create}.
+# Tenant-scoped by iq_tenant_id equality; roles are context, capabilities are the grant.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "inventory_transfer"
+  version: default
+  rules:
+    - actions:
+        - "transfer.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:transfer:read" in request.principal.attr.capabilities ||
+              "inventory:transfer:read" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "transfer.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "inventory:transfer:create" in request.principal.attr.capabilities ||
+              "inventory:transfer:create" in request.principal.attr.delegated_capabilities
+            )

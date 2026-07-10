@@ -25,7 +25,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -54,7 +54,6 @@ import {
   type VisitpadProcedureEditFormInput,
   type VisitpadProcedureEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -66,8 +65,10 @@ const PROC_BASE = '/api/v1/master-data/visitpad/procedures';
 const PROC_CATEGORY_UNSET = '__unset__';
 const PROC_BILLING_UNSET = '__unset__';
 
-const PROC_CATEGORY_VALUES = new Set(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
-const PROC_BILLING_VALUES = new Set(VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value));
+const PROC_CATEGORY_VALUES = new Set<string>(VISITPAD_PROCEDURE_CATEGORIES.map((c) => c.value));
+const PROC_BILLING_VALUES = new Set<string>(
+  VISITPAD_PROCEDURE_BILLING_CATEGORIES.map((c) => c.value),
+);
 
 function emptyProcedureCreateForm(displayOrder: number): VisitpadProcedureCreateFormInput {
   return {
@@ -115,7 +116,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/procedures')({
 
 function VisitpadProceduresPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-procedures');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -392,7 +393,6 @@ function VisitpadProceduresPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -411,7 +411,7 @@ function ProcedureCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadProcedureCreateFormInput>({
+  const form = useForm<VisitpadProcedureCreateFormInput, unknown, VisitpadProcedureCreateFormSchema>({
     resolver: zodResolver(visitpadProcedureCreateFormSchema),
     defaultValues: emptyProcedureCreateForm(nextOrder),
   });
@@ -621,7 +621,7 @@ function ProcedureEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadProcedureEditFormInput>({
+  const form = useForm<VisitpadProcedureEditFormInput, unknown, VisitpadProcedureEditFormSchema>({
     resolver: zodResolver(visitpadProcedureEditFormSchema),
     defaultValues: procedureEditDefaults({
       id: '',

@@ -5,7 +5,6 @@ import type {
   DispenseRecord,
   OpdPrescriptionMedicineLine,
   OpdPrescriptionSnapshot,
-  OpdQueueProjectionRow,
   QueueProjectionRow,
   PharmacyDispenseStatus,
   SaveDispenseLineInput,

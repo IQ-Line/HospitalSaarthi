@@ -21,7 +21,7 @@ import {
 export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     "/m2/link-token/acquire",
-    { schema: { body: linkTokenAcquireBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: linkTokenAcquireBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -47,7 +47,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m2/link-token/status",
-    { schema: { querystring: linkTokenStatusQuerySchema } },
+    { config: { authMode: "protected" as const }, schema: { querystring: linkTokenStatusQuerySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -71,7 +71,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.get(
     "/m2/sessions/:sessionId",
-    { schema: { params: m2SessionIdParamSchema } },
+    { config: { authMode: "protected" as const }, schema: { params: m2SessionIdParamSchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -88,7 +88,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m2/hip/initiated-link/start",
-    { schema: { body: hipInitiatedLinkStartBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: hipInitiatedLinkStartBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -127,7 +127,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m2/orchestrate/after-care-contexts",
-    { schema: { body: orchestrateM2AfterCareContextsBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: orchestrateM2AfterCareContextsBodySchema } },
     async (req, reply) => {
       const iqTenantId = req.tenantId?.trim() ?? "";
       if (!iqTenantId) {
@@ -152,7 +152,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m2/add-contexts/publish",
-    { schema: { body: addContextsPublishBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: addContextsPublishBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {
@@ -172,7 +172,7 @@ export async function registerM2PlatformRoutes(app: FastifyInstance): Promise<vo
 
   app.post(
     "/m2/sms/notify",
-    { schema: { body: smsNotifyBodySchema } },
+    { config: { authMode: "protected" as const }, schema: { body: smsNotifyBodySchema } },
     async (req, reply) => {
     const iqTenantId = req.tenantId?.trim() ?? "";
     if (!iqTenantId) {

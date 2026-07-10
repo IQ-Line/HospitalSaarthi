@@ -3,6 +3,7 @@ const AUTH_CONFIG_INVALID =
 
 /** Canonical JWKS path under the JWT issuer origin (better-auth via BFF). */
 export function expectedJwksUrlForIssuer(issuer: string): string {
+  // eslint-disable-next-line sonarjs/slow-regex -- single bounded quantifier anchored at end; not ReDoS
   const base = issuer.replace(/\/+$/, "");
   return `${base}/api/auth/.well-known/jwks.json`;
 }

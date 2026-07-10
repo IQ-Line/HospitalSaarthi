@@ -1,4 +1,7 @@
-import { findUomMasterOption } from '@/features/inventory-masters/api/uom-lookup';
+import {
+  findUomMasterOption,
+  type UomMasterOption,
+} from '@/features/inventory-masters/api/uom-lookup';
 import { EMPTY_GRN_LINE } from '../mock/fixtures';
 import type { InventoryGrnLineDraft, InventoryIndentRow, InventoryItemOption } from '../types';
 
@@ -29,11 +32,9 @@ export function validateIndentForGrnPrefill(
   return { ok: true, indent };
 }
 
-type UomOption = { id: string; abbreviation: string };
-
 export function mapIndentToGrnPrefill(
   indent: InventoryIndentRow,
-  uoms: UomOption[] = [],
+  uoms: UomMasterOption[] = [],
   items: InventoryItemOption[] = [],
 ): {
   grnType: 'Purchase';

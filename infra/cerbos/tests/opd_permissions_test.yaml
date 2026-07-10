@@ -1,0 +1,253 @@
+# yaml-language-server: $schema=https://api.cerbos.dev/latest/cerbos/policy/v1/TestSuite.schema.json
+---
+name: opd_permissions_test
+description: >-
+  OPD prescription + health-document authorization: capability-gated, tenant-isolated.
+  finalize/cancel are update-class (gate on opd:prescription:update); delegated capabilities
+  grant. Clinical surface: no platform-operator scope rule (ADR-0035), so the "super-admin" role
+  string grants nothing cross-tenant.
+
+principals:
+  rx_reader:
+    id: doctor-read
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:read"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  rx_updater:
+    id: doctor-update
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:update"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  rx_creator:
+    id: doctor-create
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:create"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  rx_deleter:
+    id: doctor-delete
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:delete"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  rx_reader_delegated:
+    id: doctor-delegated
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: ["opd:prescription:read"]
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  no_caps:
+    id: doctor-nocaps
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: []
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  super_admin_reader:
+    id: super-1
+    roles: ["super-admin"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:prescription:read"]
+      delegated_capabilities: []
+      role_codes: ["super-admin"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  hd_creator:
+    id: doctor-hd-create
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:health-document:create"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+  hd_reader:
+    id: doctor-hd-read
+    roles: ["doctor"]
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      capabilities: ["opd:health-document:read"]
+      delegated_capabilities: []
+      role_codes: ["doctor"]
+      clearances: {}
+      um_clearance_effective_tier: 0
+
+resources:
+  rx_a:
+    id: rx-1
+    kind: opd_prescription
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  rx_b:
+    id: rx-2
+    kind: opd_prescription
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  hd_a:
+    id: hd-1
+    kind: opd_health_document
+    attr:
+      iq_tenant_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  hd_b:
+    id: hd-2
+    kind: opd_health_document
+    attr:
+      iq_tenant_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+tests:
+  - name: read allowed with opd:prescription:read in same tenant
+    input:
+      principals: [rx_reader]
+      resources: [rx_a]
+      actions: [prescription.read]
+    expected:
+      - principal: rx_reader
+        resource: rx_a
+        actions: { prescription.read: EFFECT_ALLOW }
+
+  - name: read denied cross-tenant (non super-admin)
+    input:
+      principals: [rx_reader]
+      resources: [rx_b]
+      actions: [prescription.read]
+    expected:
+      - principal: rx_reader
+        resource: rx_b
+        actions: { prescription.read: EFFECT_DENY }
+
+  - name: read denied without capability
+    input:
+      principals: [no_caps]
+      resources: [rx_a]
+      actions: [prescription.read]
+    expected:
+      - principal: no_caps
+        resource: rx_a
+        actions: { prescription.read: EFFECT_DENY }
+
+  - name: read allowed via delegated capability
+    input:
+      principals: [rx_reader_delegated]
+      resources: [rx_a]
+      actions: [prescription.read]
+    expected:
+      - principal: rx_reader_delegated
+        resource: rx_a
+        actions: { prescription.read: EFFECT_ALLOW }
+
+  - name: finalize/cancel/update allowed with opd:prescription:update
+    input:
+      principals: [rx_updater]
+      resources: [rx_a]
+      actions: [prescription.update, prescription.finalize, prescription.cancel]
+    expected:
+      - principal: rx_updater
+        resource: rx_a
+        actions:
+          prescription.update: EFFECT_ALLOW
+          prescription.finalize: EFFECT_ALLOW
+          prescription.cancel: EFFECT_ALLOW
+
+  - name: finalize denied with only read capability
+    input:
+      principals: [rx_reader]
+      resources: [rx_a]
+      actions: [prescription.finalize]
+    expected:
+      - principal: rx_reader
+        resource: rx_a
+        actions: { prescription.finalize: EFFECT_DENY }
+
+  - name: create allowed with opd:prescription:create
+    input:
+      principals: [rx_creator]
+      resources: [rx_a]
+      actions: [prescription.create]
+    expected:
+      - principal: rx_creator
+        resource: rx_a
+        actions: { prescription.create: EFFECT_ALLOW }
+
+  - name: delete allowed with opd:prescription:delete
+    input:
+      principals: [rx_deleter]
+      resources: [rx_a]
+      actions: [prescription.delete]
+    expected:
+      - principal: rx_deleter
+        resource: rx_a
+        actions: { prescription.delete: EFFECT_ALLOW }
+
+  # DEAD STRING (ADR-0035): the "super-admin" role string carries no authority. A principal with
+  # role_codes:["super-admin"] and the read capability is DENIED cross-tenant — clinical surfaces
+  # omit the platform-operator scope rule by design, so nothing grants the cross-tenant read.
+  - name: dead string — super-admin role_codes DENIED cross-tenant even with capability
+    input:
+      principals: [super_admin_reader]
+      resources: [rx_b]
+      actions: [prescription.read]
+    expected:
+      - principal: super_admin_reader
+        resource: rx_b
+        actions: { prescription.read: EFFECT_DENY }
+
+  - name: health-document create allowed same tenant, denied cross-tenant
+    input:
+      principals: [hd_creator]
+      resources: [hd_a, hd_b]
+      actions: [health_document.create]
+    expected:
+      - principal: hd_creator
+        resource: hd_a
+        actions: { health_document.create: EFFECT_ALLOW }
+      - principal: hd_creator
+        resource: hd_b
+        actions: { health_document.create: EFFECT_DENY }
+
+  - name: health-document read allowed with read cap; create cap does not grant read
+    input:
+      principals: [hd_reader, hd_creator]
+      resources: [hd_a]
+      actions: [health_document.read]
+    expected:
+      - principal: hd_reader
+        resource: hd_a
+        actions: { health_document.read: EFFECT_ALLOW }
+      - principal: hd_creator
+        resource: hd_a
+        actions: { health_document.read: EFFECT_DENY }

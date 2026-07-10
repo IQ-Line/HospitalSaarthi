@@ -16,6 +16,35 @@ export interface GetM3AttachmentResult {
   };
 }
 
+/**
+ * Whether a data-pushed entry's bundle id matches `bundleId`. The bundle id is the
+ * FHIR `id`, else `identifier.value`, else the entry's careContextReference. On unparseable
+ * content, falls back to matching the careContextReference alone.
+ */
+function entryContentMatchesBundle(
+  content: string,
+  careContextReference: string | undefined,
+  bundleId: string,
+): boolean {
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    const identifier = parsed["identifier"];
+    const identifierValue =
+      typeof identifier === "object" &&
+      identifier !== null &&
+      typeof (identifier as Record<string, unknown>)["value"] === "string"
+        ? String((identifier as Record<string, unknown>)["value"])
+        : null;
+    const id =
+      (typeof parsed["id"] === "string" && parsed["id"]) ||
+      identifierValue ||
+      careContextReference;
+    return id === bundleId;
+  } catch {
+    return careContextReference === bundleId;
+  }
+}
+
 async function findEntryContent(
   deps: AbdmAdapterDeps,
   input: AbdmTenantInput<GetM3AttachmentInput>,
@@ -47,19 +76,8 @@ async function findEntryContent(
     for (const entry of dataPushed?.entries ?? []) {
       const content = entry.content ?? "";
       if (!content) continue;
-      try {
-        const parsed = JSON.parse(content) as Record<string, unknown>;
-        const id =
-          (typeof parsed["id"] === "string" && parsed["id"]) ||
-          (typeof parsed["identifier"] === "object" &&
-          parsed["identifier"] !== null &&
-          typeof (parsed["identifier"] as Record<string, unknown>)["value"] === "string"
-            ? String((parsed["identifier"] as Record<string, unknown>)["value"])
-            : null) ||
-          entry.careContextReference;
-        if (id === input.bundleId) return content;
-      } catch {
-        if (entry.careContextReference === input.bundleId) return content;
+      if (entryContentMatchesBundle(content, entry.careContextReference, input.bundleId)) {
+        return content;
       }
     }
   }

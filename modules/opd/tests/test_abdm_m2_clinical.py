@@ -1,4 +1,5 @@
 import base64
+from typing import Any, cast
 from uuid import uuid4
 
 from hims_sdk_fhir import build_op_consult_bundle
@@ -66,16 +67,19 @@ def test_op_consult_bundle_via_sdk_includes_clinical_resources() -> None:
     bundle = build_op_consult_bundle(bundle_input)
     stamp_bundle_identifier(bundle, "visit-1_OPConsultNote")
 
-    types = [e["resource"]["resourceType"] for e in bundle["entry"]]
+    # Navigate the assembled bundle as plain JSON: Bundle is a total=False TypedDict, so
+    # structural indexing into its (always-emitted here) keys is done through a JSON view.
+    bundle_json = cast(dict[str, Any], bundle)
+    types = [e["resource"]["resourceType"] for e in bundle_json["entry"]]
     assert types[0] == "Composition"
     assert "DocumentReference" in types
-    assert bundle["identifier"]["value"] == "visit-1_OPConsultNote"
+    assert bundle_json["identifier"]["value"] == "visit-1_OPConsultNote"
 
-    comp = bundle["entry"][0]["resource"]
+    comp = bundle_json["entry"][0]["resource"]
     assert comp["type"]["coding"][0]["code"] == "371530004"
 
     doc_ref = next(
-        e for e in bundle["entry"] if e["resource"]["resourceType"] == "DocumentReference"
+        e for e in bundle_json["entry"] if e["resource"]["resourceType"] == "DocumentReference"
     )
     attachment = doc_ref["resource"]["content"][0]["attachment"]
     assert attachment["contentType"] == "application/pdf"

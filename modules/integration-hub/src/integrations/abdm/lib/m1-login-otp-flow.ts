@@ -20,7 +20,7 @@ import {
   nhaLoginVerifyOtpPath,
   parseLoginApiVariant,
 } from "./m1-nha-login-paths.js";
-import type { AbdmFlowKind } from "../domain/session.js";
+import type { AbdmFlowKind, AbdmSession } from "../domain/session.js";
 import type { AbdmAdapterDeps } from "../ports.js";
 import { encryptLoginIdWithAbdmPublicKey } from "./rsa-abdm-login-id.js";
 import { AbdmUseCaseError } from "./m1-errors.js";
@@ -93,12 +93,7 @@ export async function m1LoginOtpSend(
   };
 }
 
-export async function m1LoginOtpVerify(
-  deps: AbdmAdapterDeps,
-  iqTenantId: string,
-  input: { sessionId: string; otp: string },
-  expectedFlowKind: M1OtpSessionFlowKind,
-): Promise<{
+export interface M1LoginOtpVerifyResult {
   sessionId: string;
   txnId: string;
   message: string;
@@ -106,15 +101,65 @@ export async function m1LoginOtpVerify(
   accounts?: ReturnType<typeof mapNhaLoginAccounts>;
   needsUserSelection?: boolean;
   loginTransferToken?: string;
-}> {
-  const otp = String(input.otp ?? "").trim();
+}
+
+export async function m1LoginOtpVerify(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  input: { sessionId: string; otp: string },
+  expectedFlowKind: M1OtpSessionFlowKind,
+): Promise<M1LoginOtpVerifyResult> {
+  const otp = normalizeOtp(input.otp);
+  const session = await loadVerifiableSession(deps, iqTenantId, input.sessionId, expectedFlowKind);
+
+  const cert = await deps.gateway.getPublicCertificate();
+  const otpValue = encryptLoginIdWithAbdmPublicKey(cert.publicKey, otp);
+  const loginApi = parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY]);
+  const body: NhaLoginVerifyBody = {
+    scope: resolveVerifyScope(session.context[LOGIN_SCOPES_CONTEXT_KEY]),
+    authData: {
+      authMethods: ["otp"],
+      otp: { txnId: session.txnId, otpValue },
+    },
+  };
+  const nha = await deps.gateway.post<NhaLoginVerifyBody, NhaLoginVerifyResponse>({
+    path: nhaLoginVerifyOtpPath(loginApi),
+    body,
+  });
+  const txnId = typeof nha.txnId === "string" && nha.txnId ? nha.txnId : session.txnId;
+
+  // PHR ABHA-address login: verify returns profile tokens directly (no verify/user in Postman/milestone1).
+  if (loginApi === "phr-abha") {
+    return finalizePhrAbhaLogin(deps, iqTenantId, session.sessionId, nha, txnId);
+  }
+
+  const accounts = mapNhaLoginAccounts(nha.accounts);
+  if (accounts.length > 0) {
+    return finalizeMultiAccountLogin(deps, iqTenantId, session.sessionId, nha, txnId, accounts);
+  }
+
+  return finalizeSingleAccountLogin(deps, iqTenantId, session.sessionId, nha, txnId);
+}
+
+/** OTP must be exactly 6 digits after trimming. */
+function normalizeOtp(raw: string): string {
+  const otp = String(raw ?? "").trim();
   if (!/^\d{6}$/.test(otp)) {
     throw new AbdmUseCaseError("otp must be exactly 6 digits", 400);
   }
-  const session = await deps.sessions.findById({
-    iqTenantId,
-    sessionId: input.sessionId,
-  });
+  return otp;
+}
+
+type VerifiableSession = AbdmSession<M1OtpSessionFlowKind> & { txnId: string };
+
+/** Load the session and assert it is in a state that can accept an OTP verify. */
+async function loadVerifiableSession(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  sessionId: string,
+  expectedFlowKind: M1OtpSessionFlowKind,
+): Promise<VerifiableSession> {
+  const session = await deps.sessions.findById({ iqTenantId, sessionId });
   if (!session) {
     throw new AbdmUseCaseError("session not found", 404, "NOT_FOUND");
   }
@@ -131,95 +176,112 @@ export async function m1LoginOtpVerify(
   if (!session.txnId) {
     throw new AbdmUseCaseError("session missing txnId", 400);
   }
-  const storedScopes = session.context[LOGIN_SCOPES_CONTEXT_KEY];
-  const scope = Array.isArray(storedScopes)
+  return session as VerifiableSession;
+}
+
+/** Stored scopes from the request step, falling back to the default login scope set. */
+function resolveVerifyScope(storedScopes: unknown): string[] {
+  return Array.isArray(storedScopes)
     ? storedScopes.filter((s): s is string => typeof s === "string")
     : ["abha-login", "aadhaar-verify"];
-  const cert = await deps.gateway.getPublicCertificate();
-  const otpValue = encryptLoginIdWithAbdmPublicKey(cert.publicKey, otp);
-  const body: NhaLoginVerifyBody = {
-    scope,
-    authData: {
-      authMethods: ["otp"],
-      otp: { txnId: session.txnId, otpValue },
-    },
-  };
-  const nha = await deps.gateway.post<NhaLoginVerifyBody, NhaLoginVerifyResponse>({
-    path: nhaLoginVerifyOtpPath(parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY])),
-    body,
-  });
-  const loginApi = parseLoginApiVariant(session.context[LOGIN_API_VARIANT_KEY]);
-  const txnId = typeof nha.txnId === "string" && nha.txnId ? nha.txnId : session.txnId;
+}
 
-  // PHR ABHA-address login: verify returns profile tokens directly (no verify/user in Postman/milestone1).
-  if (loginApi === "phr-abha") {
-    const { xToken, tToken } = extractLoginProfileTokens(nha);
-    await deps.sessions.patch({
-      iqTenantId,
-      sessionId: session.sessionId,
-      state: "OTP_VERIFIED",
-      txnId,
-      xToken,
-      ...(tToken ? { tToken } : {}),
-      contextMerge: {
-        [LOGIN_NEEDS_USER_VERIFY_KEY]: false,
-        loginUsers: mapNhaPhrLoginUsers(nha.users),
-        loginVerifiedAt: new Date().toISOString(),
-        loginAuthResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
-      },
-    });
-    return {
-      sessionId: session.sessionId,
-      txnId,
-      message: typeof nha.message === "string" ? nha.message : "OTP verified",
-      authResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
-      needsUserSelection: false,
-    };
-  }
+function readNhaMessage(nha: NhaLoginVerifyResponse): string {
+  return typeof nha.message === "string" ? nha.message : "OTP verified";
+}
 
-  const accounts = mapNhaLoginAccounts(nha.accounts);
-  const needsUserSelection = accounts.length > 0;
+function readNhaAuthResult(nha: NhaLoginVerifyResponse): string | undefined {
+  return typeof nha.authResult === "string" ? nha.authResult : undefined;
+}
 
-  if (needsUserSelection) {
-    const transferToken = resolveLoginTransferToken(nha);
-    if (!transferToken) {
-      throw new Error(
-        "NHA login/verify response missing token/refreshToken for account selection (check multi-account verify response)",
-      );
-    }
-    const pendingRefresh =
-      typeof nha.refreshToken === "string" && nha.refreshToken.trim()
-        ? nha.refreshToken.trim()
-        : undefined;
-    await deps.sessions.patch({
-      iqTenantId,
-      sessionId: session.sessionId,
-      state: "OTP_VERIFIED",
-      txnId,
-      contextMerge: {
-        [LOGIN_TRANSFER_TOKEN_KEY]: transferToken,
-        ...(pendingRefresh ? { [LOGIN_PENDING_REFRESH_TOKEN_KEY]: pendingRefresh } : {}),
-        [LOGIN_NEEDS_USER_VERIFY_KEY]: true,
-        loginAccounts: accounts,
-        loginVerifiedAt: new Date().toISOString(),
-        loginAuthResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
-      },
-    });
-    return {
-      sessionId: session.sessionId,
-      txnId,
-      message: typeof nha.message === "string" ? nha.message : "OTP verified",
-      authResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
-      accounts,
-      needsUserSelection: true,
-      loginTransferToken: transferToken,
-    };
-  }
-
+/** PHR ABHA-address: verify returns profile tokens directly; no account/user selection. */
+async function finalizePhrAbhaLogin(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  sessionId: string,
+  nha: NhaLoginVerifyResponse,
+  txnId: string,
+): Promise<M1LoginOtpVerifyResult> {
   const { xToken, tToken } = extractLoginProfileTokens(nha);
   await deps.sessions.patch({
     iqTenantId,
-    sessionId: session.sessionId,
+    sessionId,
+    state: "OTP_VERIFIED",
+    txnId,
+    xToken,
+    ...(tToken ? { tToken } : {}),
+    contextMerge: {
+      [LOGIN_NEEDS_USER_VERIFY_KEY]: false,
+      loginUsers: mapNhaPhrLoginUsers(nha.users),
+      loginVerifiedAt: new Date().toISOString(),
+      loginAuthResult: readNhaAuthResult(nha),
+    },
+  });
+  return {
+    sessionId,
+    txnId,
+    message: readNhaMessage(nha),
+    authResult: readNhaAuthResult(nha),
+    needsUserSelection: false,
+  };
+}
+
+/** Profile login returning multiple accounts: stash transfer token, require user selection. */
+async function finalizeMultiAccountLogin(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  sessionId: string,
+  nha: NhaLoginVerifyResponse,
+  txnId: string,
+  accounts: ReturnType<typeof mapNhaLoginAccounts>,
+): Promise<M1LoginOtpVerifyResult> {
+  const transferToken = resolveLoginTransferToken(nha);
+  if (!transferToken) {
+    throw new Error(
+      "NHA login/verify response missing token/refreshToken for account selection (check multi-account verify response)",
+    );
+  }
+  const pendingRefresh =
+    typeof nha.refreshToken === "string" && nha.refreshToken.trim()
+      ? nha.refreshToken.trim()
+      : undefined;
+  await deps.sessions.patch({
+    iqTenantId,
+    sessionId,
+    state: "OTP_VERIFIED",
+    txnId,
+    contextMerge: {
+      [LOGIN_TRANSFER_TOKEN_KEY]: transferToken,
+      ...(pendingRefresh ? { [LOGIN_PENDING_REFRESH_TOKEN_KEY]: pendingRefresh } : {}),
+      [LOGIN_NEEDS_USER_VERIFY_KEY]: true,
+      loginAccounts: accounts,
+      loginVerifiedAt: new Date().toISOString(),
+      loginAuthResult: readNhaAuthResult(nha),
+    },
+  });
+  return {
+    sessionId,
+    txnId,
+    message: readNhaMessage(nha),
+    authResult: readNhaAuthResult(nha),
+    accounts,
+    needsUserSelection: true,
+    loginTransferToken: transferToken,
+  };
+}
+
+/** Profile login resolving to a single account: profile tokens returned directly. */
+async function finalizeSingleAccountLogin(
+  deps: AbdmAdapterDeps,
+  iqTenantId: string,
+  sessionId: string,
+  nha: NhaLoginVerifyResponse,
+  txnId: string,
+): Promise<M1LoginOtpVerifyResult> {
+  const { xToken, tToken } = extractLoginProfileTokens(nha);
+  await deps.sessions.patch({
+    iqTenantId,
+    sessionId,
     state: "OTP_VERIFIED",
     txnId,
     xToken,
@@ -227,14 +289,14 @@ export async function m1LoginOtpVerify(
     contextMerge: {
       [LOGIN_NEEDS_USER_VERIFY_KEY]: false,
       loginVerifiedAt: new Date().toISOString(),
-      loginAuthResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
+      loginAuthResult: readNhaAuthResult(nha),
     },
   });
   return {
-    sessionId: session.sessionId,
+    sessionId,
     txnId,
-    message: typeof nha.message === "string" ? nha.message : "OTP verified",
-    authResult: typeof nha.authResult === "string" ? nha.authResult : undefined,
+    message: readNhaMessage(nha),
+    authResult: readNhaAuthResult(nha),
     needsUserSelection: false,
   };
 }

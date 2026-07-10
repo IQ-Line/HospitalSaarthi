@@ -50,8 +50,9 @@ function parseTenantListTab(value: unknown): TenantListTab {
 }
 
 export const Route = createFileRoute('/_authenticated/configurator/tenant/')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    tab: parseTenantListTab(search.tab),
+  // `tab` is optional so plain links/redirects to /configurator/tenant need no search prop.
+  validateSearch: (search: Record<string, unknown>): { tab?: TenantListTab } => ({
+    tab: search.tab === 'bridge-linkage' ? 'bridge-linkage' : undefined,
   }),
   beforeLoad: requireCatalogRouteAccess('/configurator/tenant', {
     catalogModuleSlug: 'tenant-modules',
@@ -89,6 +90,217 @@ function statusBadgeVariant(
   return 'outline';
 }
 
+function tenantScopeTitle(isPlatformSuperAdmin: boolean, organizationName: string | null): string {
+  if (isPlatformSuperAdmin) return 'All Tenants';
+  return organizationName ? `Tenants · ${organizationName}` : 'Tenants';
+}
+
+function tenantScopeDescription(isPlatformSuperAdmin: boolean, isTenantAdmin: boolean): string {
+  if (isPlatformSuperAdmin) {
+    return 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.';
+  }
+  if (isTenantAdmin) return 'Your tenant and its child branches only.';
+  return 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.';
+}
+
+function tenantScopeHeader(
+  activeTab: TenantListTab,
+  isPlatformSuperAdmin: boolean,
+  isTenantAdmin: boolean,
+  organizationName: string | null,
+): { title: string; description: string } {
+  if (activeTab === 'bridge-linkage') {
+    return {
+      title: 'Bridge linkage',
+      description: 'Bridge ID linking access to health facilities registered on the NHA gateway.',
+    };
+  }
+  return {
+    title: tenantScopeTitle(isPlatformSuperAdmin, organizationName),
+    description: tenantScopeDescription(isPlatformSuperAdmin, isTenantAdmin),
+  };
+}
+
+function tenantEmptyTitle(isPlatformSuperAdmin: boolean): string {
+  return isPlatformSuperAdmin ? 'No tenants in this organisation' : 'No branches under your tenant';
+}
+
+function tenantEmptyDescription(isPlatformSuperAdmin: boolean, isTenantAdmin: boolean): string {
+  if (isPlatformSuperAdmin) {
+    return 'Create a tenant to provision a new environment under this organisation.';
+  }
+  if (isTenantAdmin) return 'No branches are configured under your tenant yet.';
+  return 'Add a branch from the actions menu on your tenant row.';
+}
+
+function OrganizationCell({
+  row,
+  orgNameById,
+}: {
+  row: { original: TenantTreeRow };
+  orgNameById: Map<string, string>;
+}) {
+  const name = orgNameById.get(row.original.org_id);
+  return <span className="text-sm font-medium">{name ?? row.original.org_id.slice(0, 8)}</span>;
+}
+
+function TenantNameCell({ row }: { row: { original: TenantTreeRow } }) {
+  const depth = row.original.depth;
+  const pad = depth * 1.75;
+  return (
+    <div style={{ paddingLeft: `${pad}rem` }} className="min-w-0">
+      <div className="flex items-center gap-2">
+        {depth > 0 ? (
+          <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        ) : null}
+        <div className="min-w-0">
+          <div className={depth > 0 ? 'font-medium text-sm' : 'font-medium'}>
+            {row.original.name}
+          </div>
+          <div className="text-xs text-muted-foreground">{row.original.slug}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TenantLevelCell({ row }: { row: { original: TenantTreeRow } }) {
+  return row.original.parent_tenant_id ? (
+    <Badge variant="outline">
+      Branch{row.original.branch_code ? ` · ${row.original.branch_code}` : ''}
+    </Badge>
+  ) : (
+    <Badge variant="secondary">Root</Badge>
+  );
+}
+
+function TenantTypeCell({ value }: { value: ConfiguratorTenantType }) {
+  return <Badge variant="secondary">{tenantTypeLabels[value] ?? value}</Badge>;
+}
+
+function TenantStatusCell({ value }: { value: string }) {
+  return (
+    <Badge variant={statusBadgeVariant(value)}>{provisioningStatusLabels[value] ?? value}</Badge>
+  );
+}
+
+function TenantActionsCell({
+  tenant,
+  canProvisionTenants,
+  onAddBranch,
+}: {
+  tenant: TenantTreeRow;
+  canProvisionTenants: boolean;
+  onAddBranch: (tenant: ConfiguratorTenant) => void;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      {canProvisionTenants ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Add branch"
+          title="Add child branch"
+          onClick={() => onAddBranch(tenant)}
+        >
+          <GitBranch className="size-4" />
+        </Button>
+      ) : null}
+      <Button variant="ghost" size="icon-sm" asChild aria-label="View tenant">
+        <Link
+          to="/configurator/tenant/$organizationId"
+          params={{ organizationId: tenant.org_id }}
+          search={{ tenantId: tenant.iq_tenant_id, tab: undefined }}
+        >
+          <Eye className="size-4" />
+        </Link>
+      </Button>
+      <Button variant="ghost" size="icon-sm" asChild aria-label="Edit tenant">
+        <Link
+          to="/configurator/tenant/$organizationId"
+          params={{ organizationId: tenant.org_id }}
+          search={{ tenantId: tenant.iq_tenant_id, tab: undefined }}
+        >
+          <Pencil className="size-4" />
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+function buildTenantColumns(opts: {
+  isPlatformSuperAdmin: boolean;
+  canProvisionTenants: boolean;
+  orgNameById: Map<string, string>;
+  onAddBranch: (tenant: ConfiguratorTenant) => void;
+}): ColumnDef<TenantTreeRow, unknown>[] {
+  const { isPlatformSuperAdmin, canProvisionTenants, orgNameById, onAddBranch } = opts;
+  return [
+    ...(isPlatformSuperAdmin
+      ? [
+          {
+            id: 'organization',
+            header: 'Organization',
+            cell: ({ row }: { row: { original: TenantTreeRow } }) => (
+              <OrganizationCell row={row} orgNameById={orgNameById} />
+            ),
+          } satisfies ColumnDef<TenantTreeRow, unknown>,
+        ]
+      : []),
+    {
+      accessorKey: 'name',
+      header: 'Tenant',
+      cell: ({ row }) => <TenantNameCell row={row} />,
+    },
+    {
+      accessorKey: 'slug',
+      header: 'Slug',
+      cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
+    },
+    {
+      id: 'level',
+      header: 'Level',
+      cell: ({ row }) => <TenantLevelCell row={row} />,
+    },
+    {
+      accessorKey: 'type',
+      header: 'Type',
+      cell: ({ getValue }) => <TenantTypeCell value={getValue<ConfiguratorTenantType>()} />,
+    },
+    {
+      accessorKey: 'provisioning_status',
+      header: 'Status',
+      cell: ({ getValue }) => <TenantStatusCell value={getValue<string>()} />,
+    },
+    {
+      accessorKey: 'contact_email',
+      header: 'Contact',
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{row.original.contact_email ?? '—'}</span>
+      ),
+    },
+    {
+      accessorKey: 'updated_at',
+      header: 'Updated',
+      cell: ({ getValue }) => (
+        <span className="text-sm">{formatShortDate(getValue<string>())}</span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => (
+        <TenantActionsCell
+          tenant={row.original}
+          canProvisionTenants={canProvisionTenants}
+          onAddBranch={onAddBranch}
+        />
+      ),
+    },
+  ];
+}
+
 function ConfiguratorTenantListPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const { tab: tabFromSearch } = Route.useSearch();
@@ -96,7 +308,6 @@ function ConfiguratorTenantListPage() {
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [branchWizardParent, setBranchWizardParent] = useState<ConfiguratorTenant | null>(null);
-  const canCreateTenant = useCatalogModuleAction('tenants', 'create');
   const accessToken = useAuthStore((s) => s.accessToken);
   const authRoles = useAuthStore((s) => s.roles);
   const principalRoles = usePermissionsStore((s) => s.roles);
@@ -109,7 +320,7 @@ function ConfiguratorTenantListPage() {
   const activeTab: TenantListTab =
     tabFromSearch === 'bridge-linkage' && isPlatformSuperAdmin ? 'bridge-linkage' : 'tenants';
   const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
-  const canProvisionTenants = canCreateTenant && !isTenantAdmin;
+  const canProvisionTenants = useCatalogModuleAction('tenants', 'create') && !isTenantAdmin;
 
   useEffect(() => {
     if (tabFromSearch === 'bridge-linkage' && !isPlatformSuperAdmin) {
@@ -190,142 +401,13 @@ function ConfiguratorTenantListPage() {
   }, [tenantTreeRows, tableSearch, orgNameById]);
 
   const columns = useMemo<ColumnDef<TenantTreeRow, unknown>[]>(
-    () => [
-      ...(isPlatformSuperAdmin
-        ? [
-            {
-              id: 'organization',
-              header: 'Organization',
-              cell: ({ row }: { row: { original: TenantTreeRow } }) => {
-                const name = orgNameById.get(row.original.org_id);
-                return (
-                  <span className="text-sm font-medium">
-                    {name ?? row.original.org_id.slice(0, 8)}
-                  </span>
-                );
-              },
-            } satisfies ColumnDef<TenantTreeRow, unknown>,
-          ]
-        : []),
-      {
-        accessorKey: 'name',
-        header: 'Tenant',
-        cell: ({ row }) => {
-          const depth = row.original.depth;
-          const pad = depth * 1.75;
-          return (
-            <div style={{ paddingLeft: `${pad}rem` }} className="min-w-0">
-              <div className="flex items-center gap-2">
-                {depth > 0 ? (
-                  <GitBranch className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-                ) : null}
-                <div className="min-w-0">
-                  <div className={depth > 0 ? 'font-medium text-sm' : 'font-medium'}>
-                    {row.original.name}
-                  </div>
-                  <div className="text-xs text-muted-foreground">{row.original.slug}</div>
-                </div>
-              </div>
-            </div>
-          );
-        },
-      },
-      {
-        accessorKey: 'slug',
-        header: 'Slug',
-        cell: ({ getValue }) => <code className="text-xs">{getValue<string>()}</code>,
-      },
-      {
-        id: 'level',
-        header: 'Level',
-        cell: ({ row }) =>
-          row.original.parent_tenant_id ? (
-            <Badge variant="outline">
-              Branch{row.original.branch_code ? ` · ${row.original.branch_code}` : ''}
-            </Badge>
-          ) : (
-            <Badge variant="secondary">Root</Badge>
-          ),
-      },
-      {
-        accessorKey: 'type',
-        header: 'Type',
-        cell: ({ getValue }) => {
-          const t = getValue<ConfiguratorTenantType>();
-          return <Badge variant="secondary">{tenantTypeLabels[t] ?? t}</Badge>;
-        },
-      },
-      {
-        accessorKey: 'provisioning_status',
-        header: 'Status',
-        cell: ({ getValue }) => {
-          const s = getValue<string>();
-          return (
-            <Badge variant={statusBadgeVariant(s)}>
-              {provisioningStatusLabels[s] ?? s}
-            </Badge>
-          );
-        },
-      },
-      {
-        accessorKey: 'contact_email',
-        header: 'Contact',
-        cell: ({ row }) => (
-          <span className="text-sm text-muted-foreground">
-            {row.original.contact_email ?? '—'}
-          </span>
-        ),
-      },
-      {
-        accessorKey: 'updated_at',
-        header: 'Updated',
-        cell: ({ getValue }) => (
-          <span className="text-sm">{formatShortDate(getValue<string>())}</span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Actions</div>,
-        cell: ({ row }) => {
-          const tenant = row.original;
-
-          return (
-            <div className="flex items-center justify-end gap-1">
-              {canProvisionTenants ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Add branch"
-                  title="Add child branch"
-                  onClick={() => setBranchWizardParent(tenant)}
-                >
-                  <GitBranch className="size-4" />
-                </Button>
-              ) : null}
-              <Button variant="ghost" size="icon-sm" asChild aria-label="View tenant">
-                <Link
-                  to="/configurator/tenant/$organizationId"
-                  params={{ organizationId: tenant.org_id }}
-                  search={{ tenantId: tenant.iq_tenant_id }}
-                >
-                  <Eye className="size-4" />
-                </Link>
-              </Button>
-              <Button variant="ghost" size="icon-sm" asChild aria-label="Edit tenant">
-                <Link
-                  to="/configurator/tenant/$organizationId"
-                  params={{ organizationId: tenant.org_id }}
-                  search={{ tenantId: tenant.iq_tenant_id }}
-                >
-                  <Pencil className="size-4" />
-                </Link>
-              </Button>
-            </div>
-          );
-        },
-      },
-    ],
+    () =>
+      buildTenantColumns({
+        isPlatformSuperAdmin,
+        canProvisionTenants,
+        orgNameById,
+        onAddBranch: setBranchWizardParent,
+      }),
     [canProvisionTenants, isPlatformSuperAdmin, orgNameById],
   );
 
@@ -360,23 +442,12 @@ function ConfiguratorTenantListPage() {
     );
   }
 
-  const scopeTitle =
-    activeTab === 'bridge-linkage'
-      ? 'Bridge linkage'
-      : isPlatformSuperAdmin
-        ? 'All Tenants'
-        : organizationName
-          ? `Tenants · ${organizationName}`
-          : 'Tenants';
-
-  const scopeDescription =
-    activeTab === 'bridge-linkage'
-      ? 'Bridge ID linking access to health facilities registered on the NHA gateway.'
-      : isPlatformSuperAdmin
-        ? 'Tenants and branches for your current organisation. Indented rows are child branches; use Add branch on any row to nest further.'
-        : isTenantAdmin
-          ? 'Your tenant and its child branches only.'
-          : 'Your tenant and its child branches only. Use Add branch on a row to create nested branches under it.';
+  const { title: scopeTitle, description: scopeDescription } = tenantScopeHeader(
+    activeTab,
+    isPlatformSuperAdmin,
+    isTenantAdmin,
+    organizationName,
+  );
 
   return (
     <ConfiguratorPageShell
@@ -424,7 +495,6 @@ function ConfiguratorTenantListPage() {
             ) : null}
           </TabsList>
         </div>
-
         <TabsContent value="tenants" className="mt-0">
           <div className="rounded-lg border">
             <div className="p-3 border-b">
@@ -438,16 +508,8 @@ function ConfiguratorTenantListPage() {
               columns={columns}
               data={filteredTenants}
               isLoading={isLoading || isResolving}
-              emptyTitle={
-                isPlatformSuperAdmin ? 'No tenants in this organisation' : 'No branches under your tenant'
-              }
-              emptyDescription={
-                isPlatformSuperAdmin
-                  ? 'Create a tenant to provision a new environment under this organisation.'
-                  : isTenantAdmin
-                    ? 'No branches are configured under your tenant yet.'
-                    : 'Add a branch from the actions menu on your tenant row.'
-              }
+              emptyTitle={tenantEmptyTitle(isPlatformSuperAdmin)}
+              emptyDescription={tenantEmptyDescription(isPlatformSuperAdmin, isTenantAdmin)}
             />
           </div>
         </TabsContent>

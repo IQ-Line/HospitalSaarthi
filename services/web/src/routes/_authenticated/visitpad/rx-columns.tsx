@@ -21,7 +21,7 @@ import { RequiredLabel, VISITPAD_CODE_HELPER_TEXT } from '@/features/visitpad/co
 import { useCatalogActiveToggleConfirm } from '@/features/visitpad/hooks/use-catalog-active-toggle-confirm';
 import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
-import {
+import {
   useVisitpadPatch,
   useVisitpadPost,
   useVisitpadRxColumns,
@@ -41,10 +41,11 @@ import type { VisitpadRxColumn } from '@/features/visitpad/types';
 import {
   visitpadRxColumnCreateFormSchema,
   visitpadRxColumnEditFormSchema,
+  type VisitpadRxColumnCreateFormInput,
   type VisitpadRxColumnCreateFormSchema,
+  type VisitpadRxColumnEditFormInput,
   type VisitpadRxColumnEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -74,7 +75,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/rx-columns')({
 
 function VisitpadRxColumnsPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-rx-columns');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [section, setSection] = useState<string>(RX_SECTIONS[0].value);
@@ -336,7 +337,6 @@ function VisitpadRxColumnsPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -364,7 +364,7 @@ function RxColumnCreateDialog({
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const isMethodStrength = section === 'method_strength';
-  const form = useForm<VisitpadRxColumnCreateFormSchema>({
+  const form = useForm<VisitpadRxColumnCreateFormInput, unknown, VisitpadRxColumnCreateFormSchema>({
     resolver: zodResolver(visitpadRxColumnCreateFormSchema),
     defaultValues: {
       display_name: '',
@@ -508,7 +508,7 @@ function RxColumnEditDialog({
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
   const isMethodStrength = row?.section === 'method_strength';
-  const form = useForm<VisitpadRxColumnEditFormSchema>({
+  const form = useForm<VisitpadRxColumnEditFormInput, unknown, VisitpadRxColumnEditFormSchema>({
     resolver: zodResolver(visitpadRxColumnEditFormSchema),
     defaultValues: {
       display_name: '',

@@ -3,6 +3,12 @@
   "projectType": "application",
   "tags": ["type:service", "scope:bff", "language:typescript", "deploy:aks"],
   "targets": {
+    "typecheck": {
+      "command": "tsc -p tsconfig.json --noEmit",
+      "options": {
+        "cwd": "services/bff"
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "options": {
@@ -18,6 +24,22 @@
         "command": "npx tsx watch src/main.ts",
         "cwd": "services/bff",
         "envFile": "{workspaceRoot}/.env"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run",
+        "cwd": "services/bff"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "services/bff/src/**/*.ts",
+          "services/bff/test/**/*.ts"
+        ]
       }
     }
   }

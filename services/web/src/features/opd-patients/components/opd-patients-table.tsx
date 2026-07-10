@@ -157,7 +157,7 @@ export function OpdPatientsTable({
           pageSize,
           total,
           onPageChange: (pageIndex) => onPageChange(pageIndex + 1),
-          onPageSizeChange: () => {},
+          onPageSizeChange: () => {/* page size fixed for this table */},
         }}
       />
     </div>

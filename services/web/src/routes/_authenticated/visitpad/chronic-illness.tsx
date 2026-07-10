@@ -25,7 +25,7 @@ import { nextDisplayOrder } from '@/features/visitpad/lib/next-display-order';
 import { mutationErrorMessage } from '@/features/master-data/mutation-error';
 import {
   useVisitpadChronicIllnesses,
-  useVisitpadChronicIllnessesGlobalLibrary,
+  useVisitpadChronicIllnessesGlobalLibrary,
   useVisitpadPatch,
   useVisitpadPlatformImport,
   useVisitpadPost,
@@ -49,7 +49,6 @@ import {
   type VisitpadChronicIllnessEditFormInput,
   type VisitpadChronicIllnessEditFormSchema,
 } from '@/features/visitpad/validation';
-import { useCapability } from '@/hooks/use-capability';
 import { catalogModuleSlugForVisitpadManifestNode } from '@/features/visitpad/lib/visitpad-access';
 import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 import { requireVisitpadLeafRouteAccess } from '@/lib/visitpad-route-access';
@@ -60,7 +59,7 @@ const CI_BASE = '/api/v1/master-data/visitpad/chronic-illnesses';
 
 const CI_CATEGORY_UNSET = '__unset__';
 
-const CHRONIC_CATEGORY_VALUES = new Set(
+const CHRONIC_CATEGORY_VALUES = new Set<string>(
   VISITPAD_CHRONIC_ILLNESS_CATEGORIES.map((c) => c.value),
 );
 
@@ -97,7 +96,7 @@ export const Route = createFileRoute('/_authenticated/visitpad/chronic-illness')
 
 function VisitpadChronicIllnessPage() {
   const catalogModuleSlug = catalogModuleSlugForVisitpadManifestNode('visitpad-chronic-illness');
-  const { canUpdate, canMutate } = useCatalogModuleCrud(catalogModuleSlug);
+  const { canUpdate } = useCatalogModuleCrud(catalogModuleSlug);
   const { tenantCatalog } = useVisitpadTenantCatalog();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
@@ -351,7 +350,6 @@ function VisitpadChronicIllnessPage() {
         }}
       />
 
-
       <VisitpadSnomedFooter />
     </VisitpadPageShell>
   );
@@ -370,7 +368,7 @@ function ChronicIllnessCreateDialog({
   isSubmitting: boolean;
   onSubmit: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChronicIllnessCreateFormInput>({
+  const form = useForm<VisitpadChronicIllnessCreateFormInput, unknown, VisitpadChronicIllnessCreateFormSchema>({
     resolver: zodResolver(visitpadChronicIllnessCreateFormSchema),
     defaultValues: emptyChronicIllnessCreateForm(nextOrder),
   });
@@ -509,7 +507,7 @@ function ChronicIllnessEditDialog({
   isSubmitting: boolean;
   onSave: (body: Record<string, unknown>) => Promise<void>;
 }) {
-  const form = useForm<VisitpadChronicIllnessEditFormInput>({
+  const form = useForm<VisitpadChronicIllnessEditFormInput, unknown, VisitpadChronicIllnessEditFormSchema>({
     resolver: zodResolver(visitpadChronicIllnessEditFormSchema),
     defaultValues: {
       display_name: '',

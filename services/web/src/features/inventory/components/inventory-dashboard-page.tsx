@@ -69,6 +69,7 @@ export function InventoryDashboardPage() {
           action={
             <Link
               to="/inventory/stock"
+              search={{ status: undefined }}
               className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
             >
               View all

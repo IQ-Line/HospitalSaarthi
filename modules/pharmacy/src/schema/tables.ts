@@ -7,6 +7,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   tenantColumn,
 } from "@hims/ts-sdk-db";
@@ -41,7 +42,15 @@ export const dispense = pharmacySchema.table(
     updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     created_by: uuid("created_by"),
   },
-  (t) => [primaryKey({ columns: [t.iq_tenant_id, t.id] })],
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    // One dispense header per (tenant, visit). `upsertForVisit` is a find-then-
+    // insert/update keyed on (iq_tenant_id, visit_id) and relies on this unique
+    // index for its 23505-retry safety net under concurrency — without it two
+    // racing inserts both pass the existence check and duplicate the row. Leads
+    // with iq_tenant_id (Citus distribution key), so it stays a local shard index.
+    uniqueIndex("uq_pharmacy_dispense_tenant_visit").on(t.iq_tenant_id, t.visit_id),
+  ],
 );
 
 /** @deprecated Use `dispense` — table renamed in migration 0001. */
@@ -83,13 +92,12 @@ export const dispenseLineItems = pharmacySchema.table(
     })
       .onDelete("cascade")
       .onUpdate("no action"),
-    foreignKey({
-      name: "dispense_line_items_substitute_fk",
-      columns: [t.iq_tenant_id, t.substitute_of_line_id],
-      foreignColumns: [t.iq_tenant_id, t.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
+    // NOTE: `substitute_of_line_id` intentionally has NO DB-level self-FK. The upstream
+    // schema declared it as a self-referential FK with ON DELETE SET NULL, but Citus
+    // rejects SET NULL/SET DEFAULT on any FK that includes the distribution key
+    // (iq_tenant_id is part of every PK here), so the constraint cannot exist on a
+    // distributed table. The column and the substitution feature are preserved; the
+    // link is enforced in the use-case layer instead.
   ],
 );
 

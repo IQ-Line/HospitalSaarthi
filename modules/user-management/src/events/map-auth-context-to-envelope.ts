@@ -29,6 +29,7 @@ function formatUuidFromBytes(buf: Buffer): string {
 
 /** RFC 4122 UUID version 5 (SHA-1 over namespace + name). */
 function uuidV5(name: string, namespaceUuid: string): string {
+  // eslint-disable-next-line sonarjs/hashing -- RFC 4122 UUIDv5 mandates SHA-1; not a security context
   const hash = createHash("sha1")
     .update(Buffer.concat([parseUuidToBytes(namespaceUuid), Buffer.from(name, "utf8")]))
     .digest();

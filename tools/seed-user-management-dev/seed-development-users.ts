@@ -2,16 +2,16 @@ import { and, eq, inArray } from "drizzle-orm";
 import type { DevelopmentSeedUser } from "../../packages/dev-bootstrap/src/development-seed-users.ts";
 import {
   capabilities,
+  platform_admins,
   role_capabilities,
   roles,
-  user_capabilities,
   user_roles,
   users,
 } from "../../modules/user-management/src/schema/tables.ts";
 import type { DbInstance } from "../../packages/ts-sdk-db/src/index.ts";
 import { authUser } from "../../services/user-management-svc/src/auth/auth-schema.ts";
+import { toSyntheticAuthEmail } from "../../services/user-management-svc/src/auth/synthetic-email.ts";
 import { DEV_ORG_ID, DEV_TENANT_ID, filterCapabilityKeysForPersona } from "./constants.ts";
-import { syncSuperAdminCapabilitySnapshots } from "../../modules/user-management/src/dev/sync-super-admin-capability-snapshots.ts";
 import { seedLog } from "./log.ts";
 
 export type TenantSeedContext = {
@@ -108,10 +108,13 @@ async function ensureAuthUser(
   seedUser: DevelopmentSeedUser,
   platformUserId: string,
 ): Promise<string> {
+  // Identity anchor is the synthetic {username}@auth.internal (authn spec §15.1); the seed user's
+  // real email lives only on the platform `users` row. Login is by username.
+  const syntheticEmail = toSyntheticAuthEmail(seedUser.username);
   const [existing] = await db
     .select({ id: authUser.id })
     .from(authUser)
-    .where(eq(authUser.email, seedUser.email))
+    .where(eq(authUser.email, syntheticEmail))
     .limit(1);
 
   if (existing) {
@@ -129,7 +132,7 @@ async function ensureAuthUser(
   await auth.api.signUpEmail({
     body: {
       name: seedUser.name,
-      email: seedUser.email,
+      email: syntheticEmail,
       password: seedUser.password,
       iq_tenant_id: context.tenantId,
       platform_user_id: platformUserId,
@@ -140,11 +143,11 @@ async function ensureAuthUser(
   const [created] = await db
     .select({ id: authUser.id })
     .from(authUser)
-    .where(eq(authUser.email, seedUser.email))
+    .where(eq(authUser.email, syntheticEmail))
     .limit(1);
 
   if (!created) {
-    throw new Error(`better-auth user was not created for ${seedUser.email}`);
+    throw new Error(`better-auth user was not created for ${seedUser.username}`);
   }
   return created.id;
 }
@@ -172,15 +175,12 @@ export async function seedTenantUser(
 
   let grantedCount: number;
   if (seedUser.persona === "platformOperator") {
-    const synced = await syncSuperAdminCapabilitySnapshots(db, {
-      tenantId: context.tenantId,
-      userId: platformUserId,
-      roleId,
-    });
-    grantedCount = synced.capabilityCount;
-    if (grantedCount === 0) {
-      throw new Error("No active capabilities in catalog for platform super-admin.");
-    }
+    // Bounded operator: enroll in platform_admins (scope:platform) — NO capability grants.
+    await db
+      .insert(platform_admins)
+      .values({ user_id: platformUserId, note: "dev seed — bounded platform operator" })
+      .onConflictDoNothing({ target: [platform_admins.user_id] });
+    grantedCount = 0;
   } else {
     const keys = filterCapabilityKeysForPersona(
       seedUser.persona,
@@ -191,6 +191,10 @@ export async function seedTenantUser(
       throw new Error(`No capabilities resolved for persona ${seedUser.persona}`);
     }
 
+    // ADR-0037: role capabilities are read live from `role_capabilities` at principal hydration.
+    // The dev seed writes the role composition + the user's membership only — no per-user
+    // capability rows. `user_capabilities` is now exclusively grant/deny overrides, which a dev
+    // persona does not need. A persona's effective access flows through its role membership.
     await db
       .insert(role_capabilities)
       .values(
@@ -208,36 +212,6 @@ export async function seedTenantUser(
         ],
       });
 
-    const grantedAt = new Date();
-    await db
-      .insert(user_capabilities)
-      .values(
-        granted.map((row) => ({
-          iq_tenant_id: context.tenantId,
-          user_id: platformUserId,
-          capability_id: row.id,
-          grant_source: "role_template" as const,
-          source_role_id: roleId,
-          granted_by_user_id: null,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        })),
-      )
-      .onConflictDoUpdate({
-        target: [
-          user_capabilities.iq_tenant_id,
-          user_capabilities.user_id,
-          user_capabilities.capability_id,
-        ],
-        set: {
-          grant_source: "role_template",
-          source_role_id: roleId,
-          granted_at: grantedAt,
-          revoked_at: null,
-          revoked_by_user_id: null,
-        },
-      });
     grantedCount = granted.length;
   }
 

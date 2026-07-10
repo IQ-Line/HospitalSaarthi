@@ -1,0 +1,999 @@
+{
+  "id": "b8e5a59a-8727-45c5-9a4e-8990dbde1a86",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "configurator.organizations": {
+      "name": "organizations",
+      "schema": "configurator",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "website": {
+          "name": "website",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_organizations_slug": {
+          "name": "idx_organizations_slug",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_organizations_status": {
+          "name": "idx_organizations_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_organizations_type": {
+          "name": "chk_organizations_type",
+          "value": "\"configurator\".\"organizations\".\"type\" IN ('hospital_chain', 'medical_college', 'standalone_hospital', 'government_network')"
+        },
+        "chk_organizations_status": {
+          "name": "chk_organizations_status",
+          "value": "\"configurator\".\"organizations\".\"status\" IN ('active', 'suspended', 'decommissioned')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "configurator.sequence_configuration": {
+      "name": "sequence_configuration",
+      "schema": "configurator",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'default'"
+        },
+        "configured_at": {
+          "name": "configured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "identifier_overrides": {
+          "name": "identifier_overrides",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_sequence_configuration_status": {
+          "name": "idx_sequence_configuration_status",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sequence_configuration_iq_tenant_id_tenants_iq_tenant_id_fk": {
+          "name": "sequence_configuration_iq_tenant_id_tenants_iq_tenant_id_fk",
+          "tableFrom": "sequence_configuration",
+          "tableTo": "tenants",
+          "schemaTo": "configurator",
+          "columnsFrom": [
+            "iq_tenant_id"
+          ],
+          "columnsTo": [
+            "iq_tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_sequence_configuration_status": {
+          "name": "chk_sequence_configuration_status",
+          "value": "\"configurator\".\"sequence_configuration\".\"status\" IN ('default', 'configured')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "configurator.tenant_api_keys": {
+      "name": "tenant_api_keys",
+      "schema": "configurator",
+      "columns": {
+        "api_key_id": {
+          "name": "api_key_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key_prefix": {
+          "name": "key_prefix",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key_hash": {
+          "name": "key_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'opd_slip'"
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_tenant_api_keys_prefix": {
+          "name": "idx_tenant_api_keys_prefix",
+          "columns": [
+            {
+              "expression": "key_prefix",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenant_api_keys_tenant": {
+          "name": "idx_tenant_api_keys_tenant",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenant_api_keys_tenant_status": {
+          "name": "idx_tenant_api_keys_tenant_status",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_tenant_api_keys_purpose": {
+          "name": "chk_tenant_api_keys_purpose",
+          "value": "\"configurator\".\"tenant_api_keys\".\"purpose\" IN ('opd_slip')"
+        },
+        "chk_tenant_api_keys_environment": {
+          "name": "chk_tenant_api_keys_environment",
+          "value": "\"configurator\".\"tenant_api_keys\".\"environment\" IN ('live', 'test')"
+        },
+        "chk_tenant_api_keys_status": {
+          "name": "chk_tenant_api_keys_status",
+          "value": "\"configurator\".\"tenant_api_keys\".\"status\" IN ('active', 'disabled', 'revoked')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "configurator.tenant_integration_profiles": {
+      "name": "tenant_integration_profiles",
+      "schema": "configurator",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "integration_kind": {
+          "name": "integration_kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "hip_id": {
+          "name": "hip_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hiu_id": {
+          "name": "hiu_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cm_id": {
+          "name": "cm_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sbx'"
+        },
+        "client_id": {
+          "name": "client_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_secret": {
+          "name": "client_secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_sms_phone": {
+          "name": "default_sms_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hip_display_name": {
+          "name": "hip_display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "callback_base_url": {
+          "name": "callback_base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sms_provider": {
+          "name": "sms_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sms_config": {
+          "name": "sms_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "gateway_environment": {
+          "name": "gateway_environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sandbox'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_tenant_integration_profiles_tenant_kind": {
+          "name": "idx_tenant_integration_profiles_tenant_kind",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "integration_kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenant_integration_profiles_hip_active": {
+          "name": "idx_tenant_integration_profiles_hip_active",
+          "columns": [
+            {
+              "expression": "hip_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"configurator\".\"tenant_integration_profiles\".\"integration_kind\" = 'abdm' AND \"configurator\".\"tenant_integration_profiles\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenant_integration_profiles_tenant": {
+          "name": "idx_tenant_integration_profiles_tenant",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_tenant_integration_profiles_kind": {
+          "name": "chk_tenant_integration_profiles_kind",
+          "value": "\"configurator\".\"tenant_integration_profiles\".\"integration_kind\" IN ('abdm')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "configurator.tenant_modules": {
+      "name": "tenant_modules",
+      "schema": "configurator",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "module_id": {
+          "name": "module_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "is_core_override": {
+          "name": "is_core_override",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_tenant_modules_active": {
+          "name": "idx_tenant_modules_active",
+          "columns": [
+            {
+              "expression": "iq_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "is_active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "tenant_modules_iq_tenant_id_module_id_pk": {
+          "name": "tenant_modules_iq_tenant_id_module_id_pk",
+          "columns": [
+            "iq_tenant_id",
+            "module_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_tenant_modules_core_always_active": {
+          "name": "chk_tenant_modules_core_always_active",
+          "value": "NOT (\"configurator\".\"tenant_modules\".\"is_core_override\" AND NOT \"configurator\".\"tenant_modules\".\"is_active\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "configurator.tenants": {
+      "name": "tenants",
+      "schema": "configurator",
+      "columns": {
+        "iq_tenant_id": {
+          "name": "iq_tenant_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "parent_tenant_id": {
+          "name": "parent_tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provisioning_status": {
+          "name": "provisioning_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'provisioning'"
+        },
+        "data_isolation_level": {
+          "name": "data_isolation_level",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'shared'"
+        },
+        "cerbos_scope_key": {
+          "name": "cerbos_scope_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Asia/Kolkata'"
+        },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en-IN'"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_code": {
+          "name": "branch_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "branch_type": {
+          "name": "branch_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "address_line1": {
+          "name": "address_line1",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city": {
+          "name": "city",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pin_code": {
+          "name": "pin_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_phone": {
+          "name": "contact_phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tenant_numeric_code": {
+          "name": "tenant_numeric_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "free_follow_up_days": {
+          "name": "free_follow_up_days",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 15
+        },
+        "free_follow_up_visits": {
+          "name": "free_follow_up_visits",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "idx_tenants_slug": {
+          "name": "idx_tenants_slug",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenants_org": {
+          "name": "idx_tenants_org",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenants_parent": {
+          "name": "idx_tenants_parent",
+          "columns": [
+            {
+              "expression": "parent_tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenants_status": {
+          "name": "idx_tenants_status",
+          "columns": [
+            {
+              "expression": "provisioning_status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_tenants_cerbos_scope": {
+          "name": "idx_tenants_cerbos_scope",
+          "columns": [
+            {
+              "expression": "cerbos_scope_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "chk_tenants_type": {
+          "name": "chk_tenants_type",
+          "value": "\"configurator\".\"tenants\".\"type\" IN ('full_platform', 'fragmented', 'lite')"
+        },
+        "chk_tenants_provisioning_status": {
+          "name": "chk_tenants_provisioning_status",
+          "value": "\"configurator\".\"tenants\".\"provisioning_status\" IN ('provisioning', 'active', 'suspended', 'decommissioned')"
+        },
+        "chk_tenants_data_isolation_level": {
+          "name": "chk_tenants_data_isolation_level",
+          "value": "\"configurator\".\"tenants\".\"data_isolation_level\" IN ('shared', 'isolated')"
+        },
+        "chk_tenants_branch_type": {
+          "name": "chk_tenants_branch_type",
+          "value": "\"configurator\".\"tenants\".\"branch_type\" IS NULL OR \"configurator\".\"tenants\".\"branch_type\" IN ('hub_lab', 'hub', 'satellite')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "configurator": "configurator"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

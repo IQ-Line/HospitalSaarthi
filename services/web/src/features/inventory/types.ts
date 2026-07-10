@@ -114,7 +114,7 @@ export type InventoryIndentActiveMatch = {
   status: InventoryIndentStatus;
 };
 
-export type InventoryIndentPriority = 'NORMAL' | 'URGENT' | 'STAT';
+export type InventoryIndentPriority = 'normal' | 'urgent' | 'stat';
 
 export type InventoryIndentFulfillment = 'stock_transfer' | 'procurement';
 
@@ -141,7 +141,7 @@ export type InventoryIndentRow = {
   indent_number: string;
   request_date: string;
   from_store_id: string;
-  to_store_id: string;
+  to_store_id: string | null;
   from_store: string;
   to_store: string;
   route: InventoryIndentRoute;

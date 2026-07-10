@@ -20,8 +20,15 @@ import {
 import { BrandingLogoImage } from '@/features/configurator/components/branding-logo-image';
 import { IndianPincodeAddressFields } from '@/features/configurator/components/indian-pincode-address-fields';
 import { LogoUploadField } from '@/features/configurator/components/logo-upload-field';
-import type { ConfiguratorBranchType, ConfiguratorTenant, OrganizationType } from '@/features/configurator/types';
+import type {
+  ConfiguratorBranchType,
+  ConfiguratorTenant,
+  Organization,
+  OrganizationType,
+  OrganizationUpdateInput,
+} from '@/features/configurator/types';
 import { organizationTypeOptions } from '@/features/configurator/validation';
+import type { BrandingLogoMetadata } from '@/features/configurator/api/branding-logos';
 
 type AddressDetail = {
   hq_line1?: string | null;
@@ -153,11 +160,12 @@ function validateTenantForm(
     return isBranch ? 'Branch name is required' : 'Display name is required';
   }
   const email = form.contactEmail.trim();
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return 'Enter a valid contact email';
   }
   const pin = form.pinCode.trim();
-  if (pin && !/^[0-9]{6}$/.test(pin)) {
+  if (pin && !/^\d{6}$/.test(pin)) {
     return 'PIN code must be 6 digits';
   }
   const gstin = form.gstin.trim().toUpperCase();
@@ -165,7 +173,7 @@ function validateTenantForm(
     return 'GSTIN must be 15 characters';
   }
   const pan = form.pan.trim().toUpperCase();
-  if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) {
+  if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) {
     return 'Invalid PAN format (e.g. ABCDE1234F)';
   }
   if (isBranch && !form.branchType) {
@@ -179,6 +187,7 @@ function validateOrganisationForm(form: OrganisationFormState): string | null {
     return 'Organisation name is required';
   }
   const email = form.contactEmail.trim();
+  // eslint-disable-next-line sonarjs/slow-regex -- linear regex on bounded/trusted input; the flagged quantifiers cannot catastrophically backtrack (#50 verified)
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return 'Enter a valid organisation email';
   }
@@ -187,6 +196,176 @@ function validateOrganisationForm(form: OrganisationFormState): string | null {
     return 'Website must start with http:// or https://';
   }
   return null;
+}
+
+/**
+ * Persists the organisation form (and its optional logo) via the update mutation.
+ * Extracted from the component so the save handler stays under the cognitive-complexity budget.
+ */
+async function saveOrganisationDetails(args: {
+  organisation: Organization;
+  orgForm: OrganisationFormState;
+  orgLogoFile: File | null;
+  mutateAsync: (vars: { id: string; input: OrganizationUpdateInput }) => Promise<Organization>;
+}): Promise<void> {
+  const { organisation, orgForm, orgLogoFile, mutateAsync } = args;
+
+  let orgMetadata = { ...(organisation.metadata ?? {}) };
+  if (orgLogoFile) {
+    const logo = await uploadOrganizationBrandingLogo(organisation.slug, orgLogoFile);
+    orgMetadata = { ...orgMetadata, logo };
+  }
+
+  await mutateAsync({
+    id: organisation.id,
+    input: {
+      name: orgForm.name.trim(),
+      type: orgForm.type,
+      contact_email: orgForm.contactEmail.trim() || null,
+      contact_phone: orgForm.contactPhone.trim() || null,
+      website: orgForm.website.trim() || null,
+      address: orgForm.address.trim() || null,
+      metadata: orgMetadata,
+    },
+  });
+}
+
+/**
+ * Renders the "current logo" preview row shown above a {@link LogoUploadField}.
+ * Returns null when a replacement file is staged or no stored logo exists — preserving
+ * the original `{!file && logo ? (<div…/>) : null}` render branch.
+ */
+function CurrentLogoPreview({
+  file,
+  logo,
+  alt,
+  caption,
+}: {
+  file: File | null;
+  logo: BrandingLogoMetadata | null;
+  alt: string;
+  caption: string;
+}) {
+  if (file || !logo) return null;
+  return (
+    <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
+      <BrandingLogoImage
+        logo={logo}
+        alt={alt}
+        className="size-16 border bg-background p-1"
+        showFallbackIcon={false}
+      />
+      <p className="text-sm text-muted-foreground">{caption}</p>
+    </div>
+  );
+}
+
+/** Organisation fields + logo block, shown only when editing a tenant (not a branch). */
+function OrganisationSection({
+  organisation,
+  orgForm,
+  setOrgField,
+  currentOrgLogo,
+  orgLogoFile,
+  setOrgLogoFile,
+  isSaving,
+}: {
+  organisation: Organization;
+  orgForm: OrganisationFormState;
+  setOrgField: <K extends keyof OrganisationFormState>(
+    field: K,
+    value: OrganisationFormState[K],
+  ) => void;
+  currentOrgLogo: BrandingLogoMetadata | null;
+  orgLogoFile: File | null;
+  setOrgLogoFile: (file: File | null) => void;
+  isSaving: boolean;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="text-sm font-medium">Organisation</h3>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="org-details-name">Organisation name</Label>
+          <Input
+            id="org-details-name"
+            value={orgForm.name}
+            onChange={(e) => setOrgField('name', e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="org-details-type">Organisation type</Label>
+          <Select
+            value={orgForm.type}
+            onValueChange={(v) => setOrgField('type', v as OrganizationType)}
+          >
+            <SelectTrigger id="org-details-type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {organizationTypeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="org-details-email">Organisation email</Label>
+          <Input
+            id="org-details-email"
+            type="email"
+            value={orgForm.contactEmail}
+            onChange={(e) => setOrgField('contactEmail', e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="org-details-phone">Organisation phone</Label>
+          <Input
+            id="org-details-phone"
+            value={orgForm.contactPhone}
+            onChange={(e) => setOrgField('contactPhone', e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="org-details-website">Website (optional)</Label>
+          <Input
+            id="org-details-website"
+            type="url"
+            placeholder="https://"
+            value={orgForm.website}
+            onChange={(e) => setOrgField('website', e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="org-details-address">Organisation address (optional)</Label>
+          <Input
+            id="org-details-address"
+            value={orgForm.address}
+            onChange={(e) => setOrgField('address', e.target.value)}
+          />
+        </div>
+      </div>
+      <div className="space-y-3 pt-2">
+        <h4 className="text-sm font-medium text-muted-foreground">Organisation logo</h4>
+        <CurrentLogoPreview
+          file={orgLogoFile}
+          logo={currentOrgLogo}
+          alt={`${organisation.name} logo`}
+          caption="Current organisation logo"
+        />
+        <LogoUploadField
+          id="org-details-logo"
+          label={currentOrgLogo ? 'Replace organisation logo' : 'Organisation logo (optional)'}
+          description="PNG or JPEG, up to 2 MB. Saved when you click Save changes."
+          file={orgLogoFile}
+          onFileChange={setOrgLogoFile}
+          disabled={isSaving}
+        />
+      </div>
+    </section>
+  );
 }
 
 export function TenantDetailsEditPanel({
@@ -306,23 +485,11 @@ export function TenantDetailsEditPanel({
       });
 
       if (showOrganisationFields && organisation) {
-        let orgMetadata = { ...(organisation.metadata ?? {}) };
-        if (orgLogoFile) {
-          const logo = await uploadOrganizationBrandingLogo(organisation.slug, orgLogoFile);
-          orgMetadata = { ...orgMetadata, logo };
-        }
-
-        await updateOrganisationMutation.mutateAsync({
-          id: organisation.id,
-          input: {
-            name: orgForm.name.trim(),
-            type: orgForm.type,
-            contact_email: orgForm.contactEmail.trim() || null,
-            contact_phone: orgForm.contactPhone.trim() || null,
-            website: orgForm.website.trim() || null,
-            address: orgForm.address.trim() || null,
-            metadata: orgMetadata,
-          },
+        await saveOrganisationDetails({
+          organisation,
+          orgForm,
+          orgLogoFile,
+          mutateAsync: updateOrganisationMutation.mutateAsync,
         });
         setOrgLogoFile(null);
       }
@@ -370,94 +537,15 @@ export function TenantDetailsEditPanel({
         </CardHeader>
         <CardContent className="space-y-8 pt-6">
           {showOrganisationFields && organisation ? (
-            <section className="space-y-4">
-              <h3 className="text-sm font-medium">Organisation</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="org-details-name">Organisation name</Label>
-                  <Input
-                    id="org-details-name"
-                    value={orgForm.name}
-                    onChange={(e) => setOrgField('name', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-details-type">Organisation type</Label>
-                  <Select
-                    value={orgForm.type}
-                    onValueChange={(v) => setOrgField('type', v as OrganizationType)}
-                  >
-                    <SelectTrigger id="org-details-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {organizationTypeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-details-email">Organisation email</Label>
-                  <Input
-                    id="org-details-email"
-                    type="email"
-                    value={orgForm.contactEmail}
-                    onChange={(e) => setOrgField('contactEmail', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="org-details-phone">Organisation phone</Label>
-                  <Input
-                    id="org-details-phone"
-                    value={orgForm.contactPhone}
-                    onChange={(e) => setOrgField('contactPhone', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="org-details-website">Website (optional)</Label>
-                  <Input
-                    id="org-details-website"
-                    type="url"
-                    placeholder="https://"
-                    value={orgForm.website}
-                    onChange={(e) => setOrgField('website', e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label htmlFor="org-details-address">Organisation address (optional)</Label>
-                  <Input
-                    id="org-details-address"
-                    value={orgForm.address}
-                    onChange={(e) => setOrgField('address', e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-3 pt-2">
-                <h4 className="text-sm font-medium text-muted-foreground">Organisation logo</h4>
-                {!orgLogoFile && currentOrgLogo ? (
-                  <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                    <BrandingLogoImage
-                      logo={currentOrgLogo}
-                      alt={`${organisation.name} logo`}
-                      className="size-16 border bg-background p-1"
-                      showFallbackIcon={false}
-                    />
-                    <p className="text-sm text-muted-foreground">Current organisation logo</p>
-                  </div>
-                ) : null}
-                <LogoUploadField
-                  id="org-details-logo"
-                  label={currentOrgLogo ? 'Replace organisation logo' : 'Organisation logo (optional)'}
-                  description="PNG or JPEG, up to 2 MB. Saved when you click Save changes."
-                  file={orgLogoFile}
-                  onFileChange={setOrgLogoFile}
-                  disabled={isSaving}
-                />
-              </div>
-            </section>
+            <OrganisationSection
+              organisation={organisation}
+              orgForm={orgForm}
+              setOrgField={setOrgField}
+              currentOrgLogo={currentOrgLogo}
+              orgLogoFile={orgLogoFile}
+              setOrgLogoFile={setOrgLogoFile}
+              isSaving={isSaving}
+            />
           ) : null}
 
           <section className="space-y-4">
@@ -515,19 +603,12 @@ export function TenantDetailsEditPanel({
 
           <section className="space-y-4">
             <h3 className="text-sm font-medium">{isBranch ? 'Branch logo' : 'Tenant logo'}</h3>
-            {!logoFile && currentLogo ? (
-              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3">
-                <BrandingLogoImage
-                  logo={currentLogo}
-                  alt={`${tenant.name} logo`}
-                  className="size-16 border bg-background p-1"
-                  showFallbackIcon={false}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Current {isBranch ? 'branch' : 'tenant'} logo
-                </p>
-              </div>
-            ) : null}
+            <CurrentLogoPreview
+              file={logoFile}
+              logo={currentLogo}
+              alt={`${tenant.name} logo`}
+              caption={`Current ${isBranch ? 'branch' : 'tenant'} logo`}
+            />
             <LogoUploadField
               id="tenant-details-logo"
               label={currentLogo ? 'Replace logo' : 'Logo (optional)'}

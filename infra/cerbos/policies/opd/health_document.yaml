@@ -1,0 +1,34 @@
+---
+# OPD — patient health documents (upload, list, download).
+# Capabilities: opd:health-document:{create,read}.
+# Policies authorize by tenant + capability keys; roles are context, not grants.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "opd_health_document"
+  version: default
+  rules:
+    - actions:
+        - "health_document.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:health-document:create" in request.principal.attr.capabilities ||
+              "opd:health-document:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "health_document.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "opd:health-document:read" in request.principal.attr.capabilities ||
+              "opd:health-document:read" in request.principal.attr.delegated_capabilities
+            )

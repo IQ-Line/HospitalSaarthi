@@ -16,21 +16,21 @@ from app.models.visitpad.chronic_illness import (
     VisitpadChronicIllnessPublicModel,
     VisitpadChronicIllnessTenantModel,
 )
-from app.models.visitpad.diagnosis import VisitpadDiagnosisPublicModel, VisitpadDiagnosisTenantModel
-from app.models.visitpad.medicine import VisitpadMedicinePublicModel, VisitpadMedicineTenantModel
-from app.models.visitpad.procedure import VisitpadProcedurePublicModel, VisitpadProcedureTenantModel
-from app.models.visitpad.rx_column import VisitpadRxColumnPublicModel, VisitpadRxColumnTenantModel
-from app.models.visitpad.unit import VisitpadUnitPublicModel, VisitpadUnitTenantModel
 from app.models.visitpad.conversion import (
     VisitpadUnitConversionPublicModel,
     VisitpadUnitConversionTenantModel,
 )
-from app.models.visitpad.vital import VisitpadVitalPublicModel, VisitpadVitalTenantModel
+from app.models.visitpad.diagnosis import VisitpadDiagnosisPublicModel, VisitpadDiagnosisTenantModel
 from app.models.visitpad.manufacturer import (
     VisitpadManufacturerPublicModel,
     VisitpadManufacturerTenantModel,
 )
+from app.models.visitpad.medicine import VisitpadMedicinePublicModel, VisitpadMedicineTenantModel
+from app.models.visitpad.procedure import VisitpadProcedurePublicModel, VisitpadProcedureTenantModel
+from app.models.visitpad.rx_column import VisitpadRxColumnPublicModel, VisitpadRxColumnTenantModel
+from app.models.visitpad.unit import VisitpadUnitPublicModel, VisitpadUnitTenantModel
 from app.models.visitpad.vaccine import VisitpadVaccinePublicModel, VisitpadVaccineTenantModel
+from app.models.visitpad.vital import VisitpadVitalPublicModel, VisitpadVitalTenantModel
 
 
 def visitpad_unit_model(scope: CatalogScope):
@@ -38,7 +38,11 @@ def visitpad_unit_model(scope: CatalogScope):
 
 
 def visitpad_unit_conversion_model(scope: CatalogScope):
-    return VisitpadUnitConversionTenantModel if scope.is_tenant else VisitpadUnitConversionPublicModel
+    return (
+        VisitpadUnitConversionTenantModel
+        if scope.is_tenant
+        else VisitpadUnitConversionPublicModel
+    )
 
 
 def visitpad_medicine_model(scope: CatalogScope):
@@ -54,11 +58,19 @@ def visitpad_allergen_model(scope: CatalogScope):
 
 
 def visitpad_allergy_reaction_model(scope: CatalogScope):
-    return VisitpadAllergyReactionTenantModel if scope.is_tenant else VisitpadAllergyReactionPublicModel
+    return (
+        VisitpadAllergyReactionTenantModel
+        if scope.is_tenant
+        else VisitpadAllergyReactionPublicModel
+    )
 
 
 def visitpad_chief_complaint_model(scope: CatalogScope):
-    return VisitpadChiefComplaintTenantModel if scope.is_tenant else VisitpadChiefComplaintPublicModel
+    return (
+        VisitpadChiefComplaintTenantModel
+        if scope.is_tenant
+        else VisitpadChiefComplaintPublicModel
+    )
 
 
 def visitpad_diagnosis_model(scope: CatalogScope):
@@ -66,7 +78,11 @@ def visitpad_diagnosis_model(scope: CatalogScope):
 
 
 def visitpad_chronic_illness_model(scope: CatalogScope):
-    return VisitpadChronicIllnessTenantModel if scope.is_tenant else VisitpadChronicIllnessPublicModel
+    return (
+        VisitpadChronicIllnessTenantModel
+        if scope.is_tenant
+        else VisitpadChronicIllnessPublicModel
+    )
 
 
 def visitpad_procedure_model(scope: CatalogScope):

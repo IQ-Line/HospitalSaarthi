@@ -20,6 +20,17 @@ export interface CareContextRow {
 export interface CareContextFilters {
   patient_id?: string;
   status?: string;
+  /** Page size cap (defaults applied in the repo; bounds the otherwise-unbounded list). */
+  limit?: number;
+  offset?: number;
+}
+
+/** The full dedup tuple behind uq_care_contexts_source. */
+export interface CareContextSourceKey {
+  source_origin: string;
+  source_system_id: string;
+  source_record_type: string;
+  source_record_id: string;
 }
 
 export interface CreateCareContextData {
@@ -46,6 +57,11 @@ export interface CareContextRepo {
   findBySourceRecordId(
     tenantId: string,
     sourceRecordId: string,
+  ): Promise<CareContextRow | null>;
+  /** Exact dedup-tuple lookup (matches uq_care_contexts_source) for idempotent create. */
+  findBySource(
+    tenantId: string,
+    key: CareContextSourceKey,
   ): Promise<CareContextRow | null>;
 }
 

@@ -17,7 +17,6 @@ export interface DocumentsHandlerDeps {
   visitRepo: VisitRepo;
   billingReadPort: BillingReadPort | undefined;
   pdfRenderer: PdfRendererPort | undefined;
-  defaultReportWebOrigin?: string;
   defaultReportLogoUrl?: string;
 }
 
@@ -53,7 +52,6 @@ function documentContextFromRequest(
   return {
     bearerToken: readBearerToken(request.headers.authorization),
     requestId: readRequestId(request.headers["x-request-id"]),
-    webOrigin: deps.defaultReportWebOrigin,
     logoUrl: deps.defaultReportLogoUrl,
     facilityName: q.facility_name,
     facilityId: q.facility_id,

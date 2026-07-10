@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   AuthInvalidCredentialsError,
   CerbosPrincipalUnavailableError,
@@ -67,15 +67,17 @@ async function bootstrapInteractiveLogin(
   }
 
   return {
-    access_token: tokens.access_token,
-    token_type: tokens.token_type,
-    expires_in: tokens.expires_in,
-    refresh_token: tokens.refresh_token,
-    refresh_expires_in: tokens.refresh_expires_in,
-    session_token: signIn.sessionToken,
-    tenant_id: platformUser.iq_tenant_id,
-    user,
-    principal,
+    payload: {
+      access_token: tokens.access_token,
+      token_type: tokens.token_type,
+      expires_in: tokens.expires_in,
+      refresh_token: tokens.refresh_token,
+      refresh_expires_in: tokens.refresh_expires_in,
+      session_token: signIn.sessionToken,
+      tenant_id: platformUser.iq_tenant_id,
+      user,
+      principal,
+    },
     setCookieHeaders: signIn.setCookieHeaders,
   };
 }
@@ -109,7 +111,7 @@ export type AuthHandlersDeps = {
 export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandlersDeps): void {
   fastify.get(
     "/auth/me",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const userId = deps.getUserId(request);
@@ -124,7 +126,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
 
   fastify.post(
     "/auth/change-password-complete",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const tenantId = deps.getTenantId(request);
       const userId = deps.getUserId(request);
@@ -144,7 +146,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
 
   fastify.get(
     "/auth/principal",
-    { config: { authMode: "protected" } },
+    { config: { authMode: "protected", identityScoped: true } },
     async (request, reply) => {
       const cid = request.correlationId ?? request.id;
       const snapshot = request.cerbosPrincipal;
@@ -155,7 +157,7 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
     },
   );
 
-  void fastify.register(async (scope) => {
+  fastify.register(async (scope) => {
     scope.removeContentTypeParser("application/json");
     scope.addContentTypeParser(
       "application/json",
@@ -196,14 +198,13 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
         for (const cookie of result.setCookieHeaders ?? []) {
           reply.header("set-cookie", cookie);
         }
-        const { setCookieHeaders: _cookies, ...payload } = result;
-        return reply.send(payload);
+        return reply.send(result.payload);
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
       }
     });
 
-    const handler = async (request: FastifyRequest, reply: { status: (n: number) => { send: (b: unknown) => unknown }; send: (b: unknown) => unknown }) => {
+    const handler = async (request: FastifyRequest, reply: FastifyReply) => {
       const cid = request.correlationId ?? request.id;
       const apiKey = resolveApiKeyFromRequest(request);
       if (!apiKey) {

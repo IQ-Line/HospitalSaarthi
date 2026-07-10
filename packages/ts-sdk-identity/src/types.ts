@@ -7,8 +7,19 @@ export interface HimsJwtPayload extends JoseJWTPayload {
   /**
    * Canonical tenant scope claim for platform data partitioning.
    * This is the only claim mapped to `Principal.tenantId`.
+   *
+   * Optional ONLY for bounded platform-operator tokens (`scopes` includes `"platform"`), which are
+   * tenant-less by design (BET4). Every other token MUST carry a non-empty value — `toPrincipal`
+   * hard-requires it unless the token is platform-scoped.
    */
-  iq_tenant_id: string;
+  iq_tenant_id?: string;
+  /**
+   * Bounded platform authority scopes (e.g. `["platform"]`). Absent/empty for ordinary tenant
+   * users. A platform scope is the ONLY thing that relaxes the tenant requirement above, and it
+   * is issued solely from `platform_admins` membership on an RS256-signed token — it cannot be
+   * self-asserted by a tenant user.
+   */
+  scopes?: string[];
   /**
    * Organization/business context claim.
    * This is distinct from `iq_tenant_id` and mapped to `Principal.orgId`.
@@ -35,6 +46,12 @@ export interface Principal {
   /** Organization context derived from JWT `org_id` (not interchangeable with tenant). */
   orgId: string;
   roles: string[];
+  /**
+   * Bounded platform authority scopes derived from JWT `scopes` (e.g. `["platform"]`); `[]` otherwise.
+   * Optional so non-SDK Principal constructions (tests, adapters) need not set it; the SDK's own
+   * `verifyToken` always populates it, and readers default to `[]`.
+   */
+  scopes?: string[];
   sessionId: string;
   kind?: string;
   department?: string;
@@ -91,5 +108,13 @@ declare module "fastify" {
     user: Principal;
     /** Canonical request correlation id used across errors/events/logs. */
     correlationId: string;
+    /**
+     * Canonical tenant scope on the request, decorated by the tenant-context / tenant-API-key
+     * plugins (mirrors `@hims/ts-sdk-tenant`). Consolidated here so resource modules/services
+     * that consume identity don't each redefine the Fastify augmentation.
+     */
+    tenantId: string;
+    /** True when the request was authenticated via a tenant API key rather than a JWT. */
+    authViaApiKey?: boolean;
   }
 }

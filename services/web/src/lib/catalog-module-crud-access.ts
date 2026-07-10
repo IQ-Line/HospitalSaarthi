@@ -1,3 +1,12 @@
+/* eslint-disable no-restricted-syntax --
+ * This is THE sanctioned, centralized catalog CRUD-access resolver: a pure (non-React) lib
+ * below the hook layer. The web-wide can* ban exists to push COMPONENTS toward useCapability /
+ * CapabilityGate, but those are React hooks that cannot run here — this file is the very
+ * implementation those hooks (useCatalogModuleAction / useCatalogModuleCrud) resolve through, so
+ * its can* locals ARE the canonical computation the rule directs components to delegate to.
+ * Renaming them to dodge the regex would be metric-gaming and obscure the clearest names.
+ * (No legacy permission-map call or can* helper-function lives here; if one is added, re-scope this.)
+ */
 import { principalHasCatalogModuleAction } from '@/lib/catalog-route-access';
 import {
   principalHasAnyInventoryMasterL3Action,
@@ -91,84 +100,69 @@ export type CatalogModuleCrudAccessOptions = {
  * UX gates for Master Data L2+ catalog modules.
  * Matches runtime keys synced from `module_permissions` (`<slug>:<resource>:<action>`).
  */
+type MutableCatalogCrud = {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+};
+
+/** Visitpad-master shell keys (also used for `departments`) grant read + full mutate. */
+function applyVisitpadMasterShell(capabilityKeys: ReadonlySet<string>, acc: MutableCatalogCrud): void {
+  const shell = visitpadMasterShellCrudAccess(capabilityKeys);
+  acc.canRead = acc.canRead || shell.canRead;
+  if (shell.canMutate) {
+    acc.canCreate = true;
+    acc.canUpdate = true;
+    acc.canDelete = true;
+  }
+}
+
+/** Inventory-master rolls up its L3 catalog route/action grants. */
+function applyInventoryMasterShell(capabilityKeys: ReadonlySet<string>, acc: MutableCatalogCrud): void {
+  acc.canRead =
+    acc.canRead ||
+    principalHasAnyInventoryMasterL3RouteAccess(capabilityKeys) ||
+    principalHasAnyInventoryMasterL3Action(capabilityKeys, 'read');
+  if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'create')) acc.canCreate = true;
+  if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'update')) acc.canUpdate = true;
+  if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'delete')) acc.canDelete = true;
+}
+
 export function catalogModuleCrudAccess(
   capabilityKeys: ReadonlySet<string>,
   catalogModuleSlug: string,
   options?: CatalogModuleCrudAccessOptions,
 ): CatalogModuleCrudAccess {
-  const canCreate = principalHasCatalogModuleAction(
-    capabilityKeys,
-    catalogModuleSlug,
-    'create',
-  );
-  const canUpdate = principalHasCatalogModuleAction(
-    capabilityKeys,
-    catalogModuleSlug,
-    'update',
-  );
-  const canDelete = principalHasCatalogModuleAction(
-    capabilityKeys,
-    catalogModuleSlug,
-    'delete',
-  );
-  let canRead =
-    principalHasCatalogModuleAction(capabilityKeys, catalogModuleSlug, 'read') ||
-    (options?.productModuleSlug
-      ? principalHasCatalogModuleAction(capabilityKeys, options.productModuleSlug, 'access')
-      : false);
+  const acc: MutableCatalogCrud = {
+    canRead:
+      principalHasCatalogModuleAction(capabilityKeys, catalogModuleSlug, 'read') ||
+      (options?.productModuleSlug
+        ? principalHasCatalogModuleAction(capabilityKeys, options.productModuleSlug, 'access')
+        : false),
+    canCreate: principalHasCatalogModuleAction(capabilityKeys, catalogModuleSlug, 'create'),
+    canUpdate: principalHasCatalogModuleAction(capabilityKeys, catalogModuleSlug, 'update'),
+    canDelete: principalHasCatalogModuleAction(capabilityKeys, catalogModuleSlug, 'delete'),
+  };
 
-  let mergedCreate = canCreate;
-  let mergedUpdate = canUpdate;
-  let mergedDelete = canDelete;
-
-  if (isVisitpadL3CatalogModuleSlug(catalogModuleSlug)) {
-    const shell = visitpadMasterShellCrudAccess(capabilityKeys);
-    canRead = canRead || shell.canRead;
-    if (shell.canMutate) {
-      mergedCreate = true;
-      mergedUpdate = true;
-      mergedDelete = true;
-    }
-  }
-
-  if (catalogModuleSlug === 'departments') {
-    const shell = visitpadMasterShellCrudAccess(capabilityKeys);
-    canRead = canRead || shell.canRead;
-    if (shell.canMutate) {
-      mergedCreate = true;
-      mergedUpdate = true;
-      mergedDelete = true;
-    }
+  if (isVisitpadL3CatalogModuleSlug(catalogModuleSlug) || catalogModuleSlug === 'departments') {
+    applyVisitpadMasterShell(capabilityKeys, acc);
   }
 
   /** Desk staff with create/update must see the OPD registration list (read is not always assigned separately). */
-  if (catalogModuleSlug === 'registration') {
-    if (mergedCreate || mergedUpdate) {
-      canRead = true;
-    }
+  if (catalogModuleSlug === 'registration' && (acc.canCreate || acc.canUpdate)) {
+    acc.canRead = true;
   }
 
   if (catalogModuleSlug === 'inventory-master') {
-    canRead =
-      canRead ||
-      principalHasAnyInventoryMasterL3RouteAccess(capabilityKeys) ||
-      principalHasAnyInventoryMasterL3Action(capabilityKeys, 'read');
-    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'create')) {
-      mergedCreate = true;
-    }
-    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'update')) {
-      mergedUpdate = true;
-    }
-    if (principalHasAnyInventoryMasterL3Action(capabilityKeys, 'delete')) {
-      mergedDelete = true;
-    }
+    applyInventoryMasterShell(capabilityKeys, acc);
   }
 
   return {
-    canRead,
-    canCreate: mergedCreate,
-    canUpdate: mergedUpdate,
-    canDelete: mergedDelete,
-    canMutate: mergedCreate || mergedUpdate || mergedDelete,
+    canRead: acc.canRead,
+    canCreate: acc.canCreate,
+    canUpdate: acc.canUpdate,
+    canDelete: acc.canDelete,
+    canMutate: acc.canCreate || acc.canUpdate || acc.canDelete,
   };
 }

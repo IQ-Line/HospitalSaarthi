@@ -83,6 +83,70 @@ async function publishLinkedCareContexts(
   }
 }
 
+/**
+ * Verify the confirmation OTP: via the SMS provider when a phone + verifier are available
+ * (failures log and count as invalid), otherwise by consuming the in-store OTP.
+ */
+async function verifyLinkOtp(
+  deps: AbdmAdapterDeps,
+  input: AbdmTenantInput<LinkConfirmRequest & { inboundRequestId: string }>,
+  sessionId: string,
+  rawPhoneNo: string | undefined,
+): Promise<boolean> {
+  const phoneNo = rawPhoneNo?.trim();
+  if (deps.sms.verifyOtp && phoneNo) {
+    try {
+      return await deps.sms.verifyOtp({ phoneNo, otp: input.confirmation.token });
+    } catch (err: unknown) {
+      abdmWarn("abdm.m2.link_confirm.msg91_verify_failed", {
+        sessionId,
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return false;
+    }
+  }
+  return deps.linkOtpStore.consume({
+    iqTenantId: input.iqTenantId,
+    linkRefNumber: input.confirmation.linkRefNumber,
+    token: input.confirmation.token,
+  });
+}
+
+/** Mark care contexts linked and publish them; warn if publish is skipped for a missing profile. */
+async function finalizeLinkedCareContexts(
+  deps: AbdmAdapterDeps,
+  params: {
+    iqTenantId: string;
+    sessionId: string;
+    abhaAddress?: string;
+    patientId?: string;
+    careContexts: SelectedCareContext[];
+  },
+): Promise<void> {
+  const { iqTenantId, sessionId, abhaAddress, patientId, careContexts } = params;
+
+  if (abhaAddress && careContexts.length > 0) {
+    await deps.careContextLinkState.markLinked({
+      iqTenantId,
+      abhaAddress,
+      careContextReferences: careContexts.map((c) => c.referenceNumber),
+    });
+  }
+
+  if (abhaAddress && patientId && careContexts.length > 0) {
+    await publishLinkedCareContexts(
+      { iqTenantId, abhaAddress, patientReference: patientId, careContexts },
+      deps,
+    );
+  } else if (careContexts.length > 0) {
+    abdmWarn("abdm.m2.link_confirm.publish_skipped_missing_profile", {
+      sessionId,
+      hasAbhaAddress: Boolean(abhaAddress),
+      hasPatientId: Boolean(patientId),
+    });
+  }
+}
+
 export async function handleLinkConfirmCallback(
   input: AbdmTenantInput<LinkConfirmRequest & { inboundRequestId: string }>,
   deps: AbdmAdapterDeps,
@@ -122,7 +186,7 @@ export async function handleLinkConfirmCallback(
       state: "FAILED",
       contextMerge: {
         error: {
-          code: ABDM_ERROR_CODES.INVALID_REQUEST,
+          code: ABDM_ERROR_CODES.OTP_MISMATCH,
           message: "OTP attempt limit exceeded",
         },
       },
@@ -130,28 +194,7 @@ export async function handleLinkConfirmCallback(
     return;
   }
 
-  let otpValid = false;
-  const phoneNo = ctx.phoneNo?.trim();
-  if (deps.sms.verifyOtp && phoneNo) {
-    try {
-      otpValid = await deps.sms.verifyOtp({
-        phoneNo,
-        otp: input.confirmation.token,
-      });
-    } catch (err: unknown) {
-      abdmWarn("abdm.m2.link_confirm.msg91_verify_failed", {
-        sessionId: session.sessionId,
-        message: err instanceof Error ? err.message : String(err),
-      });
-      otpValid = false;
-    }
-  } else {
-    otpValid = await deps.linkOtpStore.consume({
-      iqTenantId: input.iqTenantId,
-      linkRefNumber: input.confirmation.linkRefNumber,
-      token: input.confirmation.token,
-    });
-  }
+  const otpValid = await verifyLinkOtp(deps, input, session.sessionId, ctx.phoneNo);
 
   if (!otpValid) {
     abdmWarn("abdm.m2.link_confirm.invalid_otp", {
@@ -164,7 +207,7 @@ export async function handleLinkConfirmCallback(
       state: "FAILED",
       contextMerge: {
         error: {
-          code: ABDM_ERROR_CODES.INVALID_REQUEST,
+          code: ABDM_ERROR_CODES.OTP_MISMATCH,
           message: "Invalid or expired OTP",
         },
       },
@@ -201,31 +244,13 @@ export async function handleLinkConfirmCallback(
     xHipId: deps.xHipId,
   });
 
-  if (abhaAddress && careContexts.length > 0) {
-    await deps.careContextLinkState.markLinked({
-      iqTenantId: input.iqTenantId,
-      abhaAddress,
-      careContextReferences: careContexts.map((c) => c.referenceNumber),
-    });
-  }
-
-  if (abhaAddress && patientId && careContexts.length > 0) {
-    await publishLinkedCareContexts(
-      {
-        iqTenantId: input.iqTenantId,
-        abhaAddress,
-        patientReference: patientId,
-        careContexts,
-      },
-      deps,
-    );
-  } else if (careContexts.length > 0) {
-    abdmWarn("abdm.m2.link_confirm.publish_skipped_missing_profile", {
-      sessionId: session.sessionId,
-      hasAbhaAddress: Boolean(abhaAddress),
-      hasPatientId: Boolean(patientId),
-    });
-  }
+  await finalizeLinkedCareContexts(deps, {
+    iqTenantId: input.iqTenantId,
+    sessionId: session.sessionId,
+    abhaAddress,
+    patientId,
+    careContexts,
+  });
 
   await deps.sessions.patch({
     iqTenantId: input.iqTenantId,

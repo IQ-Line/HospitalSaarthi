@@ -26,7 +26,13 @@ import { createTenant } from "./create-tenant.js";
 import { createTenantModule } from "./create-tenant-module.js";
 import { updateTenant } from "./update-tenant.js";
 
+// Bounded email validator; identical to user-management's create-user regex. "@" is excluded
+// from every char class, so the split at "@" is unambiguous (no cross-"@" backtracking) and the
+// remaining quantifiers backtrack only linearly — not ReDoS.
+// eslint-disable-next-line sonarjs/slow-regex -- anchored, "@"-delimited; linear backtracking, not ReDoS
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Username-primary login (ADR-0003): mirrors the user-management create-user validator.
+const USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
 export const TENANT_ONBOARDING_COMPLETED_EVENT =
   "tenant-onboarding.provisioning.completed" as const;
@@ -70,7 +76,8 @@ export async function provisionTenant(
   const productModuleIds = deduplicateModuleIds(input.modules);
   const adminFullName =
     `${input.admin.first_name.trim()} ${input.admin.last_name?.trim() ?? ""}`.trim();
-  const adminEmail = input.admin.email.trim().toLowerCase();
+  const adminUsername = input.admin.username.trim().toLowerCase();
+  const adminEmail = input.admin.email?.trim().toLowerCase() || null;
   const adminUserId = randomUUID();
 
   // --- A2. Auto-enable infrastructure modules -----------------------------
@@ -88,15 +95,12 @@ export async function provisionTenant(
     );
   }
 
-  // --- B. Pre-transaction checks -------------------------------------------
-  await deps.adminProvisioner.checkEmailAvailability(adminEmail);
-
   // --- C. Prepare auth account (deferred to provisionUser in HTTP adapter) -
+  // Username uniqueness is enforced by better-auth at user creation time; no pre-check needed.
   const authAccount = await deps.adminProvisioner.createAuthAccount({
     platformUserId: adminUserId,
     tenantId: "pending",
     fullName: adminFullName,
-    email: adminEmail,
     password: input.admin.password,
   });
 
@@ -104,7 +108,7 @@ export async function provisionTenant(
   // Must commit BEFORE capability resolution and HTTP calls because the
   // entitlement check calls back to configurator to verify tenant modules.
   const coreData = await deps.runConfiguratorTransaction(async (repos) => {
-    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet, adminEmail);
+    return createCoreEntities(repos, ctx, input, moduleIds, infraIdSet);
   });
 
   // --- E. Resolve capabilities using committed tenant data -----------------
@@ -119,7 +123,7 @@ export async function provisionTenant(
   // --- F. Post-commit: role + capabilities + user via HTTP -----------------
   // These run against committed data so entitlement checks can see modules.
   let adminRole: { id: string; code: string; display_name: string; is_system: boolean };
-  let adminUser: { id: string; email: string; full_name: string };
+  let adminUser: { id: string; email: string | null; full_name: string };
   try {
     adminRole = await deps.adminProvisioner.createSystemRole(
       coreData.tenant.iq_tenant_id,
@@ -144,9 +148,9 @@ export async function provisionTenant(
       {
         userId: adminUserId,
         fullName: adminFullName,
+        username: adminUsername,
         email: adminEmail,
         phone: input.admin.phone?.trim() || null,
-        username: input.admin.username?.trim() || null,
         orgId: coreData.organization.id,
         authUserId: authAccount.authUserId,
         roleId: adminRole.id,
@@ -256,7 +260,6 @@ async function createCoreEntities(
   input: ProvisionTenantInput,
   moduleIds: string[],
   infraModuleIds: ReadonlySet<string>,
-  adminEmail: string,
 ): Promise<CoreProvisioningData> {
   const existingOrgId = input.organization.id?.trim();
   let organization;
@@ -365,29 +368,40 @@ async function createCoreEntities(
 // ---------------------------------------------------------------------------
 
 function validateInput(input: ProvisionTenantInput): void {
-  const existingOrgId = input.organization.id?.trim();
-  const orgName = input.organization.name?.trim();
-  const orgSlug = input.organization.slug?.trim();
-  if (!existingOrgId) {
-    if (!orgName) {
-      throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
-    }
-    if (!orgSlug || orgSlug.length < 3) {
-      throw new ConfiguratorError(
-        400,
-        "organization.slug must be at least 3 characters",
-        "VALIDATION_ERROR",
-      );
-    }
-    if (!input.organization.type) {
-      throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
-    }
+  // Ordering is contractual: organization → tenant → org-contact-email → plan
+  // (which also normalizes input.plan.slug) → modules → admin.
+  validateOrganization(input);
+  validateTenant(input);
+  validateOrgContactEmail(input);
+  validatePlan(input);
+  validateModules(input);
+  validateAdmin(input);
+}
+
+function validateOrganization(input: ProvisionTenantInput): void {
+  // Skip identity/shape checks when referencing an existing organization by id.
+  if (input.organization.id?.trim()) return;
+  if (!input.organization.name?.trim()) {
+    throw new ConfiguratorError(400, "organization.name is required", "VALIDATION_ERROR");
   }
-  const tenantName = input.tenant?.name?.trim();
-  const tenantSlug = input.tenant?.slug?.trim();
-  if (!tenantName) {
+  const orgSlug = input.organization.slug?.trim();
+  if (!orgSlug || orgSlug.length < 3) {
+    throw new ConfiguratorError(
+      400,
+      "organization.slug must be at least 3 characters",
+      "VALIDATION_ERROR",
+    );
+  }
+  if (!input.organization.type) {
+    throw new ConfiguratorError(400, "organization.type is required", "VALIDATION_ERROR");
+  }
+}
+
+function validateTenant(input: ProvisionTenantInput): void {
+  if (!input.tenant?.name?.trim()) {
     throw new ConfiguratorError(400, "tenant.name is required", "VALIDATION_ERROR");
   }
+  const tenantSlug = input.tenant?.slug?.trim();
   if (!tenantSlug || tenantSlug.length < 3) {
     throw new ConfiguratorError(
       400,
@@ -395,6 +409,9 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
+
+function validateOrgContactEmail(input: ProvisionTenantInput): void {
   const orgContactEmail = input.organization.contact_email?.trim();
   if (orgContactEmail && !EMAIL_RE.test(orgContactEmail)) {
     throw new ConfiguratorError(
@@ -403,6 +420,10 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
+
+/** Validates plan.slug (required unless this tenant is a branch) and normalizes it on input. */
+function validatePlan(input: ProvisionTenantInput): void {
   const isBranch = !!input.tenant.parent_tenant_id?.trim();
   const planSlug = input.plan?.slug?.trim();
   if (!isBranch && !planSlug) {
@@ -415,6 +436,9 @@ function validateInput(input: ProvisionTenantInput): void {
   if (input.plan) {
     input.plan = { ...input.plan, slug: planSlug ?? "" };
   }
+}
+
+function validateModules(input: ProvisionTenantInput): void {
   if (!input.modules || input.modules.length === 0) {
     throw new ConfiguratorError(
       400,
@@ -422,10 +446,24 @@ function validateInput(input: ProvisionTenantInput): void {
       "VALIDATION_ERROR",
     );
   }
+}
 
+function validateAdmin(input: ProvisionTenantInput): void {
+  const username = input.admin.username?.trim().toLowerCase();
+  if (!username || !USERNAME_RE.test(username)) {
+    throw new ConfiguratorError(
+      400,
+      "admin.username is required (3-30 chars: lowercase letters, digits, '.', '_')",
+      "VALIDATION_ERROR",
+    );
+  }
   const email = input.admin.email?.trim();
-  if (!email || !EMAIL_RE.test(email)) {
-    throw new ConfiguratorError(400, "admin.email must be a valid email", "VALIDATION_ERROR");
+  if (email && !EMAIL_RE.test(email)) {
+    throw new ConfiguratorError(
+      400,
+      "admin.email must be a valid email when provided",
+      "VALIDATION_ERROR",
+    );
   }
   if (!input.admin.first_name?.trim()) {
     throw new ConfiguratorError(400, "admin.first_name is required", "VALIDATION_ERROR");
@@ -473,7 +511,8 @@ function mergeModuleIds(
 function buildOrganizationMetadata(
   input: ProvisionTenantInput,
 ): Record<string, unknown> {
-  const { website: _website, ...restMetadata } = input.organization.metadata ?? {};
+  const restMetadata = { ...(input.organization.metadata ?? {}) };
+  delete restMetadata.website;
   return {
     ...restMetadata,
     provisioning: {
@@ -497,7 +536,8 @@ export type TenantOnboardingCompletedPayload = {
   tenant_slug: string;
   tenant_type: string;
   admin_user_id: string;
-  admin_email: string;
+  /** Optional contact email of the provisioned admin (null when none — username-primary login). */
+  admin_email: string | null;
   admin_role_id: string;
   enabled_module_ids: string[];
   plan_slug: string;

@@ -64,7 +64,9 @@ export function mapIndentToTransferPrefill(
   return {
     transferDate: new Date().toISOString().slice(0, 10),
     fromStoreId: indent.from_store_id,
-    toStoreId: indent.to_store_id,
+    // to_store_id is nullable on the indent row; an indent without a destination
+    // store prefills the transfer form with an empty To-store selection.
+    toStoreId: indent.to_store_id ?? '',
     transferType: indent.indent_type === 'emergency' ? 'emergency' : 'normal',
     remarks: indent.remarks
       ? `From indent ${indent.indent_number}: ${indent.remarks}`

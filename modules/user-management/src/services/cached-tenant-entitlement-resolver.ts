@@ -116,8 +116,5 @@ export class CachedTenantEntitlementResolver implements TenantEntitlementResolve
 
 export function isRuntimeEntitlementIntersectionEnabled(): boolean {
   const raw = process.env.RUNTIME_ENTITLEMENT_INTERSECTION?.trim().toLowerCase();
-  if (raw === "false" || raw === "0" || raw === "no") {
-    return false;
-  }
-  return true;
+  return !(raw === "false" || raw === "0" || raw === "no");
 }

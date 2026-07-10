@@ -1,5 +1,5 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
-import { and, eq, sql } from "@hims/ts-sdk-db";
+import { and, eq, isPostgresUniqueViolation, sql } from "@hims/ts-sdk-db";
 import { desc, ilike, or } from "drizzle-orm";
 import { registrations } from "../schema/tables.js";
 import type { RegistrationRepo } from "../ports.js";
@@ -173,11 +173,11 @@ export class DrizzleRegistrationRepo implements RegistrationRepo {
         .returning();
       return { record: mapRow(rows[0]!), created: true as const };
     } catch (err) {
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code: string }).code)
-          : "";
-      if (code === "23505") {
+      // A concurrent intake can win the (idempotency_key) or (patient_id) unique
+      // race after both our pre-checks passed; recover by replaying the committed
+      // row (by key, else by patient). drizzle wraps the pg error, so unwrap
+      // `.cause` for the 23505 — a top-level-only check silently misses it.
+      if (isPostgresUniqueViolation(err)) {
         const replayed =
           (await this.findByIdempotencyKey(tenantId, idempotencyKey)) ??
           (await this.findByPatientId(tenantId, input.patient_id));

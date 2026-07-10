@@ -16,7 +16,7 @@ function shouldUseSsl(connectionString: string): boolean {
   }
 }
 
-export function createDb(connectionString: string): DbInstance {
+export function createPool(connectionString: string): Pool {
   const ssl = shouldUseSsl(connectionString)
     ? {
         // Common for managed Postgres (Azure/GCP) in dev: TLS required.
@@ -25,7 +25,9 @@ export function createDb(connectionString: string): DbInstance {
       }
     : undefined;
 
-  return drizzle({
-    client: new Pool({ connectionString, ssl }),
-  });
+  return new Pool({ connectionString, ssl });
+}
+
+export function createDb(connectionString: string): DbInstance {
+  return drizzle({ client: createPool(connectionString) });
 }

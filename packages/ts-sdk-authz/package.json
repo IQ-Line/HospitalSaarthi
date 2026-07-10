@@ -16,14 +16,14 @@
     "fastify": ">=5.0.0"
   },
   "dependencies": {
-    "@cerbos/core": "^0.21.1",
-    "@cerbos/grpc": "^0.21.0",
+    "@cerbos/core": "catalog:",
+    "@cerbos/grpc": "catalog:",
     "@hims/ts-sdk-http": "workspace:*",
     "@hims/ts-sdk-identity": "workspace:*",
-    "fastify-plugin": "^5.1.0"
+    "fastify-plugin": "catalog:"
   },
   "devDependencies": {
-    "fastify": "^5.0.0",
-    "vitest": "^4.1.6"
+    "fastify": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -23,9 +23,6 @@ import type { Organization } from '@/features/configurator/types';
 import { useAuthStore } from '@/stores/auth.store';
 import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import {
-  createTenantStep0Schema,
-  createTenantStep1Schema,
-  createTenantStep2Schema,
   createTenantStep3Schema,
   WIZARD_DEFAULT_VALUES,
   type WizardFormValues,
@@ -46,10 +43,13 @@ import { WizardStep4Admin } from './wizard-step-4-admin';
 import {
   applyModuleToggle,
   buildChildrenMap,
+  buildTenantOnboardingPayload,
   defaultEnabledModuleIds,
   firstSlugSeedFromTenantName,
   firstZodMessage,
   setModuleSubtreeSelection,
+  validateWizardStepAdvance,
+  STANDALONE_HOSPITAL_TENANT_EXISTS_MESSAGE,
 } from './wizard-helpers';
 import { mutationErrorMessage } from '@/lib/mutation-error';
 
@@ -61,8 +61,6 @@ const STEPS = [
 ] as const;
 
 const FINAL_STEP = 4;
-
-const DEFAULT_PLAN_SLUG = 'starter';
 
 export interface CreateTenantWizardProps {
   open: boolean;
@@ -260,9 +258,7 @@ export function CreateTenantWizard({
     setValue('organisationWebsite', '');
     setValue('organisationEmail', '');
     setValue('organisationType', 'standalone_hospital');
-    toast.error(
-      'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
-    );
+    toast.error(STANDALONE_HOSPITAL_TENANT_EXISTS_MESSAGE);
   }, [
     open,
     showOrganisationStep,
@@ -333,9 +329,7 @@ export function CreateTenantWizard({
       }
       const blocked = organisations.find((o) => o.id === selectionId);
       if (blocked && !organisationEligibleForNewTenant(blocked, tenantOrgIds)) {
-        toast.error(
-          'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
-        );
+        toast.error(STANDALONE_HOSPITAL_TENANT_EXISTS_MESSAGE);
         return;
       }
       setValue('organisationSelectionId', selectionId);
@@ -367,47 +361,20 @@ export function CreateTenantWizard({
   }, []);
 
   const goNext = () => {
-    const values = form.getValues();
-    if (activeStep === 1 && showOrganisationStep) {
-      const parsed = createTenantStep0Schema.safeParse(values);
-      if (!parsed.success) {
-        toast.error(firstZodMessage(parsed.error));
-        return;
-      }
-      const selectedOrgId = values.organisationSelectionId;
-      if (selectedOrgId && selectedOrgId !== NEW_ORGANISATION_VALUE) {
-        const org = organisations.find((o) => o.id === selectedOrgId);
-        if (org && !organisationEligibleForNewTenant(org, tenantOrgIds)) {
-          toast.error(
-            'This standalone hospital already has a tenant. Choose another organisation or create a new one.',
-          );
-          return;
-        }
-      }
-      setActiveStep(2);
+    const result = validateWizardStepAdvance({
+      activeStep,
+      showOrganisationStep,
+      values: form.getValues(),
+      organisations,
+      tenantOrgIds,
+      enabledModuleCount: enabledModuleIds.size,
+    });
+    if (result.ok === false) {
+      toast.error(result.error);
       return;
     }
-    if (activeStep === 2) {
-      const parsed = createTenantStep1Schema.safeParse(values);
-      if (!parsed.success) {
-        toast.error(firstZodMessage(parsed.error));
-        return;
-      }
-      setActiveStep(3);
-      return;
-    }
-    if (activeStep === 3) {
-      const parsed = createTenantStep2Schema.safeParse(values);
-      if (!parsed.success) {
-        toast.error(firstZodMessage(parsed.error));
-        return;
-      }
-      if (enabledModuleIds.size === 0) {
-        toast.error('Enable at least one module for this tenant.');
-        return;
-      }
-      setActiveStep(4);
-    }
+    if (result.ok === 'noop') return;
+    setActiveStep(result.nextStep);
   };
 
   const goBack = () => {
@@ -421,28 +388,16 @@ export function CreateTenantWizard({
       return;
     }
 
-    const parts = [
-      values.hqAddressLine1.trim(),
-      values.locality?.trim(),
-      values.block?.trim(),
-      values.district.trim(),
-      values.state.trim(),
-      values.pinCode.trim(),
-    ].filter(Boolean);
-
     const scopedOrgId = defaultOrganizationId?.trim() || values.organisationId?.trim();
-    if (!showOrganisationStep) {
-      if (!scopedOrgId) {
-        toast.error('Your session has no organisation scope. Select an organisation and try again.');
-        return;
-      }
+    if (!showOrganisationStep && !scopedOrgId) {
+      toast.error('Your session has no organisation scope. Select an organisation and try again.');
+      return;
     }
 
     const isExistingOrg =
       !showOrganisationStep ||
       (values.organisationSelectionId !== NEW_ORGANISATION_VALUE && !!values.organisationId?.trim());
 
-    const orgName = values.organisationName?.trim() ?? '';
     const organisationSlug = values.organisationSlug.trim().toLowerCase();
     const tenantSlug = values.tenantSlug.trim().toLowerCase();
 
@@ -468,52 +423,17 @@ export function CreateTenantWizard({
       }
     }
 
-    const payload: TenantOnboardingInput = {
-      organization: {
-        ...(isExistingOrg
-          ? { id: (showOrganisationStep ? values.organisationId : scopedOrgId)!.trim() }
-          : {}),
-        name: orgName,
-        slug: organisationSlug,
-        type: values.organisationType,
-        contact_email: values.organisationEmail?.trim() || null,
-        website: values.organisationWebsite?.trim() || null,
-        ...(organisationLogoMetadata ? { metadata: organisationLogoMetadata } : {}),
-      },
-      tenant: {
-        name: values.tenantName.trim(),
-        slug: tenantSlug,
-        metadata: {
-          gstin: values.gstin?.trim() || null,
-          pan: values.pan?.trim()?.toUpperCase() || null,
-          address_detail: {
-            hq_line1: values.hqAddressLine1.trim(),
-            locality: values.locality?.trim() || null,
-            block: values.block?.trim() || null,
-            district: values.district.trim(),
-            state: values.state.trim(),
-            pin_code: values.pinCode.trim(),
-          },
-          address: parts.join(', '),
-          ...(tenantLogoMetadata ?? {}),
-        },
-      },
-      plan: {
-        slug: DEFAULT_PLAN_SLUG,
-      },
-      modules: [...enabledModuleIds].map((module_id) => ({
-        module_id,
-        is_active: true,
-      })),
-      admin: {
-        first_name: values.adminFirstName.trim(),
-        last_name: values.adminLastName?.trim() || null,
-        email: values.adminEmail.trim(),
-        password: values.password,
-        phone: values.adminMobile?.trim() || null,
-        username: values.adminUsername?.trim() || null,
-      },
-    };
+    const payload = buildTenantOnboardingPayload({
+      values,
+      showOrganisationStep,
+      scopedOrgId,
+      isExistingOrg,
+      organisationSlug,
+      tenantSlug,
+      enabledModuleIds,
+      organisationLogoMetadata,
+      tenantLogoMetadata,
+    });
 
     await onComplete(payload);
   });

@@ -1,8 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { MultipartFile } from "@fastify/multipart";
 import { ConfiguratorError } from "../errors.js";
-import { getRequestAuthContext } from "../http/request-auth-context.js";
-import { assertPlatformSuperAdmin } from "../http/request-auth-context.js";
 import {
   getAzureBlobSettings,
   isAzureBlobStorageConfigured,
@@ -47,17 +45,6 @@ function readSlugFromFields(fields: MultipartFile["fields"]): string {
   return "";
 }
 
-function assertAuthenticatedConfiguratorOperator(request: Parameters<typeof getRequestAuthContext>[0]): void {
-  const { roles, userId } = getRequestAuthContext(request);
-  if (roles.length === 0 && !userId) {
-    throw new ConfiguratorError(
-      403,
-      "authentication is required for branding logo upload",
-      "FORBIDDEN",
-    );
-  }
-}
-
 export function registerBrandingLogosHandler(app: FastifyInstance): void {
   app.get("/branding-logos/ready", async (_request, reply) => {
     const azureConfigured = isAzureBlobStorageConfigured();
@@ -76,8 +63,7 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
     });
   });
 
-  app.post("/branding-logos/organization", async (request, reply) => {
-    assertPlatformSuperAdmin(request);
+  app.post("/branding-logos/organization", { config: { authMode: "protected" } }, async (request, reply) => {
     const part = await request.file();
     if (!part) {
       throw new ConfiguratorError(400, "file is required");
@@ -110,8 +96,7 @@ export function registerBrandingLogosHandler(app: FastifyInstance): void {
     return reply.code(201).send(result);
   });
 
-  app.post("/branding-logos/tenant", async (request, reply) => {
-    assertAuthenticatedConfiguratorOperator(request);
+  app.post("/branding-logos/tenant", { config: { authMode: "protected" } }, async (request, reply) => {
     const part = await request.file();
     if (!part) {
       throw new ConfiguratorError(400, "file is required");

@@ -1,6 +1,6 @@
 import { Printer } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { Button } from '@pulse/ui/button';
 import {
   Dialog,
@@ -68,6 +68,50 @@ function PdfPreviewFrame({
         className="block h-[min(60dvh,900px)] w-full border-0 bg-white"
       />
     </div>
+  );
+}
+
+function errorMessageFromQuery(error: unknown): string {
+  if (error instanceof ApiError) return error.body || error.message;
+  if (error instanceof Error) return error.message;
+  return 'Could not load document';
+}
+
+function resolveModalTitle(
+  singleView: RegistrationReportView | undefined,
+  hasReceipt: boolean,
+): string {
+  if (singleView === 'slip') return 'OPD Slip';
+  if (singleView === 'receipt') return 'OPD Invoice';
+  return hasReceipt ? 'Registration Reports' : 'OPD Slip';
+}
+
+/** Renders the pending / error / loaded states for one PDF report query. */
+function PdfReportPanel({
+  query,
+  previewTitle,
+  pendingLabel,
+  onFrameLoad,
+}: {
+  query: UseQueryResult<Blob, Error>;
+  previewTitle: string;
+  pendingLabel: string;
+  onFrameLoad: (frame: HTMLIFrameElement) => void;
+}) {
+  return (
+    <>
+      {query.isPending ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">{pendingLabel}</p>
+      ) : null}
+      {query.isError ? (
+        <p className="py-6 text-sm text-destructive" role="alert">
+          {errorMessageFromQuery(query.error)}
+        </p>
+      ) : null}
+      {query.data ? (
+        <PdfPreviewFrame title={previewTitle} blob={query.data} onLoad={onFrameLoad} />
+      ) : null}
+    </>
   );
 }
 
@@ -145,13 +189,6 @@ export function RegistrationReportsModal({
     retry: 1,
   });
 
-  const errorMessage = (error: unknown) =>
-    error instanceof ApiError
-      ? error.body || error.message
-      : error instanceof Error
-        ? error.message
-        : 'Could not load document';
-
   const handlePrint = () => {
     const frame = effectiveView === 'slip' ? slipFrameRef.current : receiptFrameRef.current;
     if (frame?.contentWindow) {
@@ -160,35 +197,17 @@ export function RegistrationReportsModal({
     }
   };
 
-  const modalTitle =
-    singleView === 'slip'
-      ? 'OPD Slip'
-      : singleView === 'receipt'
-        ? 'OPD Invoice'
-        : hasReceipt
-          ? 'Registration Reports'
-          : 'OPD Slip';
+  const modalTitle = resolveModalTitle(singleView, hasReceipt);
 
   const slipPanel = (
-    <>
-      {slipQuery.isPending ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Generating OPD slip PDF…</p>
-      ) : null}
-      {slipQuery.isError ? (
-        <p className="py-6 text-sm text-destructive" role="alert">
-          {errorMessage(slipQuery.error)}
-        </p>
-      ) : null}
-      {slipQuery.data ? (
-        <PdfPreviewFrame
-          title="OPD slip preview"
-          blob={slipQuery.data}
-          onLoad={(frame) => {
-            slipFrameRef.current = frame;
-          }}
-        />
-      ) : null}
-    </>
+    <PdfReportPanel
+      query={slipQuery}
+      previewTitle="OPD slip preview"
+      pendingLabel="Generating OPD slip PDF…"
+      onFrameLoad={(frame) => {
+        slipFrameRef.current = frame;
+      }}
+    />
   );
 
   const receiptPanel = (
@@ -198,23 +217,14 @@ export function RegistrationReportsModal({
           No invoice is linked to this registration.
         </p>
       ) : null}
-      {receiptQuery.isPending ? (
-        <p className="py-10 text-center text-sm text-muted-foreground">Generating invoice PDF…</p>
-      ) : null}
-      {receiptQuery.isError ? (
-        <p className="py-6 text-sm text-destructive" role="alert">
-          {errorMessage(receiptQuery.error)}
-        </p>
-      ) : null}
-      {receiptQuery.data ? (
-        <PdfPreviewFrame
-          title="OPD invoice preview"
-          blob={receiptQuery.data}
-          onLoad={(frame) => {
-            receiptFrameRef.current = frame;
-          }}
-        />
-      ) : null}
+      <PdfReportPanel
+        query={receiptQuery}
+        previewTitle="OPD invoice preview"
+        pendingLabel="Generating invoice PDF…"
+        onFrameLoad={(frame) => {
+          receiptFrameRef.current = frame;
+        }}
+      />
     </>
   );
 

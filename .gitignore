@@ -6,6 +6,9 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Staged thin-image contexts (tools/build-images.sh output)
+/dist-images/
+
 # SDK packages emit to dist/; guard against accidental in-tree tsc output
 packages/ts-sdk-*/src/**/*.js
 packages/ts-sdk-*/src/**/*.js.map
@@ -36,6 +39,7 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+*.code-workspace
 
 # Testing
 coverage/
@@ -50,10 +54,14 @@ modules/empi/migrations/drizzle/
 # Docker volumes
 infra/docker/volumes/
 
-# Claude Code
+# Claude Code / agent tooling state (never commit)
 .agents/
 .claude/
 .cursor/
+.opencode/
+.worktrees/
+scratch/
+tmp/
 
 # Python
 __pycache__/
@@ -64,6 +72,10 @@ __pycache__/
 
 # ABDM wrapper reference repo (cloned for context)
 docs/external/abdm-wrapper/
+
+# pdf-platform (smart-report-v2) — cloned by `make dev` for local end-to-end
+# report rendering; pinned ref, never committed. See ADR-0036.
+/external/
 
 # Local-only ABDM / legacy reference (keep on disk; do not commit to feature branches)
 /abdi-lims-backed/

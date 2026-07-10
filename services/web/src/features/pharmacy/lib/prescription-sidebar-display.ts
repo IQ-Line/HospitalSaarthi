@@ -1,4 +1,4 @@
-import type { OpdPrescriptionMedicineLine, OpdPrescriptionSnapshot } from '../types';
+import type { OpdPrescriptionMedicineLine } from '../types';
 
 export function formatPrescriptionRelativeTime(finalizedAt: string | null | undefined): string | null {
   if (!finalizedAt) return null;

@@ -512,7 +512,7 @@ Use **`data-testid`** on shell tabs, sub-tabs, primary **Add** buttons, and firs
 1. Land **M0** notes (platform `tenant_id`, path prefix) — defaults in [§2](#2-locked-defaults-start-here).  
 2. Extend **`master-data.v1.yaml`** with Visitpad **W-A** schemas (M1); OpenAPI tags per entity group.  
 3. Add **`MASTER_DATA_` / settings** keys for platform tenant if not already shared.  
-4. Run **`nx run master-data:migrate`** after adding Alembic revisions for Visitpad tables in `public`.  
+4. Run **`nx run master-data:db-migrate`** after adding Alembic revisions for Visitpad tables in `public`.  
 5. Implement **W-B** handlers (M2) before building more UI than M3; use **`pnpm dev:web-stack`** so BFF + master-data + web are running.
 
 ---

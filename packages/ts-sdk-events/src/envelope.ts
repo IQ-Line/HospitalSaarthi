@@ -104,50 +104,65 @@ export class EnvelopeValidationError extends Error {
   }
 }
 
+const isUuid = (value: unknown): boolean => typeof value === 'string' && UUID_RE.test(value);
+const isIsoDate = (value: unknown): boolean =>
+  typeof value === 'string' && ISO_DATE_RE.test(value);
+
+/**
+ * Per-field validation rules. Each rule's `valid` predicate is checked against the
+ * envelope; a falsy result appends `message` to the violation list. This preserves the
+ * exact field order, predicates, and messages of the original inline checks.
+ */
+const FIELD_RULES: ReadonlyArray<{
+  valid: (event: DomainEvent) => boolean;
+  message: string;
+}> = [
+  { valid: (e) => isUuid(e.event_id), message: 'event_id must be a valid UUID' },
+  {
+    valid: (e) => typeof e.event_type === 'string' && EVENT_TYPE_RE.test(e.event_type),
+    message: 'event_type must match <module>.<entity>.<action> pattern',
+  },
+  {
+    valid: (e) => typeof e.source_module === 'string' && e.source_module.length > 0,
+    message: 'source_module is required',
+  },
+  { valid: (e) => isUuid(e.iq_tenant_id), message: 'iq_tenant_id must be a valid UUID' },
+  { valid: (e) => isIsoDate(e.occurred_at), message: 'occurred_at must be ISO-8601' },
+  {
+    // published_at is optional; only validate the format when present.
+    valid: (e) => e.published_at === undefined || isIsoDate(e.published_at),
+    message: 'published_at must be ISO-8601 when provided',
+  },
+  { valid: (e) => isUuid(e.correlation_id), message: 'correlation_id must be a valid UUID' },
+  { valid: (e) => isUuid(e.actor_id), message: 'actor_id must be a valid UUID' },
+  {
+    valid: (e) =>
+      typeof e.event_contract_version === 'string' && SEMVER_RE.test(e.event_contract_version),
+    message: 'event_contract_version must be semver (e.g. 1.0.0)',
+  },
+  {
+    valid: (e) => e.payload !== null && typeof e.payload === 'object' && !Array.isArray(e.payload),
+    message: 'payload must be a non-null object',
+  },
+];
+
+function collectUnexpectedFieldViolations(event: DomainEvent): string[] {
+  return Object.keys(event)
+    .filter((key) => !ENVELOPE_REQUIRED_FIELDS.has(key))
+    .map((key) => `unexpected envelope field: ${key}`);
+}
+
 export function validateEnvelope(event: DomainEvent, options?: ValidateEnvelopeOptions): void {
   const violations: string[] = [];
 
-  if (typeof event.event_id !== 'string' || !UUID_RE.test(event.event_id)) {
-    violations.push('event_id must be a valid UUID');
-  }
-  if (typeof event.event_type !== 'string' || !EVENT_TYPE_RE.test(event.event_type)) {
-    violations.push('event_type must match <module>.<entity>.<action> pattern');
-  }
-  if (typeof event.source_module !== 'string' || event.source_module.length === 0) {
-    violations.push('source_module is required');
-  }
-  if (typeof event.iq_tenant_id !== 'string' || !UUID_RE.test(event.iq_tenant_id)) {
-    violations.push('iq_tenant_id must be a valid UUID');
-  }
-  if (typeof event.occurred_at !== 'string' || !ISO_DATE_RE.test(event.occurred_at)) {
-    violations.push('occurred_at must be ISO-8601');
-  }
-  if (event.published_at !== undefined) {
-    if (typeof event.published_at !== "string" || !ISO_DATE_RE.test(event.published_at)) {
-      violations.push("published_at must be ISO-8601 when provided");
+  for (const rule of FIELD_RULES) {
+    if (!rule.valid(event)) {
+      violations.push(rule.message);
     }
   }
-  if (typeof event.correlation_id !== 'string' || !UUID_RE.test(event.correlation_id)) {
-    violations.push('correlation_id must be a valid UUID');
-  }
-  if (typeof event.actor_id !== 'string' || !UUID_RE.test(event.actor_id)) {
-    violations.push('actor_id must be a valid UUID');
-  }
-  if (
-    typeof event.event_contract_version !== 'string' ||
-    !SEMVER_RE.test(event.event_contract_version)
-  ) {
-    violations.push('event_contract_version must be semver (e.g. 1.0.0)');
-  }
-  if (event.payload === null || typeof event.payload !== 'object' || Array.isArray(event.payload)) {
-    violations.push('payload must be a non-null object');
-  }
+
   if (options?.strict === true) {
-    for (const key of Object.keys(event)) {
-      if (!ENVELOPE_REQUIRED_FIELDS.has(key)) {
-        violations.push(`unexpected envelope field: ${key}`);
-      }
-    }
+    violations.push(...collectUnexpectedFieldViolations(event));
   }
 
   if (violations.length > 0) {

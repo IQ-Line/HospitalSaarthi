@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { getRequestAuthContext } from "../http/request-auth-context.js";
+import { getRequestActorId } from "../http/request-actor.js";
 import type { TenantApiKeyRepo, TenantRepo } from "../ports.js";
 import type { TenantApiKeyStatus } from "../domain/tenant-api-key.types.js";
 import { listTenantApiKeys } from "../use-cases/list-tenant-api-keys.js";
@@ -48,6 +48,7 @@ export function registerTenantApiKeysHandler(
           },
         },
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
       const keys = await listTenantApiKeys(tenantApiKeyRepo, {
@@ -78,9 +79,10 @@ export function registerTenantApiKeysHandler(
           },
         },
       },
+      config: { authMode: "protected" },
     },
     async (request, reply) => {
-      const { userId } = getRequestAuthContext(request);
+      const userId = getRequestActorId(request);
       const created = await createTenantApiKey(
         tenantApiKeyRepo,
         tenantRepo,
@@ -115,9 +117,10 @@ export function registerTenantApiKeysHandler(
           },
         },
       },
+      config: { authMode: "protected" },
     },
     async (request) => {
-      const { userId } = getRequestAuthContext(request);
+      const userId = getRequestActorId(request);
       return updateTenantApiKeyStatus(
         tenantApiKeyRepo,
         request.params.tenantId,

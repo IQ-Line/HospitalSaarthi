@@ -1,5 +1,7 @@
 # ABDM Adapter — M3 Developer and E2E Guide
 
+> Paths/schema realigned with the integration-hub layout, 2026-07-10.
+
 Companion to the LLD pack (`docs/architecture/lld/abdm-adapter/08-m3-flows.md` through `11-m3-doc-vetting-notes.md`). Use this guide for day-to-day implementation and the **34-scenario** test catalogue (TC-01–TC-34).
 
 > **Sandbox live E2E (M2 link → M3 consent → data fetch), env vars, and a fresh-run checklist:**  
@@ -17,7 +19,7 @@ Companion to the LLD pack (`docs/architecture/lld/abdm-adapter/08-m3-flows.md` t
 
 | Phase | Deliverable | Exit criteria |
 |-------|-------------|---------------|
-| 0 | Doc lock | Postman 13 requests mapped to flows; migration `0003_abdm_adapter_m3_schema.sql` |
+| 0 | Doc lock | Postman 13 requests mapped to flows; `abdm_m3_*` tables created by `modules/integration-hub/migrations/0000_init.sql` |
 | 1 | `@hims/ts-sdk-abha/protocol/m3/*` | DTOs + M3 error codes |
 | 2 | Schema + repos | `abdm_m3_*` tables; `M3HiuContext` in `session.ts` |
 | 3 | Gateway + push client | `M3_GATEWAY_PATHS`; `ABDM_M3_*` env; allowlist + loopback |
@@ -29,18 +31,18 @@ Companion to the LLD pack (`docs/architecture/lld/abdm-adapter/08-m3-flows.md` t
 ## Local mock harness (5 minutes)
 
 ```bash
-psql "$DATABASE_URL" -f modules/abdm-adapter/migrations/0003_abdm_adapter_m3_schema.sql
+npx nx run integration-hub-svc:db-migrate   # creates abdm_m3_* tables (0000_init.sql)
 
 export ABDM_M3_MOCK_GATEWAY=true
 export ABDM_M3_LOOPBACK_HIU=true
 export ABDM_X_HIU_ID=SBX_TEST_HIU_001
-npx nx run abdm-adapter-svc:serve
+npx nx run integration-hub-svc:serve
 
-bash modules/abdm-adapter/scripts/m3/full-loop.sh
+bash modules/integration-hub/scripts/m3/full-loop.sh
 ```
 
-Scripts: [modules/abdm-adapter/scripts/m3/README.md](../../modules/abdm-adapter/scripts/m3/README.md)  
-Fixtures: [modules/abdm-adapter/test-fixtures/m3/README.md](../../modules/abdm-adapter/test-fixtures/m3/README.md)
+Scripts: [modules/integration-hub/scripts/m3/README.md](../../modules/integration-hub/scripts/m3/README.md)  
+Fixtures: [modules/integration-hub/test-fixtures/m3/README.md](../../modules/integration-hub/test-fixtures/m3/README.md)
 
 ## Test catalogue (TC-01–TC-34)
 
@@ -126,4 +128,4 @@ URLs unchanged: `/api/v3/hiu/*`, `/api/v3/hip/*`, `/api/abdm/v1/m3/*`.
 
 ## Phase 7 — M1 + M2 regression
 
-After M3 Phase 6 passes, run M1/M2 positive and negative smokes from [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md). Any change to shared code (`m2-inbound-helper`, Fidelius, `ports.ts`) requires the full `abdm-adapter` test target.
+After M3 Phase 6 passes, run M1/M2 positive and negative smokes from [abdm-adapter-e2e-and-production.md](./abdm-adapter-e2e-and-production.md). Any change to shared code (`m2-inbound-helper`, Fidelius, `ports.ts`) requires the full `integration-hub` test target.

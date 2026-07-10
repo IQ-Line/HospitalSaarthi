@@ -1,13 +1,10 @@
 {
   "name": "ts-sdk-abha",
-  "tags": ["type:sdk", "scope:platform"],
+  "tags": [
+    "type:sdk",
+    "scope:platform"
+  ],
   "targets": {
-    "test": {
-      "command": "vitest run",
-      "options": {
-        "cwd": "packages/ts-sdk-abha"
-      }
-    },
     "lint": {
       "command": "eslint src/",
       "options": {

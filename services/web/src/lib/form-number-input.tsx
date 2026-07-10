@@ -23,7 +23,7 @@ export function parseFormNumberInput(raw: string, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const PARTIAL_DECIMAL_RE = /^\d*\.?\d*$/;
+const PARTIAL_DECIMAL_RE = /^\d*(\.\d*)?$/;
 
 /** Keep only digits and at most one decimal point, capped at `maxDecimalPlaces` (0 = integers only). */
 export function sanitizeFormDecimalInput(raw: string, maxDecimalPlaces = 2): string {

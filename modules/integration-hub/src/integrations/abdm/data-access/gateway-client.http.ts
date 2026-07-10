@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { NhaPublicCertificateResponse } from "@hims/ts-sdk-abha/protocol/common/index.js";
+import type { NhaPublicCertificateResponse } from "@hims/ts-sdk-abha/protocol/common";
 import type {
   AbdmGatewayRouteTarget,
   GatewayClient,
@@ -12,10 +12,11 @@ import {
 } from "../lib/gateway-errors.js";
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { parseNhaAbhaCardBody } from "../lib/parse-nha-abha-card-body.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type { GatewayGetResponseParser } from "../ports.js";
 
 function joinUrl(base: string, path: string): string {
-  const b = base.replace(/\/+$/, "");
+  const b = stripTrailingSlashes(base);
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${b}${p}`;
 }
@@ -74,8 +75,8 @@ export class HttpGatewayClient implements GatewayClient {
   } | null = null;
 
   constructor(cfg: HttpGatewayClientConfig) {
-    this.gatewayBaseUrl = cfg.gatewayBaseUrl.replace(/\/+$/, "");
-    this.abhaApiBaseUrl = cfg.abhaApiBaseUrl.replace(/\/+$/, "");
+    this.gatewayBaseUrl = stripTrailingSlashes(cfg.gatewayBaseUrl);
+    this.abhaApiBaseUrl = stripTrailingSlashes(cfg.abhaApiBaseUrl);
     this.xCmId = cfg.xCmId;
     this.secrets = cfg.secrets;
     this.clientIdRef = cfg.clientIdRef ?? "env:ABDM_SANDBOX_CLIENT_ID";

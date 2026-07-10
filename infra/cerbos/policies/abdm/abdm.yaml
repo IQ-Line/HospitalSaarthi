@@ -1,0 +1,101 @@
+---
+# ABDM user-facing platform routes (integration-hub-svc) — care-context linking (M2)
+# and HIU consent + health-data (M3). These are JWT-authenticated, user-initiated
+# operations that touch consent and PHI; each action gates on its own capability.
+#
+# Capabilities (Master Data catalog module `abdm`):
+#   abdm:care-context:{create,read}   — M2 care-context linking
+#   abdm:consent:{create,read}        — M3 HIU consent requests
+#   abdm:health-data:{create,read}    — M3 data-request + transferred records/attachments (PHI)
+#
+# Tenant isolation: the target resolver attaches the caller's `iq_tenant_id` as the
+# resource tenant, so the `*`-role rules require principal.tenant == resource.tenant.
+# Clinical/PHI surface: no platform-operator (scope:platform) rule — the bounded operator is
+# intentionally out of scope here by omission (ADR-0035). Authority is always tenant + capability.
+# NHA gateway callbacks (/api/v3/*) are NOT covered here — they authenticate via
+# gateway signatures, not this PEP.
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: "abdm"
+  version: default
+  rules:
+    # ---- M2: care-context linking ----
+    - actions:
+        - "care-context.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:care-context:create" in request.principal.attr.capabilities ||
+              "abdm:care-context:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "care-context.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:care-context:read" in request.principal.attr.capabilities ||
+              "abdm:care-context:read" in request.principal.attr.delegated_capabilities
+            )
+
+    # ---- M3: HIU consent ----
+    - actions:
+        - "consent.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:consent:create" in request.principal.attr.capabilities ||
+              "abdm:consent:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "consent.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:consent:read" in request.principal.attr.capabilities ||
+              "abdm:consent:read" in request.principal.attr.delegated_capabilities
+            )
+
+    # ---- M3: health data / PHI ----
+    - actions:
+        - "health-data.create"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:health-data:create" in request.principal.attr.capabilities ||
+              "abdm:health-data:create" in request.principal.attr.delegated_capabilities
+            )
+
+    - actions:
+        - "health-data.read"
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            request.principal.attr.iq_tenant_id == request.resource.attr.iq_tenant_id &&
+            (
+              "abdm:health-data:read" in request.principal.attr.capabilities ||
+              "abdm:health-data:read" in request.principal.attr.delegated_capabilities
+            )

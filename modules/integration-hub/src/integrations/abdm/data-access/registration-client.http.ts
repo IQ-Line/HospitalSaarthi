@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "../lib/fetch-with-timeout.js";
 import { abdmWarn } from "../lib/abdm-adapter-log.js";
+import { stripTrailingSlashes } from "../lib/http-url.js";
 import type { M2PatientProfile, RegistrationClient } from "../ports.js";
 
 const REGISTRATION_API_PREFIX = "/api/registration/v1";
@@ -33,7 +34,7 @@ export class HttpRegistrationClient implements RegistrationClient {
     patientId: string;
   }): Promise<M2PatientProfile | null> {
     if (!this.baseUrl) return null;
-    const base = this.baseUrl.replace(/\/+$/, "");
+    const base = stripTrailingSlashes(this.baseUrl);
     const url = `${base}${REGISTRATION_API_PREFIX}/internal/patients/${input.patientId}/m2-profile`;
     try {
       const res = await fetchWithTimeout(url, {
@@ -97,7 +98,7 @@ export class HttpRegistrationClient implements RegistrationClient {
     if (!this.baseUrl) return [];
     const abhaAddress = input.abhaAddress.trim();
     if (!abhaAddress) return [];
-    const base = this.baseUrl.replace(/\/+$/, "");
+    const base = stripTrailingSlashes(this.baseUrl);
     const url = `${base}${REGISTRATION_API_PREFIX}/internal/patients/patient-ids-by-abha?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`;
     try {
       const res = await fetchWithTimeout(url, {
@@ -138,7 +139,7 @@ export class HttpRegistrationClient implements RegistrationClient {
     if (!this.baseUrl) return null;
     const abhaAddress = input.abhaAddress.trim();
     if (!abhaAddress) return null;
-    const base = this.baseUrl.replace(/\/+$/, "");
+    const base = stripTrailingSlashes(this.baseUrl);
     const url = `${base}${REGISTRATION_API_PREFIX}/internal/patients/resolve-by-abha?${new URLSearchParams({ abha_address: abhaAddress }).toString()}`;
     try {
       const res = await fetchWithTimeout(url, {

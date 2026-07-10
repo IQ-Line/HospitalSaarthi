@@ -179,14 +179,12 @@ export interface ConfiguratorHttpPort {
   getTenantFollowUpConfig(tenantId: string): Promise<TenantFollowUpConfig>;
 }
 
-export interface OpdHttpPort {
-  ensureEncounter(
-    tenantId: string,
-    visitId: string,
-    patientId: string,
-    bearerToken?: string,
-    doctorId?: string | null,
-  ): Promise<{ ok: true } | { ok: false; status: number; body: string }>;
+/**
+ * Minimal structured logger (pino-compatible) so use-cases can surface
+ * swallowed cross-module degradations instead of returning silent success.
+ */
+export interface RegistrationLogger {
+  warn(detail: Record<string, unknown>, message: string): void;
 }
 
 export interface BillingBillSummary {

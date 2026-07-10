@@ -23,33 +23,6 @@ resourcePolicy:
             )
 
     - actions:
-        - "role.assign"
-      roles: ["super-admin"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            (
-              "user-roles:role:assign" in request.principal.attr.capabilities ||
-              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
-        - "role.assign"
-      roles: ["*"]
-      effect: EFFECT_ALLOW
-      condition:
-        match:
-          expr: >-
-            request.principal.attr.iq_tenant_id != request.resource.attr.iq_tenant_id &&
-            has(request.principal.attr.role_codes) &&
-            "super-admin" in request.principal.attr.role_codes &&
-            (
-              "user-roles:role:assign" in request.principal.attr.capabilities ||
-              "user-roles:role:assign" in request.principal.attr.delegated_capabilities
-            )
-
-    - actions:
         - "role.revoke"
       roles: ["*"]
       effect: EFFECT_ALLOW
@@ -61,3 +34,19 @@ resourcePolicy:
               "user-roles:role:assign" in request.principal.attr.capabilities ||
               "user-roles:role:assign" in request.principal.attr.delegated_capabilities
             )
+
+    # --- Bounded platform operator (scope:platform) — additive allow ---
+    # Replaces the former god-mode super-admin: authority is the platform scope issued from
+    # platform_admins membership (JWT `scopes` -> principal.attr.scopes), NOT a capability nor
+    # the "super-admin" role string. No tenant equality — the operator is inherently
+    # cross-tenant. Clinical policies (opd/pharmacy/registration/empi/inventory/billing)
+    # intentionally omit this rule; that omission is the bound. Capability rules above are
+    # untouched (delegated tenant-admins keep working).
+    - actions: ["role.assign", "role.revoke"]
+      roles: ["*"]
+      effect: EFFECT_ALLOW
+      condition:
+        match:
+          expr: >-
+            has(request.principal.attr.scopes) &&
+            "platform" in request.principal.attr.scopes

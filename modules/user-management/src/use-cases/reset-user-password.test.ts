@@ -1,105 +1,110 @@
-import type { DomainEvent, EventBus, EventHandler, Subscription } from "@hims/ts-sdk-events";
 import { describe, expect, it, vi } from "vitest";
 import { InMemoryUserRepository } from "../data-access/in-memory-user-repository.js";
-import { UserNotFoundError, ValidationError } from "../domain/errors.js";
-import type { AuthPasswordAdminPort } from "../ports/auth-password-admin.js";
+import { ValidationError } from "../domain/errors.js";
+import type { AuthPasswordResetterPort } from "../ports/auth-password-resetter.js";
 import type { AuthSessionRevokerPort } from "../ports/auth-session-revoker.js";
 import { resetUserPassword } from "./reset-user-password.js";
 
-const AUTH_USER_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d601";
 const USER_ID = "f47ac10b-58cc-4372-a567-0e02b2c3d602";
+const SAMPLE_NEW_SECRET = "temppass1";
+const SAMPLE_TOO_SHORT = "short";
+
 const CTX = {
   tenantId: "tenant-a",
   actorId: "f47ac10b-58cc-4372-a567-0e02b2c3d603",
   correlationId: "f47ac10b-58cc-4372-a567-0e02b2c3d604",
 };
 
-class TestEventBus implements EventBus {
-  async connect(): Promise<void> {}
-
-  async disconnect(): Promise<void> {}
-
-  async publish(_event: DomainEvent): Promise<void> {}
-
-  async subscribe(_eventType: string, _handler: EventHandler): Promise<Subscription> {
-    return { async unsubscribe(): Promise<void> {} };
-  }
+function buildDeps(userRepository: InMemoryUserRepository): {
+  deps: {
+    userRepository: InMemoryUserRepository;
+    authPasswordResetter: AuthPasswordResetterPort;
+    authSessionRevoker: AuthSessionRevokerPort;
+  };
+  authPasswordResetter: { setPassword: ReturnType<typeof vi.fn> };
+  authSessionRevoker: { revokeAllSessionsForPlatformUser: ReturnType<typeof vi.fn> };
+} {
+  const authPasswordResetter = { setPassword: vi.fn(async () => {
+    /* no-op stub */
+  }) };
+  const authSessionRevoker = { revokeAllSessionsForPlatformUser: vi.fn(async () => {
+    /* no-op stub */
+  }) };
+  return {
+    deps: { userRepository, authPasswordResetter, authSessionRevoker },
+    authPasswordResetter,
+    authSessionRevoker,
+  };
 }
 
 describe("resetUserPassword", () => {
-  it("sets temp password, revokes sessions, and flags must_change_password", async () => {
+  it("sets password, revokes sessions, flags must_change_password, and persists the flag", async () => {
     const userRepository = new InMemoryUserRepository();
-    const created = userRepository.insertUserWithId("tenant-a", USER_ID, {
+    const created = userRepository.insertUserWithId(CTX.tenantId, USER_ID, {
       full_name: "Test User",
       email: "test@example.com",
       username: "testuser",
-      password: "unused",
     });
-    await userRepository.updateUser("tenant-a", created.id, {
-      auth_user_id: AUTH_USER_ID,
+    expect(created.must_change_password).toBe(false);
+
+    const { deps, authPasswordResetter, authSessionRevoker } = buildDeps(userRepository);
+    const updateSpy = vi.spyOn(userRepository, "updateUser");
+
+    const updated = await resetUserPassword(deps, CTX, created.id, {
+      new_password: SAMPLE_NEW_SECRET,
     });
 
-    const authPasswordAdmin: AuthPasswordAdminPort = {
-      setUserPassword: vi.fn(async () => {}),
-      revokeUserSessions: vi.fn(async () => {}),
-    };
-    const authSessionRevoker: AuthSessionRevokerPort = {
-      revokeAllSessionsForPlatformUser: vi.fn(async () => {}),
-    };
+    // password set via the resetter port (platform user id, not auth id)
+    expect(authPasswordResetter.setPassword).toHaveBeenCalledWith(created.id, "temppass1");
+    // sessions revoked
+    expect(authSessionRevoker.revokeAllSessionsForPlatformUser).toHaveBeenCalledWith(created.id);
+    // hardening: revoke MUST run before setPassword, so no old session outlives the new credential
+    const revokeOrder =
+      authSessionRevoker.revokeAllSessionsForPlatformUser.mock.invocationCallOrder[0];
+    const setPasswordOrder = authPasswordResetter.setPassword.mock.invocationCallOrder[0];
+    if (revokeOrder === undefined || setPasswordOrder === undefined) {
+      throw new Error("expected both revoke and setPassword to have recorded an invocation order");
+    }
+    expect(revokeOrder).toBeLessThan(setPasswordOrder);
+    // repo update actually invoked with the flag (mutation-proof: removing the flag-set line fails here)
+    expect(updateSpy).toHaveBeenCalledWith(CTX.tenantId, created.id, {
+      must_change_password: true,
+    });
+    // returned row reflects the persisted flag, not the stale pre-update row
+    expect(updated?.must_change_password).toBe(true);
+    // and the stored row is actually updated
+    const reread = await userRepository.getUserById(CTX.tenantId, created.id);
+    expect(reread?.must_change_password).toBe(true);
+  });
 
-    const updated = await resetUserPassword(
-      {
-        userRepository,
-        eventBus: new TestEventBus(),
-        authPasswordAdmin,
-        authSessionRevoker,
-      },
+  it("returns null for a missing user without touching the resetter or revoker", async () => {
+    const userRepository = new InMemoryUserRepository();
+    const { deps, authPasswordResetter, authSessionRevoker } = buildDeps(userRepository);
+
+    const result = await resetUserPassword(
+      deps,
       CTX,
-      created.id,
-      { password: "temppass1" },
+      "f47ac10b-58cc-4372-a567-0e02b2c3d699",
+      { new_password: SAMPLE_NEW_SECRET },
     );
 
-    expect(authPasswordAdmin.setUserPassword).toHaveBeenCalledWith(AUTH_USER_ID, "temppass1");
-    expect(authPasswordAdmin.revokeUserSessions).toHaveBeenCalledWith(AUTH_USER_ID);
-    expect(authSessionRevoker.revokeAllSessionsForPlatformUser).toHaveBeenCalledWith(created.id);
-    expect(updated.must_change_password).toBe(true);
+    expect(result).toBeNull();
+    expect(authPasswordResetter.setPassword).not.toHaveBeenCalled();
+    expect(authSessionRevoker.revokeAllSessionsForPlatformUser).not.toHaveBeenCalled();
   });
 
-  it("throws when user has no linked auth account", async () => {
+  it("throws ValidationError for an invalid password before any side effect", async () => {
     const userRepository = new InMemoryUserRepository();
-    const created = userRepository.insertUserWithId("tenant-a", "f47ac10b-58cc-4372-a567-0e02b2c3d615", {
-      full_name: "No Auth",
-      email: "noauth@example.com",
-      username: "noauth",
-      password: "unused",
+    const created = userRepository.insertUserWithId(CTX.tenantId, USER_ID, {
+      full_name: "Test User",
+      email: "test@example.com",
+      username: "testuser",
     });
+    const { deps, authPasswordResetter } = buildDeps(userRepository);
 
     await expect(
-      resetUserPassword(
-        {
-          userRepository,
-          eventBus: new TestEventBus(),
-          authPasswordAdmin: { setUserPassword: vi.fn(), revokeUserSessions: vi.fn() },
-        },
-        CTX,
-        created.id,
-        { password: "temppass1" },
-      ),
+      resetUserPassword(deps, CTX, created.id, { new_password: SAMPLE_TOO_SHORT }),
     ).rejects.toBeInstanceOf(ValidationError);
-  });
-
-  it("throws UserNotFoundError for missing user", async () => {
-    await expect(
-      resetUserPassword(
-        {
-          userRepository: new InMemoryUserRepository(),
-          eventBus: new TestEventBus(),
-          authPasswordAdmin: { setUserPassword: vi.fn(), revokeUserSessions: vi.fn() },
-        },
-        CTX,
-        "f47ac10b-58cc-4372-a567-0e02b2c3d699",
-        { password: "temppass1" },
-      ),
-    ).rejects.toBeInstanceOf(UserNotFoundError);
+    expect(authPasswordResetter.setPassword).not.toHaveBeenCalled();
   });
 });

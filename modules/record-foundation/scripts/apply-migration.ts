@@ -1,7 +1,5 @@
-import { applyRecordFoundationSchemaMigration } from "../src/schema/apply-migration.js";
 import { resolveDatabaseUrl } from "@hims/ts-sdk-db";
+import { applyRecordFoundationSchemaMigration } from "../src/schema/apply-migration.js";
 
-const url = resolveDatabaseUrl();
-
-await applyRecordFoundationSchemaMigration(url);
-console.log("Record Foundation schema migration applied.");
+await applyRecordFoundationSchemaMigration(resolveDatabaseUrl());
+console.log("[record-foundation] schema migration applied.");

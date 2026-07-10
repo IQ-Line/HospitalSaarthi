@@ -19,7 +19,7 @@ import {
   RegistrationSubsectionLabel,
 } from '@/features/frontdesk/components/registration-form-chrome';
 import { listStateDistrictCatalog } from '@/features/frontdesk/utils/state-district-catalog';
-import type { DispensePatientDraft } from '../types/dispense-ui.types';
+import type { DispensePatientDraft } from '../../types/dispense-ui.types';
 
 const GENDER_OPTIONS = [
   { value: 'male', label: 'Male' },

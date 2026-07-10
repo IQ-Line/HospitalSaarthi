@@ -19,7 +19,7 @@ Edit `.env` only if ports clash. Required keys are documented in `.env.example`:
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | `hims_dev` — shared operational DB; each module uses its own schema |
-| `MASTER_DATA_DATABASE_URL` | Same `hims_dev` DB; Alembic uses `global_master` + `tenant_master` schemas |
+| `MASTER_DATA_DATABASE_URL` | Same `hims_dev` DB; Alembic uses `master_global` + `master_tenant` schemas |
 | `CONFIGURATOR_URL` / `MASTER_DATA_URL` | UM entitlement lookups |
 | `BETTER_AUTH_SECRET` | ≥32 chars; better-auth + seed |
 | `CERBOS_URL` | gRPC PDP `localhost:3593` |
@@ -40,7 +40,7 @@ Runs in order:
 1. `env-init` — create `.env` if missing  
 2. `pnpm install`  
 3. `make infra` — Postgres (5433), PgBouncer (6432), Cerbos (3592 HTTP / 3593 gRPC)  
-4. `make db-migrate` — Drizzle schemas on `hims_dev` + Master Data Alembic (`global_master`, `tenant_master` on the same DB)  
+4. `make db-migrate` — Drizzle schemas on `hims_dev` + Master Data Alembic (`master_global`, `master_tenant` on the same DB)  
 5. `make seed` — `pnpm sync:capabilities` then `pnpm seed` (UM catalog sync, Configurator tenant, dev users, Cerbos smoke check)  
 
 To reset everything:
@@ -109,7 +109,7 @@ curl -s -H "Authorization: Bearer TOKEN" \
 
 ## 6. Seed order (what `make seed` does)
 
-1. **Master Data** — resolve module UUIDs from `global_master.modules` (catalog owned by Alembic, including `030_demo_authorization_catalog`)  
+1. **Master Data** — resolve module UUIDs from `master_global.modules` (catalog owned by Alembic, including `030_demo_authorization_catalog`)  
 2. **Configurator** — dev org/tenant + `tenant_modules` for demo slugs  
 3. **User Management** — runtime capabilities, roles, `user_capabilities`, better-auth users  
 4. **Cerbos** — smoke check for platform operator (`user.create`, `role.create`, `role.assign`)  
@@ -124,10 +124,10 @@ Operational modules (Configurator, User Management, EMPI, …) use **schemas ins
 |---------|-----|
 | `EADDRINUSE` on 3000 / 3001 / 3005 / 5173 / 8010 | Free the port manually (`netstat -ano \| findstr :3000` then `taskkill /PID <pid> /F` on Windows; `lsof -i :3000` on macOS/Linux) |
 | Vite on 5174/5175 instead of 5173 | Port 5173 busy — stop the other process or set `WEB_DEV_PORT` in `.env.local` |
-| `schema "global_master" does not exist` on migrate | Run `make db-migrate` (includes `master-data:migrate` against `hims_dev`) |
+| `schema "master_global" does not exist` on migrate | Run `make db-migrate` (includes `master-data:db-migrate` against `hims_dev`) |
 | Orphaned catalog rows after a bad reset | `make db-reset`, then `make db-migrate` |
 | UM fails boot: `CONFIGURATOR_URL` / `MASTER_DATA_URL` | Set in root `.env` |
-| Seed: schema `global_master` not found | Run `make db-migrate` (master-data Alembic) |
+| Seed: schema `master_global` not found | Run `make db-migrate` (master-data Alembic) |
 | Seed: module slug not found | Run `make db-migrate`; ensure `MASTER_DATA_DATABASE_URL` uses `/hims_dev` (same as `DATABASE_URL`) |
 | Missing `configurator` / `user_management` schema | `npx nx run configurator:db-migrate` and `user-management:db-migrate` against `DATABASE_URL` |
 | `AUTH_INVALID_TOKEN` on `/auth/principal` | `JWT_ISSUER`, `AUTH_BASE_URL`, and `VITE_API_BASE_URL` must share the BFF origin; `JWKS_URL` must be `${JWT_ISSUER}/api/auth/.well-known/jwks.json` (see root `.env.example`); clear `sessionStorage` (`hims-dev-auth`) and sign in again |

@@ -42,13 +42,24 @@ function isAccessTokenUsable(accessToken: string | null | undefined, skewSeconds
   return exp > Math.floor(Date.now() / 1000) + skewSeconds;
 }
 
+/** Subset of zustand's persist store API we rely on (mutator type is erased at the store's devtools cast). */
+type PersistApi = { rehydrate: () => Promise<void> | void };
+
+function hasPersistApi(store: unknown): store is { persist: PersistApi } {
+  return (
+    typeof store === 'object' &&
+    store !== null &&
+    'persist' in store &&
+    typeof (store as { persist?: { rehydrate?: unknown } }).persist?.rehydrate === 'function'
+  );
+}
+
 async function ensureAuthStoreRehydrated(): Promise<void> {
   if (storeRehydrated) {
     return;
   }
-  const store = useAuthStore;
-  if ('persist' in store && typeof store.persist.rehydrate === 'function') {
-    await store.persist.rehydrate();
+  if (hasPersistApi(useAuthStore)) {
+    await useAuthStore.persist.rehydrate();
   }
   storeRehydrated = true;
 }
@@ -107,6 +118,59 @@ async function refreshPlatformAccessToken(refreshToken: string): Promise<string>
     throw new Error('Token refresh returned an empty access token');
   }
   return accessToken;
+}
+
+/**
+ * Cold-start session bootstrap from the better-auth cookie (GH #90).
+ *
+ * Prod cookie sessions carry no refresh token (login.tsx sets `refreshToken: ''`), so a hard
+ * refresh has nothing in memory to restore and the old code stranded the user at /login even
+ * while the better-auth session cookie was still valid. Instead we rebuild the session straight
+ * off that cookie, mirroring exactly what login does:
+ *   1. get-session -> platform identity (id / name / iq_tenant_id), cookie-only
+ *   2. token       -> a fresh 5-min RS256 access JWT minted off the same cookie
+ * then feed both through the same functions login uses (`setSession` +
+ * `applyTenantSessionFromAuth`). Principal/capability hydration then runs — as it does for a
+ * normal reload — via the unchanged `_authenticated` guard's `refreshAuthorizationContext`.
+ *
+ * A missing/expired cookie makes get-session (or token) return an error/empty body; we return
+ * false and the caller clears the session, so the router falls through to the /login redirect.
+ * No new access token or principal is written to web storage — the cookie is the only durable
+ * credential and it is owned by the browser, not by us.
+ */
+async function bootstrapSessionFromCookie(): Promise<boolean> {
+  const sessionResult = await authClient.getSession();
+  const sessionData = sessionResult.data as
+    | { user?: { id?: string; name?: string; iq_tenant_id?: string }; session?: { token?: string } }
+    | null;
+  const user = sessionData?.user;
+  const userId = typeof user?.id === 'string' ? user.id.trim() : '';
+  if (sessionResult.error || userId.length === 0) {
+    return false;
+  }
+
+  const tokenResult = await authClient.token();
+  const accessToken =
+    typeof tokenResult.data?.token === 'string' ? tokenResult.data.token.trim() : '';
+  if (tokenResult.error || accessToken.length === 0) {
+    return false;
+  }
+
+  // Mirror login.tsx completeSignIn: cookie sessions issue no refresh token ('' disables the
+  // silent-refresh path); the cookie itself is the durable credential we re-mint the JWT from.
+  useAuthStore.getState().setSession({
+    accessToken,
+    refreshToken: '',
+    sessionToken: typeof sessionData?.session?.token === 'string' ? sessionData.session.token : '',
+    userId,
+    displayName: user?.name ?? '',
+  });
+
+  await applyTenantSessionFromAuth({
+    accessToken,
+    authUserIqTenantId: user?.iq_tenant_id ?? null,
+  });
+  return true;
 }
 
 async function refreshStoredAccessToken(): Promise<string | null> {
@@ -219,16 +283,25 @@ export async function ensureAuthSession(): Promise<void> {
         return;
       }
 
-      if (!auth.isAuthenticated || !auth.refreshToken?.trim() || !auth.userId) {
-        useAuthStore.getState().clearSession();
-        return;
+      // Refresh-token-backed session (dev / legacy POST-login): restore without a cookie
+      // round-trip. Prod cookie sessions have `refreshToken === ''`, so this branch is skipped
+      // and we fall through to the cookie bootstrap below.
+      if (auth.isAuthenticated && auth.refreshToken?.trim() && auth.userId) {
+        if (isAccessTokenUsable(auth.accessToken)) {
+          await hydrateTenantFromAccessToken(auth.accessToken!);
+          return;
+        }
+        const accessToken = await refreshStoredAccessToken();
+        if (accessToken !== null) {
+          return;
+        }
+        // Refresh token no longer valid — fall through to the cookie bootstrap.
       }
-      if (isAccessTokenUsable(auth.accessToken)) {
-        await hydrateTenantFromAccessToken(auth.accessToken!);
-        return;
-      }
-      const accessToken = await refreshStoredAccessToken();
-      if (accessToken === null) {
+
+      // Cold start / hard refresh: rebuild the session from the better-auth cookie (GH #90).
+      // Cookie absent/expired -> false -> clearSession -> the router redirects to /login.
+      const bootstrapped = await bootstrapSessionFromCookie();
+      if (!bootstrapped) {
         useAuthStore.getState().clearSession();
       }
     } catch (error) {

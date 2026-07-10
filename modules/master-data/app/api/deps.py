@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -12,34 +13,51 @@ from app.core.catalog_tenant_id import (
 )
 from app.core.database import get_db_session
 from app.repositories.department_repository import DepartmentRepository
-from app.repositories.module_permission_repository import ModulePermissionRepository
-from app.repositories.module_repository import ModuleRepository
-from app.repositories.permission_repository import PermissionRepository
-from app.repositories.picklist_repository import PicklistRepository
-from app.repositories.system_role_repository import SystemRoleRepository
-from app.repositories.visitpad.allergen import VisitpadAllergenRepository
-from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
-from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
-from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
-from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
-from app.repositories.visitpad.medicine import VisitpadMedicineRepository
-from app.repositories.visitpad.procedure import VisitpadProcedureRepository
-from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
-from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
-from app.repositories.visitpad.unit import VisitpadUnitRepository
-from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
-from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
-from app.repositories.visitpad.vital import VisitpadVitalRepository
 from app.repositories.inventory.category import InventoryCategoryRepository
 from app.repositories.inventory.hsn_gst import InventoryHsnGstRepository
 from app.repositories.inventory.item_type import InventoryItemTypeRepository
 from app.repositories.inventory.storage_condition import InventoryStorageConditionRepository
 from app.repositories.inventory.store_type import InventoryStoreTypeRepository
 from app.repositories.inventory.uom import InventoryUomRepository
+from app.repositories.module_permission_repository import ModulePermissionRepository
+from app.repositories.module_repository import ModuleRepository
+from app.repositories.permission_repository import PermissionRepository
+from app.repositories.picklist_repository import PicklistRepository
+from app.repositories.system_role_permission_repository import SystemRolePermissionRepository
+from app.repositories.system_role_repository import SystemRoleRepository
+from app.repositories.visitpad.allergen import VisitpadAllergenRepository
+from app.repositories.visitpad.allergy_reaction import VisitpadAllergyReactionRepository
+from app.repositories.visitpad.chief_complaint import VisitpadChiefComplaintRepository
+from app.repositories.visitpad.chronic_illness import VisitpadChronicIllnessRepository
+from app.repositories.visitpad.conversion import VisitpadUnitConversionRepository
+from app.repositories.visitpad.diagnosis import VisitpadDiagnosisRepository
+from app.repositories.visitpad.manufacturer import VisitpadManufacturerRepository
+from app.repositories.visitpad.medicine import VisitpadMedicineRepository
+from app.repositories.visitpad.procedure import VisitpadProcedureRepository
+from app.repositories.visitpad.rx_column import VisitpadRxColumnRepository
+from app.repositories.visitpad.unit import VisitpadUnitRepository
+from app.repositories.visitpad.vaccine import VisitpadVaccineRepository
+from app.repositories.visitpad.vital import VisitpadVitalRepository
 
 
 def get_session() -> Generator[Session, None, None]:
     yield from get_db_session()
+
+
+async def resolve_actor_id(request: Request) -> UUID:
+    """Audit actor from the VERIFIED principal (JWT ``sub``), never a raw header.
+
+    The identity gate verified the token in-process before the handler ran; this reads that
+    verified subject so ``created_by`` / ``updated_by`` record the real operator. Replaces the
+    former ``actor_id=None`` — an unauthenticated caller is rejected by the gate before here.
+    """
+    identity = await request.app.state.authz.get_identity(request)
+    try:
+        return UUID(identity.user_id)
+    except ValueError as exc:  # pragma: no cover — verified tokens carry a UUID subject
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid subject"
+        ) from exc
 
 
 def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> CatalogScope:
@@ -48,12 +66,16 @@ def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> C
         tid = try_parse_iq_tenant_id(catalog_tenant_header)
     except CatalogTenantIdError as exc:
         if exc.code == "empty":
-            detail = "Invalid iq_tenant_id: empty value. Omit the header for the shared global catalog."
+            detail = (
+                "Invalid iq_tenant_id: empty value. "
+                "Omit the header for the shared global catalog."
+            )
         elif exc.code == "invalid_uuid":
             detail = (
                 "Invalid iq_tenant_id: expected a canonical UUID string "
                 "(e.g. 550e8400-e29b-41d4-a716-446655440000). "
-                "Numeric-only legacy keys are not accepted. Omit the header for the global catalog (global_master schema)."
+                "Numeric-only legacy keys are not accepted. "
+                "Omit the header for the global catalog (master_global schema)."
             )
         else:
             detail = "Invalid iq_tenant_id. Omit the header for the shared global catalog."
@@ -64,8 +86,8 @@ def catalog_scope_from_tenant_header_raw(catalog_tenant_header: str | None) -> C
 def get_catalog_scope(request: Request) -> CatalogScope:
     """Resolve where catalog CRUD goes for this request.
 
-    - No / blank tenant header → ``CatalogScope(iq_tenant_id=None)`` → ``global_master`` models.
-    - Valid UUID in ``iq_tenant_id`` or ``x-tenant-id`` → ``tenant_master`` models.
+    - No / blank tenant header → ``CatalogScope(iq_tenant_id=None)`` → ``master_global`` models.
+    - Valid UUID in ``iq_tenant_id`` or ``x-tenant-id`` → ``master_tenant`` models.
     """
     raw = resolve_catalog_tenant_header_raw(request.headers)
     return catalog_scope_from_tenant_header_raw(raw)
@@ -92,6 +114,13 @@ def get_module_repository(
     return ModuleRepository(session, scope)
 
 
+def get_global_module_repository(
+    session: Annotated[Session, Depends(get_session)],
+) -> ModuleRepository:
+    """Module repo pinned to the GLOBAL catalog (no tenant header) for internal S2S routes."""
+    return ModuleRepository(session, CatalogScope(iq_tenant_id=None))
+
+
 def get_permission_repository(
     session: Annotated[Session, Depends(get_session)],
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
@@ -102,7 +131,7 @@ def get_permission_repository(
 def get_picklist_repository(
     session: Annotated[Session, Depends(get_session)],
 ) -> PicklistRepository:
-    """Platform picklists live in ``global_master`` only; tenant header is ignored."""
+    """Platform picklists live in ``master_global`` only; tenant header is ignored."""
     return PicklistRepository(session)
 
 
@@ -118,6 +147,13 @@ def get_module_permission_repository(
     scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
 ) -> ModulePermissionRepository:
     return ModulePermissionRepository(session, scope)
+
+
+def get_system_role_permission_repository(
+    session: Annotated[Session, Depends(get_session)],
+    scope: Annotated[CatalogScope, Depends(get_catalog_scope)],
+) -> SystemRolePermissionRepository:
+    return SystemRolePermissionRepository(session, scope)
 
 
 def get_visitpad_unit_repository(

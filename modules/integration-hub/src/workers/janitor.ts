@@ -28,7 +28,7 @@ export function scheduleIntegrationHubJanitor(
   }
 
   const timer = setInterval(() => {
-    void runIntegrationHubJanitor(runOptions).catch((err) => {
+    runIntegrationHubJanitor(runOptions).catch((err) => {
       runOptions.log.error(err, "integration hub janitor sweep failed");
     });
   }, intervalMs);

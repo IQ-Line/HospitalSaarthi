@@ -1,4 +1,7 @@
-import { getRolesFromAccessToken } from '@/lib/access-token';
+import { getRolesFromAccessToken, getScopesFromAccessToken } from '@/lib/access-token';
+
+/** The bounded platform authority scope. Presence => platform operator (UX gating only). */
+export const PLATFORM_SCOPE = 'platform';
 
 /** Canonical role code for platform operators (matches dev seed `super-admin`). */
 export const PLATFORM_SUPER_ADMIN_ROLE = 'super-admin';
@@ -32,17 +35,32 @@ export function isPlatformSuperAdmin(roles: readonly string[] | undefined): bool
   return roles.some(isPlatformSuperAdminRole);
 }
 
+/**
+ * UX gating only: bounded `scope:platform` claim (PRIMARY), OR the retained "super-admin" display
+ * role (fallback). The operator token carries both; backend Cerbos PDP is authoritative regardless.
+ */
 export function isPlatformSuperAdminFromAccessToken(accessToken: string | null | undefined): boolean {
-  return isPlatformSuperAdmin(getRolesFromAccessToken(accessToken));
+  return (
+    getScopesFromAccessToken(accessToken).includes(PLATFORM_SCOPE) ||
+    isPlatformSuperAdmin(getRolesFromAccessToken(accessToken))
+  );
 }
 
-/** UX-only: principal roles, persisted auth roles, and JWT role claims. */
+/**
+ * UX-only platform-operator resolution. Authority is the bounded `scope:platform` claim — read from
+ * the enriched principal scopes (`GET /auth/principal.attributes.scopes`) and the JWT `scopes`
+ * claim as the PRIMARY signal. The "super-admin" display role (still assigned to the operator) is
+ * retained as a UX fallback so existing call sites keep working without churn. Backend Cerbos PDP
+ * remains authoritative — this never gates data access.
+ */
 export function resolvePlatformSuperAdmin(input: {
+  principalScopes?: readonly string[];
   principalRoles?: readonly string[];
   authRoles?: readonly string[];
   accessToken?: string | null;
 }): boolean {
   return (
+    (input.principalScopes?.includes(PLATFORM_SCOPE) ?? false) ||
     isPlatformSuperAdmin(input.principalRoles) ||
     isPlatformSuperAdmin(input.authRoles) ||
     isPlatformSuperAdminFromAccessToken(input.accessToken)

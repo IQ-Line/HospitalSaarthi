@@ -1,4 +1,4 @@
-"""Bulk copy department rows from ``global_master`` into ``tenant_master``."""
+"""Bulk copy department rows from ``master_global`` into ``master_tenant``."""
 
 from __future__ import annotations
 
@@ -47,6 +47,7 @@ def import_departments_from_platform(
     scope: CatalogScope,
     tenant_repo: DepartmentRepository,
     platform_row_ids: list[UUID],
+    actor_id: UUID | None = None,
 ) -> VisitpadPlatformImportData:
     _require_tenant_scope(scope)
     by_id = _fetch_global_by_ids(session, platform_row_ids)
@@ -84,7 +85,7 @@ def import_departments_from_platform(
 
         try:
             with session.begin_nested():
-                row = create_department(tenant_repo, payload, actor_id=None)
+                row = create_department(tenant_repo, payload, actor_id=actor_id)
             created.append(row.id)
         except DuplicateDepartmentKeyError:
             skipped.append(pid)

@@ -1,14 +1,5 @@
+import { resolveNrcesBundleType, firstProfileUrl } from '@hims/ts-sdk-fhir';
 import type { ConsentListDataPushedEntry } from './api';
-
-const PROFILE_BUNDLE_TYPE: Record<string, string> = {
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/OPConsultRecord': 'OPConsultRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/PrescriptionRecord': 'PrescriptionRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/DiagnosticReportRecord': 'DiagnosticReportRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/DischargeSummaryRecord': 'DischargeSummaryRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/ImmunizationRecord': 'ImmunizationRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/HealthDocumentRecord': 'HealthDocumentRecord',
-  'https://nrces.in/ndhm/fhir/r4/StructureDefinition/WellnessRecord': 'WellnessRecord',
-};
 
 export const BUNDLE_TYPE_LABELS: Record<string, string> = {
   OPConsultRecord: 'Consultation Notes',
@@ -34,12 +25,6 @@ export interface TransformedBundleView {
   DiagnosticReportInfo?: Array<Record<string, unknown>>;
   ImmunizationInfo?: Array<Record<string, unknown>>;
   AttachmentRefs?: ConsentListDataPushedEntry['AttachmentRefs'];
-}
-
-function profileToBundleType(profile?: string): string | undefined {
-  if (!profile) return undefined;
-  const base = profile.split('|')[0] ?? profile;
-  return PROFILE_BUNDLE_TYPE[base];
 }
 
 function humanName(name?: unknown): string {
@@ -122,95 +107,128 @@ function indexBundleResources(bundle: FhirResource): Map<string, FhirResource> {
   return map;
 }
 
+function mapIdentifiers(value: unknown): Array<{ type?: string; value: string }> {
+  return Array.isArray(value)
+    ? (value.map(processIdentifier).filter(Boolean) as Array<{ type?: string; value: string }>)
+    : [];
+}
+
+function buildPatientInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  return {
+    name: humanName(resource.name),
+    gender: resource.gender,
+    telecom: Array.isArray(resource.telecom)
+      ? resource.telecom.map(processTelecom).filter(Boolean)
+      : [],
+    identifier: mapIdentifiers(resource.identifier),
+    birthDate: resource.birthDate,
+    fullUrl,
+  };
+}
+
+function buildPractitionerInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  const quals = Array.isArray(resource.qualification) ? resource.qualification : [];
+  const qualification =
+    quals
+      .map((q) => (q && typeof q === 'object' ? codeableText((q as FhirResource).code) : ''))
+      .filter(Boolean)
+      .join(', ') || 'N/A';
+  return {
+    name: humanName(resource.name),
+    identifier: mapIdentifiers(resource.identifier),
+    qualification,
+    fullUrl,
+  };
+}
+
+function buildEncounterInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  const encClass =
+    resource.class && typeof resource.class === 'object' ? codeableText(resource.class) : '';
+  return {
+    type: Array.isArray(resource.type)
+      ? resource.type.map(codeableText).filter(Boolean).join(', ')
+      : 'N/A',
+    period: processPeriod(resource.period),
+    status: resource.status,
+    class: encClass,
+    identifier: mapIdentifiers(resource.identifier),
+    fullUrl,
+  };
+}
+
+function buildCompositionInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  return {
+    title: resource.title ?? 'Untitled Document',
+    status: resource.status,
+    date: resource.date,
+    custodian: resource.custodian,
+    fullUrl,
+  };
+}
+
+function buildDiagnosticReportInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  return {
+    effectiveDateTime: resource.effectiveDateTime,
+    issued: resource.issued,
+    fullUrl,
+  };
+}
+
+function buildImmunizationInfo(resource: FhirResource, fullUrl?: string): Record<string, unknown> {
+  return {
+    occurrence: resource.occurrenceDateTime ?? resource.occurrenceString,
+    fullUrl,
+  };
+}
+
+const RESOURCE_BUILDERS: Record<
+  string,
+  { type: string; build: (resource: FhirResource, fullUrl?: string) => Record<string, unknown> }
+> = {
+  Patient: { type: 'PatientInfo', build: buildPatientInfo },
+  Practitioner: { type: 'PractitionerInfo', build: buildPractitionerInfo },
+  Encounter: { type: 'EncounterInfo', build: buildEncounterInfo },
+  Composition: { type: 'CompositionInfo', build: buildCompositionInfo },
+  DiagnosticReport: { type: 'DiagnosticReportInfo', build: buildDiagnosticReportInfo },
+  Immunization: { type: 'ImmunizationInfo', build: buildImmunizationInfo },
+};
+
 function processResource(resource: FhirResource, fullUrl?: string): { type: string; data: Record<string, unknown> } | null {
-  const resourceType = resource.resourceType;
-  if (resourceType === 'Patient') {
-    return {
-      type: 'PatientInfo',
-      data: {
-        name: humanName(resource.name),
-        gender: resource.gender,
-        telecom: Array.isArray(resource.telecom)
-          ? resource.telecom.map(processTelecom).filter(Boolean)
-          : [],
-        identifier: Array.isArray(resource.identifier)
-          ? resource.identifier.map(processIdentifier).filter(Boolean)
-          : [],
-        birthDate: resource.birthDate,
-        fullUrl,
-      },
-    };
+  const builder =
+    typeof resource.resourceType === 'string' ? RESOURCE_BUILDERS[resource.resourceType] : undefined;
+  if (!builder) return null;
+  return { type: builder.type, data: builder.build(resource, fullUrl) };
+}
+
+function findCompositionResource(bundle: FhirResource): FhirResource | undefined {
+  if (!Array.isArray(bundle.entry)) return undefined;
+  const match = bundle.entry.find(
+    (e) => ((e as FhirResource).resource as FhirResource | undefined)?.resourceType === 'Composition',
+  ) as FhirResource | undefined;
+  return match?.resource as FhirResource | undefined;
+}
+
+function populateResourceGroups(entries: unknown, result: TransformedBundleView): void {
+  if (!Array.isArray(entries)) return;
+  for (const item of entries) {
+    if (!item || typeof item !== 'object') continue;
+    const e = item as FhirResource;
+    const resource = e.resource as FhirResource | undefined;
+    if (!resource) continue;
+    const processed = processResource(resource, typeof e.fullUrl === 'string' ? e.fullUrl : undefined);
+    if (!processed) continue;
+    const key = processed.type as keyof TransformedBundleView;
+    const list = (result[key] as Array<Record<string, unknown>> | undefined) ?? [];
+    list.push(processed.data);
+    (result as unknown as Record<string, unknown>)[processed.type] = list;
   }
-  if (resourceType === 'Practitioner') {
-    const quals = Array.isArray(resource.qualification) ? resource.qualification : [];
-    const qualification =
-      quals
-        .map((q) => (q && typeof q === 'object' ? codeableText((q as FhirResource).code) : ''))
-        .filter(Boolean)
-        .join(', ') || 'N/A';
-    return {
-      type: 'PractitionerInfo',
-      data: {
-        name: humanName(resource.name),
-        identifier: Array.isArray(resource.identifier)
-          ? resource.identifier.map(processIdentifier).filter(Boolean)
-          : [],
-        qualification,
-        fullUrl,
-      },
-    };
+}
+
+function applyEntryOverrides(result: TransformedBundleView, entry?: ConsentListDataPushedEntry): void {
+  if (entry?.bundleType) result.bundleType = entry.bundleType;
+  if (entry?.CompositionInfo?.[0]?.title && result.CompositionInfo?.[0]) {
+    result.CompositionInfo[0].title = entry.CompositionInfo[0].title;
   }
-  if (resourceType === 'Encounter') {
-    const encClass =
-      resource.class && typeof resource.class === 'object' ? codeableText(resource.class) : '';
-    return {
-      type: 'EncounterInfo',
-      data: {
-        type: Array.isArray(resource.type)
-          ? resource.type.map(codeableText).filter(Boolean).join(', ')
-          : 'N/A',
-        period: processPeriod(resource.period),
-        status: resource.status,
-        class: encClass,
-        identifier: Array.isArray(resource.identifier)
-          ? resource.identifier.map(processIdentifier).filter(Boolean)
-          : [],
-        fullUrl,
-      },
-    };
-  }
-  if (resourceType === 'Composition') {
-    return {
-      type: 'CompositionInfo',
-      data: {
-        title: resource.title ?? 'Untitled Document',
-        status: resource.status,
-        date: resource.date,
-        custodian: resource.custodian,
-        fullUrl,
-      },
-    };
-  }
-  if (resourceType === 'DiagnosticReport') {
-    return {
-      type: 'DiagnosticReportInfo',
-      data: {
-        effectiveDateTime: resource.effectiveDateTime,
-        issued: resource.issued,
-        fullUrl,
-      },
-    };
-  }
-  if (resourceType === 'Immunization') {
-    return {
-      type: 'ImmunizationInfo',
-      data: {
-        occurrence: resource.occurrenceDateTime ?? resource.occurrenceString,
-        fullUrl,
-      },
-    };
-  }
-  return null;
 }
 
 export function transformFhirBundleForView(
@@ -242,51 +260,21 @@ export function transformFhirBundleForView(
     AttachmentRefs: entry?.AttachmentRefs,
   };
 
-  const entries = bundle.entry;
-  if (Array.isArray(entries)) {
-    for (const item of entries) {
-      if (!item || typeof item !== 'object') continue;
-      const e = item as FhirResource;
-      const resource = e.resource as FhirResource | undefined;
-      if (!resource) continue;
-      const processed = processResource(resource, typeof e.fullUrl === 'string' ? e.fullUrl : undefined);
-      if (!processed) continue;
-      const key = processed.type as keyof TransformedBundleView;
-      const list = (result[key] as Array<Record<string, unknown>> | undefined) ?? [];
-      list.push(processed.data);
-      (result as Record<string, unknown>)[processed.type] = list;
-    }
-  }
+  populateResourceGroups(bundle.entry, result);
 
-  const composition = Array.isArray(bundle.entry)
-    ? (bundle.entry.find((e) => (e as FhirResource).resource?.resourceType === 'Composition') as
-        | FhirResource
-        | undefined)?.resource as FhirResource | undefined
-    : undefined;
-
-  const compositionProfile = Array.isArray(composition?.meta && (composition.meta as FhirResource).profile)
-    ? ((composition.meta as FhirResource).profile as string[])[0]
-    : undefined;
-  const bundleProfile = Array.isArray(bundle.meta && (bundle.meta as FhirResource).profile)
-    ? ((bundle.meta as FhirResource).profile as string[])[0]
-    : undefined;
-
+  const composition = findCompositionResource(bundle);
   result.bundleType =
-    profileToBundleType(compositionProfile) ??
-    profileToBundleType(bundleProfile) ??
+    resolveNrcesBundleType(firstProfileUrl(composition)) ??
+    resolveNrcesBundleType(firstProfileUrl(bundle)) ??
     (typeof bundle.type === 'string' ? bundle.type : 'HealthRecord');
 
   if (result.CompositionInfo?.[0]) {
     const comp = result.CompositionInfo[0];
-    const custodianRef = comp.custodian;
-    const display = resolveRefDisplay(custodianRef, byUrl);
+    const display = resolveRefDisplay(comp.custodian, byUrl);
     if (display) comp.custodian = { display };
   }
 
-  if (entry?.bundleType) result.bundleType = entry.bundleType;
-  if (entry?.CompositionInfo?.[0]?.title && result.CompositionInfo?.[0]) {
-    result.CompositionInfo[0].title = entry.CompositionInfo[0].title;
-  }
+  applyEntryOverrides(result, entry);
 
   return result;
 }
@@ -294,8 +282,14 @@ export function transformFhirBundleForView(
 export function recordDisplayType(entry: ConsentListDataPushedEntry, view: TransformedBundleView): string {
   const title = view.CompositionInfo?.[0]?.title;
   if (typeof title === 'string' && title.trim()) return title.trim();
-  if (entry.bundleType && BUNDLE_TYPE_LABELS[entry.bundleType]) return BUNDLE_TYPE_LABELS[entry.bundleType];
-  if (view.bundleType && BUNDLE_TYPE_LABELS[view.bundleType]) return BUNDLE_TYPE_LABELS[view.bundleType];
+  if (entry.bundleType) {
+    const label = BUNDLE_TYPE_LABELS[entry.bundleType];
+    if (label) return label;
+  }
+  if (view.bundleType) {
+    const label = BUNDLE_TYPE_LABELS[view.bundleType];
+    if (label) return label;
+  }
   return view.bundleType?.replace(/Record$/, '') || 'Health Record';
 }
 

@@ -6,8 +6,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_module_repository, get_session
+from app.api.deps import get_module_repository, get_session, resolve_actor_id
 from app.api.errors import ResourceNotFoundError
+from app.core.authz import guard
 from app.repositories.module_repository import ModuleRepository
 from app.schemas.module import (
     ModuleCategory,
@@ -34,6 +35,11 @@ from app.services.module_service import (
 
 router = APIRouter(prefix="/modules", tags=["Modules"])
 
+# Global catalog: writes are capability-gated (no tenant equality); reads are identity-gate-only.
+_GUARD_CREATE = Depends(guard("master_data:module", "create"))
+_GUARD_UPDATE = Depends(guard("master_data:module", "update"))
+_GUARD_DELETE = Depends(guard("master_data:module", "delete"))
+
 
 @router.get("", response_model=ModuleListResponse, summary="List registered platform modules")
 def get_modules(
@@ -43,7 +49,10 @@ def get_modules(
         description="Filter by module kind(s). Comma-separated: ?module_kind=product,foundation",
     )] = None,
     visibility: Annotated[VisibilityScope | None, Query(
-        description="Filter by visibility scope: 'tenant' (default for tenant admins) or 'superadmin'. Omit to return all.",
+        description=(
+            "Filter by visibility scope: 'tenant' (default for tenant admins) "
+            "or 'superadmin'. Omit to return all."
+        ),
     )] = None,
 ) -> ModuleListResponse:
     kinds: list[ModuleKind] | None = None
@@ -53,7 +62,10 @@ def get_modules(
             kinds = [ModuleKind(v) for v in raw]
         except ValueError:
             from fastapi import HTTPException
-            raise HTTPException(status_code=422, detail=f"Invalid module_kind value(s): {module_kind}")
+
+            raise HTTPException(
+                status_code=422, detail=f"Invalid module_kind value(s): {module_kind}"
+            ) from None
     modules = list_modules(repository, category=category, module_kinds=kinds, visibility=visibility)
     data = [ModuleResponse.model_validate(module) for module in modules]
     return ModuleListResponse(data=data, total=len(data))
@@ -71,7 +83,10 @@ def get_modules(
 def get_modules_for_nav(
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     visibility: Annotated[VisibilityScope | None, Query(
-        description="Filter by visibility scope. Tenant admins should pass 'tenant'; superadmins omit to see all.",
+        description=(
+            "Filter by visibility scope. Tenant admins should pass 'tenant'; "
+            "superadmins omit to see all."
+        ),
     )] = None,
 ) -> ModuleNavListResponse:
     modules = list_modules_for_nav(repository, visibility=visibility)
@@ -84,6 +99,7 @@ def get_modules_for_nav(
     response_model=ModuleSingleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a module",
+    dependencies=[_GUARD_CREATE],
     description=(
         "Adds one catalog module. Omit **parent_id** for a top-level row. "
         "To nest, set **parent_id** to another module’s id — each step is one level deeper "
@@ -94,8 +110,9 @@ def post_module(
     payload: ModuleCreate,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModuleSingleResponse:
-    module = create_module(repository, payload, actor_id=None)
+    module = create_module(repository, payload, actor_id=actor_id)
     session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
@@ -153,14 +170,16 @@ def get_module_by_id_route(
     "/{module_id}",
     response_model=ModuleSingleResponse,
     summary="Update a module",
+    dependencies=[_GUARD_UPDATE],
 )
 def patch_module(
     module_id: UUID,
     payload: ModuleUpdate,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModuleSingleResponse:
-    module = update_module(repository, module_id, payload, actor_id=None)
+    module = update_module(repository, module_id, payload, actor_id=actor_id)
     session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))
 
@@ -169,12 +188,14 @@ def patch_module(
     "/{module_id}",
     response_model=ModuleSingleResponse,
     summary="Soft-delete a module",
+    dependencies=[_GUARD_DELETE],
 )
 def delete_module(
     module_id: UUID,
     repository: Annotated[ModuleRepository, Depends(get_module_repository)],
     session: Annotated[Session, Depends(get_session)],
+    actor_id: Annotated[UUID, Depends(resolve_actor_id)],
 ) -> ModuleSingleResponse:
-    module = soft_delete_module(repository, module_id, actor_id=None)
+    module = soft_delete_module(repository, module_id, actor_id=actor_id)
     session.commit()
     return ModuleSingleResponse(data=ModuleResponse.model_validate(module))

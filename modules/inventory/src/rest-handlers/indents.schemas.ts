@@ -40,7 +40,7 @@ export const saveIndentDraftBodySchema = z
   .object({
     indent_date: z.string().date(),
     from_store_id: z.string().uuid(),
-    to_store_id: z.string().uuid().nullable().optional(),
+    to_store_id: z.string().uuid().nullable().default(null),
     indent_type: indentTypeSchema,
     priority: indentPrioritySchema,
     fulfillment_route: fulfillmentRouteSchema,

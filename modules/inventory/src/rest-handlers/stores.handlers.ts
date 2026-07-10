@@ -19,14 +19,19 @@ type StoreParams = {
   storeId: string;
 };
 
-function bearerTokenFromHeaders(headers: Record<string, unknown>): string | undefined {
-  const raw = headers.authorization ?? headers.Authorization;
-  if (typeof raw !== "string") return undefined;
-  const match = /^Bearer\s+(.+)$/i.exec(raw.trim());
-  return match?.[1]?.trim();
+/**
+ * Forwardable bearer for the Master Data store-type S2S read. The token is already
+ * verified by identityPlugin; this just unwraps the `Bearer ` prefix (house convention,
+ * mirrors registration/pharmacy) — no hand-rolled auth parsing.
+ */
+function bearerTokenFromHeaders(headers: { authorization?: string }): string | undefined {
+  const authHeader = headers.authorization;
+  return authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
 }
 
-function actorIdFromRequest(request: { user?: { userId?: string; id?: string; sub?: string } }): string | null {
+function actorIdFromRequest(request: {
+  user?: { userId?: string; id?: string; sub?: string };
+}): string | null {
   const id = request.user?.userId ?? request.user?.id ?? request.user?.sub;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
@@ -97,7 +102,7 @@ export function registerStoreHandlers(app: FastifyInstance, deps: InventoryDeps)
         request.tenantId,
         request.body,
         actorIdFromRequest(request),
-        bearerTokenFromHeaders(request.headers as Record<string, unknown>),
+        bearerTokenFromHeaders(request.headers),
       );
       return reply.status(201).send({ data: wireStore(row) });
     },
@@ -113,7 +118,7 @@ export function registerStoreHandlers(app: FastifyInstance, deps: InventoryDeps)
         request.params.storeId,
         request.body,
         actorIdFromRequest(request),
-        bearerTokenFromHeaders(request.headers as Record<string, unknown>),
+        bearerTokenFromHeaders(request.headers),
       );
       return reply.send({ data: wireStore(row) });
     },

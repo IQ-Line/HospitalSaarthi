@@ -38,6 +38,57 @@ function catalogModulesFromIndex(index: ModuleCatalogIndex): Module[] {
   return modules;
 }
 
+/** First (resource) segment of a runtime capability key, after canonicalization. */
+function capabilityKeySegments(capabilityKeys: ReadonlySet<string>): string[] {
+  const segments: string[] = [];
+  for (const rawKey of capabilityKeys) {
+    const segment = normalizeCapabilityKey(rawKey).split(':')[0];
+    if (segment) {
+      segments.push(segment);
+    }
+  }
+  return segments;
+}
+
+/** True when a key segment matches a product slug directly or via a slug variant. */
+function segmentMatchesProductSlug(segment: string, productSlug: string): boolean {
+  if (catalogSlugMatchesRouteSegment(productSlug, segment)) {
+    return true;
+  }
+  for (const variant of catalogSlugVariants(productSlug)) {
+    if (variant === segment) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** True when any key segment matches any product slug directly or via a variant. */
+function segmentsMatchProductSlugs(
+  segments: readonly string[],
+  catalogProductSlugs: readonly string[],
+): boolean {
+  for (const segment of segments) {
+    for (const productSlug of catalogProductSlugs) {
+      if (segmentMatchesProductSlug(segment, productSlug)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** True when any key segment falls under the product roots expanded to their descendants. */
+function segmentsMatchExpandedCatalog(
+  segments: readonly string[],
+  catalogProductSlugs: readonly string[],
+  catalogIndex: ModuleCatalogIndex,
+): boolean {
+  const modules = catalogModulesFromIndex(catalogIndex);
+  const expandedSlugs = expandModuleSlugsWithDescendants(catalogProductSlugs, modules);
+  return segments.some((segment) => expandedSlugs.has(segment));
+}
+
 /**
  * True when the principal holds any runtime key whose first segment matches an L2+
  * module slug under the given L1 catalog product roots (e.g. `users:*` → User Management).
@@ -51,33 +102,14 @@ export function capabilityKeysGrantProductAccess(
     return false;
   }
 
-  for (const rawKey of capabilityKeys) {
-    const segment = normalizeCapabilityKey(rawKey).split(':')[0];
-    if (!segment) {
-      continue;
-    }
-    for (const productSlug of catalogProductSlugs) {
-      if (catalogSlugMatchesRouteSegment(productSlug, segment)) {
-        return true;
-      }
-      for (const variant of catalogSlugVariants(productSlug)) {
-        if (variant === segment) {
-          return true;
-        }
-      }
-    }
+  const segments = capabilityKeySegments(capabilityKeys);
+
+  if (segmentsMatchProductSlugs(segments, catalogProductSlugs)) {
+    return true;
   }
 
-  if (catalogIndex) {
-    const modules = catalogModulesFromIndex(catalogIndex);
-    const expandedSlugs = expandModuleSlugsWithDescendants(catalogProductSlugs, modules);
-
-    for (const rawKey of capabilityKeys) {
-      const segment = normalizeCapabilityKey(rawKey).split(':')[0];
-      if (segment && expandedSlugs.has(segment)) {
-        return true;
-      }
-    }
+  if (catalogIndex && segmentsMatchExpandedCatalog(segments, catalogProductSlugs, catalogIndex)) {
+    return true;
   }
 
   return capabilityKeysGrantProductAccessFromManifest(capabilityKeys, catalogProductSlugs);
