@@ -136,6 +136,60 @@ BEGIN
   IF to_regclass('pharmacy.opd_queue_projection') IS NOT NULL
      AND to_regclass('pharmacy.queue_projection') IS NULL THEN
     ALTER TABLE pharmacy.opd_queue_projection RENAME TO queue_projection;
+  ELSIF to_regclass('pharmacy.opd_queue_projection') IS NOT NULL
+     AND to_regclass('pharmacy.queue_projection') IS NOT NULL THEN
+    -- Hybrid dev DB: rewritten 0000 created queue_projection while legacy table remains.
+    INSERT INTO pharmacy.queue_projection (
+      queue_item_id,
+      iq_tenant_id,
+      source_kind,
+      source_ref_id,
+      encounter_id,
+      patient_id,
+      prescription_id,
+      doctor_id,
+      visit_status,
+      prescription_status,
+      medicine_count,
+      priority,
+      queued_at,
+      patient_name,
+      uhid,
+      phone,
+      age_years,
+      gender,
+      doctor_name,
+      formatted_visit_id,
+      dispense_status,
+      last_synced_at
+    )
+    SELECT
+      gen_random_uuid(),
+      oqp.iq_tenant_id,
+      'opd',
+      oqp.prescription_id,
+      oqp.visit_id,
+      oqp.patient_id,
+      oqp.prescription_id,
+      oqp.doctor_id,
+      oqp.visit_status,
+      oqp.prescription_status,
+      oqp.medicine_count,
+      'routine',
+      oqp.queued_at,
+      oqp.patient_name,
+      oqp.uhid,
+      oqp.phone,
+      oqp.age_years,
+      oqp.gender,
+      oqp.doctor_name,
+      oqp.formatted_visit_id,
+      oqp.dispense_status,
+      oqp.last_synced_at
+    FROM pharmacy.opd_queue_projection oqp
+    ON CONFLICT (iq_tenant_id, source_kind, source_ref_id) DO NOTHING;
+
+    DROP TABLE pharmacy.opd_queue_projection;
   END IF;
 END $$;
 
@@ -206,7 +260,15 @@ END $$;
 -- Drop legacy PK on (tenant, visit_id) when migrating from opd_queue_projection
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'opd_queue_projection_pkey') THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    JOIN pg_class t ON c.conrelid = t.oid
+    JOIN pg_namespace n ON t.relnamespace = n.oid
+    WHERE n.nspname = 'pharmacy'
+      AND t.relname = 'queue_projection'
+      AND c.conname = 'opd_queue_projection_pkey'
+  ) THEN
     ALTER TABLE pharmacy.queue_projection DROP CONSTRAINT opd_queue_projection_pkey;
   END IF;
 END $$;
