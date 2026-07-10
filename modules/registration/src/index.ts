@@ -65,7 +65,6 @@ export { DrizzleRegistrationRepo } from "./data-access/registration.repo.js";
 export { DrizzleVisitRepo } from "./data-access/visit.repo.js";
 export { HttpConfiguratorGateway } from "./lib/http-configurator-gateway.js";
 export { HttpEmpiGateway } from "./lib/http-empi-gateway.js";
-export { HttpOpdGateway } from "./lib/http-opd-gateway.js";
 export { HttpBillingGateway } from "./lib/http-billing-gateway.js";
 export { HttpBillingWriteGateway } from "./lib/http-billing-write-gateway.js";
 export { HttpPicklistGateway } from "./lib/http-picklist-gateway.js";

@@ -19,7 +19,7 @@ import type { VisitRecord } from "../../../src/domain/visit.types.js";
 // ---------------------------------------------------------------------------
 // EMPI-saga use-case coverage (registration vet 2026-06-22, P1). These two
 // functions are the primary intake flow and had ZERO direct tests. Free-follow-up
-// boundaries and the ensureEncounter-failure log live in create-visit.test.ts;
+// boundaries live in create-visit.test.ts;
 // this file owns the saga orchestration: idempotent replay (no EMPI re-hit),
 // the EMPI duplicate / unavailable / error branches, the abha_address strip
 // (EMPI rejects it) + snapshot merge, and the ABHA-link / not-found failure

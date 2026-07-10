@@ -28,7 +28,6 @@ import {
   HttpBillingWriteGateway,
   HttpEmpiGateway,
   HttpConfiguratorGateway,
-  HttpOpdGateway,
   HttpPicklistGateway,
   apiKeyAuthPlugin,
   createRegistrationAuthzTargetResolver,
@@ -43,7 +42,6 @@ const PORT = Number(process.env["REGISTRATION_SVC_PORT"] ?? 3006);
 const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const EMPI_URL = process.env["EMPI_URL"] ?? "http://localhost:3002";
 const BILLING_URL = process.env["BILLING_URL"] ?? "http://localhost:3003";
-const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
 const CONFIGURATOR_URL = process.env["CONFIGURATOR_URL"] ?? "http://localhost:3001";
 const PDF_PLATFORM_URL = process.env["PDF_PLATFORM_URL"] ?? "http://localhost:8091";
@@ -161,9 +159,6 @@ async function boot(app: FastifyInstance): Promise<void> {
 
   const billingReadPort = new HttpBillingGateway(BILLING_URL);
   const billingWritePort = new HttpBillingWriteGateway(BILLING_URL);
-  const opdGateway = new HttpOpdGateway(OPD_URL, {
-    warn: (detail, message) => app.log.warn(detail, message),
-  });
   const picklistReadPort = new HttpPicklistGateway(
     MASTER_DATA_URL,
     (detail, message) => app.log.warn(detail, message),
@@ -186,7 +181,6 @@ async function boot(app: FastifyInstance): Promise<void> {
     empiGateway,
     configuratorGateway,
     eventBus,
-    opdGateway,
     picklistReadPort,
     billingWritePort,
     billingReadPort,
@@ -249,7 +243,6 @@ async function boot(app: FastifyInstance): Promise<void> {
       registrationRepo,
       allocateOpVisitId,
       eventBus,
-      opdGateway,
       configuratorGateway,
     });
     registerDocumentsHandler(api, documentDeps);

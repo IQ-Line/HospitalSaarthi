@@ -4,7 +4,6 @@ import type {
   BillingWritePort,
   ConfiguratorHttpPort,
   EmpiHttpPort,
-  OpdHttpPort,
   RegistrationRepo,
   VisitRepo,
 } from "../ports.js";
@@ -97,7 +96,6 @@ export async function completeOpdNewPatientRegistration(
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
-    opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
     billingWritePort?: BillingWritePort;
     billingReadPort?: BillingReadPort;
@@ -119,7 +117,6 @@ export async function completeOpdNewPatientRegistration(
       empiGateway: deps.empiGateway,
       allocateOpVisitId: deps.allocateOpVisitId,
       eventBus: deps.eventBus,
-      opdGateway: deps.opdGateway,
       configuratorGateway: deps.configuratorGateway,
     },
     tenantId,

@@ -2,7 +2,6 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type {
   EmpiHttpPort,
   EmpiRegisterPatientResult,
-  OpdHttpPort,
   RegistrationRepo,
   VisitRepo,
   ConfiguratorHttpPort,
@@ -102,7 +101,6 @@ export async function createIntakeForNewPatient(
     empiGateway: EmpiHttpPort;
     eventBus: EventBus;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
-    opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
     logger?: RegistrationLogger;
   },
@@ -209,7 +207,6 @@ export async function createVisitForExistingPatient(
     empiGateway: EmpiHttpPort;
     allocateOpVisitId: (tenantId: string) => Promise<string>;
     eventBus: EventBus;
-    opdGateway?: OpdHttpPort;
     configuratorGateway?: ConfiguratorHttpPort;
     logger?: RegistrationLogger;
   },

@@ -187,16 +187,6 @@ export interface RegistrationLogger {
   warn(detail: Record<string, unknown>, message: string): void;
 }
 
-export interface OpdHttpPort {
-  ensureEncounter(
-    tenantId: string,
-    visitId: string,
-    patientId: string,
-    bearerToken?: string,
-    doctorId?: string | null,
-  ): Promise<{ ok: true } | { ok: false; status: number; body: string }>;
-}
-
 export interface BillingBillSummary {
   billId: string;
   billNumber: string;

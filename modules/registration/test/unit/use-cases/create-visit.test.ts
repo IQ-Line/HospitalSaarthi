@@ -2,12 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { EventBus } from "@hims/ts-sdk-events";
 import { createVisit } from "../../../src/use-cases/create-visit.js";
 import { RegistrationValidationError } from "../../../src/lib/follow-up.js";
-import type {
-  ConfiguratorHttpPort,
-  OpdHttpPort,
-  RegistrationLogger,
-  VisitRepo,
-} from "../../../src/ports.js";
+import type { ConfiguratorHttpPort, VisitRepo } from "../../../src/ports.js";
 import type { CreateVisitInput, VisitRecord } from "../../../src/domain/visit.types.js";
 
 const TENANT = "t1";
@@ -159,41 +154,5 @@ describe("createVisit free-follow-up eligibility", () => {
         ctx,
       ),
     ).rejects.toBeInstanceOf(RegistrationValidationError);
-  });
-});
-
-describe("createVisit surfaces a failed OPD encounter (no silent swallow)", () => {
-  const normalInput: CreateVisitInput = { patient_id: PATIENT, department_id: DEPT, consultation_type: "new" };
-
-  it("logs a warning when ensureEncounter fails", async () => {
-    const { repo } = makeVisitRepo({ created: true });
-    const warn = vi.fn();
-    const logger: RegistrationLogger = { warn };
-    const opdGateway: OpdHttpPort = {
-      ensureEncounter: vi.fn().mockResolvedValue({ ok: false, status: 502, body: "opd down" }),
-    };
-    await createVisit(
-      { visitRepo: repo, allocateOpVisitId: async () => "OP-1", eventBus, opdGateway, logger },
-      TENANT,
-      normalInput,
-      ctx,
-    );
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]?.[0]).toMatchObject({ status: 502, visitId: "v1" });
-  });
-
-  it("does NOT warn when ensureEncounter succeeds", async () => {
-    const { repo } = makeVisitRepo({ created: true });
-    const warn = vi.fn();
-    const opdGateway: OpdHttpPort = {
-      ensureEncounter: vi.fn().mockResolvedValue({ ok: true }),
-    };
-    await createVisit(
-      { visitRepo: repo, allocateOpVisitId: async () => "OP-1", eventBus, opdGateway, logger: { warn } },
-      TENANT,
-      normalInput,
-      ctx,
-    );
-    expect(warn).not.toHaveBeenCalled();
   });
 });

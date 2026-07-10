@@ -3,7 +3,6 @@ import type { EventBus } from "@hims/ts-sdk-events";
 import type {
   ConfiguratorHttpPort,
   EmpiHttpPort,
-  OpdHttpPort,
   PicklistReadPort,
   RegistrationRepo,
   VisitRepo,
@@ -70,7 +69,6 @@ export interface RegistrationsHandlerDeps {
   empiGateway: EmpiHttpPort | undefined;
   configuratorGateway?: ConfiguratorHttpPort;
   eventBus: EventBus;
-  opdGateway?: OpdHttpPort;
   picklistReadPort?: PicklistReadPort;
   billingWritePort?: BillingWritePort;
   billingReadPort?: BillingReadPort;
@@ -292,7 +290,6 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
             logger: request.log,
           },
@@ -367,7 +364,6 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
             logger: request.log,
           },
@@ -458,7 +454,6 @@ export function registerRegistrationsHandler(
             empiGateway: deps.empiGateway,
             allocateOpVisitId: deps.allocateOpVisitId,
             eventBus: deps.eventBus,
-            opdGateway: deps.opdGateway,
             configuratorGateway: deps.configuratorGateway,
             billingWritePort: deps.billingWritePort,
             billingReadPort: deps.billingReadPort,
