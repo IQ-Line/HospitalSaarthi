@@ -2,8 +2,10 @@ import type { FastifyInstance } from "fastify";
 import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.js";
 import { createItem, previewItemCode } from "../use-cases/create-item.js";
 import { listItems } from "../use-cases/list-items.js";
+import { updateItemReorderPoint } from "../use-cases/update-item-reorder.js";
 import { createItemBodySchema } from "./create-item.schema.js";
 import { sendItemHandlerError } from "./item-error-response.js";
+import { updateItemReorderBodySchema } from "./update-item-reorder.schema.js";
 
 interface ItemsHandlerDeps {
   itemRepo: DrizzleInventoryItemRepository;
@@ -119,4 +121,27 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
       return sendItemHandlerError(reply, error);
     }
   });
+
+  app.patch<{ Params: { itemId: string }; Body: Record<string, unknown> }>(
+    "/items/:itemId",
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const parsed = updateItemReorderBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return sendItemHandlerError(reply, parsed.error);
+      }
+
+      try {
+        const data = await updateItemReorderPoint(
+          { itemRepo: deps.itemRepo },
+          tenantId,
+          request.params.itemId,
+          parsed.data,
+        );
+        return reply.send(data);
+      } catch (error) {
+        return sendItemHandlerError(reply, error);
+      }
+    },
+  );
 }

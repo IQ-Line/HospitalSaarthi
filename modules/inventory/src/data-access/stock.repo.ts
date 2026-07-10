@@ -1,8 +1,8 @@
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
-import type { StockBatchRow, StockSummaryRow } from "../domain/stock.types.js";
+import type { ExpiringLotRow, StockBatchRow, StockSummaryRow } from "../domain/stock.types.js";
 import type { StockStatus } from "../domain/stock-status.js";
-import { inventoryItems, inventoryLots, inventoryStock } from "../schema/tables.js";
+import { inventoryItems, inventoryLots, inventoryStock, inventoryStockAdjustments } from "../schema/tables.js";
 
 export type StockListFilters = {
   storeId: string;
@@ -200,5 +200,162 @@ export class DrizzleInventoryStockRepository {
       )
       .limit(1);
     return Boolean(row);
+  }
+
+  async countExpiringLots(
+    tenantId: string,
+    storeId: string,
+    withinDays: number,
+  ): Promise<number> {
+    const result = await this.db.execute(sql`
+      SELECT COUNT(DISTINCT l.id)::int AS total
+      FROM inventory.stock s
+      INNER JOIN inventory.lots l
+        ON l.id = s.lot_id
+        AND l.iq_tenant_id = s.iq_tenant_id
+      WHERE s.iq_tenant_id = ${tenantId}
+        AND s.inventory_store_id = ${storeId}
+        AND l.expiry_date IS NOT NULL
+        AND l.expiry_date >= CURRENT_DATE
+        AND l.expiry_date <= CURRENT_DATE + (${withinDays}::int * INTERVAL '1 day')
+        AND s.quantity > 0
+    `);
+    const rows = readExecuteRows<{ total: number }>(result);
+    return rows[0]?.total ?? 0;
+  }
+
+  async listExpiringLots(
+    tenantId: string,
+    storeId: string,
+    withinDays: number,
+    limit: number,
+  ): Promise<ExpiringLotRow[]> {
+    const result = await this.db.execute(sql`
+      SELECT
+        l.id AS id,
+        i.id AS item_id,
+        i.name AS item_name,
+        i.item_code AS item_code,
+        l.lot_number AS lot_number,
+        l.expiry_date::text AS expiry_date,
+        i.unit_of_measure AS uom,
+        SUM(s.quantity)::numeric(12,3) AS quantity
+      FROM inventory.stock s
+      INNER JOIN inventory.lots l
+        ON l.id = s.lot_id
+        AND l.iq_tenant_id = s.iq_tenant_id
+      INNER JOIN inventory.items i
+        ON i.id = s.item_id
+        AND i.iq_tenant_id = s.iq_tenant_id
+        AND i.is_active = true
+      WHERE s.iq_tenant_id = ${tenantId}
+        AND s.inventory_store_id = ${storeId}
+        AND l.expiry_date IS NOT NULL
+        AND l.expiry_date >= CURRENT_DATE
+        AND l.expiry_date <= CURRENT_DATE + (${withinDays}::int * INTERVAL '1 day')
+        AND s.quantity > 0
+      GROUP BY l.id, i.id, i.name, i.item_code, l.lot_number, l.expiry_date, i.unit_of_measure
+      ORDER BY l.expiry_date ASC, l.lot_number ASC
+      LIMIT ${limit}
+    `);
+    return readExecuteRows<{
+      id: string;
+      item_id: string;
+      item_name: string;
+      item_code: string;
+      lot_number: string;
+      expiry_date: string;
+      uom: string;
+      quantity: string;
+    }>(result).map((row) => ({
+      id: row.id,
+      item_id: row.item_id,
+      item_name: row.item_name,
+      item_code: row.item_code,
+      lot_number: row.lot_number,
+      expiry_date: row.expiry_date,
+      quantity: Number(row.quantity),
+      uom: row.uom,
+    }));
+  }
+
+  async findStockRow(
+    tenantId: string,
+    stockId: string,
+  ): Promise<typeof inventoryStock.$inferSelect | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(inventoryStock)
+      .where(and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, stockId)))
+      .limit(1);
+    return row;
+  }
+
+  async adjustStockQuantity(
+    tenantId: string,
+    input: {
+      stockId: string;
+      delta: number;
+      reason: string;
+      createdBy?: string | null;
+    },
+  ): Promise<{ quantity_after: number; item_id: string; inventory_store_id: string }> {
+    return this.db.transaction(async (tx) => {
+      const [stockRow] = await tx
+        .select()
+        .from(inventoryStock)
+        .where(
+          and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, input.stockId)),
+        )
+        .limit(1);
+
+      if (!stockRow) {
+        throw new Error("STOCK_NOT_FOUND");
+      }
+
+      const before = Number(stockRow.quantity);
+      const after = before + input.delta;
+      if (!Number.isFinite(input.delta) || input.delta === 0) {
+        throw new Error("INVALID_DELTA");
+      }
+      if (after < 0) {
+        throw new Error("NEGATIVE_STOCK");
+      }
+
+      const reason = input.reason.trim();
+      if (!reason) {
+        throw new Error("REASON_REQUIRED");
+      }
+
+      await tx
+        .update(inventoryStock)
+        .set({
+          quantity: String(after),
+          updated_by: input.createdBy ?? null,
+          updated_at: new Date(),
+        })
+        .where(
+          and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, input.stockId)),
+        );
+
+      await tx.insert(inventoryStockAdjustments).values({
+        iq_tenant_id: tenantId,
+        stock_id: stockRow.id,
+        item_id: stockRow.item_id,
+        inventory_store_id: stockRow.inventory_store_id,
+        lot_id: stockRow.lot_id,
+        delta: String(input.delta),
+        quantity_before: String(before),
+        quantity_after: String(after),
+        reason,
+        created_by: input.createdBy ?? null,
+      });
+
+      return {
+        quantity_after: after,
+        item_id: stockRow.item_id,
+        inventory_store_id: stockRow.inventory_store_id,
+      };
+    });
   }
 }

@@ -31,7 +31,6 @@ import {
   useInventoryStores,
 } from '../api/queries';
 import { EMPTY_TRANSFER_LINE } from '../mock/fixtures';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
   mapIndentToTransferPrefill,
   validateIndentForTransferPrefill,
@@ -212,12 +211,6 @@ export function InventoryTransferDialog({
       dispatch_qty: line.transfer_qty,
     }));
 
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Transfer dispatched (mock).');
-      onOpenChange(false);
-      return;
-    }
-
     try {
       let transferId = transfer?.id;
       if (!transferId) {
@@ -242,11 +235,6 @@ export function InventoryTransferDialog({
 
   const handleCancelDraft = async () => {
     if (!transfer?.id) return;
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Draft transfer cancelled (mock).');
-      onOpenChange(false);
-      return;
-    }
     try {
       await cancelTransfer.mutateAsync({ transferId: transfer.id, reason: 'Draft cancelled' });
       toast.success('Draft transfer cancelled.');

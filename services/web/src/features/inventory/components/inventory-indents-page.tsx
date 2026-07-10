@@ -14,7 +14,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
   canShowIncomingTab,
   canShowOutgoingTab,
@@ -61,30 +60,6 @@ function IndentLinesSubRow({ lines }: { lines: InventoryIndentRow['lines'] }) {
   );
 }
 
-const MOCK_INDENT_STORES: InventoryIndentStoreOption[] = [
-  {
-    id: 'store-cms',
-    name: 'Central Medical Store',
-    store_code: 'CMS-001',
-    indent_authority: false,
-    indent_target_store_id: null,
-  },
-  {
-    id: 'store-new',
-    name: 'New store',
-    store_code: '000-STO-00001',
-    indent_authority: true,
-    indent_target_store_id: 'store-cms',
-  },
-  {
-    id: 'store-inv',
-    name: 'Inventory store',
-    store_code: 'INV-002',
-    indent_authority: true,
-    indent_target_store_id: 'store-cms',
-  },
-];
-
 type InventoryIndentsPageProps = {
   direction?: IndentListDirection;
   storeId?: string;
@@ -94,16 +69,15 @@ export function InventoryIndentsPage({ direction: directionProp, storeId: storeI
   const navigate = useNavigate();
   const { data: liveIndentStores = [], isLoading: storesLoading } = useInventoryIndentStores();
   const { data: fallbackStores = [] } = useInventoryStores();
-  const indentStores = OPERATIONAL_INVENTORY_API_ENABLED
-    ? liveIndentStores
-    : MOCK_INDENT_STORES.length > 0
-      ? MOCK_INDENT_STORES
+  const indentStores: InventoryIndentStoreOption[] =
+    liveIndentStores.length > 0
+      ? liveIndentStores
       : fallbackStores.map((store) => ({
           id: store.id,
           name: store.name,
           store_code: store.store_code,
-          indent_authority: store.id !== 'store-cms',
-          indent_target_store_id: store.id !== 'store-cms' ? 'store-cms' : null,
+          indent_authority: true,
+          indent_target_store_id: null,
         }));
 
   const [storeId, setStoreId] = useState(storeIdProp ?? '');

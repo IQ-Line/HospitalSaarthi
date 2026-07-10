@@ -9,6 +9,10 @@ import {
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
+import {
+  type InventoryOperationalVariant,
+  resolveOperationalContext,
+} from '../lib/inventory-operational-variant';
 
 export type InventoryBreadcrumbSegment = {
   label: string;
@@ -23,6 +27,8 @@ interface InventoryPageShellProps {
   breadcrumbLabel?: string;
   /** Full trail after Dashboard; last segment is the current page. */
   breadcrumbs?: InventoryBreadcrumbSegment[];
+  /** When set, overrides module root in breadcrumbs (inventory vs pharmacy). */
+  variant?: InventoryOperationalVariant;
   actions?: ReactNode;
   children: ReactNode;
 }
@@ -30,15 +36,21 @@ interface InventoryPageShellProps {
 function resolveBreadcrumbs(
   breadcrumbLabel?: string,
   breadcrumbs?: InventoryBreadcrumbSegment[],
+  variant: InventoryOperationalVariant = 'inventory',
 ): InventoryBreadcrumbSegment[] {
+  const ctx = resolveOperationalContext(variant);
   if (breadcrumbs?.length) {
     return breadcrumbs;
   }
-  const tail = breadcrumbLabel ?? 'Inventory';
-  if (tail === 'Inventory') {
-    return [{ label: 'Inventory' }];
+  const tail = breadcrumbLabel ?? ctx.moduleLabel;
+  if (tail === ctx.moduleLabel) {
+    return [{ label: ctx.moduleLabel }];
   }
-  return [{ label: 'Inventory', to: '/inventory/dashboard' }, { label: tail }];
+  const moduleRoot =
+    variant === 'pharmacy'
+      ? { label: ctx.moduleLabel, to: '/pharmacy/dashboard' as const }
+      : { label: ctx.moduleLabel, to: '/inventory/dashboard' as const };
+  return [moduleRoot, { label: tail }];
 }
 
 export function InventoryPageShell({
@@ -46,10 +58,11 @@ export function InventoryPageShell({
   description,
   breadcrumbLabel,
   breadcrumbs,
+  variant = 'inventory',
   actions,
   children,
 }: InventoryPageShellProps) {
-  const trail = resolveBreadcrumbs(breadcrumbLabel, breadcrumbs);
+  const trail = resolveBreadcrumbs(breadcrumbLabel, breadcrumbs, variant);
 
   return (
     <div className="space-y-4 p-6">
