@@ -4,7 +4,10 @@ objective: Thirteen diagram-first pages that together give a developer full work
 ---
 
 Each page below is a self-contained explainer: open the `.html` next to it in a browser
-(they are fully offline, single-file pages), or read the `.md` directly. Pages cite the
+(they are fully offline, single-file pages), or read the `.md` directly. In the browser,
+the **Present** button walks a page chapter by chapter with keyboard navigation, and note
+mode lets you pin feedback on any element — headings, table cells, diagram, or a single
+schema field. Pages cite the
 exact source files they were verified against — when a page and the code disagree, the
 code moved after 2026-07-10; trust the code and fix the page.
 
