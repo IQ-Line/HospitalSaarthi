@@ -49,6 +49,13 @@ export class DispenseValidationError extends Error {
   }
 }
 
+export class DispenseAlreadyIssuedError extends Error {
+  constructor() {
+    super("This visit is already fully dispensed. Use Returns to reverse or adjust stock.");
+    this.name = "DispenseAlreadyIssuedError";
+  }
+}
+
 export function assertLine(line: SaveDispenseForVisitInput["lines"][number], index: number): void {
   const medicineId = line.medicine_id?.trim();
   if (!medicineId || !UUID_RE.test(medicineId)) {
@@ -136,6 +143,12 @@ export async function saveDispenseForVisit(
   if (command.patient_id !== prescription.patient_id) {
     throw new DispensePatientMismatchError();
   }
+
+  const existingRecord = await deps.dispenseRecordRepo.findByVisit(tenantId, command.visitId);
+  if (existingRecord?.dispense_status === "issued") {
+    throw new DispenseAlreadyIssuedError();
+  }
+
   if (
     command.opd_prescription_id != null &&
     command.opd_prescription_id !== prescription.prescription_id

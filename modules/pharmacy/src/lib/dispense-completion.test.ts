@@ -34,7 +34,7 @@ describe("dispense-completion", () => {
     ).toBe("partial_issue");
   });
 
-  it("marks OPD dispense partial when a dispensable medicine is missing", () => {
+  it("marks OPD dispense issued when line qty is complete even if other Rx medicines exist", () => {
     expect(
       computeOpdDispenseFulfillmentStatus(
         [
@@ -71,10 +71,10 @@ describe("dispense-completion", () => {
           },
         ],
       ),
-    ).toBe("partial_issue");
+    ).toBe("issued");
   });
 
-  it("marks OPD dispense issued when all dispensable medicines are fully dispensed", () => {
+  it("marks OPD dispense issued when prescribed qty is met", () => {
     expect(
       computeOpdDispenseFulfillmentStatus(
         [
@@ -103,21 +103,34 @@ describe("dispense-completion", () => {
     ).toBe("issued");
   });
 
-  it("marks OPD dispense partial when dispensable medicines are empty but Rx had lines", () => {
+  it("marks OPD dispense issued for substitute formulary id when qty is complete", () => {
     expect(
       computeOpdDispenseFulfillmentStatus(
-        [],
         [
           {
-            medicine_id: "med-1",
-            medicine_display_name: "Tab A",
-            quantity_dispensed: "1",
-            unit_amount: "10",
+            line_no: 1,
+            medicine_id: "rx-visitpad-med",
+            name: "Paracetamol",
+            strength: null,
+            dosage: null,
+            duration: null,
+            frequency: null,
+            quantity: "10",
+            route: null,
           },
         ],
-        2,
+        [
+          {
+            medicine_id: "inventory-formulary-med",
+            medicine_display_name: "Crocin 650",
+            prescribed_quantity: "10",
+            quantity_dispensed: "10",
+            unit_amount: "12",
+          },
+        ],
+        1,
       ),
-    ).toBe("partial_issue");
+    ).toBe("issued");
   });
 
   it("marks OPD dispense issued when dispensed qty exceeds prescribed", () => {
@@ -141,14 +154,7 @@ describe("dispense-completion", () => {
             medicine_id: "med-1",
             medicine_display_name: "Paracetamol",
             prescribed_quantity: "4",
-            quantity_dispensed: "4",
-            unit_amount: "100",
-          },
-          {
-            medicine_id: "med-1",
-            medicine_display_name: "Paracetamol",
-            prescribed_quantity: null,
-            quantity_dispensed: "1",
+            quantity_dispensed: "5",
             unit_amount: "100",
           },
         ],
@@ -156,7 +162,7 @@ describe("dispense-completion", () => {
     ).toBe("issued");
   });
 
-  it("marks walk-in dispense issued when line qty exceeds prescribed", () => {
+  it("marks walk-in dispense issued when line qty meets or exceeds prescribed", () => {
     expect(
       computeWalkInDispenseFulfillmentStatus([
         {

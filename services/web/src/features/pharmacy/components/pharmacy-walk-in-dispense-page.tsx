@@ -13,6 +13,7 @@ import {
   formatDispenseDecimalInput,
   formatInrAmount,
 } from '../lib/dispense-billing';
+import { createEmptyDispenseLineDraft } from '../lib/dispense-line-draft';
 import {
   buildSaveDispenseLinesFromDraft,
   firstDispenseValidationMessage,
@@ -35,16 +36,7 @@ type PharmacyWalkInDispensePageProps = {
   recordId?: string;
 };
 
-const emptyLine = (): DispenseLineDraft => ({
-  key: `new-${Date.now()}`,
-  medicine_id: null,
-  medicine_display_name: '',
-  prescribed_quantity: '',
-  quantity_dispensed: '1',
-  unit_amount: '0',
-  line_discount: '0',
-  tax_percent: '0',
-});
+const emptyLine = createEmptyDispenseLineDraft;
 
 export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispensePageProps) {
   const navigate = useNavigate();

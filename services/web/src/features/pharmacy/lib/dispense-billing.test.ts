@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   computeDispenseTotals,
   computeLineBilling,
+  computePendingPrescribedQty,
   draftLinesFromPrescription,
   draftLinesFromSaved,
   formatDispenseDecimalInput,
@@ -16,8 +17,12 @@ describe('dispense-billing', () => {
         [
           {
             key: '1',
+            prescription_line_no: null,
+            prescribed_item_name: 'Paracetamol',
             medicine_id: null,
             medicine_display_name: 'Paracetamol',
+            item_code: '',
+            available_qty: '',
             prescribed_quantity: '9',
             quantity_dispensed: '9',
             unit_amount: '2.5',
@@ -52,8 +57,12 @@ describe('dispense-billing', () => {
         [
           {
             key: '1',
+            prescription_line_no: null,
+            prescribed_item_name: '',
             medicine_id: null,
             medicine_display_name: 'Tab B',
+            item_code: '',
+            available_qty: '',
             prescribed_quantity: '',
             quantity_dispensed: '10',
             unit_amount: '10',
@@ -86,12 +95,21 @@ describe('dispense-billing', () => {
       },
     ]);
     expect(drafts).toHaveLength(1);
-    expect(drafts[0]?.medicine_id).toBe('med-1');
-    expect(drafts[0]?.medicine_display_name).toBe('Paracetamol');
-    expect(drafts[0]?.quantity_dispensed).toBe('9');
+    expect(drafts[0]?.prescription_line_no).toBe(1);
+    expect(drafts[0]?.prescribed_item_name).toBe('Paracetamol 500mg');
+    expect(drafts[0]?.medicine_id).toBeNull();
+    expect(drafts[0]?.medicine_display_name).toBe('');
+    expect(drafts[0]?.prescribed_quantity).toBe('9');
+    expect(drafts[0]?.quantity_dispensed).toBe('0');
     expect(drafts[0]?.unit_amount).toBe('12.5');
     expect(drafts[0]?.line_discount).toBe('0');
     expect(drafts[0]?.tax_percent).toBe('0');
+  });
+
+  it('computes pending prescribed quantity', () => {
+    expect(computePendingPrescribedQty('10', '1')).toBe(9);
+    expect(computePendingPrescribedQty('10', '10')).toBe(0);
+    expect(computePendingPrescribedQty('', '1')).toBeNull();
   });
 
   it('formats persisted decimals without trailing zeros', () => {
@@ -112,11 +130,41 @@ describe('dispense-billing', () => {
       },
     ]);
     expect(drafts[0]).toMatchObject({
+      prescribed_item_name: 'Tab A',
       prescribed_quantity: '21',
       quantity_dispensed: '1',
       unit_amount: '10',
       line_discount: '2',
       tax_percent: '12',
     });
+  });
+
+  it('merges saved lines with prescription medicines for prescribed item labels', () => {
+    const drafts = draftLinesFromSaved(
+      [
+        {
+          medicine_id: 'med-1',
+          medicine_display_name: 'Issued Paracetamol',
+          prescribed_quantity: '10',
+          quantity_dispensed: '1',
+          unit_amount: '12',
+        },
+      ],
+      [
+        {
+          line_no: 1,
+          medicine_id: 'med-1',
+          name: 'Paracetamol',
+          strength: '500mg tablet',
+          dosage: null,
+          duration: null,
+          frequency: null,
+          quantity: '10',
+          route: null,
+        },
+      ],
+    );
+    expect(drafts[0]?.prescribed_item_name).toBe('Paracetamol 500mg tablet');
+    expect(drafts[0]?.medicine_display_name).toBe('Issued Paracetamol');
   });
 });

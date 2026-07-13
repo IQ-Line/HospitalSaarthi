@@ -22,7 +22,21 @@ def _medicine_count_from_form_data(form_data: dict[str, Any] | None) -> int:
     medicines = form_data.get("medicines")
     if not isinstance(medicines, list):
         return 0
-    return len(medicines)
+    count = 0
+    for row in medicines:
+        if not isinstance(row, dict):
+            continue
+        name = row.get("medicine") or row.get("name") or row.get("display_name")
+        if name is not None and str(name).strip():
+            count += 1
+    return count
+
+
+def _queue_visit_status(visit_status: str, prescription_status: str) -> str:
+    """Pharmacy queue requires visit_status=completed for final prescriptions."""
+    if prescription_status == "final":
+        return "completed"
+    return visit_status
 
 
 def _merge_patient_fields(
@@ -70,7 +84,7 @@ def _upsert_projection(
         "patient_id": str(patient_id),
         "prescription_id": str(prescription_id),
         "doctor_id": str(doctor_id) if doctor_id is not None else None,
-        "visit_status": visit_status,
+        "visit_status": _queue_visit_status(visit_status, prescription_status),
         "prescription_status": prescription_status,
         "medicine_count": medicine_count,
         "updated_at": updated_at.isoformat(),
@@ -119,9 +133,22 @@ def notify_pharmacy_queue_projection_background(
 ) -> None:
     """FastAPI BackgroundTasks entry — opens its own DB session for denormalized fields."""
     from opd.core.database import get_session_factory
+    from opd.models.prescription_row import Prescription
+    from opd.models.visit import Visit
 
     session = get_session_factory()()
     try:
+        rx = session.get(Prescription, prescription_id)
+        if rx is not None:
+            prescription_status = rx.status
+            medicine_count = _medicine_count_from_form_data(rx.form_data)
+            finalized_at = rx.finalized_at
+            updated_at = rx.updated_at if rx.updated_at is not None else updated_at
+
+        visit = session.get(Visit, visit_id)
+        if visit is not None:
+            visit_status = visit.status
+
         _upsert_projection(
             tenant_id,
             visit_id,

@@ -110,11 +110,13 @@ export function buildVisitDispenseResponse(input: {
     : { subtotal: "0.0000", discount: "0.0000", total_amount: "0.0000" };
 
   const dispense_status: PharmacyDispenseStatus = hasRecord
-    ? recomputeOpdDispenseStatus(
-        input.dispensableMedicines,
-        input.opdPrescription.medicines.length,
-        wireLines,
-      )
+    ? input.record!.dispense_status === "issued"
+      ? "issued"
+      : recomputeOpdDispenseStatus(
+          input.dispensableMedicines,
+          input.opdPrescription.medicines.length,
+          wireLines,
+        )
     : "pending";
 
   return {

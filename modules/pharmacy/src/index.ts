@@ -52,6 +52,7 @@ export { getDispenseForVisit, DispenseVisitNotFoundError } from "./use-cases/get
 export type { GetDispenseForVisitInput } from "./use-cases/get-dispense-for-visit.js";
 export {
   saveDispenseForVisit,
+  DispenseAlreadyIssuedError,
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,

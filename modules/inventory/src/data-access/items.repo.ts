@@ -1,9 +1,10 @@
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { toIlikeContainsPattern } from "../lib/ilike.js";
 import {
   inventoryItemCodeSequences,
   inventoryItems,
+  inventoryStock,
 } from "../schema/tables.js";
 
 export type InventoryItemRow = typeof inventoryItems.$inferSelect;
@@ -13,6 +14,10 @@ export type ListInventoryItemsInput = {
   isActive?: boolean;
   categoryId?: string;
   itemClassification?: "inventory" | "medicine";
+  /** When true, only rows linked to a tenant formulary medicine (dispense picker). */
+  linkedToFormulary?: boolean;
+  /** When set, only items with available stock (qty > 0) at this store. */
+  storeId?: string;
   limit: number;
   offset: number;
 };
@@ -87,6 +92,24 @@ export class DrizzleInventoryItemRepository {
       filters.push(eq(inventoryItems.item_classification, input.itemClassification));
     }
 
+    if (input.linkedToFormulary) {
+      filters.push(isNotNull(inventoryItems.tenant_formulary_id));
+    }
+
+    const storeId = input.storeId?.trim();
+    if (storeId) {
+      filters.push(
+        sql`EXISTS (
+          SELECT 1
+          FROM ${inventoryStock}
+          WHERE ${inventoryStock.iq_tenant_id} = ${tenantId}
+            AND ${inventoryStock.inventory_store_id} = ${storeId}
+            AND ${inventoryStock.item_id} = ${inventoryItems.id}
+            AND ${inventoryStock.quantity}::numeric > 0
+        )`,
+      );
+    }
+
     const where = and(...filters);
 
     const [rows, countRows] = await Promise.all([
@@ -111,6 +134,23 @@ export class DrizzleInventoryItemRepository {
       .select()
       .from(inventoryItems)
       .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .limit(1);
+    return row;
+  }
+
+  async findByTenantFormularyId(
+    tenantId: string,
+    tenantFormularyId: string,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.iq_tenant_id, tenantId),
+          eq(inventoryItems.tenant_formulary_id, tenantFormularyId),
+        ),
+      )
       .limit(1);
     return row;
   }

@@ -111,4 +111,12 @@ def load_pharmacy_queue_patient_fields(
     row = session.scalars(stmt).first()
     if row is None:
         return None
-    return map_registration_snapshot_to_pharmacy_patient_fields(row)
+    mapped = map_registration_snapshot_to_pharmacy_patient_fields(row)
+    # Pharmacy internal API accepts only JSON-serializable queue denormalization fields.
+    return {
+        "patient_name": mapped["patient_name"],
+        "uhid": mapped["uhid"],
+        "phone": mapped["phone"],
+        "age_years": mapped["age_years"],
+        "gender": mapped["gender"],
+    }

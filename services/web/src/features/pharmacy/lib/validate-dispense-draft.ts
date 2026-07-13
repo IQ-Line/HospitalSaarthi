@@ -44,6 +44,7 @@ function parsePositiveNumber(raw: string, label: string): number | { error: stri
 export function dispenseLineHasDraftContent(line: DispenseLineDraft): boolean {
   if (line.medicine_id) return true;
   if (line.medicine_display_name.trim()) return true;
+  if (line.prescribed_item_name.trim()) return true;
   if (line.prescribed_quantity.trim()) return true;
   if (line.quantity_dispensed.trim() && line.quantity_dispensed.trim() !== '1') return true;
   if (line.unit_amount.trim() && line.unit_amount.trim() !== '0') return true;
@@ -57,7 +58,7 @@ function validateDispenseLine(line: DispenseLineDraft): DispenseLineFieldErrors 
 
   const medicineId = line.medicine_id?.trim();
   if (!medicineId || !UUID_RE.test(medicineId)) {
-    errors.medicine = 'Choose a medicine from the catalog.';
+    errors.medicine = 'Choose a medicine item from the item master.';
   } else if (!line.medicine_display_name.trim()) {
     errors.medicine = 'Medicine name is required.';
   }
@@ -127,7 +128,7 @@ export function validateDispenseDraft(
     return {
       isValid: false,
       lineErrors,
-      formError: 'Add at least one medicine from the catalog.',
+      formError: 'Add at least one medicine item from the item master.',
     };
   }
 

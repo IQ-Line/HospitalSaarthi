@@ -12,6 +12,7 @@ import {
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
+  DispenseAlreadyIssuedError,
   saveDispenseForVisit,
 } from "../use-cases/save-dispense-for-visit.js";
 import {
@@ -262,6 +263,13 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           return reply.code(400).send({
             statusCode: 400,
             error: "Bad Request",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseAlreadyIssuedError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
             message: error.message,
           });
         }

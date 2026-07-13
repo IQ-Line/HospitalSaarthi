@@ -192,8 +192,15 @@ export type SaveDispenseForVisitInput = {
 /** Editable row in the dispense billing table (client-only key). */
 export type DispenseLineDraft = {
   key: string;
+  /** OPD prescription line number when seeded from a visit Rx. */
+  prescription_line_no: number | null;
+  /** Doctor-prescribed medicine label (editable via row action). */
+  prescribed_item_name: string;
   medicine_id: string | null;
+  /** Stock/catalog item actually issued to the patient. */
   medicine_display_name: string;
+  item_code: string;
+  available_qty: string;
   prescribed_quantity: string;
   quantity_dispensed: string;
   unit_amount: string;

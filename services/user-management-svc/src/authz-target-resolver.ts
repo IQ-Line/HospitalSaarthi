@@ -289,7 +289,9 @@ export function createUserManagementAuthzTargetResolver(
 
     if (
       method === "GET" &&
-      (path === "/auth/me" || path === "/auth/principal")
+      (path === "/auth/me" ||
+        path === "/auth/principal" ||
+        path === "/auth/pharmacy-store-access")
     ) {
       return {
         // `/auth/*` endpoints are shell support: principal snapshot for SPA capability hydration.

@@ -9,8 +9,12 @@ import {
 
 const validLine = (overrides: Partial<DispenseLineDraft> = {}): DispenseLineDraft => ({
   key: 'line-1',
+  prescription_line_no: 1,
+  prescribed_item_name: 'Paracetamol 500mg',
   medicine_id: '3f32fbb1-ae80-4505-b02f-dc5c207ec551',
   medicine_display_name: 'Paracetamol',
+  item_code: '',
+  available_qty: '',
   prescribed_quantity: '10',
   quantity_dispensed: '5',
   unit_amount: '100',
@@ -32,8 +36,12 @@ describe('validateDispenseDraft', () => {
       [
         {
           key: 'empty',
+          prescription_line_no: null,
+          prescribed_item_name: '',
           medicine_id: null,
           medicine_display_name: '',
+          item_code: '',
+          available_qty: '',
           prescribed_quantity: '',
           quantity_dispensed: '1',
           unit_amount: '0',
@@ -44,7 +52,7 @@ describe('validateDispenseDraft', () => {
       '0',
     );
     expect(result.isValid).toBe(false);
-    expect(result.formError).toBe('Add at least one medicine from the catalog.');
+    expect(result.formError).toBe('Add at least one medicine item from the item master.');
   });
 
   it('flags free-text medicine without catalog selection', () => {
@@ -58,7 +66,7 @@ describe('validateDispenseDraft', () => {
       '0',
     );
     expect(result.isValid).toBe(false);
-    expect(result.lineErrors['line-1']?.medicine).toBe('Choose a medicine from the catalog.');
+    expect(result.lineErrors['line-1']?.medicine).toBe('Choose a medicine item from the item master.');
   });
 
   it('validates numeric fields and discount limits', () => {
@@ -82,8 +90,12 @@ describe('validateDispenseDraft', () => {
       validLine(),
       {
         key: 'line-2',
+        prescription_line_no: null,
+        prescribed_item_name: '',
         medicine_id: null,
         medicine_display_name: '',
+        item_code: '',
+        available_qty: '',
         prescribed_quantity: '',
         quantity_dispensed: '1',
         unit_amount: '0',

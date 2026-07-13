@@ -4,6 +4,7 @@ import { mockDispenseLine, mockDispenseRecord } from "../test-fixtures/dispense.
 import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, QueueProjectionRepo, UserLookupPort } from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import {
+  DispenseAlreadyIssuedError,
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
@@ -351,5 +352,36 @@ describe("saveDispenseForVisit", () => {
         },
       ),
     ).rejects.toBeInstanceOf(DispenseVisitNotFoundError);
+  });
+
+  it("rejects save when visit is already fully dispensed", async () => {
+    const opdGateway: OpdGatewayPort = {
+      getVisitPrescription: vi.fn(async () => prescription),
+    };
+    const dispenseRecordRepo: DispenseRecordRepo = {
+      findByVisit: vi.fn(async () =>
+        mockDispenseRecord({
+          visit_id: VISIT,
+          dispense_status: "issued",
+        }),
+      ),
+      listByVisitIds: vi.fn(),
+      findLinesByRecordId: vi.fn(),
+      upsertForVisit: vi.fn(),
+    };
+
+    await expect(
+      saveDispenseForVisit(
+        { opdGateway, dispenseRecordRepo, ...projectionDeps },
+        TENANT,
+        {
+          visitId: VISIT,
+          patient_id: "patient-2",
+          lines: [sampleLine],
+        },
+      ),
+    ).rejects.toBeInstanceOf(DispenseAlreadyIssuedError);
+
+    expect(dispenseRecordRepo.upsertForVisit).not.toHaveBeenCalled();
   });
 });
