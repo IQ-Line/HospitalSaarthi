@@ -12,7 +12,7 @@ import {
   formatReturnReason,
 } from '../../lib/return-display';
 import type { DispenseReturnSummary } from '../../types/returns-ui.types';
-import { PharmacyPageShell } from './pharmacy-page-shell';
+import { PharmacyPageShell } from '../pharmacy-page-shell';
 
 const PAGE_SIZE = 20;
 
