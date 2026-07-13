@@ -61,13 +61,26 @@ function preferPricingField(remote: string | undefined, fallback: string): strin
 }
 
 export async function resolveDispenseItemPricing(
-  item: { id: string; tenant_formulary_id: string; item_code: string; mrp: string; gst_percent: string },
+  item: {
+    id: string;
+    tenant_formulary_id: string;
+    item_code: string;
+    mrp: string;
+    gst_percent: string;
+  },
 ): Promise<{ item_code: string; mrp: string; gst_percent: string }> {
   const listFallback = {
     item_code: item.item_code,
     mrp: item.mrp || '0',
     gst_percent: item.gst_percent || '0',
   };
+
+  // List/for_dispense already carries store pricing — prefer that when present.
+  const hasListCode = listFallback.item_code.trim().length > 0;
+  const hasListMrp = listFallback.mrp.trim() !== '' && listFallback.mrp.trim() !== '0';
+  if (hasListCode && hasListMrp) {
+    return listFallback;
+  }
 
   const fromItem = await fetchDispenseItemPricingByItemId(item.id);
   if (fromItem) {

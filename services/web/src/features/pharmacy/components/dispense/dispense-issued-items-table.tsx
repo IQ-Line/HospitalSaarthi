@@ -20,7 +20,11 @@ import { DispenseStockSearchInput } from './dispense-stock-search-input';
 
 type DispenseIssuedItemsTableProps = {
   rows: DispenseIssuedItemRow[];
-  onChange: (rows: DispenseIssuedItemRow[]) => void;
+  onChange: (
+    rows:
+      | DispenseIssuedItemRow[]
+      | ((current: DispenseIssuedItemRow[]) => DispenseIssuedItemRow[]),
+  ) => void;
   disabled?: boolean;
 };
 
@@ -41,13 +45,17 @@ export function DispenseIssuedItemsTable({
   disabled = false,
 }: DispenseIssuedItemsTableProps) {
   const updateRow = (key: string, patch: Partial<DispenseIssuedItemRow>) => {
-    const mapped = rows.map((row) => (row.key === key ? { ...row, ...patch } : row));
-    onChange(appendEmptyRowIfNeeded(mapped, key));
+    onChange((current) => {
+      const mapped = current.map((row) => (row.key === key ? { ...row, ...patch } : row));
+      return appendEmptyRowIfNeeded(mapped, key);
+    });
   };
 
   const removeRow = (key: string) => {
-    const next = rows.filter((row) => row.key !== key);
-    onChange(next.length > 0 ? next : [createEmptyIssuedItemRow()]);
+    onChange((current) => {
+      const next = current.filter((row) => row.key !== key);
+      return next.length > 0 ? next : [createEmptyIssuedItemRow()];
+    });
   };
 
   return (

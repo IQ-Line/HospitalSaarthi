@@ -26,19 +26,45 @@ export async function searchDispenseStoreStock(
     page_size: 50,
   });
 
-  const stockRows = response.data.filter((row) => Number(row.quantity) > 0);
+  const stockByItem = new Map<
+    string,
+    { item_id: string; item_code: string; item_name: string; quantity: number }
+  >();
+  for (const row of response.data) {
+    const qty = Number(row.quantity) || 0;
+    if (qty <= 0) continue;
+    const existing = stockByItem.get(row.item_id);
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      stockByItem.set(row.item_id, {
+        item_id: row.item_id,
+        item_code: row.item_code,
+        item_name: row.item_name,
+        quantity: qty,
+      });
+    }
+  }
 
   const priced = await Promise.all(
-    stockRows.map(async (row) => {
+    [...stockByItem.values()].map(async (row) => {
       const pricing = await fetchDispenseItemPricingByItemId(row.item_id);
+      const code = (pricing?.item_code?.trim() || row.item_code || '').trim();
+      const mrp = pricing?.mrp?.trim() && pricing.mrp.trim() !== '0'
+        ? pricing.mrp.trim()
+        : '0';
+      const gst =
+        pricing?.gst_percent?.trim() && pricing.gst_percent.trim() !== '0'
+          ? pricing.gst_percent.trim()
+          : '0';
       return {
         id: row.item_id,
-        code: pricing?.item_code?.trim() || row.item_code,
+        code,
         name: row.item_name,
-        available: Number(row.quantity) || 0,
+        available: row.quantity,
         batch: '',
-        mrp: pricing?.mrp?.trim() || '0',
-        gst_percent: pricing?.gst_percent?.trim() || '0',
+        mrp,
+        gst_percent: gst,
       } satisfies DispenseStoreStockOption;
     }),
   );

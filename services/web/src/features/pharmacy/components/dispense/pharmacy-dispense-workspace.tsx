@@ -13,13 +13,16 @@ import {
   fetchPatientPrescriptionsMock,
   fetchPatientVisitsMock,
 } from '../../api/pharmacy-ui-mock';
+import { issueManualDispenseStock } from '../../api/manual-dispense-issue';
 import { pharmacyQueryKeys } from '../../api/query-keys';
 import {
   computeIssuedItemsBill,
   createEmptyIssuedItemRow,
   emptyDispensePatientDraft,
+  isIssuedRowStarted,
   patientDraftFromSearchResult,
 } from '../../lib/dispense-workspace';
+import { useSelectedPharmacyStoreId } from '../../store';
 import type {
   DispensePatientDraft,
   DispensePatientSearchResult,
@@ -46,6 +49,7 @@ export function PharmacyDispenseWorkspace({
   mode = 'walk_in',
 }: PharmacyDispenseWorkspaceProps) {
   const isWalkIn = mode === 'walk_in';
+  const selectedStoreId = useSelectedPharmacyStoreId();
   const [patient, setPatient] = useState<DispensePatientDraft>(() =>
     initialPatient ? patientDraftFromSearchResult(initialPatient) : emptyDispensePatientDraft(),
   );
@@ -88,20 +92,53 @@ export function PharmacyDispenseWorkspace({
     return [{ id: VISIT_NONE, label: 'Load from a visit…' }, ...visits];
   }, [visitsQuery.data]);
 
-  const handleIssueItems = () => {
+  const handleIssueItems = async () => {
     if (bill.startedCount < 1) {
       toast.error('Add at least one medicine to issue.');
       return;
     }
+    if (!selectedStoreId?.trim()) {
+      toast.error('Select a pharmacy store before issuing medicines.');
+      return;
+    }
+
+    const lines = issuedRows
+      .filter((row) => isIssuedRowStarted(row) && row.medicine_id)
+      .map((row) => ({
+        inventory_item_id: row.medicine_id!,
+        quantity: row.quantity.trim(),
+      }));
+
+    if (lines.length === 0) {
+      toast.error('Select issued items from store stock before issuing.');
+      return;
+    }
+
+    for (const line of lines) {
+      const qty = Number(line.quantity);
+      if (!Number.isFinite(qty) || qty <= 0) {
+        toast.error('Each issued line needs a quantity greater than zero.');
+        return;
+      }
+    }
+
     setIssuing(true);
-    setTimeout(() => {
-      setIssuing(false);
+    try {
+      await issueManualDispenseStock({
+        inventory_store_id: selectedStoreId,
+        lines,
+      });
       toast.success(
         isWalkIn
-          ? 'Walk-in items issued (demo). Connect pharmacy walk-in API to persist.'
-          : 'Items issued (demo). Connect pharmacy API to persist.',
+          ? 'Walk-in items issued — store stock updated.'
+          : 'Items issued — store stock updated.',
       );
-    }, 600);
+      setIssuedRows([createEmptyIssuedItemRow()]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to issue items.');
+    } finally {
+      setIssuing(false);
+    }
   };
 
   return (

@@ -108,7 +108,7 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
     const data = await getItemDispensePricingById({ itemRepo: deps.itemRepo }, tenantId, itemId);
     if (!data) {
       return reply.code(404).send({
-        message: "Medicine item not found or inactive",
+        message: "Item not found or inactive",
         code: "NOT_FOUND",
       });
     }

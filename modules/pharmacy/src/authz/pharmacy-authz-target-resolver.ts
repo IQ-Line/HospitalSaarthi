@@ -62,6 +62,15 @@ export function createPharmacyAuthzTargetResolver(): AuthzTargetResolver {
       };
     }
 
+    if (method === "POST" && path === "/manual-dispense-issues") {
+      return {
+        kind: "pharmacy_dispense_order",
+        id: "manual",
+        action: "pharmacy.update",
+        attr: tenantAttr(request),
+      };
+    }
+
     if (method === "POST" && path === "/walk-in-dispense-orders") {
       return {
         kind: "pharmacy_walk_in_dispense_order",

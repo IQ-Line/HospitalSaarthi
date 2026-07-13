@@ -17,7 +17,7 @@ export async function getItemDispensePricingById(
   if (!trimmed) return null;
 
   const row = await deps.itemRepo.findById(tenantId, trimmed);
-  if (!row || !row.is_active || row.item_classification !== "medicine") return null;
+  if (!row || !row.is_active) return null;
 
   return extractItemMasterPricing(row);
 }

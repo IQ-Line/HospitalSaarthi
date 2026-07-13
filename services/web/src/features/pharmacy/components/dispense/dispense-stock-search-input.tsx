@@ -77,8 +77,10 @@ export function DispenseStockSearchInput({
   };
 
   const handleSelect = (item: DispenseStoreStockOption) => {
+    // Parent onSelect already sets display name + code/available/mrp.
+    // Do not call onValueChange here — a second updateRow against stale `rows`
+    // would wipe the selection fields.
     onSelect(item);
-    onValueChange(item.name);
     setOpen(false);
     setSearch('');
   };

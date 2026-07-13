@@ -157,6 +157,35 @@ paths:
           description: Visit has no OPD prescription
         "502":
           description: Upstream or persistence failure
+  /manual-dispense-issues:
+    post:
+      operationId: issueManualDispenseStock
+      summary: Deduct store stock for manual / walk-in counter issue
+      description: >
+        Issues inventory stock (FEFO) for the selected pharmacy store without
+        requiring an OPD visit dispense order.
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualDispenseIssueRequest"
+      responses:
+        "200":
+          description: Stock deducted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualDispenseIssueResponse"
+        "400":
+          description: Validation error
+        "409":
+          description: Insufficient stock
+        "502":
+          description: Upstream inventory failure
   /walk-in-dispense-orders:
     post:
       operationId: createWalkInDispenseOrder
@@ -806,6 +835,29 @@ components:
           type: array
           minItems: 1
           items: { $ref: "#/components/schemas/SaveDispenseLineInput" }
+    ManualDispenseIssueRequest:
+      type: object
+      required: [inventory_store_id, lines]
+      properties:
+        inventory_store_id: { type: string, format: uuid }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [inventory_item_id, quantity]
+            properties:
+              inventory_item_id: { type: string, format: uuid }
+              quantity:
+                oneOf:
+                  - type: string
+                  - type: number
+    ManualDispenseIssueResponse:
+      type: object
+      required: [inventory_store_id, line_count]
+      properties:
+        inventory_store_id: { type: string, format: uuid }
+        line_count: { type: integer }
     DispenseLineItem:
       type: object
       required:

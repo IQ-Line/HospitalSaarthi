@@ -25,6 +25,8 @@ export type DispenseMedicineItemListRow = {
   tenant_formulary_id: string;
   mrp: string;
   gst_percent: string;
+  /** Sum of on-hand qty at the requested store (for_dispense only). */
+  available_qty: string;
 };
 
 function mapDispenseMedicineItemRow(
@@ -34,6 +36,7 @@ function mapDispenseMedicineItemRow(
   if (!tenantFormularyId) return null;
 
   const pricing = extractItemMasterPricing(row);
+  const availableRaw = row.available_qty != null ? Number(row.available_qty) : 0;
   return {
     id: row.id,
     item_code: pricing.item_code,
@@ -41,6 +44,7 @@ function mapDispenseMedicineItemRow(
     tenant_formulary_id: tenantFormularyId,
     mrp: pricing.mrp,
     gst_percent: pricing.gst_percent,
+    available_qty: Number.isFinite(availableRaw) ? String(availableRaw) : "0",
   };
 }
 

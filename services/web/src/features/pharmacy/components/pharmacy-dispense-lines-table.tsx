@@ -66,6 +66,7 @@ export function PharmacyDispenseLinesTable({
       inventory_item_id: item.id,
       medicine_display_name: item.display_name,
       item_code: item.item_code,
+      available_qty: item.available_qty || '0',
       unit_amount: item.mrp || '0',
       tax_percent: item.gst_percent || '0',
     };
@@ -74,15 +75,17 @@ export function PharmacyDispenseLinesTable({
     setPricingLineKey(lineKey);
     try {
       const pricing = await resolveDispenseItemPricing(item);
+      // Re-apply immediate fields too — linesRef may still be pre-selection until React re-renders.
       onChange(
         updateLine(linesRef.current, lineKey, {
-          item_code: pricing.item_code,
-          unit_amount: pricing.mrp,
-          tax_percent: pricing.gst_percent,
+          ...immediatePatch,
+          item_code: pricing.item_code || immediatePatch.item_code,
+          unit_amount: pricing.mrp || immediatePatch.unit_amount,
+          tax_percent: pricing.gst_percent || immediatePatch.tax_percent,
         }),
       );
     } catch {
-      // List-row values from immediatePatch remain on the line.
+      onChange(updateLine(linesRef.current, lineKey, immediatePatch));
     } finally {
       setPricingLineKey((current) => (current === lineKey ? null : current));
     }

@@ -6,7 +6,8 @@ import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { Skeleton } from '@pulse/ui/skeleton';
 import { Textarea } from '@pulse/ui/textarea';
-import { useSaveWalkInDispense, useWalkInDispense } from '../api/walk-in-dispense';
+import { useWalkInDispense } from '../api/walk-in-dispense';
+import { issueManualDispenseStock } from '../api/manual-dispense-issue';
 import { findOpenQueueVisitForPatient } from '../api/search-dispense-patients';
 import {
   computeDispenseTotals,
@@ -22,9 +23,9 @@ import {
   type DispenseLineFieldErrors,
 } from '../lib/validate-dispense-draft';
 import {
-  saveWalkInPatientInputFromDraft,
   walkInPatientDraftFromRecord,
 } from '../lib/walk-in-patient-map';
+import { useSelectedPharmacyStoreId } from '../store';
 import type { DispenseLineDraft, WalkInPatientDraft } from '../types';
 import type { DispensePatientSearchResult } from '../types/dispense-ui.types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
@@ -44,8 +45,8 @@ const emptyLine = createEmptyDispenseLineDraft;
 export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispensePageProps) {
   const navigate = useNavigate();
   const isEdit = Boolean(recordId?.trim());
+  const selectedStoreId = useSelectedPharmacyStoreId();
   const { data, isLoading, isError, error } = useWalkInDispense(recordId);
-  const saveMutation = useSaveWalkInDispense(recordId);
 
   const [patient, setPatient] = useState<WalkInPatientDraft>(defaultWalkInPatientDraft());
   const [patientErrors, setPatientErrors] = useState<
@@ -59,6 +60,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
   const [initialized, setInitialized] = useState(!isEdit);
   const [patientSearch, setPatientSearch] = useState('');
   const [resolvingPatient, setResolvingPatient] = useState(false);
+  const [issuing, setIssuing] = useState(false);
 
   useEffect(() => {
     if (!isEdit || !data || initialized) return;
@@ -142,6 +144,11 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
       return;
     }
 
+    if (!selectedStoreId?.trim()) {
+      toast.error('Select a pharmacy store before issuing medicines.');
+      return;
+    }
+
     const validation = validateDispenseDraft(lines, discount);
     setLineErrors(validation.lineErrors);
     setDiscountError(validation.discountError);
@@ -151,25 +158,31 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
     }
 
     const payloadLines = buildSaveDispenseLinesFromDraft(lines);
+    const stockLines = payloadLines.flatMap((line) => {
+      const itemId = line.inventory_item_id?.trim();
+      if (!itemId) return [];
+      return [{ inventory_item_id: itemId, quantity: line.quantity_dispensed }];
+    });
 
+    if (stockLines.length === 0) {
+      toast.error('Select issued items from store stock before issuing.');
+      return;
+    }
+
+    setIssuing(true);
     try {
-      const saved = await saveMutation.mutateAsync({
-        walk_in_patient: saveWalkInPatientInputFromDraft(patient),
-        discount: discount.trim() || '0',
-        notes: notes.trim() || null,
-        lines: payloadLines,
+      await issueManualDispenseStock({
+        inventory_store_id: selectedStoreId,
+        lines: stockLines,
       });
-      toast.success('Walk-in dispense saved.');
+      toast.success('Medicines issued — store stock updated.');
       setLineErrors({});
       setDiscountError(undefined);
-      if (!isEdit) {
-        await navigate({
-          to: '/pharmacy/walk-in-orders/$recordId',
-          params: { recordId: saved.record_id },
-        });
-      }
+      setLines([emptyLine()]);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save walk-in dispense.');
+      toast.error(err instanceof Error ? err.message : 'Failed to issue stock for walk-in dispense.');
+    } finally {
+      setIssuing(false);
     }
   };
 
@@ -223,7 +236,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
                 value={patientSearch}
                 onValueChange={setPatientSearch}
                 onPatientSelect={handleRegisteredPatientSelect}
-                disabled={saveMutation.isPending || resolvingPatient}
+                disabled={issuing || resolvingPatient}
                 placeholder="Search by name, UHID, phone…"
               />
             </div>
@@ -239,7 +252,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
           <WalkInPatientFields
             value={patient}
             onChange={handlePatientChange}
-            disabled={saveMutation.isPending}
+            disabled={issuing}
             errors={patientErrors}
           />
         </section>
@@ -251,7 +264,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
           <PharmacyDispenseLinesTable
             lines={lines}
             onChange={handleLinesChange}
-            disabled={saveMutation.isPending}
+            disabled={issuing}
             lineErrors={lineErrors}
           />
 
@@ -260,7 +273,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
               <span className="text-muted-foreground">Bill discount (₹)</span>
               <Input
                 value={discount}
-                disabled={saveMutation.isPending}
+                disabled={issuing}
                 aria-invalid={Boolean(discountError)}
                 onChange={(event) => {
                   setDiscount(event.target.value);
@@ -273,7 +286,7 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
               <span className="text-muted-foreground">Notes</span>
               <Textarea
                 value={notes}
-                disabled={saveMutation.isPending}
+                disabled={issuing}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={2}
               />
@@ -303,15 +316,15 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             {formatInrAmount(totals.total_amount)} · {lines.length} line{lines.length === 1 ? '' : 's'}
-            {isEdit ? ' · Saved' : ' · Unsaved'}
+            {isEdit ? ' · View' : ' · Manual issue'}
           </p>
           <Button
             type="button"
             className="min-w-[160px]"
-            disabled={saveMutation.isPending}
+            disabled={issuing}
             onClick={() => void handleSave()}
           >
-            {saveMutation.isPending ? 'Saving…' : 'Save dispense'}
+            {issuing ? 'Issuing…' : 'Issue medicines'}
           </Button>
         </div>
       </div>

@@ -16,6 +16,7 @@ import {
   DispenseInsufficientStockError,
   saveDispenseForVisit,
 } from "../use-cases/save-dispense-for-visit.js";
+import { issueManualDispenseStock } from "../use-cases/issue-manual-dispense-stock.js";
 import {
   applyOpdQueueProjectionUpsert,
   mapOpdQueueProjectionRowToWire,
@@ -289,6 +290,51 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           statusCode: 502,
           error: "Bad Gateway",
           message: "Unable to save dispense for visit",
+        });
+      }
+    },
+  );
+
+  app.post<{
+    Body: {
+      inventory_store_id: string;
+      lines: Array<{ inventory_item_id: string; quantity: string | number }>;
+    };
+  }>(
+    "/manual-dispense-issues",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      try {
+        const result = await issueManualDispenseStock(
+          { inventoryGateway: deps.inventoryGateway },
+          request.tenantId,
+          {
+            inventory_store_id: request.body?.inventory_store_id,
+            lines: request.body?.lines ?? [],
+          },
+        );
+        return reply.code(200).send(result);
+      } catch (error) {
+        if (error instanceof DispenseValidationError) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseInsufficientStockError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+            code: "INSUFFICIENT_STOCK",
+          });
+        }
+        request.log.error({ err: error }, "pharmacy manual dispense stock issue failed");
+        return reply.code(502).send({
+          statusCode: 502,
+          error: "Bad Gateway",
+          message: "Unable to deduct inventory stock for manual dispense",
         });
       }
     },

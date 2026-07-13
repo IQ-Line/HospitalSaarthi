@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { toIlikeContainsPattern } from "../lib/ilike.js";
 import {
@@ -8,6 +8,11 @@ import {
 } from "../schema/tables.js";
 
 export type InventoryItemRow = typeof inventoryItems.$inferSelect;
+
+/** Item master row optionally enriched with store on-hand qty (when listing with storeId). */
+export type InventoryItemListRow = InventoryItemRow & {
+  available_qty: string | null;
+};
 
 export type ListInventoryItemsInput = {
   search?: string;
@@ -60,7 +65,10 @@ export type CreateInventoryItemInput = {
 export class DrizzleInventoryItemRepository {
   constructor(private readonly db: DbInstance) {}
 
-  async list(tenantId: string, input: ListInventoryItemsInput): Promise<{ rows: InventoryItemRow[]; total: number }> {
+  async list(
+    tenantId: string,
+    input: ListInventoryItemsInput,
+  ): Promise<{ rows: InventoryItemListRow[]; total: number }> {
     const filters: SQL[] = [eq(inventoryItems.iq_tenant_id, tenantId)];
 
     if (input.isActive != null) {
@@ -113,13 +121,33 @@ export class DrizzleInventoryItemRepository {
     const where = and(...filters);
 
     const [rows, countRows] = await Promise.all([
-      this.db
-        .select()
-        .from(inventoryItems)
-        .where(where)
-        .orderBy(inventoryItems.name)
-        .limit(input.limit)
-        .offset(input.offset),
+      storeId
+        ? this.db
+            .select({
+              ...getTableColumns(inventoryItems),
+              available_qty: sql<string>`(
+                SELECT COALESCE(SUM(${inventoryStock.quantity}::numeric), 0)::text
+                FROM ${inventoryStock}
+                WHERE ${inventoryStock.iq_tenant_id} = ${tenantId}
+                  AND ${inventoryStock.inventory_store_id} = ${storeId}
+                  AND ${inventoryStock.item_id} = ${inventoryItems.id}
+              )`.as("available_qty"),
+            })
+            .from(inventoryItems)
+            .where(where)
+            .orderBy(inventoryItems.name)
+            .limit(input.limit)
+            .offset(input.offset)
+        : this.db
+            .select({
+              ...getTableColumns(inventoryItems),
+              available_qty: sql<string | null>`NULL`.as("available_qty"),
+            })
+            .from(inventoryItems)
+            .where(where)
+            .orderBy(inventoryItems.name)
+            .limit(input.limit)
+            .offset(input.offset),
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(inventoryItems)

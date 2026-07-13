@@ -9,6 +9,7 @@ export type DispenseMedicineItemOption = {
   tenant_formulary_id: string;
   mrp: string;
   gst_percent: string;
+  available_qty: string;
 };
 
 type DispenseMedicineItemListResponse = {
@@ -43,6 +44,7 @@ function normalizeDispenseMedicineItem(row: Record<string, unknown>): DispenseMe
     tenant_formulary_id: tenantFormularyId,
     mrp: asString(row.mrp, '0'),
     gst_percent: asString(row.gst_percent, '0'),
+    available_qty: asString(row.available_qty, '0'),
   };
 }
 

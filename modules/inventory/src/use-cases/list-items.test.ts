@@ -12,6 +12,7 @@ describe("listItems for_dispense", () => {
             name: "Dolo",
             display_name: "Dolo 650mg",
             tenant_formulary_id: "form-1",
+            available_qty: "24",
             supply_attributes: {
               pharmacy: { mrp: 50 },
               hsnSelections: [{ cgst_pct: 6, sgst_pct: 6, igst_pct: 12 }],
@@ -23,6 +24,7 @@ describe("listItems for_dispense", () => {
             name: "Gloves",
             display_name: "Gloves",
             tenant_formulary_id: null,
+            available_qty: "10",
             supply_attributes: {},
           },
         ],
@@ -55,6 +57,7 @@ describe("listItems for_dispense", () => {
         tenant_formulary_id: "form-1",
         mrp: "50",
         gst_percent: "12",
+        available_qty: "24",
       },
     ]);
     expect(result.total).toBe(2);

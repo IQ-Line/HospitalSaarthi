@@ -42,7 +42,7 @@ function ItemOptionRow({
     >
       <span className="font-medium leading-snug">{item.display_name}</span>
       <span className="text-xs text-muted-foreground">
-        {item.item_code} · MRP ₹{item.mrp} · GST {item.gst_percent}%
+        {item.item_code} · Avail {item.available_qty} · MRP ₹{item.mrp} · GST {item.gst_percent}%
       </span>
     </button>
   );
