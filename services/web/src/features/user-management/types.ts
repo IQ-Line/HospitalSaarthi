@@ -31,6 +31,12 @@ export type CreateUserBody = {
   role_template_ids?: string[];
   /** Subset of role capabilities; requires exactly one `role_template_ids` entry when present. */
   role_template_capability_ids?: string[];
+  pharmacy_store_access?: PharmacyStoreAccessBody | null;
+};
+
+export type PharmacyStoreAccessBody = {
+  primary_store_id: string;
+  secondary_store_ids?: string[];
 };
 
 export type UpdateUserBody = {

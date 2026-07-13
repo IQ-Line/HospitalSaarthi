@@ -364,3 +364,36 @@ export const user_clearances = userManagementSchema.table(
     index("idx_user_clearances_tenant_user").on(t.iq_tenant_id, t.user_id),
   ],
 );
+
+export const pharmacy_store_assignments = userManagementSchema.table(
+  "pharmacy_store_assignments",
+  {
+    ...tenantColumn(),
+    id: uuid("id").notNull().defaultRandom(),
+    user_id: uuid("user_id").notNull(),
+    store_id: uuid("store_id").notNull(),
+    assignment_kind: text("assignment_kind").notNull(),
+    created_at: createdAt(),
+    updated_at: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    foreignKey({
+      name: "pharmacy_store_assignments_user_fk",
+      columns: [t.iq_tenant_id, t.user_id],
+      foreignColumns: [users.iq_tenant_id, users.id],
+    })
+      .onDelete("cascade")
+      .onUpdate("restrict"),
+    check(
+      "pharmacy_store_assignments_assignment_kind_chk",
+      sql`${t.assignment_kind} in ('primary', 'secondary')`,
+    ),
+    unique("uq_pharmacy_store_assignments_user_store").on(
+      t.iq_tenant_id,
+      t.user_id,
+      t.store_id,
+    ),
+    index("idx_pharmacy_store_assignments_user").on(t.iq_tenant_id, t.user_id),
+  ],
+);

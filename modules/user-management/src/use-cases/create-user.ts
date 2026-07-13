@@ -16,6 +16,10 @@ import { publishUserManagementEvent } from "../events/publish-user-management-ev
 import { assertRuntimeCapabilitiesEntitledForTenant } from "./assert-runtime-capabilities-entitled-for-tenant.js";
 import { resolveGrantActorIdForTenant } from "./resolve-grant-actor-id-for-tenant.js";
 import { resolveRoleTemplateGrantPlans } from "./resolve-role-template-grant-plans.js";
+import {
+  assertPharmacyStoreAccessMatchesCapabilities,
+  pharmacyStoreAccessToAssignmentRows,
+} from "../lib/pharmacy-store-access.js";
 import type {
   AuthAccountProvisioner,
   CapabilityRepository,
@@ -201,6 +205,22 @@ export async function createUser(
         )
       : [];
 
+  const grantedCapabilityIds = [
+    ...capabilityIds,
+    ...roleTemplateGrants.flatMap((grant) => grant.capabilityIds),
+  ];
+  const grantedCapabilities =
+    grantedCapabilityIds.length > 0
+      ? await deps.capabilityRepository.listCapabilitiesByIds(grantedCapabilityIds)
+      : [];
+  const pharmacyStoreAccess = assertPharmacyStoreAccessMatchesCapabilities(
+    grantedCapabilities,
+    grantedCapabilityIds,
+    input.pharmacy_store_access,
+  );
+  const pharmacyStoreAssignments =
+    pharmacyStoreAccess != null ? pharmacyStoreAccessToAssignmentRows(pharmacyStoreAccess) : null;
+
   const grantActorId = await resolveGrantActorIdForTenant(
     deps.userRepository,
     ctx.tenantId,
@@ -225,6 +245,7 @@ export async function createUser(
     manualCapabilityIds: capabilityIds,
     roleTemplateGrants,
     actorId: grantActorId,
+    pharmacyStoreAssignments,
   });
 
   deps.principalRoleProjectionRepository.clearCache();

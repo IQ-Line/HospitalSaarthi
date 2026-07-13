@@ -1,5 +1,6 @@
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import {
   DuplicateUsernameError,
   UnexpectedPersistenceError,
@@ -12,7 +13,7 @@ import type {
   UserProvisioningRepository,
 } from "../ports/user-provisioning-repository.js";
 import type { User } from "../ports/index.js";
-import { capabilities, roles, user_capabilities, user_roles, users } from "../schema/tables.js";
+import { capabilities, pharmacy_store_assignments, roles, user_capabilities, user_roles, users } from "../schema/tables.js";
 
 const userColumns = {
   id: users.id,
@@ -111,6 +112,21 @@ export class DrizzleUserProvisioningRepository implements UserProvisioningReposi
             capabilityIds: grant.capabilityIds,
             actorId: input.actorId,
           });
+        }
+
+        if (input.pharmacyStoreAssignments && input.pharmacyStoreAssignments.length > 0) {
+          const now = new Date();
+          await tx.insert(pharmacy_store_assignments).values(
+            input.pharmacyStoreAssignments.map((assignment) => ({
+              id: randomUUID(),
+              iq_tenant_id: tenantId,
+              user_id: userId,
+              store_id: assignment.store_id,
+              assignment_kind: assignment.assignment_kind,
+              created_at: now,
+              updated_at: now,
+            })),
+          );
         }
 
         return rowToUser(linked);

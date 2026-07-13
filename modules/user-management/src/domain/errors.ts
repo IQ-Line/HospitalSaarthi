@@ -29,7 +29,18 @@ export type ValidationIssue =
   | "role_type_empty"
   | "role_display_name_invalid_type"
   | "role_display_name_empty"
-  | "replace_role_capabilities_invalid";
+  | "replace_role_capabilities_invalid"
+  | "pharmacy_store_access_primary_invalid"
+  | "pharmacy_store_access_secondary_invalid"
+  | "pharmacy_store_access_primary_secondary_overlap"
+  | "pharmacy_store_access_required"
+  | "pharmacy_store_access_not_allowed"
+  | "create_user_role_template_capability_ids_empty"
+  | "create_user_role_template_capability_not_on_role"
+  | "create_user_role_template_ids_limit_exceeded"
+  | "create_user_capability_ids_limit_exceeded"
+  | "replace_role_capabilities_limit_exceeded"
+  | "tenant_module_ids_limit_exceeded";
 
 const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: string }> = {
   full_name_invalid_type: {
@@ -153,6 +164,50 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
     code: "INVALID_INPUT",
     message: "capability_ids must be an array of non-empty UUID strings.",
   },
+  pharmacy_store_access_primary_invalid: {
+    code: "INVALID_INPUT",
+    message: "pharmacy_store_access.primary_store_id must be a valid UUID.",
+  },
+  pharmacy_store_access_secondary_invalid: {
+    code: "INVALID_INPUT",
+    message: "pharmacy_store_access.secondary_store_ids must be an array of valid UUIDs.",
+  },
+  pharmacy_store_access_primary_secondary_overlap: {
+    code: "INVALID_INPUT",
+    message: "pharmacy_store_access secondary stores must not include the primary store.",
+  },
+  pharmacy_store_access_required: {
+    code: "INVALID_INPUT",
+    message: "pharmacy_store_access is required when pharmacy permissions are granted.",
+  },
+  pharmacy_store_access_not_allowed: {
+    code: "INVALID_INPUT",
+    message: "pharmacy_store_access may only be sent when pharmacy permissions are granted.",
+  },
+  create_user_role_template_capability_ids_empty: {
+    code: "INVALID_INPUT",
+    message: "role_template_capability_ids must not be an empty array.",
+  },
+  create_user_role_template_capability_not_on_role: {
+    code: "INVALID_INPUT",
+    message: "Each role_template_capability_id must belong to the selected role template.",
+  },
+  create_user_role_template_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many role_template_ids were provided.",
+  },
+  create_user_capability_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids were provided.",
+  },
+  replace_role_capabilities_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Too many capability_ids were provided.",
+  },
+  tenant_module_ids_limit_exceeded: {
+    code: "INVALID_INPUT",
+    message: "Tenant module entitlement list exceeds the supported limit.",
+  },
 };
 
 /**
@@ -175,8 +230,12 @@ export class UserManagementError extends Error {
 }
 
 export class ValidationError extends UserManagementError {
-  constructor(public readonly issue: ValidationIssue) {
-    const m = VALIDATION_ISSUE_META[issue];
+  constructor(public readonly issue: ValidationIssue | (string & {})) {
+    const m =
+      VALIDATION_ISSUE_META[issue as ValidationIssue] ?? {
+        code: "INVALID_INPUT",
+        message: `Invalid request (${issue}).`,
+      };
     super(m.code, m.message);
   }
 }

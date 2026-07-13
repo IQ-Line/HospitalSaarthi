@@ -98,6 +98,29 @@ export function buildRouteSchemaTable(bundle: Record<string, unknown>): Map<
   return out;
 }
 
+/** Compiles a request-body validator with Fastify-like `removeAdditional` behavior. */
+export function compileRequestBodyValidator(
+  bundle: Record<string, unknown>,
+  method: string,
+  routeUrl: string,
+): ValidateFunction | null {
+  const ajv = new Ajv({
+    removeAdditional: true,
+    allErrors: true,
+    strict: false,
+    allowUnionTypes: true,
+  });
+  addFormats(ajv);
+
+  const routeSchemas = buildRouteSchemaTable(bundle);
+  const entry = routeSchemas.get(`${method.toUpperCase()}:${routeUrl}`);
+  const bodySchema = entry?.schema.body;
+  if (bodySchema === undefined) {
+    return null;
+  }
+  return ajv.compile(bodySchema as object);
+}
+
 /** Compiles OpenAPI success response schemas for log-only runtime checks (CI + preSerialization). */
 export function createResponseValidatorTable(
   bundle: Record<string, unknown>,
