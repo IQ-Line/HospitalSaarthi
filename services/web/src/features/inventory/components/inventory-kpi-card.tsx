@@ -8,6 +8,8 @@ interface InventoryKpiCardProps {
   hint: string;
   icon: LucideIcon;
   isLoading?: boolean;
+  onClick?: () => void;
+  isActive?: boolean;
 }
 
 export function InventoryKpiCard({
@@ -16,9 +18,11 @@ export function InventoryKpiCard({
   hint,
   icon: Icon,
   isLoading,
+  onClick,
+  isActive,
 }: InventoryKpiCardProps) {
-  return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="text-sm text-muted-foreground">{label}</p>
@@ -33,6 +37,27 @@ export function InventoryKpiCard({
           <Icon className="size-5" aria-hidden />
         </div>
       </div>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'w-full rounded-lg border bg-card p-4 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          isActive && 'border-primary ring-1 ring-primary/30',
+        )}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+      {content}
     </div>
   );
 }
