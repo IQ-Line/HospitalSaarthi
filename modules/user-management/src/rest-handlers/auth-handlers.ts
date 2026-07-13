@@ -18,6 +18,8 @@ import {
 } from "../use-cases/validate-user-api-key.js";
 import { clearMustChangePassword } from "../use-cases/clear-must-change-password.js";
 import type { ClearMustChangePasswordDeps } from "../use-cases/clear-must-change-password.js";
+import { getUserPharmacyStoreAccess } from "../use-cases/get-pharmacy-store-access.js";
+import type { GetPharmacyStoreAccessDeps } from "../use-cases/get-pharmacy-store-access.js";
 
 type InteractiveSignInPort = {
   signIn(input: {
@@ -103,6 +105,7 @@ export type AuthHandlersDeps = {
   getUserDeps: GetUserDeps;
   validateUserApiKeyDeps: ValidateUserApiKeyDeps;
   clearMustChangePasswordDeps: ClearMustChangePasswordDeps;
+  getPharmacyStoreAccessDeps: GetPharmacyStoreAccessDeps;
   bootstrapInteractiveLoginDeps?: BootstrapInteractiveLoginDeps;
 };
 
@@ -139,6 +142,18 @@ export function registerAuthHandlers(fastify: FastifyInstance, deps: AuthHandler
       } catch (err) {
         return replyWithUserManagementError(reply, err, cid);
       }
+    },
+  );
+
+  fastify.get(
+    "/auth/pharmacy-store-access",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const tenantId = deps.getTenantId(request);
+      const userId = deps.getUserId(request);
+      return reply.send(
+        await getUserPharmacyStoreAccess(deps.getPharmacyStoreAccessDeps, tenantId, userId),
+      );
     },
   );
 

@@ -7,6 +7,7 @@ import type {
 
 export const pharmacyQueryKeys = {
   all: ['pharmacy'] as const,
+  myStoreAccess: () => [...pharmacyQueryKeys.all, 'my-store-access'] as const,
   dashboard: () => [...pharmacyQueryKeys.all, 'dashboard'] as const,
   queue: (params: PharmacyQueueListParams & { scope?: string }) =>
     [...pharmacyQueryKeys.all, 'queue', params] as const,

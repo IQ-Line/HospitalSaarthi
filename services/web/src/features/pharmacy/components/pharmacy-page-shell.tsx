@@ -9,6 +9,7 @@ import {
   BreadcrumbSeparator,
 } from '@pulse/ui/breadcrumb';
 import { PageHeader } from '@/components/page-header';
+import { PharmacyStoreSelector } from './pharmacy-store-selector';
 
 type PharmacyBreadcrumbCrumb = {
   label: string;
@@ -82,8 +83,21 @@ export function PharmacyPageShell({
           </BreadcrumbList>
         </Breadcrumb>
 
-        {hideTitle ? null : (
-          <PageHeader title={title} description={description} actions={actions} />
+        {hideTitle ? (
+          <div className="flex justify-end">
+            <PharmacyStoreSelector />
+          </div>
+        ) : (
+          <PageHeader
+            title={title}
+            description={description}
+            actions={
+              <>
+                <PharmacyStoreSelector />
+                {actions}
+              </>
+            }
+          />
         )}
       </div>
       <div className={fullHeight ? 'flex min-h-0 flex-1 flex-col' : undefined}>{children}</div>

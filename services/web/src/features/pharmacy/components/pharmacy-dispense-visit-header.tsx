@@ -6,6 +6,7 @@ import {
   pharmacyQueueStatusBadgeClass,
 } from '../lib/pharmacy-queue-display';
 import type { DispenseForVisitResponse } from '../types';
+import { PharmacyStoreSelector } from './pharmacy-store-selector';
 
 type PharmacyDispenseVisitHeaderProps = {
   visitId: string;
@@ -67,7 +68,7 @@ export function PharmacyDispenseVisitHeader({ visitId, data }: PharmacyDispenseV
         </div>
         <div>
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Store</p>
-          <p className="mt-1 text-sm text-muted-foreground">Default pharmacy store</p>
+          <PharmacyStoreSelector compact />
         </div>
         <div>
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

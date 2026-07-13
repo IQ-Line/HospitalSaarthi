@@ -53,6 +53,34 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/pharmacy-store-access:
+    get:
+      tags:
+        - Auth
+      summary: Get current user's assigned pharmacy stores
+      description: >
+        Returns inventory store ids assigned to the authenticated user for pharmacy operations
+        (primary and optional secondary stores). Resolve display names via the inventory store
+        catalog; this endpoint returns ids only.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Assigned pharmacy stores for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmacyStoreAccess"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/login:
     post:
       tags:
@@ -1621,6 +1649,7 @@ components:
         primary_store_id:
           type: string
           format: uuid
+          nullable: true
           description: Primary inventory store for dispense and stock operations.
         secondary_store_ids:
           type: array
