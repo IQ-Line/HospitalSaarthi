@@ -198,6 +198,10 @@ export class DrizzleInventoryStockRepository {
       INNER JOIN inventory.lots l
         ON l.id = s.lot_id
         AND l.iq_tenant_id = s.iq_tenant_id
+      INNER JOIN inventory.items i
+        ON i.id = s.item_id
+        AND i.iq_tenant_id = s.iq_tenant_id
+        AND i.is_active = true
       WHERE s.iq_tenant_id = ${tenantId}
         AND s.inventory_store_id = ${storeId}
         AND l.expiry_date IS NOT NULL

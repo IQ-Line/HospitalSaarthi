@@ -82,7 +82,6 @@ export async function mockFetchInventoryDashboardStats(
   };
 }
 
-
 function mockExpiringLotsFromFixtures(storeId: string, withinDays: number) {
   const today = new Date();
   const cutoff = new Date(today);

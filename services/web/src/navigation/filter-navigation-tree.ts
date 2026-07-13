@@ -181,9 +181,6 @@ export function isNavigationNodeVisible(
   if (isPharmacyOpenNav(node)) {
     return true;
   }
-  if (isInventoryOpenNav(node)) {
-    return true;
-  }
   if (!passesRoleGate(node, ctx, parent)) {
     return false;
   }

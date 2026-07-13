@@ -103,15 +103,6 @@ describe('inventory admin sidebar (admin role + inventory-master tenant module)'
 
     const rootIds = filtered.map((n) => n.id);
     expect(rootIds).toContain('inventory-supply-masters');
-    // Phase 0: operational inventory nav is open for all principals.
-    expect(rootIds).toContain('inventory');
-    const inventory = filtered.find((n) => n.id === 'inventory');
-    expect(inventory?.children?.map((child) => child.id)).toEqual([
-      'inventory-dashboard',
-      'inventory-stock',
-      'inventory-indents',
-      'inventory-transfers',
-      'inventory-grn-logs',
-    ]);
+    expect(rootIds).not.toContain('inventory');
   });
 });

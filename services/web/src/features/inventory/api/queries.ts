@@ -2,8 +2,8 @@ import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query
 import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import { INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS } from '../lib/inventory-dashboard-navigation';
 import {
-  mockFetchInventoryDashboard,
   mockFetchInventoryDashboardStats,
+  mockFetchInventoryExpiringLots,
   mockFetchInventoryGrnLogs,
   mockFetchInventoryIndents,
   mockFetchInventoryIndentByNumber,
@@ -16,7 +16,6 @@ import {
   mockFetchInventoryTransfers,
 } from '../mock/operations';
 import type {
-  InventoryDashboardData,
   InventoryDashboardStats,
   InventoryExpiringLot,
   InventoryGrnListData,
@@ -157,16 +156,6 @@ async function fetchInventoryLowStockItems(storeId: string): Promise<InventoryLo
     uom: row.uom,
     reorder_at: row.reorder_at,
   }));
-}
-
-async function fetchInventoryDashboard(storeId?: string): Promise<InventoryDashboardData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryDashboard();
-  const stats = await fetchInventoryDashboardStats(storeId);
-  return {
-    stats,
-    low_stock_items: [],
-    expiring_lots: [],
-  };
 }
 
 async function fetchInventoryStock(params: InventoryListParams): Promise<InventoryStockListData> {
@@ -383,17 +372,6 @@ export function useInventoryLowStockItems(
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
 }
-
-export function useInventoryDashboard(storeId?: string): QueryResult<InventoryDashboardData> {
-  const query = useQuery({
-    queryKey: [...inventoryQueryKeys.dashboard(storeId), inventoryApiMode],
-    queryFn: () => fetchInventoryDashboard(storeId),
-    enabled: !OPERATIONAL_INVENTORY_API_ENABLED || Boolean(storeId),
-    staleTime: 30_000,
-  });
-  return { data: query.data, isLoading: query.isPending, error: query.error };
-}
-
 
 export function useInventoryExpiringLots(
   storeId: string | undefined,
