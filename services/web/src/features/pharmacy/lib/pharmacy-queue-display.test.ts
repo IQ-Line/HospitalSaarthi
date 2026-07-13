@@ -7,6 +7,8 @@ import {
   formatRxNumber,
   matchesPharmacyQueueSearch,
   matchesPharmacyQueueStatus,
+  pharmacyQueueStatusLabel,
+  dispenseSaveStatusLabel,
 } from './pharmacy-queue-display';
 import type { PharmacyQueueItem } from '../types';
 
@@ -81,5 +83,15 @@ describe('pharmacy-queue-display', () => {
     expect(matchesPharmacyQueueSearch(row, 'jane')).toBe(true);
     expect(matchesPharmacyQueueSearch(row, '1234567890')).toBe(true);
     expect(matchesPharmacyQueueSearch(row, 'missing')).toBe(false);
+  });
+
+  it('labels all PharmacyDispenseStatus values including return statuses', () => {
+    expect(pharmacyQueueStatusLabel('pending')).toBe('Pending');
+    expect(pharmacyQueueStatusLabel('issued')).toBe('Dispensed');
+    expect(pharmacyQueueStatusLabel('partial_issue')).toBe('Partial');
+    expect(pharmacyQueueStatusLabel('partially_returned')).toBe('Partial return');
+    expect(pharmacyQueueStatusLabel('fully_returned')).toBe('Fully returned');
+    expect(dispenseSaveStatusLabel('partially_returned')).toBe('Partial return');
+    expect(dispenseSaveStatusLabel('fully_returned')).toBe('Fully returned');
   });
 });

@@ -5,13 +5,13 @@ import { Plus, Search } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
 import { DataTable } from '@/components/data-table';
-import { useDispenseReturnsList } from '../api/dispense-returns';
+import { useDispenseReturnsList } from '../../api/dispense-returns';
 import {
   formatDispenseDate,
   formatMoney,
   formatReturnReason,
-} from '../lib/return-display';
-import type { DispenseReturnSummary } from '../types/returns-ui.types';
+} from '../../lib/return-display';
+import type { DispenseReturnSummary } from '../../types/returns-ui.types';
 import { PharmacyPageShell } from './pharmacy-page-shell';
 
 const PAGE_SIZE = 20;

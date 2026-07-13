@@ -158,7 +158,7 @@ function isPharmacyOpenNav(node: NavigationNode): boolean {
   return node.id === 'pharmacy' || (node.route?.startsWith('/pharmacy') ?? false);
 }
 
-/** Phase 0 inventory UI — show all operational submodules until Cerbos/tenant gates are wired. */
+/** Phase 0 inventory UI — bypasses capability gates until nav is wired via passesCapabilityGate (see nav-capability-access.ts). Tech debt: remove isInventoryOpenNav once inventory Cerbos product slugs are enforced in sidebar. */
 function isInventoryOpenNav(node: NavigationNode): boolean {
   if (node.id === 'inventory') {
     return true;

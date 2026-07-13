@@ -156,9 +156,13 @@ export const dispenseReturn = pharmacySchema.table(
       .notNull()
       .default("0"),
     idempotency_key: text("idempotency_key"),
+    /** Pharmacist who processed the return — semantic alias of standard `created_by` on this immutable header. */
     processed_by: uuid("processed_by"),
     processed_at: timestamp("processed_at", { withTimezone: true }).notNull().defaultNow(),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    created_by: uuid("created_by"),
+    updated_by: uuid("updated_by"),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),
@@ -188,6 +192,9 @@ export const dispenseReturnLineItems = pharmacySchema.table(
     tax_amount: numeric("tax_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     return_amount: numeric("return_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    created_by: uuid("created_by"),
+    updated_by: uuid("updated_by"),
   },
   (t) => [
     primaryKey({ columns: [t.iq_tenant_id, t.id] }),

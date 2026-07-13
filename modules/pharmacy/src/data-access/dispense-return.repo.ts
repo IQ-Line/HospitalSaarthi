@@ -415,6 +415,7 @@ export class DrizzleDispenseReturnRepo implements DispenseReturnRepo {
         );
 
       const returnNumber = formatReturnNumber(processedAt, Number(dailyCount) + 1);
+      const actorId = payload.processed_by ?? null;
 
       const [insertedReturn] = await tx
         .insert(dispenseReturn)
@@ -429,8 +430,11 @@ export class DrizzleDispenseReturnRepo implements DispenseReturnRepo {
           verification_json: payload.verification,
           total_return_amount: totalReturnAmount,
           idempotency_key: payload.idempotency_key ?? null,
-          processed_by: payload.processed_by ?? null,
+          processed_by: actorId,
           processed_at: processedAt,
+          created_by: actorId,
+          updated_by: actorId,
+          updated_at: processedAt,
         })
         .returning();
 
@@ -452,6 +456,9 @@ export class DrizzleDispenseReturnRepo implements DispenseReturnRepo {
             line_discount: line.line_discount,
             tax_amount: line.tax_amount,
             return_amount: line.return_amount,
+            created_by: actorId,
+            updated_by: actorId,
+            updated_at: processedAt,
           })),
         );
       }

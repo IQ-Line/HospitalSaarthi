@@ -156,7 +156,5 @@ export function matchesPharmacyQueueStatus(
 }
 
 export function dispenseSaveStatusLabel(status: PharmacyDispenseStatus): string {
-  if (status === 'partial_issue') return 'Partial';
-  if (status === 'issued') return 'Dispensed';
-  return 'Pending';
+  return pharmacyQueueStatusLabel(status);
 }
