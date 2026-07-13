@@ -37,6 +37,7 @@ export function mockDispenseLine(
     opd_prescription_line_no: null,
     prescribed_quantity: null,
     quantity_dispensed: "1",
+    quantity_returned: "0",
     unit_amount: "10",
     line_discount: "0.0000",
     tax_percent: "0.0000",

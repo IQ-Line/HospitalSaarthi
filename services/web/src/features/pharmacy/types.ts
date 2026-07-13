@@ -49,7 +49,14 @@ export type PharmacyQueueStatusFilter = 'all' | 'pending' | 'partial_issue' | 'i
 
 export type PharmacyQueueKind = 'opd' | 'walk_in';
 
-export type PharmacyDispenseStatus = 'pending' | 'issued' | 'partial_issue';
+export type PharmacyDispenseStatus =
+  | 'pending'
+  | 'issued'
+  | 'partial_issue'
+  | 'partially_returned'
+  | 'fully_returned';
+
+export type PharmacyDispensePriority = 'routine' | 'urgent' | 'stat';
 
 export type PharmacyQueueDateRange = {
   queued_from: string;
@@ -67,8 +74,10 @@ export type PharmacyQueueItem = {
   visit_status: string;
   prescription_status: string | null;
   updated_at: string;
+  queued_at: string;
   finalized_at: string | null;
   medicine_count: number;
+  priority: PharmacyDispensePriority;
   patient_name: string | null;
   uhid: string | null;
   phone: string | null;
@@ -88,6 +97,7 @@ export type PharmacyQueueListParams = {
   queued_to?: string;
   q?: string;
   status?: PharmacyQueueStatusFilter;
+  doctor_id?: string;
 };
 
 export type PharmacyQueueListResponse = {

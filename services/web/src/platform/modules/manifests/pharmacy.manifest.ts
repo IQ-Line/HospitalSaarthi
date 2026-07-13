@@ -33,5 +33,11 @@ export const pharmacyModuleManifest: ModuleManifest = {
       icon: 'list-checks',
       route: '/pharmacy/replenishment',
     },
+    {
+      id: 'pharmacy-returns',
+      label: 'Returns',
+      icon: 'undo-2',
+      route: '/pharmacy/returns',
+    },
   ],
 };

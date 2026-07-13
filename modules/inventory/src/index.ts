@@ -8,6 +8,11 @@ export { DrizzleInventoryIndentRepository } from "./data-access/indent.repo.js";
 export { listItems } from "./use-cases/list-items.js";
 export { createItem } from "./use-cases/create-item.js";
 export { getIndentByNumber } from "./use-cases/get-indent-by-number.js";
+export {
+  listExpiringLots,
+  DEFAULT_EXPIRING_LOTS_WINDOW_DAYS,
+} from "./use-cases/list-expiring-lots.js";
+export type { ListExpiringLotsDeps } from "./use-cases/list-expiring-lots.js";
 
 export { createInventoryAuthzTargetResolver } from "./authz/inventory-authz-target-resolver.js";
 export { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";

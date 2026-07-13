@@ -2,6 +2,7 @@ import type { PharmacyQueueItem, QueueProjectionRow } from "../domain/pharmacy.t
 import { hasPharmacyDispenseRecord } from "./dispense-completion.js";
 
 export function mapQueueProjectionToQueueItem(row: QueueProjectionRow): PharmacyQueueItem {
+  const queuedAt = row.queued_at.toISOString();
   return {
     walk_in_order: false,
     record_id: null,
@@ -12,9 +13,11 @@ export function mapQueueProjectionToQueueItem(row: QueueProjectionRow): Pharmacy
     doctor_id: row.doctor_id,
     visit_status: row.visit_status,
     prescription_status: row.prescription_status,
-    updated_at: row.queued_at.toISOString(),
-    finalized_at: row.queued_at.toISOString(),
+    updated_at: queuedAt,
+    queued_at: queuedAt,
+    finalized_at: queuedAt,
     medicine_count: row.medicine_count,
+    priority: row.priority,
     patient_name: row.patient_name,
     uhid: row.uhid,
     phone: row.phone,

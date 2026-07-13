@@ -40,6 +40,7 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     opd_prescription_line_no: row.opd_prescription_line_no,
     prescribed_quantity: row.prescribed_quantity,
     quantity_dispensed: row.quantity_dispensed,
+    quantity_returned: row.quantity_returned ?? "0",
     unit_amount: row.unit_amount,
     line_discount: row.line_discount,
     tax_percent: row.tax_percent,
@@ -66,6 +67,15 @@ function isPgUniqueViolation(error: unknown): boolean {
 
 export class DrizzleDispenseRecordRepo implements DispenseRecordRepo {
   constructor(private readonly db: DbInstance) {}
+
+  async findById(tenantId: string, dispenseId: string): Promise<DispenseRecord | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(dispense)
+      .where(and(eq(dispense.iq_tenant_id, tenantId), eq(dispense.id, dispenseId)))
+      .limit(1);
+    return row ? mapRecord(row) : undefined;
+  }
 
   async findByVisit(tenantId: string, visitId: string): Promise<DispenseRecord | undefined> {
     const [row] = await this.db

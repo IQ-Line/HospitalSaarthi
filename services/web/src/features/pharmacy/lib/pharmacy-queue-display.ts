@@ -1,4 +1,4 @@
-import type { PharmacyDispenseStatus, PharmacyQueueItem } from '../types';
+import type { PharmacyDispenseStatus, PharmacyDispensePriority, PharmacyQueueItem } from '../types';
 
 export function formatPharmacyQueuedAt(isoDate: string): string {
   const date = new Date(isoDate);
@@ -90,12 +90,28 @@ export function formatPatientDisplay(row: PharmacyQueueItem): string {
 }
 
 export function pharmacyQueueStatusLabel(status: PharmacyDispenseStatus): string {
-  if (status === 'partial_issue') return 'Partial issue';
-  if (status === 'issued') return 'Issued';
+  if (status === 'partially_returned') return 'Partial return';
+  if (status === 'fully_returned') return 'Fully returned';
+  if (status === 'partial_issue') return 'Partial';
+  if (status === 'issued') return 'Dispensed';
   return 'Pending';
 }
 
+export function pharmacyQueuePriorityLabel(priority: PharmacyDispensePriority): string {
+  if (priority === 'stat') return 'Emergency';
+  if (priority === 'urgent') return 'Urgent';
+  return 'Routine';
+}
+
+export function pharmacyQueuePriorityBadgeClass(priority: PharmacyDispensePriority): string {
+  if (priority === 'stat') return 'bg-red-100 text-red-800';
+  if (priority === 'urgent') return 'bg-amber-100 text-amber-900';
+  return 'bg-slate-100 text-slate-700';
+}
+
 export function pharmacyQueueStatusBadgeClass(status: PharmacyDispenseStatus): string {
+  if (status === 'partially_returned') return 'bg-blue-100 text-blue-800';
+  if (status === 'fully_returned') return 'bg-slate-200 text-slate-800';
   if (status === 'partial_issue') return 'bg-amber-100 text-amber-900';
   if (status === 'issued') return 'bg-green-100 text-green-800';
   return 'bg-orange-100 text-orange-800';
@@ -140,7 +156,5 @@ export function matchesPharmacyQueueStatus(
 }
 
 export function dispenseSaveStatusLabel(status: PharmacyDispenseStatus): string {
-  if (status === 'partial_issue') return 'Partial issue';
-  if (status === 'issued') return 'Saved';
-  return 'Unsaved';
+  return pharmacyQueueStatusLabel(status);
 }

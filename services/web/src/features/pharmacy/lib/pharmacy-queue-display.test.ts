@@ -7,6 +7,8 @@ import {
   formatRxNumber,
   matchesPharmacyQueueSearch,
   matchesPharmacyQueueStatus,
+  pharmacyQueueStatusLabel,
+  dispenseSaveStatusLabel,
 } from './pharmacy-queue-display';
 import type { PharmacyQueueItem } from '../types';
 
@@ -21,8 +23,10 @@ const row: PharmacyQueueItem = {
   visit_status: 'completed',
   prescription_status: 'final',
   updated_at: '2026-06-04T05:41:20.369726Z',
+  queued_at: '2026-06-04T05:41:20.369726Z',
   finalized_at: '2026-06-04T05:41:20.369726Z',
   medicine_count: 2,
+  priority: 'routine',
   patient_name: 'Jane Doe',
   uhid: '123456789012345678',
   phone: null,
@@ -79,5 +83,15 @@ describe('pharmacy-queue-display', () => {
     expect(matchesPharmacyQueueSearch(row, 'jane')).toBe(true);
     expect(matchesPharmacyQueueSearch(row, '1234567890')).toBe(true);
     expect(matchesPharmacyQueueSearch(row, 'missing')).toBe(false);
+  });
+
+  it('labels all PharmacyDispenseStatus values including return statuses', () => {
+    expect(pharmacyQueueStatusLabel('pending')).toBe('Pending');
+    expect(pharmacyQueueStatusLabel('issued')).toBe('Dispensed');
+    expect(pharmacyQueueStatusLabel('partial_issue')).toBe('Partial');
+    expect(pharmacyQueueStatusLabel('partially_returned')).toBe('Partial return');
+    expect(pharmacyQueueStatusLabel('fully_returned')).toBe('Fully returned');
+    expect(dispenseSaveStatusLabel('partially_returned')).toBe('Partial return');
+    expect(dispenseSaveStatusLabel('fully_returned')).toBe('Fully returned');
   });
 });

@@ -5,7 +5,12 @@ import { createDb, sql } from "@hims/ts-sdk-db";
 
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../migrations");
 
-const MIGRATION_FILES = ["0000_pharmacy_schema.sql", "0001_pharmacy_dispense_refactor.sql"] as const;
+const MIGRATION_FILES = [
+  "0000_pharmacy_schema.sql",
+  "0001_pharmacy_dispense_refactor.sql",
+  "0002_dispense_returns.sql",
+  "0003_dispense_return_audit_columns.sql",
+] as const;
 
 /** Applies `pharmacy` schema DDL (idempotent — safe to run on every dev boot). */
 export async function applyPharmacySchemaMigration(connectionString: string): Promise<void> {

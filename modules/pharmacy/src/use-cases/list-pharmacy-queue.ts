@@ -17,6 +17,7 @@ export type ListPharmacyQueueInput = {
   queued_to?: string;
   q?: string | null;
   status?: string | null;
+  doctor_id?: string | null;
 };
 
 export type ListPharmacyQueueResult = {
@@ -55,6 +56,7 @@ async function listOpdPharmacyQueue(
     queued_to?: string;
     search: string;
     status: PharmacyQueueStatusFilter;
+    doctor_id?: string;
   },
 ): Promise<ListPharmacyQueueResult> {
   const result = await deps.queueProjectionRepo.listForQueue(tenantId, {
@@ -64,6 +66,7 @@ async function listOpdPharmacyQueue(
     queued_to: input.queued_to,
     search: input.search,
     status: input.status,
+    doctor_id: input.doctor_id,
     source_kind: "opd",
   });
 
@@ -87,6 +90,7 @@ export async function listPharmacyQueue(
   normalizeQueueKind(input.kind);
   const search = normalizePharmacyQueueSearch(input.q);
   const status = normalizePharmacyQueueStatus(input.status);
+  const doctorId = input.doctor_id?.trim() || undefined;
   const queueInput = {
     page,
     limit,
@@ -94,6 +98,7 @@ export async function listPharmacyQueue(
     queued_to: input.queued_to,
     search,
     status,
+    doctor_id: doctorId,
   };
 
   return listOpdPharmacyQueue(deps, tenantId, queueInput);
