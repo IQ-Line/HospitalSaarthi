@@ -63,6 +63,7 @@ export function PharmacyDispenseLinesTable({
   const applyIssuedItemSelection = async (lineKey: string, item: DispenseMedicineItemOption) => {
     const immediatePatch = {
       medicine_id: item.tenant_formulary_id,
+      inventory_item_id: item.id,
       medicine_display_name: item.display_name,
       item_code: item.item_code,
       unit_amount: item.mrp || '0',
@@ -173,6 +174,7 @@ export function PharmacyDispenseLinesTable({
                         onChange(
                           updateLine(lines, line.key, {
                             medicine_id: null,
+                            inventory_item_id: null,
                             medicine_display_name: '',
                             item_code: '',
                             available_qty: '',

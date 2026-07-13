@@ -146,6 +146,7 @@ export function draftLinesFromPrescription(
     prescription_line_no: medicine.line_no,
     prescribed_item_name: prescribedItemLabel(medicine),
     medicine_id: null,
+    inventory_item_id: null,
     medicine_display_name: '',
     item_code: '',
     available_qty: '',
@@ -159,6 +160,7 @@ export function draftLinesFromPrescription(
 export function draftLinesFromSaved(
   lines: Array<{
     medicine_id?: string | null;
+    inventory_item_id?: string | null;
     medicine_display_name: string;
     prescribed_quantity: string | null;
     quantity_dispensed: string;
@@ -177,6 +179,7 @@ export function draftLinesFromSaved(
         ? prescribedItemLabel(rxMedicine)
         : line.medicine_display_name,
       medicine_id: line.medicine_id ?? null,
+      inventory_item_id: line.inventory_item_id ?? null,
       medicine_display_name: line.medicine_display_name,
       item_code: '',
       available_qty: '',
@@ -194,6 +197,7 @@ export function draftLinesFromVisitDispense(
     has_dispense: boolean;
     lines: Array<{
       medicine_id?: string | null;
+      inventory_item_id?: string | null;
       medicine_display_name: string;
       prescribed_quantity: string | null;
       quantity_dispensed: string;

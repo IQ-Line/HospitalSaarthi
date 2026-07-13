@@ -21,6 +21,7 @@ import {
   validateDispenseDraft,
   type DispenseLineFieldErrors,
 } from '../lib/validate-dispense-draft';
+import { useSelectedPharmacyStoreId } from '../store';
 import type { DispenseLineDraft } from '../types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
 import { PharmacyDispenseVisitHeader } from './pharmacy-dispense-visit-header';
@@ -32,6 +33,7 @@ type PharmacyDispensePageProps = {
 
 export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const navigate = useNavigate();
+  const selectedStoreId = useSelectedPharmacyStoreId();
   const { data, isLoading, isError, error } = useDispenseForVisit(visitId);
   const saveMutation = useSaveDispenseForVisit(visitId);
 
@@ -74,6 +76,11 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const handleIssue = async () => {
     if (!data?.patient_id) return;
 
+    if (!selectedStoreId?.trim()) {
+      toast.error('Select a pharmacy store before issuing medicines.');
+      return;
+    }
+
     const validation = validateDispenseDraft(lines, discount);
     setLineErrors(validation.lineErrors);
     setDiscountError(validation.discountError);
@@ -88,6 +95,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
       const saved = await saveMutation.mutateAsync({
         patient_id: data.patient_id,
         opd_prescription_id: data.opd_prescription_id ?? data.opd_prescription?.prescription_id ?? null,
+        inventory_store_id: selectedStoreId,
         discount: discount.trim() || '0',
         notes: notes.trim() || null,
         lines: payloadLines,

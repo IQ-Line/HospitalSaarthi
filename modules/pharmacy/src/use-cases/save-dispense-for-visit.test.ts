@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OpdPrescriptionSnapshot } from "../domain/pharmacy.types.js";
 import { mockDispenseLine, mockDispenseRecord } from "../test-fixtures/dispense.js";
-import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, QueueProjectionRepo, UserLookupPort } from "../ports.js";
+import type {
+  DispenseRecordRepo,
+  InventoryGatewayPort,
+  MasterDataGatewayPort,
+  OpdGatewayPort,
+  QueueProjectionRepo,
+  UserLookupPort,
+} from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import {
   DispenseAlreadyIssuedError,
@@ -14,6 +21,8 @@ import {
 const TENANT = "00000000-0000-0000-0000-000000000001";
 const VISIT = "00000000-0000-0000-0000-0000000000bb";
 const MED_ID = "11111111-1111-4111-8111-111111111111";
+const ITEM_ID = "22222222-2222-4222-8222-222222222222";
+const STORE_ID = "33333333-3333-4333-8333-333333333333";
 
 const prescription: OpdPrescriptionSnapshot = {
   prescription_id: "rx-2",
@@ -49,6 +58,7 @@ const sampleLine = {
   medicine_display_name: "Tab A",
   quantity_dispensed: "2",
   unit_amount: "10",
+  inventory_item_id: ITEM_ID,
 };
 
 const userLookup: UserLookupPort = {
@@ -63,8 +73,13 @@ const queueProjectionRepo: QueueProjectionRepo = {
   findByVisitId: vi.fn(async () => undefined),
 };
 
+const inventoryGateway: InventoryGatewayPort = {
+  issueDispenseStock: vi.fn(async () => undefined),
+};
+
 const projectionDeps = {
   masterDataGateway,
+  inventoryGateway,
   userLookup,
   queueProjectionRepo,
 };
@@ -75,6 +90,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -113,6 +129,7 @@ describe("saveDispenseForVisit", () => {
       {
         visitId: VISIT,
         patient_id: "patient-2",
+        inventory_store_id: STORE_ID,
         lines: [sampleLine],
         createdBy: "user-1",
       },
@@ -125,12 +142,17 @@ describe("saveDispenseForVisit", () => {
     expect(result.total_amount).toBe("20.0000");
     expect(result.dispensable_medicines).toEqual([]);
     expect(result.lines[0]).not.toHaveProperty("iq_tenant_id");
+    expect(inventoryGateway.issueDispenseStock).toHaveBeenCalledWith(TENANT, {
+      store_id: STORE_ID,
+      lines: [{ item_id: ITEM_ID, quantity: 2 }],
+    });
     expect(dispenseRecordRepo.upsertForVisit).toHaveBeenCalledWith(
       TENANT,
       expect.objectContaining({
         visit_id: VISIT,
         patient_id: "patient-2",
         opd_prescription_id: "rx-2",
+        inventory_store_id: STORE_ID,
       }),
     );
   });
@@ -140,6 +162,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -178,6 +201,7 @@ describe("saveDispenseForVisit", () => {
       {
         visitId: VISIT,
         patient_id: "patient-2",
+        inventory_store_id: STORE_ID,
         discount: "10",
         lines: [
           {
@@ -185,6 +209,7 @@ describe("saveDispenseForVisit", () => {
             medicine_display_name: "Tab B",
             quantity_dispensed: "10",
             unit_amount: "10",
+            inventory_item_id: ITEM_ID,
           },
         ],
       },
@@ -204,6 +229,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -224,6 +250,7 @@ describe("saveDispenseForVisit", () => {
               medicine_display_name: "Tab A",
               quantity_dispensed: "1",
               unit_amount: "10",
+              inventory_item_id: ITEM_ID,
             },
           ],
         },
@@ -236,6 +263,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -260,6 +288,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -280,6 +309,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -310,6 +340,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -335,6 +366,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => null),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(),
       listByVisitIds: vi.fn(),
       findLinesByRecordId: vi.fn(),
@@ -359,6 +391,7 @@ describe("saveDispenseForVisit", () => {
       getVisitPrescription: vi.fn(async () => prescription),
     };
     const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
       findByVisit: vi.fn(async () =>
         mockDispenseRecord({
           visit_id: VISIT,
@@ -383,5 +416,82 @@ describe("saveDispenseForVisit", () => {
     ).rejects.toBeInstanceOf(DispenseAlreadyIssuedError);
 
     expect(dispenseRecordRepo.upsertForVisit).not.toHaveBeenCalled();
+  });
+
+  it("deducts only newly issued qty on partial re-save", async () => {
+    const localInventoryGateway: InventoryGatewayPort = {
+      issueDispenseStock: vi.fn(async () => undefined),
+    };
+    const opdGateway: OpdGatewayPort = {
+      getVisitPrescription: vi.fn(async () => prescription),
+    };
+    const existing = mockDispenseRecord({
+      id: "rec-partial",
+      visit_id: VISIT,
+      patient_id: "patient-2",
+      opd_prescription_id: "rx-2",
+      dispense_status: "partial",
+      inventory_store_id: STORE_ID,
+    });
+    const dispenseRecordRepo: DispenseRecordRepo = {
+      findById: vi.fn(),
+      findByVisit: vi.fn(async () => existing),
+      listByVisitIds: vi.fn(),
+      findLinesByRecordId: vi.fn(async () => [
+        mockDispenseLine({
+          dispense_id: existing.id,
+          medicine_id: MED_ID,
+          inventory_item_id: ITEM_ID,
+          quantity_dispensed: "2",
+        }),
+      ]),
+      upsertForVisit: vi.fn(async () => ({
+        record: mockDispenseRecord({
+          ...existing,
+          dispense_status: "issued",
+          subtotal: "50.0000",
+          total_amount: "50.0000",
+        }),
+        lines: [
+          mockDispenseLine({
+            medicine_id: MED_ID,
+            inventory_item_id: ITEM_ID,
+            quantity_dispensed: "5",
+            line_total: "50.0000",
+          }),
+        ],
+      })),
+    };
+
+    await saveDispenseForVisit(
+      {
+        opdGateway,
+        dispenseRecordRepo,
+        masterDataGateway,
+        inventoryGateway: localInventoryGateway,
+        userLookup,
+        queueProjectionRepo,
+      },
+      TENANT,
+      {
+        visitId: VISIT,
+        patient_id: "patient-2",
+        inventory_store_id: STORE_ID,
+        lines: [
+          {
+            medicine_id: MED_ID,
+            medicine_display_name: "Tab A",
+            quantity_dispensed: "5",
+            unit_amount: "10",
+            inventory_item_id: ITEM_ID,
+          },
+        ],
+      },
+    );
+
+    expect(localInventoryGateway.issueDispenseStock).toHaveBeenCalledWith(TENANT, {
+      store_id: STORE_ID,
+      lines: [{ item_id: ITEM_ID, quantity: 3 }],
+    });
   });
 });

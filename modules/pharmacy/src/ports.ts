@@ -38,6 +38,16 @@ export interface MasterDataGatewayPort {
   ): Promise<Record<string, unknown> | null>;
 }
 
+export type IssueDispenseStockCommand = {
+  store_id: string;
+  lines: Array<{ item_id: string; quantity: number }>;
+  issue_date?: string;
+};
+
+export interface InventoryGatewayPort {
+  issueDispenseStock(tenantId: string, command: IssueDispenseStockCommand): Promise<void>;
+}
+
 /** Resolves prescribing doctor display names from platform user ids. */
 export interface UserLookupPort {
   resolveDoctorNames(tenantId: string, userIds: string[]): Promise<Map<string, string>>;
@@ -212,6 +222,7 @@ export type PharmacyRepos = {
 export type PharmacyGatewayPorts = {
   opdGateway: OpdGatewayPort;
   masterDataGateway: MasterDataGatewayPort;
+  inventoryGateway: InventoryGatewayPort;
   userLookup: UserLookupPort;
 };
 

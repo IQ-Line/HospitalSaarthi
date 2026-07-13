@@ -6,6 +6,7 @@ export function createEmptyDispenseLineDraft(): DispenseLineDraft {
     prescription_line_no: null,
     prescribed_item_name: '',
     medicine_id: null,
+    inventory_item_id: null,
     medicine_display_name: '',
     item_code: '',
     available_qty: '',

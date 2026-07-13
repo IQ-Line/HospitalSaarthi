@@ -13,6 +13,7 @@ import {
   DispensePrescriptionMismatchError,
   DispenseValidationError,
   DispenseAlreadyIssuedError,
+  DispenseInsufficientStockError,
   saveDispenseForVisit,
 } from "../use-cases/save-dispense-for-visit.js";
 import {
@@ -221,6 +222,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             opdGateway: deps.opdGateway,
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
+            inventoryGateway: deps.inventoryGateway,
             userLookup: deps.userLookup,
             queueProjectionRepo: deps.queueProjectionRepo,
           },
@@ -229,6 +231,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             visitId: request.params.visitId,
             patient_id: request.body.patient_id,
             opd_prescription_id: request.body.opd_prescription_id,
+            inventory_store_id: request.body.inventory_store_id,
             discount: request.body.discount,
             notes: request.body.notes,
             lines: request.body.lines,
@@ -271,6 +274,14 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             statusCode: 409,
             error: "Conflict",
             message: error.message,
+          });
+        }
+        if (error instanceof DispenseInsufficientStockError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+            code: "INSUFFICIENT_STOCK",
           });
         }
         request.log.error({ err: error }, "pharmacy save dispense failed");

@@ -69,6 +69,7 @@ export const dispenseLineItems = pharmacySchema.table(
     tax_percent: numeric("tax_percent", { precision: 8, scale: 4 }).notNull().default("0"),
     tax_amount: numeric("tax_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     line_total: numeric("line_total", { precision: 18, scale: 4 }).notNull().default("0"),
+    inventory_item_id: uuid("inventory_item_id"),
     stock_batch_id: uuid("stock_batch_id"),
     is_substitution: boolean("is_substitution").notNull().default(false),
     substitute_of_line_id: uuid("substitute_of_line_id"),

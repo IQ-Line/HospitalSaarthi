@@ -781,12 +781,22 @@ components:
           type: string
           nullable: true
           description: Tax rate as percent (e.g. 12 for 12%); defaults to 0.
+        inventory_item_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Inventory item-master id for FEFO stock deduction when quantity_dispensed > 0.
     SaveDispenseForVisitRequest:
       type: object
       required: [patient_id, lines]
       properties:
         patient_id: { type: string, format: uuid }
         opd_prescription_id: { type: string, format: uuid, nullable: true }
+        inventory_store_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Pharmacy inventory store selected on the counter (required when issuing stock).
         discount:
           type: string
           nullable: true
@@ -818,6 +828,7 @@ components:
         tax_percent: { type: string }
         tax_amount: { type: string }
         line_total: { type: string }
+        inventory_item_id: { type: string, format: uuid, nullable: true }
         created_at: { type: string, format: date-time }
     DispenseForVisitResponse:
       type: object

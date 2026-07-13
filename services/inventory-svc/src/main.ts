@@ -78,7 +78,7 @@ async function main() {
     await api.register(tenantPlugin);
     await api.register(identityPlugin, {
       ...identityAuth,
-      skipPathPrefixes: ["/docs"],
+      skipPathPrefixes: ["/docs", "/internal", "/api/inventory/v1/internal"],
     });
     await api.register(multipart, {
       limits: {

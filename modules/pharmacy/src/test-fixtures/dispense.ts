@@ -43,6 +43,7 @@ export function mockDispenseLine(
     tax_percent: "0.0000",
     tax_amount: "0.0000",
     line_total: "10.0000",
+    inventory_item_id: null,
     stock_batch_id: null,
     is_substitution: false,
     substitute_of_line_id: null,

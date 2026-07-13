@@ -1,4 +1,4 @@
-export { createRouter, HttpOpdGateway, HttpMasterDataGateway } from "./router.js";
+export { createRouter, HttpOpdGateway, HttpMasterDataGateway, HttpInventoryGateway } from "./router.js";
 export type { PharmacyRouterOptions } from "./router.js";
 
 export { PHARMACY_MODULE_KEY } from "./domain/pharmacy.types.js";
@@ -30,6 +30,7 @@ export type {
 export type {
   OpdGatewayPort,
   MasterDataGatewayPort,
+  InventoryGatewayPort,
   UserLookupPort,
   DispenseRecordRepo,
   QueueProjectionRepo,
@@ -56,5 +57,6 @@ export {
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
+  DispenseInsufficientStockError,
 } from "./use-cases/save-dispense-for-visit.js";
 export type { SaveDispenseForVisitCommand } from "./use-cases/save-dispense-for-visit.js";

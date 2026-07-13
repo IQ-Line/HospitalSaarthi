@@ -7,6 +7,7 @@ import { Input } from '@pulse/ui/input';
 import { Skeleton } from '@pulse/ui/skeleton';
 import { Textarea } from '@pulse/ui/textarea';
 import { useSaveWalkInDispense, useWalkInDispense } from '../api/walk-in-dispense';
+import { findOpenQueueVisitForPatient } from '../api/search-dispense-patients';
 import {
   computeDispenseTotals,
   draftLinesFromSaved,
@@ -25,7 +26,9 @@ import {
   walkInPatientDraftFromRecord,
 } from '../lib/walk-in-patient-map';
 import type { DispenseLineDraft, WalkInPatientDraft } from '../types';
+import type { DispensePatientSearchResult } from '../types/dispense-ui.types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
+import { DispensePatientSearch } from './dispense/dispense-patient-search';
 import {
   WalkInPatientFields,
   defaultWalkInPatientDraft,
@@ -54,6 +57,8 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
   const [discount, setDiscount] = useState('0');
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(!isEdit);
+  const [patientSearch, setPatientSearch] = useState('');
+  const [resolvingPatient, setResolvingPatient] = useState(false);
 
   useEffect(() => {
     if (!isEdit || !data || initialized) return;
@@ -70,6 +75,39 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
   }, [data, initialized, isEdit]);
 
   const totals = useMemo(() => computeDispenseTotals(lines, discount), [lines, discount]);
+
+  const handleRegisteredPatientSelect = (selected: DispensePatientSearchResult) => {
+    setResolvingPatient(true);
+    setPatientSearch(`${selected.first_name} ${selected.last_name}`.trim() || selected.uhid);
+    void findOpenQueueVisitForPatient(selected)
+      .then((queueVisit) => {
+        if (queueVisit?.visit_id) {
+          toast.message('Prescription found — opening OPD dispense.');
+          void navigate({
+            to: '/pharmacy/visits/$visitId',
+            params: { visitId: queueVisit.visit_id },
+          });
+          return;
+        }
+
+        const gender =
+          selected.gender === 'male' || selected.gender === 'female' || selected.gender === 'other'
+            ? selected.gender
+            : '';
+        setPatient({
+          first_name: selected.first_name,
+          last_name: selected.last_name,
+          phone: selected.phone.replace(/\D/g, '').slice(-10),
+          gender,
+          date_of_birth: selected.date_of_birth,
+        });
+        toast.message('No prescription in queue — continuing as walk-in.');
+      })
+      .catch(() => {
+        toast.error('Unable to resolve patient for dispense.');
+      })
+      .finally(() => setResolvingPatient(false));
+  };
 
   const handlePatientChange = (patch: Partial<WalkInPatientDraft>) => {
     setPatient((prev) => ({ ...prev, ...patch }));
@@ -171,11 +209,26 @@ export function PharmacyWalkInDispensePage({ recordId }: PharmacyWalkInDispenseP
       </div>
 
       <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
-        <h1 className="text-xl font-semibold text-foreground">Walk-in dispense</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Counter sale for a patient not registered in the system
-          {isEdit ? ` · Order ${recordId?.slice(0, 8).toUpperCase()}` : ''}
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Walk-in dispense</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Search a registered patient, or enter details manually
+              {isEdit ? ` · Order ${recordId?.slice(0, 8).toUpperCase()}` : ''}
+            </p>
+          </div>
+          {!isEdit ? (
+            <div className="w-full min-w-0 sm:w-[min(100%,320px)]">
+              <DispensePatientSearch
+                value={patientSearch}
+                onValueChange={setPatientSearch}
+                onPatientSelect={handleRegisteredPatientSelect}
+                disabled={saveMutation.isPending || resolvingPatient}
+                placeholder="Search by name, UHID, phone…"
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="space-y-6">

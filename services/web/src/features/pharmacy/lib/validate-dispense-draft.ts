@@ -166,6 +166,7 @@ export function buildSaveDispenseLinesFromDraft(
       unit_amount: line.unit_amount.trim(),
       line_discount: line.line_discount.trim() || '0',
       tax_percent: line.tax_percent.trim() || '0',
+      inventory_item_id: line.inventory_item_id,
     }));
 }
 

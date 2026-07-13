@@ -12,6 +12,7 @@ const validLine = (overrides: Partial<DispenseLineDraft> = {}): DispenseLineDraf
   prescription_line_no: 1,
   prescribed_item_name: 'Paracetamol 500mg',
   medicine_id: '3f32fbb1-ae80-4505-b02f-dc5c207ec551',
+  inventory_item_id: '7a2f0b60-4c1e-4d8a-9f3b-2c1d0e9f8a7b',
   medicine_display_name: 'Paracetamol',
   item_code: '',
   available_qty: '',
@@ -39,6 +40,7 @@ describe('validateDispenseDraft', () => {
           prescription_line_no: null,
           prescribed_item_name: '',
           medicine_id: null,
+          inventory_item_id: null,
           medicine_display_name: '',
           item_code: '',
           available_qty: '',
@@ -93,6 +95,7 @@ describe('validateDispenseDraft', () => {
         prescription_line_no: null,
         prescribed_item_name: '',
         medicine_id: null,
+        inventory_item_id: null,
         medicine_display_name: '',
         item_code: '',
         available_qty: '',
@@ -125,6 +128,7 @@ describe('validateDispenseDraft', () => {
       dispenseLineHasDraftContent(
         validLine({
           medicine_id: null,
+          inventory_item_id: null,
           medicine_display_name: '',
           quantity_dispensed: '2',
         }),

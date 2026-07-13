@@ -6,14 +6,21 @@ import { createDispenseRecordRepo } from "./data-access/dispense-record.repo.js"
 import { createDispenseReturnRepo } from "./data-access/dispense-return.repo.js";
 import { createQueueProjectionRepo } from "./data-access/queue-projection.repo.js";
 import { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
+import { HttpInventoryGateway } from "./lib/http-inventory-gateway.js";
 import { HttpOpdGateway } from "./lib/http-opd-gateway.js";
-import type { MasterDataGatewayPort, OpdGatewayPort, UserLookupPort } from "./ports.js";
+import type {
+  InventoryGatewayPort,
+  MasterDataGatewayPort,
+  OpdGatewayPort,
+  UserLookupPort,
+} from "./ports.js";
 import { registerPharmacyHandlers } from "./rest-handlers/pharmacy.handlers.js";
 
 export interface PharmacyRouterOptions {
   db: DbInstance;
   opdGateway: OpdGatewayPort;
   masterDataGateway: MasterDataGatewayPort;
+  inventoryGateway: InventoryGatewayPort;
   userLookup: UserLookupPort;
 }
 
@@ -29,7 +36,13 @@ async function pharmacyRouter(app: FastifyInstance, options: PharmacyRouterOptio
     throw error;
   });
 
-  if (!options.db || !options.opdGateway || !options.masterDataGateway || !options.userLookup) {
+  if (
+    !options.db ||
+    !options.opdGateway ||
+    !options.masterDataGateway ||
+    !options.inventoryGateway ||
+    !options.userLookup
+  ) {
     throw new Error("Pharmacy router requires db, upstream gateways, and user lookup");
   }
   registerPharmacyHandlers(app, {
@@ -38,6 +51,7 @@ async function pharmacyRouter(app: FastifyInstance, options: PharmacyRouterOptio
     queueProjectionRepo: createQueueProjectionRepo(options.db),
     opdGateway: options.opdGateway,
     masterDataGateway: options.masterDataGateway,
+    inventoryGateway: options.inventoryGateway,
     userLookup: options.userLookup,
   });
 }
@@ -49,4 +63,4 @@ export function createRouter(options: PharmacyRouterOptions) {
   });
 }
 
-export { HttpOpdGateway, HttpMasterDataGateway };
+export { HttpOpdGateway, HttpMasterDataGateway, HttpInventoryGateway };

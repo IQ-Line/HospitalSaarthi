@@ -14,8 +14,17 @@ import {
   normalizeSaveDispenseLinesForCatalog,
 } from "../lib/filter-tenant-catalog-medicines.js";
 import { computeOpdDispenseFulfillmentStatus } from "../lib/dispense-completion.js";
+import { computeDispenseStockIssueDeltas } from "../lib/dispense-stock-delta.js";
+import { InventoryDispenseStockError } from "../lib/http-inventory-gateway.js";
 import { buildVisitDispenseResponse } from "../lib/dispense-wire-response.js";
-import type { DispenseRecordRepo, MasterDataGatewayPort, OpdGatewayPort, QueueProjectionRepo, UserLookupPort } from "../ports.js";
+import type {
+  DispenseRecordRepo,
+  InventoryGatewayPort,
+  MasterDataGatewayPort,
+  OpdGatewayPort,
+  QueueProjectionRepo,
+  UserLookupPort,
+} from "../ports.js";
 import { DispenseVisitNotFoundError } from "./get-dispense-for-visit.js";
 import { updateOpdQueueProjectionDispenseStatus } from "./upsert-opd-queue-projection.js";
 
@@ -56,6 +65,13 @@ export class DispenseAlreadyIssuedError extends Error {
   }
 }
 
+export class DispenseInsufficientStockError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DispenseInsufficientStockError";
+  }
+}
+
 export function assertLine(line: SaveDispenseForVisitInput["lines"][number], index: number): void {
   const medicineId = line.medicine_id?.trim();
   if (!medicineId || !UUID_RE.test(medicineId)) {
@@ -73,6 +89,16 @@ export function assertLine(line: SaveDispenseForVisitInput["lines"][number], ind
   }
   if (!Number.isFinite(unit) || unit < 0) {
     throw new DispenseValidationError(`lines[${index}].unit_amount must be a non-negative number`);
+  }
+
+  const inventoryItemId = line.inventory_item_id?.trim();
+  if (inventoryItemId && !UUID_RE.test(inventoryItemId)) {
+    throw new DispenseValidationError(`lines[${index}].inventory_item_id must be a valid UUID`);
+  }
+  if (qty > 0 && !inventoryItemId) {
+    throw new DispenseValidationError(
+      `lines[${index}].inventory_item_id is required when quantity_dispensed > 0`,
+    );
   }
 
   const gross = multiplyDecimal(line.quantity_dispensed, line.unit_amount);
@@ -114,6 +140,7 @@ export async function saveDispenseForVisit(
     opdGateway: OpdGatewayPort;
     dispenseRecordRepo: DispenseRecordRepo;
     masterDataGateway: MasterDataGatewayPort;
+    inventoryGateway: InventoryGatewayPort;
     userLookup: UserLookupPort;
     queueProjectionRepo: QueueProjectionRepo;
   },
@@ -130,6 +157,11 @@ export async function saveDispenseForVisit(
     if (!Number.isFinite(discount) || discount < 0) {
       throw new DispenseValidationError("discount must be a non-negative number");
     }
+  }
+
+  const inventoryStoreId = command.inventory_store_id?.trim() || null;
+  if (inventoryStoreId && !UUID_RE.test(inventoryStoreId)) {
+    throw new DispenseValidationError("inventory_store_id must be a valid UUID");
   }
 
   const prescription = await deps.opdGateway.getVisitPrescription(
@@ -195,10 +227,35 @@ export async function saveDispenseForVisit(
     throw new DispenseValidationError("discount cannot exceed subtotal");
   }
 
+  const previousLines =
+    existingRecord != null
+      ? await deps.dispenseRecordRepo.findLinesByRecordId(tenantId, existingRecord.id)
+      : [];
+  const stockDeltas = computeDispenseStockIssueDeltas(previousLines, catalogLines);
+  if (stockDeltas.length > 0) {
+    if (!inventoryStoreId) {
+      throw new DispenseValidationError(
+        "inventory_store_id is required when issuing stock-backed dispense lines",
+      );
+    }
+    try {
+      await deps.inventoryGateway.issueDispenseStock(tenantId, {
+        store_id: inventoryStoreId,
+        lines: stockDeltas,
+      });
+    } catch (error) {
+      if (error instanceof InventoryDispenseStockError) {
+        throw new DispenseInsufficientStockError(error.message);
+      }
+      throw error;
+    }
+  }
+
   const { record, lines } = await deps.dispenseRecordRepo.upsertForVisit(tenantId, {
     visit_id: command.visitId,
     patient_id: command.patient_id,
     opd_prescription_id: opdPrescriptionId,
+    inventory_store_id: inventoryStoreId ?? existingRecord?.inventory_store_id ?? null,
     notes: command.notes ?? null,
     discount: normalizeDiscount(command.discount),
     lines: catalogLines,
