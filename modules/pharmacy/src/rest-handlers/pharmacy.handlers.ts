@@ -20,6 +20,25 @@ import {
   removeOpdQueueProjection,
 } from "../use-cases/upsert-opd-queue-projection.js";
 import type { OpdQueueProjectionUpsertRequest } from "../use-cases/upsert-opd-queue-projection.js";
+import type { ProcessDispenseReturnInput } from "../domain/pharmacy.types.js";
+import {
+  DispenseReturnNotEligibleError,
+  getDispenseReturnEligibility,
+} from "../use-cases/get-dispense-return-eligibility.js";
+import {
+  DispenseReturnNotFoundError,
+  getDispenseReturn,
+  listDispenseReturns,
+} from "../use-cases/get-dispense-return.js";
+import {
+  DispenseReturnConflictError,
+  DispenseReturnValidationError,
+  processDispenseReturn,
+} from "../use-cases/process-dispense-return.js";
+import {
+  DispenseReturnSearchError,
+  searchDispenseForReturn,
+} from "../use-cases/search-dispense-for-return.js";
 
 type QueueQuery = {
   page?: string;
@@ -38,6 +57,32 @@ type VisitParams = {
 
 type RecordParams = {
   recordId: string;
+};
+
+type DispenseParams = {
+  dispenseId: string;
+};
+
+type ReturnParams = {
+  returnId: string;
+};
+
+type ReturnSearchQuery = {
+  page?: string;
+  limit?: string;
+  bill_number?: string;
+  dispense_number?: string;
+  prescription_number?: string;
+  uhid?: string;
+  patient_name?: string;
+  mobile?: string;
+  q?: string;
+};
+
+type ReturnListQuery = {
+  page?: string;
+  limit?: string;
+  q?: string;
 };
 
 function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
@@ -264,6 +309,189 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
         error: "Gone",
         message: "Walk-in dispense orders are removed.",
       });
+    },
+  );
+
+  app.get<{ Querystring: ReturnSearchQuery }>(
+    "/dispense-transactions/search",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const page = request.query.page ? Number.parseInt(request.query.page, 10) : undefined;
+      const limit = request.query.limit ? Number.parseInt(request.query.limit, 10) : undefined;
+      try {
+        const result = await searchDispenseForReturn(
+          { dispenseReturnRepo: deps.dispenseReturnRepo },
+          request.tenantId,
+          {
+            page,
+            limit,
+            bill_number: request.query.bill_number,
+            dispense_number: request.query.dispense_number,
+            prescription_number: request.query.prescription_number,
+            uhid: request.query.uhid,
+            patient_name: request.query.patient_name,
+            mobile: request.query.mobile,
+            q: request.query.q,
+          },
+        );
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof DispenseReturnSearchError) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: error.message,
+          });
+        }
+        request.log.error({ err: error }, "pharmacy return search failed");
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "Unable to search dispense transactions",
+        });
+      }
+    },
+  );
+
+  app.get<{ Params: DispenseParams }>(
+    "/dispense-transactions/:dispenseId/return-eligibility",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      try {
+        const result = await getDispenseReturnEligibility(
+          {
+            dispenseReturnRepo: deps.dispenseReturnRepo,
+            userLookup: deps.userLookup,
+          },
+          request.tenantId,
+          request.params.dispenseId,
+        );
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof DispenseReturnNotEligibleError) {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: "Not Found",
+            message: error.message,
+          });
+        }
+        request.log.error({ err: error }, "pharmacy return eligibility failed");
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "Unable to load return eligibility",
+        });
+      }
+    },
+  );
+
+  app.get<{ Querystring: ReturnListQuery }>(
+    "/returns",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const page = request.query.page ? Number.parseInt(request.query.page, 10) : undefined;
+      const limit = request.query.limit ? Number.parseInt(request.query.limit, 10) : undefined;
+      try {
+        const result = await listDispenseReturns(
+          { dispenseReturnRepo: deps.dispenseReturnRepo },
+          request.tenantId,
+          { page, limit, q: request.query.q },
+        );
+        return reply.send(result);
+      } catch (error) {
+        request.log.error({ err: error }, "pharmacy return list failed");
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "Unable to list returns",
+        });
+      }
+    },
+  );
+
+  app.post<{ Body: ProcessDispenseReturnInput }>(
+    "/returns",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      const idempotencyKey =
+        typeof request.headers["idempotency-key"] === "string"
+          ? request.headers["idempotency-key"]
+          : undefined;
+      try {
+        const result = await processDispenseReturn(
+          {
+            dispenseReturnRepo: deps.dispenseReturnRepo,
+            queueProjectionRepo: deps.queueProjectionRepo,
+          },
+          request.tenantId,
+          {
+            ...request.body,
+            processed_by: actorIdFromRequest(request),
+            idempotency_key: idempotencyKey,
+          },
+        );
+        return reply.code(201).send(result);
+      } catch (error) {
+        if (error instanceof DispenseReturnNotEligibleError) {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: "Not Found",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseReturnValidationError) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseReturnConflictError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+          });
+        }
+        request.log.error({ err: error }, "pharmacy process return failed");
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "Unable to process return",
+        });
+      }
+    },
+  );
+
+  app.get<{ Params: ReturnParams }>(
+    "/returns/:returnId",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      try {
+        const result = await getDispenseReturn(
+          {
+            dispenseReturnRepo: deps.dispenseReturnRepo,
+            userLookup: deps.userLookup,
+          },
+          request.tenantId,
+          request.params.returnId,
+        );
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof DispenseReturnNotFoundError) {
+          return reply.code(404).send({
+            statusCode: 404,
+            error: "Not Found",
+            message: error.message,
+          });
+        }
+        request.log.error({ err: error }, "pharmacy get return failed");
+        return reply.code(500).send({
+          statusCode: 500,
+          error: "Internal Server Error",
+          message: "Unable to load return",
+        });
+      }
     },
   );
 }

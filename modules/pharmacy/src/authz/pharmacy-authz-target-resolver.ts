@@ -94,6 +94,53 @@ export function createPharmacyAuthzTargetResolver(): AuthzTargetResolver {
       };
     }
 
+    if (method === "GET" && path === "/dispense-transactions/search") {
+      return {
+        kind: "pharmacy_dispense_return",
+        id: "search",
+        action: "pharmacy.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/dispense-transactions/:dispenseId/return-eligibility") {
+      const dispenseId = resolvePathParam(request, "dispenseId");
+      return {
+        kind: "pharmacy_dispense_return",
+        id: dispenseId ?? "unknown",
+        action: "pharmacy.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/returns") {
+      return {
+        kind: "pharmacy_dispense_return",
+        id: "list",
+        action: "pharmacy.read",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "POST" && path === "/returns") {
+      return {
+        kind: "pharmacy_dispense_return",
+        id: "create",
+        action: "pharmacy.update",
+        attr: tenantAttr(request),
+      };
+    }
+
+    if (method === "GET" && path === "/returns/:returnId") {
+      const returnId = resolvePathParam(request, "returnId");
+      return {
+        kind: "pharmacy_dispense_return",
+        id: returnId ?? "unknown",
+        action: "pharmacy.read",
+        attr: tenantAttr(request),
+      };
+    }
+
     return null;
   };
 }

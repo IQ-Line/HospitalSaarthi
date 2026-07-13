@@ -90,6 +90,8 @@ export function formatPatientDisplay(row: PharmacyQueueItem): string {
 }
 
 export function pharmacyQueueStatusLabel(status: PharmacyDispenseStatus): string {
+  if (status === 'partially_returned') return 'Partial return';
+  if (status === 'fully_returned') return 'Fully returned';
   if (status === 'partial_issue') return 'Partial';
   if (status === 'issued') return 'Dispensed';
   return 'Pending';
@@ -108,6 +110,8 @@ export function pharmacyQueuePriorityBadgeClass(priority: PharmacyDispensePriori
 }
 
 export function pharmacyQueueStatusBadgeClass(status: PharmacyDispenseStatus): string {
+  if (status === 'partially_returned') return 'bg-blue-100 text-blue-800';
+  if (status === 'fully_returned') return 'bg-slate-200 text-slate-800';
   if (status === 'partial_issue') return 'bg-amber-100 text-amber-900';
   if (status === 'issued') return 'bg-green-100 text-green-800';
   return 'bg-orange-100 text-orange-800';

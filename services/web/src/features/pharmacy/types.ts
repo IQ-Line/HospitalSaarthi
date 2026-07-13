@@ -49,7 +49,12 @@ export type PharmacyQueueStatusFilter = 'all' | 'pending' | 'partial_issue' | 'i
 
 export type PharmacyQueueKind = 'opd' | 'walk_in';
 
-export type PharmacyDispenseStatus = 'pending' | 'issued' | 'partial_issue';
+export type PharmacyDispenseStatus =
+  | 'pending'
+  | 'issued'
+  | 'partial_issue'
+  | 'partially_returned'
+  | 'fully_returned';
 
 export type PharmacyDispensePriority = 'routine' | 'urgent' | 'stat';
 

@@ -14,6 +14,11 @@ import type {
   SaveWalkInDispenseInput,
   WalkInPatientRecord,
   WalkInQueueSummary,
+  ProcessDispenseReturnInput,
+  DispenseReturnDetail,
+  DispenseReturnSummary,
+  DispenseReturnSearchHit,
+  DispenseReturnEligibilityResponse,
 } from "./domain/pharmacy.types.js";
 import type { PharmacyQueueStatusFilter } from "./lib/pharmacy-queue-filter.js";
 
@@ -50,6 +55,7 @@ export type UpsertDispenseResult = {
 };
 
 export interface DispenseRecordRepo {
+  findById(tenantId: string, dispenseId: string): Promise<DispenseRecord | undefined>;
   findByVisit(tenantId: string, visitId: string): Promise<DispenseRecord | undefined>;
   listByVisitIds(tenantId: string, visitIds: string[]): Promise<DispenseRecord[]>;
   findLinesByRecordId(tenantId: string, recordId: string): Promise<DispenseLineItemRecord[]>;
@@ -128,11 +134,78 @@ export interface QueueProjectionRepo {
   findByVisitId(tenantId: string, visitId: string): Promise<QueueProjectionRow | undefined>;
 }
 
+export type SearchDispenseForReturnCriteria = {
+  bill_number?: string;
+  dispense_number?: string;
+  prescription_number?: string;
+  uhid?: string;
+  patient_name?: string;
+  mobile?: string;
+  q?: string;
+};
+
+export type ProcessDispenseReturnPayload = ProcessDispenseReturnInput & {
+  processed_by?: string | null;
+  idempotency_key?: string | null;
+};
+
+export interface DispenseReturnRepo {
+  searchEligibleDispenses(
+    tenantId: string,
+    criteria: SearchDispenseForReturnCriteria,
+    page: number,
+    limit: number,
+  ): Promise<{ items: DispenseReturnSearchHit[]; total: number }>;
+
+  getEligibilityContext(
+    tenantId: string,
+    dispenseId: string,
+  ): Promise<
+    | {
+        record: import("./domain/pharmacy.types.js").DispenseRecord;
+        lines: import("./domain/pharmacy.types.js").DispenseLineItemRecord[];
+        projection: QueueProjectionRow | undefined;
+      }
+    | undefined
+  >;
+
+  findByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<DispenseReturnDetail | undefined>;
+
+  processReturn(
+    tenantId: string,
+    payload: ProcessDispenseReturnPayload,
+    preparedLines: Array<{
+      dispense_line_item_id: string;
+      return_qty: number;
+      medicine_id: string | null;
+      medicine_display_name: string;
+      stock_batch_id: string | null;
+      unit_amount: string;
+      line_discount: string;
+      tax_amount: string;
+      return_amount: string;
+    }>,
+    nextDispenseStatus: string,
+    updatedLineReturns: Array<{ lineId: string; quantity_returned: string }>,
+  ): Promise<DispenseReturnDetail>;
+
+  listReturns(
+    tenantId: string,
+    options: { page: number; limit: number; search?: string },
+  ): Promise<{ items: DispenseReturnSummary[]; total: number }>;
+
+  findReturnById(tenantId: string, returnId: string): Promise<DispenseReturnDetail | undefined>;
+}
+
 /** @deprecated Use `QueueProjectionRepo`. */
 export type OpdQueueProjectionRepo = QueueProjectionRepo;
 
 export type PharmacyRepos = {
   dispenseRecordRepo: DispenseRecordRepo;
+  dispenseReturnRepo: DispenseReturnRepo;
   queueProjectionRepo: QueueProjectionRepo;
 };
 

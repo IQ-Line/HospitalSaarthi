@@ -3,6 +3,7 @@ import fp from "fastify-plugin";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { PharmacyError } from "./errors.js";
 import { createDispenseRecordRepo } from "./data-access/dispense-record.repo.js";
+import { createDispenseReturnRepo } from "./data-access/dispense-return.repo.js";
 import { createQueueProjectionRepo } from "./data-access/queue-projection.repo.js";
 import { HttpMasterDataGateway } from "./lib/http-master-data-gateway.js";
 import { HttpOpdGateway } from "./lib/http-opd-gateway.js";
@@ -33,6 +34,7 @@ async function pharmacyRouter(app: FastifyInstance, options: PharmacyRouterOptio
   }
   registerPharmacyHandlers(app, {
     dispenseRecordRepo: createDispenseRecordRepo(options.db),
+    dispenseReturnRepo: createDispenseReturnRepo(options.db),
     queueProjectionRepo: createQueueProjectionRepo(options.db),
     opdGateway: options.opdGateway,
     masterDataGateway: options.masterDataGateway,
