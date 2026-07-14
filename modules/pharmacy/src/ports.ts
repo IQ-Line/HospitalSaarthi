@@ -44,8 +44,14 @@ export type IssueDispenseStockCommand = {
   issue_date?: string;
 };
 
+export type RestoreDispenseStockCommand = {
+  store_id: string;
+  lines: Array<{ item_id: string; quantity: number; lot_id?: string | null }>;
+};
+
 export interface InventoryGatewayPort {
   issueDispenseStock(tenantId: string, command: IssueDispenseStockCommand): Promise<void>;
+  restoreDispenseStock(tenantId: string, command: RestoreDispenseStockCommand): Promise<void>;
 }
 
 /** Resolves prescribing doctor display names from platform user ids. */

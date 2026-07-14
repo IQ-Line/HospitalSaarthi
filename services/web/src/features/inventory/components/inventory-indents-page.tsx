@@ -21,8 +21,14 @@ import {
   type IndentListDirection,
 } from '../lib/indent-workflow';
 import { INDENT_STATUS_FILTER_OPTIONS, indentStatusBadgeVariant, indentStatusLabel } from '../lib/indent-status';
+import {
+  type InventoryOperationalVariant,
+  operationalIndentsPath,
+  operationalNewIndentPath,
+  PHARMACY_INDENT_DEFAULTS,
+} from '../lib/inventory-operational-variant';
 import { useInventoryIndentStores, useInventoryIndents, useInventoryStores } from '../api/queries';
-import type { InventoryIndentRow, InventoryIndentStoreOption } from '../types';
+import type { InventoryIndentRow, InventoryIndentStoreOption, InventoryIndentType } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 
 function formatIndentDate(iso: string) {
@@ -64,14 +70,25 @@ type InventoryIndentsPageProps = {
   direction?: IndentListDirection;
   storeId?: string;
   initialStatus?: 'all' | InventoryIndentRow['status'];
+  variant?: InventoryOperationalVariant;
+  /** When set, list is filtered to this indent_type (pharmacy uses pharmacy_refill). */
+  indentTypeFilter?: InventoryIndentType;
 };
 
 export function InventoryIndentsPage({
   direction: directionProp,
   storeId: storeIdProp,
   initialStatus = 'all',
+  variant = 'inventory',
+  indentTypeFilter,
 }: InventoryIndentsPageProps) {
   const navigate = useNavigate();
+  const isPharmacy = variant === 'pharmacy';
+  const listBasePath = operationalIndentsPath(variant);
+  const newIndentPath = operationalNewIndentPath(variant);
+  const resolvedIndentType =
+    indentTypeFilter ?? (isPharmacy ? PHARMACY_INDENT_DEFAULTS.indent_type : undefined);
+
   const { data: liveIndentStores = [], isLoading: storesLoading } = useInventoryIndentStores();
   const { data: fallbackStores = [] } = useInventoryStores();
   const indentStores: InventoryIndentStoreOption[] =
@@ -120,11 +137,12 @@ export function InventoryIndentsPage({
       status,
       page,
       limit: pageSize,
+      indent_type: resolvedIndentType,
       // Outgoing = receiving store's requests (To). Incoming = approving/sending store's inbox (From).
       ...(direction === 'outgoing' && storeId ? { to_store_id: storeId } : {}),
       ...(direction === 'incoming' && storeId ? { from_store_id: storeId } : {}),
     }),
-    [direction, page, pageSize, search, status, storeId],
+    [direction, page, pageSize, resolvedIndentType, search, status, storeId],
   );
 
   const { data, isLoading } = useInventoryIndents(listParams);
@@ -133,7 +151,9 @@ export function InventoryIndentsPage({
 
   const openIndent = (indentId: string) => {
     void navigate({
-      to: '/inventory/indents/$indentId',
+      to: isPharmacy
+        ? '/pharmacy/replenishment/$indentId'
+        : '/inventory/indents/$indentId',
       params: { indentId },
       search: { view: direction, storeId },
     });
@@ -311,7 +331,7 @@ export function InventoryIndentsPage({
 
   const handleDirectionChange = (next: IndentListDirection) => {
     void navigate({
-      to: '/inventory/indents',
+      to: listBasePath,
       search: { tab: next, storeId: storeId || undefined },
     });
   };
@@ -322,20 +342,29 @@ export function InventoryIndentsPage({
     const nextStore = indentStores.find((store) => store.id === nextStoreId);
     const nextDirection = defaultIndentDirection(nextStore);
     void navigate({
-      to: '/inventory/indents',
+      to: listBasePath,
       search: { tab: nextDirection, storeId: nextStoreId },
     });
   };
 
+  const pageTitle = isPharmacy ? 'Replenishment' : 'Stock indents';
+  const breadcrumbLabel = isPharmacy ? 'Replenishment' : 'Indents';
+  const outgoingTabLabel = isPharmacy ? 'Outgoing' : 'Outgoing indents';
+  const incomingTabLabel = isPharmacy ? 'Incoming' : 'Incoming indents';
+  const newButtonLabel = isPharmacy ? '+ New replenishment' : '+ New indent';
+  const emptyOutgoing = isPharmacy ? 'No outgoing replenishment requests' : 'No outgoing indents';
+  const emptyIncoming = isPharmacy ? 'No incoming replenishment requests' : 'No incoming indents';
+
   return (
     <InventoryPageShell
-      title="Stock indents"
-      breadcrumbLabel="Indents"
+      title={pageTitle}
+      breadcrumbLabel={breadcrumbLabel}
+      variant={variant}
       actions={
         activeStore?.indent_authority ? (
           <Button type="button" size="sm" asChild>
-            <Link to="/inventory/indents/new" search={{ view: 'outgoing', storeId }}>
-              + New indent
+            <Link to={newIndentPath} search={{ view: 'outgoing', storeId }}>
+              {newButtonLabel}
             </Link>
           </Button>
         ) : null
@@ -346,13 +375,13 @@ export function InventoryIndentsPage({
           {showTabs ? (
             <Tabs value={direction} onValueChange={(value) => handleDirectionChange(value as IndentListDirection)}>
               <TabsList>
-                {showOutgoing ? <TabsTrigger value="outgoing">Outgoing indents</TabsTrigger> : null}
-                {showIncoming ? <TabsTrigger value="incoming">Incoming indents</TabsTrigger> : null}
+                {showOutgoing ? <TabsTrigger value="outgoing">{outgoingTabLabel}</TabsTrigger> : null}
+                {showIncoming ? <TabsTrigger value="incoming">{incomingTabLabel}</TabsTrigger> : null}
               </TabsList>
             </Tabs>
           ) : (
             <p className="text-sm font-medium text-foreground">
-              {direction === 'incoming' ? 'Incoming indents' : 'Outgoing indents'}
+              {direction === 'incoming' ? incomingTabLabel : outgoingTabLabel}
             </p>
           )}
 
@@ -411,11 +440,15 @@ export function InventoryIndentsPage({
               getRowId={(row) => row.id}
               expandedRowId={direction === 'outgoing' ? expandedId : null}
               renderSubRow={(row) => <IndentLinesSubRow lines={row.lines} />}
-              emptyTitle={direction === 'incoming' ? 'No incoming indents' : 'No outgoing indents'}
+              emptyTitle={direction === 'incoming' ? emptyIncoming : emptyOutgoing}
               emptyDescription={
                 direction === 'incoming'
-                  ? 'Indents received by this store will appear here.'
-                  : 'Create a new indent to request stock from the fulfilling store.'
+                  ? isPharmacy
+                    ? 'Replenishment requests received by this store will appear here.'
+                    : 'Indents received by this store will appear here.'
+                  : isPharmacy
+                    ? 'Create a replenishment request to get stock from the fulfilling store.'
+                    : 'Create a new indent to request stock from the fulfilling store.'
               }
               manualPagination={{
                 pageIndex: page - 1,

@@ -35,12 +35,31 @@ export function operationalNewTransferPath(variant: InventoryOperationalVariant)
   return `${resolveOperationalContext(variant).routePrefix}/transfers/new`;
 }
 
-export function operationalReplenishmentPath(variant: InventoryOperationalVariant): string {
-  return `${resolveOperationalContext(variant).routePrefix}/replenishment`;
+/** List path for indents (inventory) / replenishment (pharmacy). */
+export function operationalIndentsPath(variant: InventoryOperationalVariant): string {
+  return variant === 'pharmacy'
+    ? '/pharmacy/replenishment'
+    : '/inventory/indents';
 }
 
 export function operationalNewIndentPath(variant: InventoryOperationalVariant): string {
-  return `${resolveOperationalContext(variant).routePrefix}/replenishment/new`;
+  return variant === 'pharmacy'
+    ? '/pharmacy/replenishment/new'
+    : '/inventory/indents/new';
+}
+
+export function operationalIndentDetailPath(
+  variant: InventoryOperationalVariant,
+  indentId: string,
+): string {
+  return variant === 'pharmacy'
+    ? `/pharmacy/replenishment/${indentId}`
+    : `/inventory/indents/${indentId}`;
+}
+
+/** @deprecated Use operationalIndentsPath */
+export function operationalReplenishmentPath(variant: InventoryOperationalVariant): string {
+  return operationalIndentsPath(variant);
 }
 
 export const PHARMACY_INDENT_DEFAULTS = {

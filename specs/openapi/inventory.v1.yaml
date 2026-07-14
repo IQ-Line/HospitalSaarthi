@@ -444,6 +444,34 @@ paths:
                 $ref: "#/components/schemas/IssueDispenseStockResponse"
         "409":
           description: Insufficient stock or store not eligible to dispense
+  /internal/dispense-stock-return:
+    post:
+      operationId: restoreDispenseStock
+      summary: Restore stock for pharmacy medicine return
+      description: >
+        Service-to-service endpoint used by pharmacy-svc when processing returns.
+        Credits quantity back to the given store by inventory item id.
+        When `lot_id` is provided on a line, quantity is restored onto that batch;
+        otherwise quantity is credited to any existing stock row for the item
+        (or a new unlotted row if none exists).
+      tags: [Internal]
+      security:
+        - internalServiceKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RestoreDispenseStockRequest"
+      responses:
+        "200":
+          description: Stock restored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RestoreDispenseStockResponse"
+        "409":
+          description: Store not found or not eligible to dispense
 components:
   securitySchemes:
     bearerAuth:
@@ -562,6 +590,58 @@ components:
                       nullable: true
                     qty:
                       type: number
+    RestoreDispenseStockRequest:
+      type: object
+      required: [store_id, lines]
+      properties:
+        store_id:
+          type: string
+          format: uuid
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [item_id, quantity]
+            properties:
+              item_id:
+                type: string
+                format: uuid
+              quantity:
+                type: number
+                exclusiveMinimum: 0
+              lot_id:
+                type: string
+                format: uuid
+                nullable: true
+                description: >
+                  When set, restore onto this lot/batch. When omitted or null,
+                  restore onto any existing stock row for the item.
+    RestoreDispenseStockResponse:
+      type: object
+      required: [store_id, restorations]
+      properties:
+        store_id:
+          type: string
+          format: uuid
+        restorations:
+          type: array
+          items:
+            type: object
+            required: [item_id, quantity, stock_id]
+            properties:
+              item_id:
+                type: string
+                format: uuid
+              quantity:
+                type: number
+              stock_id:
+                type: string
+                format: uuid
+              lot_id:
+                type: string
+                format: uuid
+                nullable: true
     Store:
       type: object
       required:
