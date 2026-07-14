@@ -178,11 +178,13 @@ const VALIDATION_ISSUE_META: Record<ValidationIssue, { code: string; message: st
   },
   pharmacy_store_access_required: {
     code: "INVALID_INPUT",
-    message: "pharmacy_store_access is required when pharmacy permissions are granted.",
+    message:
+      "pharmacy_store_access is required when pharmacy or inventory permissions are granted.",
   },
   pharmacy_store_access_not_allowed: {
     code: "INVALID_INPUT",
-    message: "pharmacy_store_access may only be sent when pharmacy permissions are granted.",
+    message:
+      "pharmacy_store_access may only be sent when pharmacy or inventory permissions are granted.",
   },
   create_user_role_template_capability_ids_empty: {
     code: "INVALID_INPUT",

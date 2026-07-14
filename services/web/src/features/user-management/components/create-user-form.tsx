@@ -32,7 +32,7 @@ import { CreateUserPharmacyStoresSection } from './create-user-pharmacy-stores';
 import {
   resolveRoleTemplateCapabilityIdsForCreate,
   validatePharmacyStoreAccess,
-  willGrantPharmacyCapabilities,
+  willGrantStoreScopedCapabilities,
 } from '../lib/is-pharmacy-capability-selected';
 
 const EMPTY_ROLE_CAPABILITIES: Capability[] = [];
@@ -244,7 +244,7 @@ export function CreateUserForm({
     name: 'role_capability_selection_ids',
     defaultValue: [],
   });
-  const pharmacyAccessRequired = willGrantPharmacyCapabilities(
+  const storeAccessRequired = willGrantStoreScopedCapabilities(
     roleCapabilities,
     selectedCapabilityIds ?? [],
     umRoleAssign,
@@ -253,12 +253,12 @@ export function CreateUserForm({
   );
 
   useEffect(() => {
-    if (!pharmacyAccessRequired) {
+    if (!storeAccessRequired) {
       form.setValue('primary_store_id', '', { shouldDirty: true, shouldValidate: false });
       form.setValue('secondary_store_ids', [], { shouldDirty: true, shouldValidate: false });
       form.clearErrors(['primary_store_id', 'secondary_store_ids']);
     }
-  }, [pharmacyAccessRequired, form]);
+  }, [storeAccessRequired, form]);
 
   useEffect(() => {
     if (!selectedRoleId) {
@@ -320,14 +320,14 @@ export function CreateUserForm({
         return;
       }
     }
-    const pharmacySelected = willGrantPharmacyCapabilities(
+    const storeScopedSelected = willGrantStoreScopedCapabilities(
       roleCapabilities,
       values.role_capability_selection_ids,
       umRoleAssign,
       values.role_template_ids,
       allRoleCapabilityIds,
     );
-    if (pharmacySelected) {
+    if (storeScopedSelected) {
       const storeError = validatePharmacyStoreAccess(values.primary_store_id);
       if (storeError) {
         form.setError('primary_store_id', { type: 'custom', message: storeError });
@@ -353,7 +353,7 @@ export function CreateUserForm({
           allRoleCapabilityIds,
           orgForCreate,
           primaryDeptName,
-          pharmacySelected
+          storeScopedSelected
             ? {
                 primary_store_id: values.primary_store_id,
                 secondary_store_ids: values.secondary_store_ids,
@@ -428,7 +428,7 @@ export function CreateUserForm({
           errors={form.formState.errors}
         />
 
-        {pharmacyAccessRequired ? (
+        {storeAccessRequired ? (
           <CreateUserPharmacyStoresSection
             control={form.control}
             errors={form.formState.errors}

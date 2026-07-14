@@ -28,10 +28,8 @@ import {
 import {
   useInventoryIndentActiveChecks,
   useInventoryIndentDetail,
-  useInventoryIndentStores,
   useInventoryItems,
   useInventoryStock,
-  useInventoryStores,
 } from '../api/queries';
 import {
   canApproveIndent,
@@ -50,6 +48,7 @@ import {
   operationalTransfersPath,
   PHARMACY_INDENT_DEFAULTS,
 } from '../lib/inventory-operational-variant';
+import { useOperationalStoreOptions } from '../lib/use-operational-store-options';
 import { EMPTY_INDENT_LINE } from '../mock/fixtures';
 import type { InventoryIndentLine, InventoryIndentStatus } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
@@ -99,13 +98,25 @@ export function InventoryIndentDetailPage({
   const listBasePath = operationalIndentsPath(variant);
   const transfersPath = operationalTransfersPath(variant);
   const lockedIndentType =
-    forcedIndentType ?? (isPharmacy ? PHARMACY_INDENT_DEFAULTS.indent_type : undefined);
-  /** Pharmacy replenishment is stock-transfer only — no procurement. */
+    forcedIndentType ??
+    (isPharmacy
+      ? PHARMACY_INDENT_DEFAULTS.indent_type
+      : undefined);
+  /** Pharmacy replenishment is stock-transfer only. Inventory indents are procurement only. */
   const forceStockTransfer = isPharmacy;
+  const forceProcurement = !isPharmacy;
   const { data: detail, isLoading, refetch } = useInventoryIndentDetail(isNew ? undefined : indentId);
-  const { data: stores = [] } = useInventoryStores();
-  const { data: indentStores = [] } = useInventoryIndentStores();
+  const {
+    stores: assignedStores,
+    catalogStores,
+    catalogIndentStores: indentStores,
+  } = useOperationalStoreOptions(variant);
   const { data: items = [] } = useInventoryItems();
+
+  /** Destination store options: pharmacy users only see assigned stores. */
+  const toStoreOptions = isPharmacy ? assignedStores : catalogStores;
+  /** From / receiving (procurement) can use any catalog store, including central hubs. */
+  const stores = catalogStores;
 
   const saveDraft = useInventoryIndentSaveDraft();
   const submitIndent = useInventoryIndentSubmit();
@@ -116,7 +127,7 @@ export function InventoryIndentDetailPage({
 
   const [indentDate, setIndentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [fulfillment, setFulfillment] = useState<'stock_transfer' | 'procurement'>(
-    forceStockTransfer ? 'stock_transfer' : 'stock_transfer',
+    forceProcurement ? 'procurement' : 'stock_transfer',
   );
   const [purchaseIndentNumber, setPurchaseIndentNumber] = useState('');
   const [fromStoreId, setFromStoreId] = useState('');
@@ -132,7 +143,7 @@ export function InventoryIndentDetailPage({
   const [rejectReason, setRejectReason] = useState('');
   const [approvalRemarks, setApprovalRemarks] = useState('');
 
-  const isProcurement = fulfillment === 'procurement';
+  const isProcurement = forceProcurement || fulfillment === 'procurement';
   const procurementStores = useMemo(
     () => stores.filter((store) => store.is_central_store),
     [stores],
@@ -204,8 +215,16 @@ export function InventoryIndentDetailPage({
   useEffect(() => {
     if (!detail || isNew) return;
     setIndentDate(detail.request_date);
-    setFulfillment(forceStockTransfer ? 'stock_transfer' : detail.route);
-    setPurchaseIndentNumber(forceStockTransfer ? '' : (detail.purchase_indent_number ?? ''));
+    setFulfillment(
+      forceStockTransfer
+        ? 'stock_transfer'
+        : forceProcurement
+          ? 'procurement'
+          : detail.route,
+    );
+    setPurchaseIndentNumber(
+      forceStockTransfer ? '' : (detail.purchase_indent_number ?? ''),
+    );
     setFromStoreId(detail.from_store_id);
     setToStoreId(detail.to_store_id ?? '');
     setIndentType(lockedIndentType ?? detail.indent_type);
@@ -224,7 +243,7 @@ export function InventoryIndentDetailPage({
         ]),
       ),
     );
-  }, [detail, forceStockTransfer, isNew, lockedIndentType]);
+  }, [detail, forceProcurement, forceStockTransfer, isNew, lockedIndentType]);
 
   const draftValidation = useMemo(
     () =>
@@ -279,7 +298,7 @@ export function InventoryIndentDetailPage({
   };
 
   const handleFulfillmentChange = (value: typeof fulfillment) => {
-    if (forceStockTransfer) return;
+    if (forceStockTransfer || forceProcurement) return;
     setFulfillment(value);
     if (value === 'procurement') {
       setToStoreId('');
@@ -291,12 +310,15 @@ export function InventoryIndentDetailPage({
   const buildPayload = () => ({
     indent_date: indentDate,
     from_store_id: fromStoreId,
-    to_store_id: forceStockTransfer || !isProcurement ? toStoreId || null : null,
+    to_store_id: isProcurement ? null : toStoreId || null,
     indent_type: lockedIndentType ?? indentType,
     priority,
-    fulfillment_route: forceStockTransfer ? 'stock_transfer' : fulfillment,
-    purchase_indent_number:
-      forceStockTransfer || fulfillment !== 'procurement' ? null : purchaseIndentNumber,
+    fulfillment_route: forceStockTransfer
+      ? 'stock_transfer'
+      : forceProcurement
+        ? 'procurement'
+        : fulfillment,
+    purchase_indent_number: isProcurement ? purchaseIndentNumber : null,
     remarks: remarks || null,
     lines: lines
       .filter((line) => line.item_id)
@@ -446,7 +468,7 @@ export function InventoryIndentDetailPage({
   const handleInitiateFulfillment = async () => {
     if (!detail) return;
     try {
-      if (!forceStockTransfer && detail.route === 'procurement') {
+      if (forceProcurement || detail.route === 'procurement') {
         await fulfillIndent.mutateAsync(indentId);
         toast.success('Procurement started — complete the draft GRN to finish');
         void refetch();
@@ -684,7 +706,11 @@ export function InventoryIndentDetailPage({
                     onClick={() => void handleInitiateFulfillment()}
                     disabled={fulfillIndent.isPending}
                   >
-                    Initiate fulfillment (stock transfer)
+                    Initiate fulfillment (
+                    {forceProcurement || detail.route === 'procurement'
+                      ? 'PR + GRN'
+                      : 'stock transfer'}
+                    )
                   </Button>
                 </div>
               ) : null}
@@ -774,11 +800,18 @@ export function InventoryIndentDetailPage({
               </div>
               <div className="space-y-2">
                 <Label>Fulfillment</Label>
-                {forceStockTransfer ? (
+                {forceStockTransfer || forceProcurement ? (
                   <>
-                    <Input value="Stock transfer" readOnly disabled className="h-9" />
+                    <Input
+                      value={forceStockTransfer ? 'Stock transfer' : 'Procurement'}
+                      readOnly
+                      disabled
+                      className="h-9"
+                    />
                     <p className="text-xs text-muted-foreground">
-                      Pharmacy replenishment is fulfilled by stock transfer only.
+                      {forceStockTransfer
+                        ? 'Pharmacy replenishment is fulfilled by stock transfer only.'
+                        : 'Inventory indents are fulfilled by procurement only.'}
                     </p>
                   </>
                 ) : (
@@ -811,7 +844,7 @@ export function InventoryIndentDetailPage({
                   </>
                 )}
               </div>
-              {!forceStockTransfer && isProcurement ? (
+              {isProcurement ? (
                 <div className="space-y-2">
                   <Label>Purchase indent #</Label>
                   <Input
@@ -826,7 +859,7 @@ export function InventoryIndentDetailPage({
                   ) : null}
                 </div>
               ) : null}
-              {!forceStockTransfer && isProcurement ? (
+              {isProcurement ? (
                 <div className="space-y-2">
                   <Label>Receiving store</Label>
                   <Select
@@ -888,7 +921,7 @@ export function InventoryIndentDetailPage({
                         <SelectValue placeholder="Select" />
                       </SelectTrigger>
                       <SelectContent>
-                        {stores.map((store) => (
+                        {toStoreOptions.map((store) => (
                           <SelectItem key={store.id} value={store.id}>
                             {store.store_code} — {store.name}
                           </SelectItem>
