@@ -43,8 +43,8 @@ type CreditStockParams = {
   lotId?: string | null;
 };
 
-/** Credits stock at a store, preserving lot identity when provided. */
-export async function creditStockToStore(tx: StockTx, params: CreditStockParams): Promise<void> {
+/** Credits stock at a store, preserving lot identity when provided. Returns stock row id. */
+export async function creditStockToStore(tx: StockTx, params: CreditStockParams): Promise<string> {
   const { tenantId, storeId, itemId, qty, lotId = null } = params;
   if (!Number.isFinite(qty) || qty <= 0) {
     throw new TransferValidationError("Accepted quantity must be greater than zero");
@@ -74,16 +74,24 @@ export async function creditStockToStore(tx: StockTx, params: CreditStockParams)
         updated_at: new Date(),
       })
       .where(and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, existing.id)));
-    return;
+    return existing.id;
   }
 
-  await tx.insert(inventoryStock).values({
-    iq_tenant_id: tenantId,
-    item_id: itemId,
-    inventory_store_id: storeId,
-    lot_id: lotId,
-    quantity: String(qty),
-  });
+  const [created] = await tx
+    .insert(inventoryStock)
+    .values({
+      iq_tenant_id: tenantId,
+      item_id: itemId,
+      inventory_store_id: storeId,
+      lot_id: lotId,
+      quantity: String(qty),
+    })
+    .returning({ id: inventoryStock.id });
+
+  if (!created) {
+    throw new TransferValidationError("Failed to credit stock at destination store");
+  }
+  return created.id;
 }
 
 /** Returns quantity to the original source stock row deducted at dispatch. */

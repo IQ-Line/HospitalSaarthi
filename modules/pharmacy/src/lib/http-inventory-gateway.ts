@@ -1,4 +1,8 @@
-import type { InventoryGatewayPort, IssueDispenseStockCommand } from "../ports.js";
+import type {
+  InventoryGatewayPort,
+  IssueDispenseStockCommand,
+  RestoreDispenseStockCommand,
+} from "../ports.js";
 import { truncateUpstreamBody } from "./upstream-log.js";
 
 function joinUrl(base: string, path: string): string {
@@ -81,6 +85,64 @@ export class HttpInventoryGateway implements InventoryGatewayPort {
     );
 
     let message = `Inventory stock deduction failed (${response.status})`;
+    try {
+      const parsed = JSON.parse(body) as { message?: string };
+      if (typeof parsed.message === "string" && parsed.message.trim()) {
+        message = parsed.message.trim();
+      }
+    } catch {
+      // keep default message
+    }
+
+    throw new InventoryDispenseStockError(message, response.status);
+  }
+
+  async restoreDispenseStock(
+    tenantId: string,
+    command: RestoreDispenseStockCommand,
+  ): Promise<void> {
+    if (command.lines.length === 0) {
+      return;
+    }
+
+    const url = joinUrl(this.baseUrl, "/api/inventory/v1/internal/dispense-stock-return");
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: tenantHeaders(tenantId),
+        body: JSON.stringify({
+          store_id: command.store_id,
+          lines: command.lines.map((line) => ({
+            item_id: line.item_id,
+            quantity: line.quantity,
+            ...(line.lot_id ? { lot_id: line.lot_id } : {}),
+          })),
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.options?.warn?.({ tenantId, message }, "Inventory dispense stock restore failed");
+      throw error;
+    }
+
+    if (response.ok) {
+      return;
+    }
+
+    const body = await response.text();
+    this.options?.warn?.(
+      {
+        tenantId,
+        storeId: command.store_id,
+        status: response.status,
+        body: truncateUpstreamBody(body),
+      },
+      "Inventory dispense stock restore rejected",
+    );
+
+    let message = `Inventory stock restore failed (${response.status})`;
     try {
       const parsed = JSON.parse(body) as { message?: string };
       if (typeof parsed.message === "string" && parsed.message.trim()) {

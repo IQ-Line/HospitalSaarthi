@@ -15,6 +15,12 @@ export type {
   IssueDispenseStockLine,
   IssueDispenseStockResult,
 } from "./use-cases/issue-dispense-stock.js";
+export { restoreDispenseStock } from "./use-cases/restore-dispense-stock.js";
+export type {
+  RestoreDispenseStockInput,
+  RestoreDispenseStockLine,
+  RestoreDispenseStockResult,
+} from "./use-cases/restore-dispense-stock.js";
 export { getIndentByNumber } from "./use-cases/get-indent-by-number.js";
 export {
   listExpiringLots,

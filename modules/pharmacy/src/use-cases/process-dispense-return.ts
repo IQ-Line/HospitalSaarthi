@@ -1,7 +1,12 @@
 import type { DispenseReturnDetail, ProcessDispenseReturnInput } from "../domain/pharmacy.types.js";
+import { InventoryDispenseStockError } from "../lib/http-inventory-gateway.js";
 import { computeDispenseStatusAfterReturn } from "../lib/dispense-return-status.js";
 import { computeLineReturnAmount, eligibleReturnQty } from "../lib/return-amounts.js";
-import type { DispenseReturnRepo, QueueProjectionRepo } from "../ports.js";
+import type {
+  DispenseReturnRepo,
+  InventoryGatewayPort,
+  QueueProjectionRepo,
+} from "../ports.js";
 import { DispenseReturnNotEligibleError } from "./get-dispense-return-eligibility.js";
 
 const RETURN_REASONS = new Set([
@@ -27,13 +32,26 @@ export class DispenseReturnConflictError extends Error {
   }
 }
 
+export class DispenseReturnStockRestoreError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DispenseReturnStockRestoreError";
+  }
+}
+
 export type ProcessDispenseReturnCommand = ProcessDispenseReturnInput & {
   processed_by?: string | null;
   idempotency_key?: string | null;
 };
 
+export type ProcessDispenseReturnDeps = {
+  dispenseReturnRepo: DispenseReturnRepo;
+  queueProjectionRepo: QueueProjectionRepo;
+  inventoryGateway: InventoryGatewayPort;
+};
+
 export async function processDispenseReturn(
-  deps: { dispenseReturnRepo: DispenseReturnRepo; queueProjectionRepo: QueueProjectionRepo },
+  deps: ProcessDispenseReturnDeps,
   tenantId: string,
   command: ProcessDispenseReturnCommand,
 ): Promise<DispenseReturnDetail> {
@@ -143,6 +161,42 @@ export async function processDispenseReturn(
     nextLines,
     context.record.dispense_status,
   );
+
+  const stockRestoreLines = preparedLines
+    .map((line) => {
+      const sourceLine = lineById.get(line.dispense_line_item_id);
+      const itemId = sourceLine?.inventory_item_id?.trim();
+      if (!itemId) return null;
+      const lotId = line.stock_batch_id?.trim() || null;
+      return {
+        item_id: itemId,
+        quantity: line.return_qty,
+        ...(lotId ? { lot_id: lotId } : {}),
+      };
+    })
+    .filter(
+      (line): line is { item_id: string; quantity: number; lot_id?: string } => line != null,
+    );
+
+  if (stockRestoreLines.length > 0) {
+    const storeId = context.record.inventory_store_id?.trim();
+    if (!storeId) {
+      throw new DispenseReturnValidationError(
+        "inventory_store_id is required to restore stock for returned lines",
+      );
+    }
+    try {
+      await deps.inventoryGateway.restoreDispenseStock(tenantId, {
+        store_id: storeId,
+        lines: stockRestoreLines,
+      });
+    } catch (error) {
+      if (error instanceof InventoryDispenseStockError) {
+        throw new DispenseReturnStockRestoreError(error.message);
+      }
+      throw error;
+    }
+  }
 
   const detail = await deps.dispenseReturnRepo.processReturn(
     tenantId,

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS pharmacy.dispense (
   CONSTRAINT dispense_discount_nonneg_chk CHECK (discount >= 0),
   CONSTRAINT dispense_total_nonneg_chk CHECK (total_amount >= 0),
   CONSTRAINT dispense_dispense_status_check
-    CHECK (dispense_status IN ('issued', 'partial_issue')),
+    CHECK (dispense_status IN ('issued', 'partial_issue', 'partially_returned', 'fully_returned')),
   CONSTRAINT dispense_priority_chk CHECK (priority IN ('stat', 'urgent', 'routine')),
   CONSTRAINT dispense_visit_patient_chk CHECK (visit_id IS NOT NULL AND patient_id IS NOT NULL)
 );
@@ -126,7 +126,7 @@ CREATE TABLE IF NOT EXISTS pharmacy.queue_projection (
   CONSTRAINT queue_projection_source_kind_chk CHECK (source_kind IN ('opd', 'ipd')),
   CONSTRAINT queue_projection_priority_chk CHECK (priority IN ('stat', 'urgent', 'routine')),
   CONSTRAINT queue_projection_dispense_status_check
-    CHECK (dispense_status IN ('pending', 'issued', 'partial_issue')),
+    CHECK (dispense_status IN ('pending', 'issued', 'partial_issue', 'partially_returned', 'fully_returned')),
   CONSTRAINT queue_projection_medicine_count_nonneg_chk CHECK (medicine_count >= 0)
 );
 
