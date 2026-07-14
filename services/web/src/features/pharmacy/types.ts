@@ -49,7 +49,14 @@ export type PharmacyQueueStatusFilter = 'all' | 'pending' | 'partial_issue' | 'i
 
 export type PharmacyQueueKind = 'opd' | 'walk_in';
 
-export type PharmacyDispenseStatus = 'pending' | 'issued' | 'partial_issue';
+export type PharmacyDispenseStatus =
+  | 'pending'
+  | 'issued'
+  | 'partial_issue'
+  | 'partially_returned'
+  | 'fully_returned';
+
+export type PharmacyDispensePriority = 'routine' | 'urgent' | 'stat';
 
 export type PharmacyQueueDateRange = {
   queued_from: string;
@@ -67,8 +74,10 @@ export type PharmacyQueueItem = {
   visit_status: string;
   prescription_status: string | null;
   updated_at: string;
+  queued_at: string;
   finalized_at: string | null;
   medicine_count: number;
+  priority: PharmacyDispensePriority;
   patient_name: string | null;
   uhid: string | null;
   phone: string | null;
@@ -88,6 +97,7 @@ export type PharmacyQueueListParams = {
   queued_to?: string;
   q?: string;
   status?: PharmacyQueueStatusFilter;
+  doctor_id?: string;
 };
 
 export type PharmacyQueueListResponse = {
@@ -136,6 +146,7 @@ export type DispenseLineItem = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  inventory_item_id?: string | null;
   created_at: string;
 };
 
@@ -169,11 +180,13 @@ export type SaveDispenseLineInput = {
   unit_amount: string;
   line_discount?: string | null;
   tax_percent?: string | null;
+  inventory_item_id?: string | null;
 };
 
 export type SaveDispenseForVisitInput = {
   patient_id: string;
   opd_prescription_id?: string | null;
+  inventory_store_id?: string | null;
   discount?: string | null;
   notes?: string | null;
   lines: SaveDispenseLineInput[];
@@ -182,8 +195,17 @@ export type SaveDispenseForVisitInput = {
 /** Editable row in the dispense billing table (client-only key). */
 export type DispenseLineDraft = {
   key: string;
+  /** OPD prescription line number when seeded from a visit Rx. */
+  prescription_line_no: number | null;
+  /** Doctor-prescribed medicine label (editable via row action). */
+  prescribed_item_name: string;
   medicine_id: string | null;
+  /** Inventory item-master id for stock deduction (distinct from formulary medicine_id). */
+  inventory_item_id: string | null;
+  /** Stock/catalog item actually issued to the patient. */
   medicine_display_name: string;
+  item_code: string;
+  available_qty: string;
   prescribed_quantity: string;
   quantity_dispensed: string;
   unit_amount: string;

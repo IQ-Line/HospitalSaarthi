@@ -150,6 +150,34 @@ describe("createUserManagementAuthzTargetResolver", () => {
     });
   });
 
+  it("maps GET /auth/pharmacy-store-access to auth.read (self-scoped)", async () => {
+    const getUserProfile = vi.fn();
+    const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });
+
+    const target = await resolver({
+      method: "GET",
+      url: "/api/user-management/auth/pharmacy-store-access",
+      routeOptions: { url: "/api/user-management/auth/pharmacy-store-access" },
+      user: {
+        userId: "c26740ca-acb9-49be-aeb3-81812f80252d",
+        tenantId: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        department: null,
+      },
+    } as never);
+
+    expect(target).toEqual({
+      kind: "auth",
+      id: "self",
+      action: "auth.read",
+      attr: {
+        iq_tenant_id: "f47ac10b-58cc-4372-a567-0e02b2c3d480",
+        department: null,
+        required_clearance: 0,
+      },
+    });
+    expect(getUserProfile).not.toHaveBeenCalled();
+  });
+
   it("maps POST /users resource tenant from iq_tenant_id header for super-admin", async () => {
     const getUserProfile = vi.fn();
     const resolver = createUserManagementAuthzTargetResolver({ getUserProfile });

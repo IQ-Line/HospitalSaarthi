@@ -1,16 +1,18 @@
-export { createRouter, HttpOpdGateway, HttpMasterDataGateway } from "./router.js";
+export { createRouter, HttpOpdGateway, HttpMasterDataGateway, HttpInventoryGateway } from "./router.js";
 export type { PharmacyRouterOptions } from "./router.js";
 
 export { PHARMACY_MODULE_KEY } from "./domain/pharmacy.types.js";
-export { PHARMACY_SCHEMA_NAME, dispenseRecords, dispenseLineItems } from "./schema/tables.js";
+export { PHARMACY_SCHEMA_NAME, dispense, dispenseRecords, dispenseLineItems, queueProjection } from "./schema/tables.js";
 export { applyPharmacySchemaMigration } from "./schema/apply-migration.js";
 
 export { createPharmacyAuthzTargetResolver } from "./authz/pharmacy-authz-target-resolver.js";
 export { createDispenseRecordRepo, DrizzleDispenseRecordRepo } from "./data-access/dispense-record.repo.js";
 export {
+  createQueueProjectionRepo,
+  DrizzleQueueProjectionRepo,
   createOpdQueueProjectionRepo,
   DrizzleOpdQueueProjectionRepo,
-} from "./data-access/opd-queue-projection.repo.js";
+} from "./data-access/queue-projection.repo.js";
 export { registerPharmacyHandlers } from "./rest-handlers/pharmacy.handlers.js";
 
 export type {
@@ -28,8 +30,11 @@ export type {
 export type {
   OpdGatewayPort,
   MasterDataGatewayPort,
+  InventoryGatewayPort,
   UserLookupPort,
   DispenseRecordRepo,
+  DispenseReturnRepo,
+  QueueProjectionRepo,
   OpdQueueProjectionRepo,
   PharmacyGatewayPorts,
   PharmacyRepos,
@@ -49,8 +54,19 @@ export { getDispenseForVisit, DispenseVisitNotFoundError } from "./use-cases/get
 export type { GetDispenseForVisitInput } from "./use-cases/get-dispense-for-visit.js";
 export {
   saveDispenseForVisit,
+  DispenseAlreadyIssuedError,
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
+  DispenseInsufficientStockError,
 } from "./use-cases/save-dispense-for-visit.js";
 export type { SaveDispenseForVisitCommand } from "./use-cases/save-dispense-for-visit.js";
+export { issueManualDispenseStock } from "./use-cases/issue-manual-dispense-stock.js";
+export type {
+  IssueManualDispenseStockInput,
+  ManualDispenseStockLine,
+} from "./use-cases/issue-manual-dispense-stock.js";
+export {
+  createDispenseReturnRepo,
+  DrizzleDispenseReturnRepo,
+} from "./data-access/dispense-return.repo.js";

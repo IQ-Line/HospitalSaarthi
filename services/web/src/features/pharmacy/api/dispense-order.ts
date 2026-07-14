@@ -33,11 +33,9 @@ export function useSaveDispenseForVisit(visitId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: SaveDispenseForVisitInput) => saveDispenseForVisit(visitId, body),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: pharmacyQueryKeys.dispense(visitId) }),
-        queryClient.invalidateQueries({ queryKey: pharmacyQueryKeys.all }),
-      ]);
+    onSuccess: async (saved) => {
+      queryClient.setQueryData(pharmacyQueryKeys.dispense(visitId), saved);
+      await queryClient.invalidateQueries({ queryKey: pharmacyQueryKeys.all });
     },
   });
 }

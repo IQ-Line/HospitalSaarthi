@@ -1,18 +1,28 @@
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { toIlikeContainsPattern } from "../lib/ilike.js";
 import {
   inventoryItemCodeSequences,
   inventoryItems,
+  inventoryStock,
 } from "../schema/tables.js";
 
 export type InventoryItemRow = typeof inventoryItems.$inferSelect;
+
+/** Item master row optionally enriched with store on-hand qty (when listing with storeId). */
+export type InventoryItemListRow = InventoryItemRow & {
+  available_qty: string | null;
+};
 
 export type ListInventoryItemsInput = {
   search?: string;
   isActive?: boolean;
   categoryId?: string;
   itemClassification?: "inventory" | "medicine";
+  /** When true, only rows linked to a tenant formulary medicine (dispense picker). */
+  linkedToFormulary?: boolean;
+  /** When set, only items with available stock (qty > 0) at this store. */
+  storeId?: string;
   limit: number;
   offset: number;
 };
@@ -55,7 +65,46 @@ export type CreateInventoryItemInput = {
 export class DrizzleInventoryItemRepository {
   constructor(private readonly db: DbInstance) {}
 
-  async list(tenantId: string, input: ListInventoryItemsInput): Promise<{ rows: InventoryItemRow[]; total: number }> {
+  /**
+   * Sums on-hand qty per item at a store.
+   * Kept separate from `getTableColumns` selects — Drizzle can mis-map a trailing
+   * computed SQL column when the item row includes jsonb (`supply_attributes`).
+   */
+  private async sumAvailableQtyByItem(
+    tenantId: string,
+    storeId: string,
+    itemIds: string[],
+  ): Promise<Map<string, string>> {
+    const qtyByItem = new Map<string, string>();
+    if (itemIds.length === 0) return qtyByItem;
+
+    const rows = await this.db
+      .select({
+        item_id: inventoryStock.item_id,
+        available_qty: sql<string>`COALESCE(SUM(${inventoryStock.quantity}::numeric), 0)::text`.as(
+          "available_qty",
+        ),
+      })
+      .from(inventoryStock)
+      .where(
+        and(
+          eq(inventoryStock.iq_tenant_id, tenantId),
+          eq(inventoryStock.inventory_store_id, storeId),
+          inArray(inventoryStock.item_id, itemIds),
+        ),
+      )
+      .groupBy(inventoryStock.item_id);
+
+    for (const row of rows) {
+      qtyByItem.set(row.item_id, row.available_qty);
+    }
+    return qtyByItem;
+  }
+
+  async list(
+    tenantId: string,
+    input: ListInventoryItemsInput,
+  ): Promise<{ rows: InventoryItemListRow[]; total: number }> {
     const filters: SQL[] = [eq(inventoryItems.iq_tenant_id, tenantId)];
 
     if (input.isActive != null) {
@@ -87,11 +136,29 @@ export class DrizzleInventoryItemRepository {
       filters.push(eq(inventoryItems.item_classification, input.itemClassification));
     }
 
+    if (input.linkedToFormulary) {
+      filters.push(isNotNull(inventoryItems.tenant_formulary_id));
+    }
+
+    const storeId = input.storeId?.trim();
+    if (storeId) {
+      filters.push(
+        sql`EXISTS (
+          SELECT 1
+          FROM ${inventoryStock}
+          WHERE ${inventoryStock.iq_tenant_id} = ${tenantId}
+            AND ${inventoryStock.inventory_store_id} = ${storeId}
+            AND ${inventoryStock.item_id} = ${inventoryItems.id}
+            AND ${inventoryStock.quantity}::numeric > 0
+        )`,
+      );
+    }
+
     const where = and(...filters);
 
-    const [rows, countRows] = await Promise.all([
+    const [itemRows, countRows] = await Promise.all([
       this.db
-        .select()
+        .select(getTableColumns(inventoryItems))
         .from(inventoryItems)
         .where(where)
         .orderBy(inventoryItems.name)
@@ -103,7 +170,26 @@ export class DrizzleInventoryItemRepository {
         .where(where),
     ]);
 
-    return { rows, total: countRows[0]?.count ?? 0 };
+    if (!storeId) {
+      return {
+        rows: itemRows.map((row) => ({ ...row, available_qty: null })),
+        total: countRows[0]?.count ?? 0,
+      };
+    }
+
+    const qtyByItem = await this.sumAvailableQtyByItem(
+      tenantId,
+      storeId,
+      itemRows.map((row) => row.id),
+    );
+
+    return {
+      rows: itemRows.map((row) => ({
+        ...row,
+        available_qty: qtyByItem.get(row.id) ?? "0",
+      })),
+      total: countRows[0]?.count ?? 0,
+    };
   }
 
   async findById(tenantId: string, itemId: string): Promise<InventoryItemRow | undefined> {
@@ -111,6 +197,23 @@ export class DrizzleInventoryItemRepository {
       .select()
       .from(inventoryItems)
       .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .limit(1);
+    return row;
+  }
+
+  async findByTenantFormularyId(
+    tenantId: string,
+    tenantFormularyId: string,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.iq_tenant_id, tenantId),
+          eq(inventoryItems.tenant_formulary_id, tenantFormularyId),
+        ),
+      )
       .limit(1);
     return row;
   }
@@ -187,6 +290,22 @@ export class DrizzleInventoryItemRepository {
       throw new Error("Failed to create inventory item");
     }
 
+    return row;
+  }
+
+  async updateReorderPoint(
+    tenantId: string,
+    itemId: string,
+    reorderPoint: number,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .update(inventoryItems)
+      .set({
+        reorder_point: String(reorderPoint),
+        updated_at: new Date(),
+      })
+      .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .returning();
     return row;
   }
 

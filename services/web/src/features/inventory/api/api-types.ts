@@ -128,6 +128,23 @@ export type InventorySvcStockBatchesResponse = {
   };
 };
 
+export type InventorySvcExpiringLotRow = {
+  id: string;
+  item_id: string;
+  item_name: string;
+  item_code: string;
+  lot_number: string;
+  expiry_date: string;
+  quantity: number;
+  uom: string;
+};
+
+export type InventorySvcExpiringLotsResponse = {
+  data: InventorySvcExpiringLotRow[];
+  total: number;
+  within_days: number;
+};
+
 export type InventorySvcIndentStatus =
   | 'draft'
   | 'submitted'

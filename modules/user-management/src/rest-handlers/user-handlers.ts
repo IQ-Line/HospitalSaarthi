@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { forbidden } from "@hims/ts-sdk-http";
 import { buildCerbosUserMgmtResourceAttr } from "../authz/cerbos-resource-attr.js";
-import { UserNotFoundError } from "../domain/errors.js";
+import { UserNotFoundError, UserManagementError } from "../domain/errors.js";
 import { logRejectedNonEntitledCapabilityId } from "../http/log-rejected-non-entitled-capability.js";
 import { replyWithUserManagementError } from "../http/map-user-management-error.js";
 import type {
@@ -113,6 +113,9 @@ export function registerUserHandlers(fastify: FastifyInstance, deps: UserHandler
         return reply.status(201).send(user);
       } catch (err) {
         logRejectedNonEntitledCapabilityId(request.log, tenantId, err);
+        if (!(err instanceof UserManagementError)) {
+          request.log.error({ err, correlationId: cid }, "Unhandled error creating user");
+        }
         return replyWithUserManagementError(reply, err, cid);
       }
     },

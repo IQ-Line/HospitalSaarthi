@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
 import {
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
+import { Checkbox } from '@pulse/ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,15 +28,28 @@ import {
 } from '@pulse/ui/select';
 import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
-import { useInventoryStock, useInventoryStores } from '../api/queries';
-import type { InventoryStockRow, InventoryStockStatus } from '../types';
+import {
+  INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+  type InventoryStockDashboardView,
+} from '../lib/inventory-dashboard-navigation';
+import type { InventoryOperationalVariant } from '../lib/inventory-operational-variant';
+import { useInventoryAdjustStock, useInventoryUpdateItemReorder } from '../api/stock-mutations';
+import { useInventoryExpiringLots, useInventoryStock, useInventoryStores } from '../api/queries';
+import type { InventoryExpiringLot, InventoryStockRow, InventoryStockStatus } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import {
   InventoryStockDetailSheet,
   InventoryStockDisplayPopoverContent,
   InventoryStockGrid,
-  InventoryStockIndentLink,
 } from './inventory-stock-detail-sheet';
+import {
+  InventoryStockIndentDrawer,
+  InventoryStockIndentLink,
+} from './inventory-stock-indent-drawer';
+import {
+  StockAdjustRowFields,
+  type StockAdjustDraft,
+} from './inventory-stock-adjust-fields';
 import { InventoryStockStatusLabel } from './inventory-stock-status';
 
 type StockViewMode = 'list' | 'grid';
@@ -46,39 +60,94 @@ const ROW_STATUS_CLASS: Record<InventoryStockStatus, string> = {
   normal: '',
 };
 
-interface InventoryStockPageProps {
-  initialStatus?: 'all' | InventoryStockStatus;
+function statusFiltersForView(
+  view?: InventoryStockDashboardView,
+  status?: 'all' | InventoryStockStatus,
+): Set<InventoryStockStatus> {
+  if (view === 'low_stock') return new Set(['critical', 'low']);
+  if (view === 'expiring') return new Set(['critical', 'low', 'normal']);
+  if (status && status !== 'all') return new Set([status]);
+  return new Set(['critical', 'low', 'normal']);
 }
 
-export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPageProps) {
+function stockPageTitle(view?: InventoryStockDashboardView): string {
+  if (view === 'low_stock') return 'Low stock';
+  if (view === 'expiring') return 'Expiring soon';
+  return 'Stock';
+}
+
+function stockPageDescription(view?: InventoryStockDashboardView): string | undefined {
+  if (view === 'low_stock') return 'Items at or below their reorder point.';
+  if (view === 'expiring') {
+    return `Lots expiring within the next ${INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS} days.`;
+  }
+  return undefined;
+}
+
+interface InventoryStockPageProps {
+  initialStatus?: 'all' | InventoryStockStatus;
+  initialView?: InventoryStockDashboardView;
+  initialStoreId?: string;
+  variant?: InventoryOperationalVariant;
+}
+
+export function InventoryStockPage({
+  initialStatus = 'all',
+  initialView,
+  initialStoreId,
+  variant = 'inventory',
+}: InventoryStockPageProps) {
   const [search, setSearch] = useState('');
-  const [storeId, setStoreId] = useState<string>('');
+  const [storeId, setStoreId] = useState<string>(initialStoreId ?? '');
+  const [dashboardView, setDashboardView] = useState<InventoryStockDashboardView | undefined>(
+    initialView,
+  );
   const [viewMode, setViewMode] = useState<StockViewMode>('list');
   const [showReorderColumn, setShowReorderColumn] = useState(true);
   const [showUomColumn, setShowUomColumn] = useState(true);
   const [minReorderMode, setMinReorderMode] = useState(false);
-  const [statusFilters, setStatusFilters] = useState<Set<InventoryStockStatus>>(
-    () =>
-      new Set(
-        initialStatus === 'all' ? (['critical', 'low', 'normal'] as const) : [initialStatus],
-      ),
+  const [statusFilters, setStatusFilters] = useState<Set<InventoryStockStatus>>(() =>
+    statusFiltersForView(initialView, initialStatus),
   );
   const [selectedRow, setSelectedRow] = useState<InventoryStockRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [adjustMode, setAdjustMode] = useState(false);
+  const [indentDrawerOpen, setIndentDrawerOpen] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(() => new Set());
+  const [adjustDrafts, setAdjustDrafts] = useState<Record<string, StockAdjustDraft>>({});
+  const [minReorderDrafts, setMinReorderDrafts] = useState<Record<string, string>>({});
+
+  const adjustStock = useInventoryAdjustStock();
+  const updateReorder = useInventoryUpdateItemReorder();
 
   const { data: stores = [] } = useInventoryStores();
 
   useEffect(() => {
+    if (initialStoreId) {
+      setStoreId(initialStoreId);
+      return;
+    }
     if (!storeId && stores.length > 0) {
       setStoreId(stores[0]!.id);
     }
-  }, [storeId, stores]);
+  }, [initialStoreId, storeId, stores]);
+
+  useEffect(() => {
+    if (!initialView) return;
+    setDashboardView(initialView);
+    setStatusFilters(statusFiltersForView(initialView, initialStatus));
+  }, [initialStatus, initialView]);
+
+  const isExpiringView = dashboardView === 'expiring';
 
   const { data, isLoading } = useInventoryStock({
     search: search || undefined,
-    store_id: storeId,
+    store_id: isExpiringView ? '' : storeId,
     status: 'all',
   });
+  const { data: expiringLots = [], isLoading: expiringLoading } = useInventoryExpiringLots(
+    isExpiringView ? storeId || undefined : undefined,
+  );
 
   const storeName = stores.find((store) => store.id === storeId)?.name ?? 'Store';
   const allRows = data?.data ?? [];
@@ -113,8 +182,73 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
     });
   };
 
-  const columns = useMemo<ColumnDef<InventoryStockRow, unknown>[]>(() => {
-    const defs: ColumnDef<InventoryStockRow, unknown>[] = [
+  const stagedItems = useMemo(
+    () => filteredRows.filter((row) => selectedItemIds.has(row.id)),
+    [filteredRows, selectedItemIds],
+  );
+
+  const toggleItemSelection = useCallback((itemId: string, checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+  }, []);
+
+  const handleApplyAdjustments = async () => {
+    const entries = Object.entries(adjustDrafts).filter(([, draft]) => {
+      const delta = Number(draft.delta);
+      return draft.stockId && Number.isFinite(delta) && delta !== 0 && draft.reason.trim();
+    });
+
+    if (entries.length === 0) {
+      toast.error('Enter a non-zero adjustment and reason for at least one row.');
+      return;
+    }
+
+    try {
+      for (const [, draft] of entries) {
+        await adjustStock.mutateAsync({
+          stock_id: draft.stockId,
+          delta: Number(draft.delta),
+          reason: draft.reason.trim(),
+        });
+      }
+      toast.success(`Applied ${entries.length} stock adjustment(s).`);
+      setAdjustDrafts({});
+      setAdjustMode(false);
+    } catch {
+      toast.error('One or more adjustments failed.');
+    }
+  };
+
+  const handleSaveMinReorder = async () => {
+    const entries = Object.entries(minReorderDrafts);
+    if (entries.length === 0) {
+      toast.info('No reorder changes to save.');
+      return;
+    }
+
+    try {
+      for (const [itemId, rawValue] of entries) {
+        const reorderPoint = Number(rawValue);
+        if (!Number.isFinite(reorderPoint) || reorderPoint < 0) {
+          toast.error('Min reorder must be a non-negative number.');
+          return;
+        }
+        await updateReorder.mutateAsync({ item_id: itemId, reorder_point: reorderPoint });
+      }
+      toast.success('Minimum reorder values saved.');
+      setMinReorderDrafts({});
+      setMinReorderMode(false);
+    } catch {
+      toast.error('Failed to save reorder values.');
+    }
+  };
+
+  const expiringColumns = useMemo<ColumnDef<InventoryExpiringLot, unknown>[]>(
+    () => [
       {
         id: 'index',
         header: '#',
@@ -124,6 +258,67 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
         ),
       },
       { accessorKey: 'item_name', header: 'Item', meta: { label: 'Item' } },
+      { accessorKey: 'lot_number', header: 'Lot', meta: { label: 'Lot' } },
+      {
+        accessorKey: 'expiry_date',
+        header: 'Expiry',
+        meta: { label: 'Expiry' },
+        cell: ({ getValue }) => <span className="tabular-nums">{getValue<string>()}</span>,
+      },
+      {
+        accessorKey: 'quantity',
+        header: 'Qty',
+        meta: { label: 'Qty' },
+        cell: ({ row }) => <span className="tabular-nums">{row.original.quantity}</span>,
+      },
+      { accessorKey: 'uom', header: 'UoM', meta: { label: 'UoM' } },
+    ],
+    [],
+  );
+
+  const filteredExpiringLots = useMemo(() => {
+    if (!search.trim()) return expiringLots;
+    const q = search.trim().toLowerCase();
+    return expiringLots.filter(
+      (lot) =>
+        lot.item_name.toLowerCase().includes(q) || lot.lot_number.toLowerCase().includes(q),
+    );
+  }, [expiringLots, search]);
+
+  const columns = useMemo<ColumnDef<InventoryStockRow, unknown>[]>(() => {
+    const defs: ColumnDef<InventoryStockRow, unknown>[] = [
+      {
+        id: 'select',
+        header: () => null,
+        meta: { label: '', headerClassName: 'w-10' },
+        cell: ({ row }) => (
+          <Checkbox
+            checked={selectedItemIds.has(row.original.id)}
+            onCheckedChange={(checked) => toggleItemSelection(row.original.id, checked === true)}
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`Select ${row.original.item_name}`}
+          />
+        ),
+      },
+      {
+        id: 'index',
+        header: '#',
+        meta: { label: '#', headerClassName: 'w-12' },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground tabular-nums">{row.index + 1}</span>
+        ),
+      },
+      {
+        accessorKey: 'item_name',
+        header: 'Item',
+        meta: { label: 'Item' },
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate font-medium">{row.original.item_name}</p>
+            <p className="truncate text-xs text-muted-foreground">{row.original.item_code}</p>
+          </div>
+        ),
+      },
       {
         accessorKey: 'item_code',
         header: 'Code',
@@ -168,6 +363,12 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
             className="h-8 w-24"
             defaultValue={row.original.min_reorder}
             onClick={(event) => event.stopPropagation()}
+            onChange={(event) =>
+              setMinReorderDrafts((prev) => ({
+                ...prev,
+                [row.original.id]: event.target.value,
+              }))
+            }
           />
         ),
       });
@@ -180,7 +381,27 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
       });
     }
 
-    if (!minReorderMode) {
+    if (adjustMode) {
+      defs.push(
+        {
+          id: 'batch',
+          header: 'Batch',
+          meta: { label: 'Batch' },
+          cell: ({ row }) => (
+            <StockAdjustRowFields
+              row={row.original}
+              storeId={storeId}
+              draft={adjustDrafts[row.original.id]}
+              onChange={(next) =>
+                setAdjustDrafts((prev) => ({ ...prev, [row.original.id]: next }))
+              }
+            />
+          ),
+        },
+      );
+    }
+
+    if (!minReorderMode && !adjustMode) {
       defs.push({
         accessorKey: 'status',
         header: 'Status',
@@ -190,50 +411,125 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
     }
 
     return defs;
-  }, [minReorderMode, showReorderColumn, showUomColumn]);
+  }, [
+    adjustDrafts,
+    adjustMode,
+    minReorderMode,
+    selectedItemIds,
+    showReorderColumn,
+    showUomColumn,
+    storeId,
+    toggleItemSelection,
+  ]);
 
   return (
     <InventoryPageShell
-      title="Stock"
-      breadcrumbLabel="Stock"
+      title={stockPageTitle(dashboardView)}
+      description={stockPageDescription(dashboardView)}
+      breadcrumbLabel={stockPageTitle(dashboardView)}
+      variant={variant}
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => toast.info('Adjust stock will connect to inventory APIs later.')}
-          >
-            Adjust stock
-          </Button>
-          <InventoryStockIndentLink />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => toast.info('Export will connect to inventory APIs later.')}
-          >
-            <Download className="size-4" aria-hidden />
-            Export
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="icon-sm" aria-label="More actions">
-                <MoreVertical className="size-4" />
+          {adjustMode ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                disabled={adjustStock.isPending}
+                onClick={() => void handleApplyAdjustments()}
+              >
+                Apply adjustments
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => {
-                  setMinReorderMode((value) => !value);
-                  if (!minReorderMode) setViewMode('list');
+                  setAdjustMode(false);
+                  setAdjustDrafts({});
                 }}
               >
-                Minimum order value
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                Cancel
+              </Button>
+            </>
+          ) : minReorderMode ? (
+            <>
+              <Button
+                type="button"
+                size="sm"
+                disabled={updateReorder.isPending}
+                onClick={() => void handleSaveMinReorder()}
+              >
+                Save reorder levels
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMinReorderMode(false);
+                  setMinReorderDrafts({});
+                }}
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setAdjustMode(true);
+                  setMinReorderMode(false);
+                  setViewMode('list');
+                }}
+              >
+                Adjust stock
+              </Button>
+              <InventoryStockIndentLink
+                variant={variant}
+                onClick={() => {
+                  if (selectedItemIds.size === 0) {
+                    toast.info('Select at least one item to stage an indent.');
+                    return;
+                  }
+                  setIndentDrawerOpen(true);
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => toast.info('Export will connect to inventory APIs later.')}
+              >
+                <Download className="size-4" aria-hidden />
+                Export
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="icon-sm" aria-label="More actions">
+                    <MoreVertical className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setMinReorderMode((value) => !value);
+                      if (!minReorderMode) {
+                        setViewMode('list');
+                        setAdjustMode(false);
+                      }
+                    }}
+                  >
+                    Minimum order value
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       }
     >
@@ -252,45 +548,49 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
             </SelectContent>
           </Select>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm" className="gap-1.5">
-                <SlidersHorizontal className="size-4" aria-hidden />
-                Display
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-72">
-              <InventoryStockDisplayPopoverContent
-                showReorder={showReorderColumn}
-                showUom={showUomColumn}
-                onShowReorderChange={setShowReorderColumn}
-                onShowUomChange={setShowUomColumn}
-                statusFilters={statusFilters}
-                onStatusFilterToggle={toggleStatusFilter}
-              />
-            </PopoverContent>
-          </Popover>
+          {!isExpiringView ? (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="gap-1.5">
+                    <SlidersHorizontal className="size-4" aria-hidden />
+                    Display
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72">
+                  <InventoryStockDisplayPopoverContent
+                    showReorder={showReorderColumn}
+                    showUom={showUomColumn}
+                    onShowReorderChange={setShowReorderColumn}
+                    onShowUomChange={setShowUomColumn}
+                    statusFilters={statusFilters}
+                    onStatusFilterToggle={toggleStatusFilter}
+                  />
+                </PopoverContent>
+              </Popover>
 
-          <div className="flex items-center gap-1 rounded-md border p-0.5">
-            <Button
-              type="button"
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-              size="icon-sm"
-              aria-label="List view"
-              onClick={() => setViewMode('list')}
-            >
-              <List className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="icon-sm"
-              aria-label="Grid view"
-              onClick={() => setViewMode('grid')}
-            >
-              <LayoutGrid className="size-4" />
-            </Button>
-          </div>
+              <div className="flex items-center gap-1 rounded-md border p-0.5">
+                <Button
+                  type="button"
+                  variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                  size="icon-sm"
+                  aria-label="List view"
+                  onClick={() => setViewMode('list')}
+                >
+                  <List className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                  size="icon-sm"
+                  aria-label="Grid view"
+                  onClick={() => setViewMode('grid')}
+                >
+                  <LayoutGrid className="size-4" />
+                </Button>
+              </div>
+            </>
+          ) : null}
 
           <EntityTableToolbar
             value={search}
@@ -301,7 +601,15 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
         </div>
 
         <div className="p-3 pt-0">
-          {viewMode === 'grid' ? (
+          {isExpiringView ? (
+            <DataTable
+              columns={expiringColumns}
+              data={filteredExpiringLots}
+              isLoading={expiringLoading}
+              emptyTitle="No expiring lots"
+              emptyDescription={`No lots expiring within ${INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS} days at this store.`}
+            />
+          ) : viewMode === 'grid' ? (
             <InventoryStockGrid rows={filteredRows} onSelect={openRowDetail} />
           ) : (
             <DataTable
@@ -317,18 +625,24 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
-          <p className="text-muted-foreground">{filteredRows.length} items</p>
-          <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
-            <span>
-              Critical <strong className="text-destructive">{summary.critical}</strong>
-            </span>
-            <span>
-              Low <strong className="text-amber-600">{summary.low}</strong>
-            </span>
-            <span>
-              Normal <strong className="text-emerald-600">{summary.normal}</strong>
-            </span>
-          </div>
+          {isExpiringView ? (
+            <p className="text-muted-foreground">{filteredExpiringLots.length} lots</p>
+          ) : (
+            <>
+              <p className="text-muted-foreground">{filteredRows.length} items</p>
+              <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
+                <span>
+                  Critical <strong className="text-destructive">{summary.critical}</strong>
+                </span>
+                <span>
+                  Low <strong className="text-amber-600">{summary.low}</strong>
+                </span>
+                <span>
+                  Normal <strong className="text-emerald-600">{summary.normal}</strong>
+                </span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -338,6 +652,14 @@ export function InventoryStockPage({ initialStatus = 'all' }: InventoryStockPage
         storeName={storeName}
         open={sheetOpen}
         onOpenChange={handleSheetOpenChange}
+      />
+
+      <InventoryStockIndentDrawer
+        open={indentDrawerOpen}
+        onOpenChange={setIndentDrawerOpen}
+        stagedItems={stagedItems}
+        onRemoveItem={(itemId) => toggleItemSelection(itemId, false)}
+        variant={variant}
       />
     </InventoryPageShell>
   );

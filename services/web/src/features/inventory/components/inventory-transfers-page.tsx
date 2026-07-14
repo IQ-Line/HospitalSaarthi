@@ -1,6 +1,7 @@
-import { useNavigate } from '@tanstack/react-router';
+import { useNavigate, Link } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -14,7 +15,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@pulse/ui/tabs';
 import { DataTable } from '@/components/data-table';
 import { EntityTableToolbar } from '@/components/entity-table/entity-table-toolbar';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
   isIndentReadyForTransferQueue,
   transferQueueAction,
@@ -43,6 +43,8 @@ import {
   useInventoryTransfers,
 } from '../api/queries';
 import type { InventoryIndentRow, InventoryTransferRow } from '../types';
+import type { InventoryOperationalVariant } from '../lib/inventory-operational-variant';
+import { operationalNewTransferPath } from '../lib/inventory-operational-variant';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryTransferDialog } from './inventory-transfer-dialog';
 import { InventoryTransferReceiveDialog } from './inventory-transfer-receive-dialog';
@@ -72,17 +74,21 @@ type InventoryTransfersPageProps = {
   direction?: TransferListDirection;
   storeId?: string;
   routePrefill?: TransferRoutePrefill;
+  variant?: InventoryOperationalVariant;
+  presentation?: 'operations' | 'counter';
 };
 
 export function InventoryTransfersPage({
   direction: directionProp,
   storeId: storeIdProp,
   routePrefill,
+  variant = 'inventory',
+  presentation = 'operations',
 }: InventoryTransfersPageProps) {
   const navigate = useNavigate();
-  const { data: liveStores = [] } = useInventoryIndentStores();
-  const { data: fallbackStores = [] } = useInventoryStores();
-  const stores = OPERATIONAL_INVENTORY_API_ENABLED ? liveStores : fallbackStores;
+  const { data: indentStores = [] } = useInventoryIndentStores();
+  const { data: inventoryStores = [] } = useInventoryStores();
+  const stores = indentStores.length > 0 ? indentStores : inventoryStores;
 
   const [storeId, setStoreId] = useState(storeIdProp ?? routePrefill?.fromStoreId ?? '');
   const [search, setSearch] = useState('');
@@ -96,6 +102,8 @@ export function InventoryTransfersPage({
   const [selectedIndent, setSelectedIndent] = useState<InventoryIndentRow | null>(null);
 
   const direction = directionProp ?? defaultTransferDirection();
+  const isCounterPresentation = presentation === 'counter' || variant === 'pharmacy';
+  const newTransferPath = operationalNewTransferPath(variant);
 
   useEffect(() => {
     if (storeIdProp) {
@@ -166,17 +174,22 @@ export function InventoryTransfersPage({
 
     return {
       search: search || undefined,
-      status: direction === 'incoming' && status === 'all' ? undefined : mappedStatus,
+      status: isCounterPresentation || (direction === 'incoming' && status === 'all') ? undefined : mappedStatus,
       statuses:
-        direction === 'incoming' && status === 'all'
+        !isCounterPresentation && direction === 'incoming' && status === 'all'
           ? (['in_transit', 'partially_received'] as const)
           : undefined,
       page,
       limit: pageSize,
-      ...(direction === 'outgoing' && storeId ? outgoingTransferStoreFilter(storeId) : {}),
-      ...(direction === 'incoming' && storeId ? incomingTransferStoreFilter(storeId) : {}),
+      ...(isCounterPresentation && storeId ? outgoingTransferStoreFilter(storeId) : {}),
+      ...(!isCounterPresentation && direction === 'outgoing' && storeId
+        ? outgoingTransferStoreFilter(storeId)
+        : {}),
+      ...(!isCounterPresentation && direction === 'incoming' && storeId
+        ? incomingTransferStoreFilter(storeId)
+        : {}),
     };
-  }, [direction, page, pageSize, search, status, storeId]);
+  }, [direction, isCounterPresentation, page, pageSize, search, status, storeId]);
 
   const { data: transferData, isLoading: transfersLoading } = useInventoryTransfers(transferListParams);
   const transferRows = transferData?.data ?? [];
@@ -213,8 +226,10 @@ export function InventoryTransfersPage({
   }, [draftTransferIds, indentDetail, routePrefill?.indentId, routePrefill?.transferId, routeTransferDetail]);
 
   const setDirection = (next: TransferListDirection) => {
+    const transfersRoute =
+      variant === 'pharmacy' ? '/pharmacy/transfers' : '/inventory/transfers';
     void navigate({
-      to: '/inventory/transfers',
+      to: transfersRoute,
       search: { tab: next, storeId: storeId || undefined },
     });
   };
@@ -222,8 +237,10 @@ export function InventoryTransfersPage({
   const handleStoreChange = (nextStoreId: string) => {
     setStoreId(nextStoreId);
     setPage(1);
+    const transfersRoute =
+      variant === 'pharmacy' ? '/pharmacy/transfers' : '/inventory/transfers';
     void navigate({
-      to: '/inventory/transfers',
+      to: transfersRoute,
       search: { tab: direction, storeId: nextStoreId },
     });
   };
@@ -382,8 +399,62 @@ export function InventoryTransfersPage({
   const dialogTransfer = selectedTransferDetail ?? routeTransferDetail ?? null;
   const transferLoading = Boolean(selectedTransferId) && !dialogTransfer;
 
+  const counterColumns = useMemo<ColumnDef<InventoryTransferRow, unknown>[]>(
+    () => [
+      {
+        accessorKey: 'transfer_number',
+        header: 'Transfer #',
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="font-mono text-xs text-primary hover:underline"
+            onClick={() => openOutgoingTransfer(row.original)}
+          >
+            {row.original.transfer_number}
+          </button>
+        ),
+      },
+      {
+        id: 'date',
+        header: 'Date',
+        cell: ({ row }) => formatTransferDate(row.original.transfer_date),
+      },
+      { accessorKey: 'from_store', header: 'From' },
+      { accessorKey: 'to_store', header: 'To' },
+      {
+        accessorKey: 'transfer_type',
+        header: 'Type',
+        cell: ({ getValue }) => (getValue<string>() === 'emergency' ? 'Emergency' : 'Normal'),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        cell: ({ getValue }) => (
+          <Badge variant="outline" className={`text-xs ${transferStatusBadgeClass(getValue<InventoryTransferRow['status']>())}`}>
+            {transferStatusLabel(getValue<InventoryTransferRow['status']>())}
+          </Badge>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
-    <InventoryPageShell title="Stock Transfers" breadcrumbLabel="Transfers">
+    <InventoryPageShell
+      title="Stock transfers"
+      breadcrumbLabel="Transfers"
+      variant={variant}
+      actions={
+        isCounterPresentation ? (
+          <Button type="button" size="sm" className="gap-1.5" asChild>
+            <Link to={newTransferPath}>
+              <Plus className="size-4" aria-hidden />
+              New transfer
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="grid min-w-[14rem] gap-1">
@@ -402,15 +473,52 @@ export function InventoryTransfersPage({
             </Select>
           </div>
 
+          {!isCounterPresentation ? (
           <Tabs value={direction} onValueChange={(value) => setDirection(value as TransferListDirection)}>
             <TabsList>
               <TabsTrigger value="outgoing">Outgoing</TabsTrigger>
               <TabsTrigger value="incoming">Incoming</TabsTrigger>
             </TabsList>
           </Tabs>
+          ) : null}
         </div>
 
-        {direction === 'outgoing' ? (
+        {isCounterPresentation ? (
+          <div className="rounded-lg border">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
+              <EntityTableToolbar
+                value={search}
+                onChange={(value) => {
+                  setSearch(value);
+                  setPage(1);
+                }}
+                placeholder="Search..."
+                debounceMs={0}
+              />
+            </div>
+            <div className="p-3 pt-0">
+              <DataTable
+                columns={counterColumns}
+                data={transferRows}
+                isLoading={transfersLoading}
+                getRowId={(row) => row.id}
+                emptyTitle="No transfers"
+                emptyDescription="Stock transfers for this store will appear here."
+                manualPagination={{
+                  pageIndex: page - 1,
+                  pageSize,
+                  total: transferData?.total ?? 0,
+                  pageSizeOptions: [10, 20, 50],
+                  onPageChange: (pageIndex) => setPage(pageIndex + 1),
+                  onPageSizeChange: (size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  },
+                }}
+              />
+            </div>
+          </div>
+        ) : direction === 'outgoing' ? (
           <div className="flex flex-col gap-6">
             <div className="rounded-lg border">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">

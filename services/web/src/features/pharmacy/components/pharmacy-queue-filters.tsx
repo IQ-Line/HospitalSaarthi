@@ -42,8 +42,8 @@ export function PharmacyQueueFiltersBar({
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="partial_issue">Partial issue</SelectItem>
-            <SelectItem value="issued">Issued</SelectItem>
+            <SelectItem value="partial_issue">Partial</SelectItem>
+            <SelectItem value="issued">Dispensed</SelectItem>
           </SelectContent>
         </Select>
 

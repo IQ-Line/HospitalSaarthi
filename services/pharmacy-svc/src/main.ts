@@ -18,6 +18,7 @@ import {
   createPharmacyAuthzTargetResolver,
   createRouter,
   HttpMasterDataGateway,
+  HttpInventoryGateway,
   HttpOpdGateway,
 } from "@hims/pharmacy";
 import { createPharmacyUserLookup } from "./adapters/pharmacy-user-lookup.js";
@@ -27,6 +28,7 @@ const DATABASE_URL = process.env["DATABASE_URL"] ?? "";
 const CERBOS_URL = process.env["CERBOS_URL"];
 const OPD_URL = process.env["OPD_URL"] ?? "http://localhost:8020";
 const MASTER_DATA_URL = process.env["MASTER_DATA_URL"] ?? "http://localhost:8010";
+const INVENTORY_URL = process.env["INVENTORY_URL"] ?? "http://localhost:3008";
 const PHARMACY_DEV_TENANT_ID =
   process.env["PHARMACY_DEV_TENANT_ID"] ?? "00000000-0000-0000-0000-000000000007";
 
@@ -75,6 +77,9 @@ async function main() {
     warn: (detail, message) => app.log.warn(detail, message),
   });
   const masterDataGateway = new HttpMasterDataGateway(MASTER_DATA_URL, {
+    warn: (detail, message) => app.log.warn(detail, message),
+  });
+  const inventoryGateway = new HttpInventoryGateway(INVENTORY_URL, {
     warn: (detail, message) => app.log.warn(detail, message),
   });
 
@@ -154,6 +159,7 @@ async function main() {
         db,
         opdGateway,
         masterDataGateway,
+        inventoryGateway,
         userLookup,
       }),
     );

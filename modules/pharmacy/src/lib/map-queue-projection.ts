@@ -1,20 +1,23 @@
-import type { OpdQueueProjectionRow, PharmacyQueueItem } from "../domain/pharmacy.types.js";
+import type { PharmacyQueueItem, QueueProjectionRow } from "../domain/pharmacy.types.js";
 import { hasPharmacyDispenseRecord } from "./dispense-completion.js";
 
-export function mapOpdQueueProjectionToQueueItem(row: OpdQueueProjectionRow): PharmacyQueueItem {
+export function mapQueueProjectionToQueueItem(row: QueueProjectionRow): PharmacyQueueItem {
+  const queuedAt = row.queued_at.toISOString();
   return {
     walk_in_order: false,
     record_id: null,
-    visit_id: row.visit_id,
+    visit_id: row.encounter_id,
     patient_id: row.patient_id,
     walk_in_patient_id: null,
     prescription_id: row.prescription_id,
     doctor_id: row.doctor_id,
     visit_status: row.visit_status,
     prescription_status: row.prescription_status,
-    updated_at: row.queued_at.toISOString(),
-    finalized_at: row.queued_at.toISOString(),
+    updated_at: queuedAt,
+    queued_at: queuedAt,
+    finalized_at: queuedAt,
     medicine_count: row.medicine_count,
+    priority: row.priority,
     patient_name: row.patient_name,
     uhid: row.uhid,
     phone: row.phone,
@@ -26,3 +29,6 @@ export function mapOpdQueueProjectionToQueueItem(row: OpdQueueProjectionRow): Ph
     dispense_status: row.dispense_status,
   };
 }
+
+/** @deprecated Use `mapQueueProjectionToQueueItem`. */
+export const mapOpdQueueProjectionToQueueItem = mapQueueProjectionToQueueItem;

@@ -103,7 +103,6 @@ describe('inventory admin sidebar (admin role + inventory-master tenant module)'
 
     const rootIds = filtered.map((n) => n.id);
     expect(rootIds).toContain('inventory-supply-masters');
-    // Operational Inventory requires inventory product capabilities; masters-only admins omit it.
     expect(rootIds).not.toContain('inventory');
   });
 });

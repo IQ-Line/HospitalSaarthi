@@ -19,13 +19,15 @@ tags:
     description: OPD visits with prescriptions and walk-in dispense orders.
   - name: Dispense
     description: Per-visit dispense record and line items.
+  - name: Returns
+    description: Return medicines against completed dispense transactions (amounts stored in pharmacy schema; no billing refund in v1).
 paths:
   /queue:
     get:
       operationId: listPharmacyQueue
       summary: List pharmacy queue rows (OPD prescriptions or walk-in orders)
       description: |
-        OPD prescriptions (`kind=opd`) are read from `pharmacy.opd_queue_projection` (rows pushed by
+        OPD prescriptions (`kind=opd`) are read from `pharmacy.queue_projection` (rows pushed by
         OPD on prescription finalize). Walk-in orders (`kind=walk_in`) are read from pharmacy
         dispense records.
       tags: [Queue]
@@ -54,6 +56,10 @@ paths:
             enum: [all, pending, partial_issue, issued]
             default: all
           description: Filter by dispense status (pending = no saved dispense, partial_issue = incomplete fulfillment, issued = fully dispensed).
+        - name: doctor_id
+          in: query
+          schema: { type: string, format: uuid }
+          description: Filter by prescribing doctor id.
         - name: kind
           in: query
           schema:
@@ -151,6 +157,35 @@ paths:
           description: Visit has no OPD prescription
         "502":
           description: Upstream or persistence failure
+  /manual-dispense-issues:
+    post:
+      operationId: issueManualDispenseStock
+      summary: Deduct store stock for manual / walk-in counter issue
+      description: >
+        Issues inventory stock (FEFO) for the selected pharmacy store without
+        requiring an OPD visit dispense order.
+      tags: [Dispense]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManualDispenseIssueRequest"
+      responses:
+        "200":
+          description: Stock deducted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualDispenseIssueResponse"
+        "400":
+          description: Validation error
+        "409":
+          description: Insufficient stock
+        "502":
+          description: Upstream inventory failure
   /walk-in-dispense-orders:
     post:
       operationId: createWalkInDispenseOrder
@@ -209,6 +244,131 @@ paths:
           description: Validation error
         "404":
           description: Order not found
+  /dispense-transactions/search:
+    get:
+      operationId: searchDispenseForReturn
+      summary: Search completed dispense transactions eligible for return
+      description: |
+        At least one search parameter is required. Only dispense records with status
+        `issued`, `partial_issue`, or `partially_returned` are returned.
+      tags: [Returns]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - name: bill_number
+          in: query
+          schema: { type: string }
+          description: Matches dispense record id prefix (pharmacy-local bill reference).
+        - name: dispense_number
+          in: query
+          schema: { type: string }
+          description: Matches dispense record id prefix.
+        - name: prescription_number
+          in: query
+          schema: { type: string }
+          description: Matches OPD prescription id or formatted token.
+        - name: uhid
+          in: query
+          schema: { type: string }
+        - name: patient_name
+          in: query
+          schema: { type: string }
+        - name: mobile
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: General search across patient, UHID, visit, prescription, and dispense id.
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseReturnSearchResponse" }
+        "400":
+          description: No search criterion provided
+  /dispense-transactions/{dispenseId}/return-eligibility:
+    get:
+      operationId: getDispenseReturnEligibility
+      summary: Dispense header and line eligibility for processing a return
+      tags: [Returns]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: dispenseId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Return eligibility detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseReturnEligibilityResponse" }
+        "404":
+          description: Dispense not found or not eligible for return
+  /returns:
+    get:
+      operationId: listDispenseReturns
+      summary: List processed dispense returns
+      tags: [Returns]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - name: q
+          in: query
+          schema: { type: string }
+          description: Search return number, patient name, UHID, or dispense id.
+      responses:
+        "200":
+          description: Return list page
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseReturnListResponse" }
+    post:
+      operationId: processDispenseReturn
+      summary: Process a medicine return against a dispense transaction
+      description: |
+        Idempotent when `Idempotency-Key` header is supplied. Restores inventory stock by
+        item quantity at the dispense store (lot/batch ignored for now), then updates
+        cumulative returned quantities on dispense lines and dispense status. Amounts are
+        stored in pharmacy schema only (no billing integration in v1).
+      tags: [Returns]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - $ref: "#/components/parameters/IdempotencyKeyHeader"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProcessDispenseReturnRequest" }
+      responses:
+        "201":
+          description: Return processed
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseReturnDetail" }
+        "400":
+          description: Validation error
+        "404":
+          description: Dispense or line not found
+        "409":
+          description: Duplicate or ineligible return
+  /returns/{returnId}:
+    get:
+      operationId: getDispenseReturn
+      summary: Get a processed return by id
+      tags: [Returns]
+      parameters:
+        - $ref: "#/components/parameters/TenantIdHeader"
+        - { name: returnId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Return detail
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DispenseReturnDetail" }
+        "404":
+          description: Return not found
 components:
   securitySchemes:
     bearerAuth:
@@ -228,6 +388,12 @@ components:
       in: header
       required: true
       schema: { type: string, format: uuid }
+    IdempotencyKeyHeader:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, maxLength: 128 }
+      description: Optional idempotency key for return processing.
   schemas:
     PharmacyQueueItem:
       type: object
@@ -235,6 +401,8 @@ components:
         - walk_in_order
         - visit_status
         - updated_at
+        - queued_at
+        - priority
         - has_dispense
         - dispense_status
         - medicine_count
@@ -264,7 +432,15 @@ components:
         visit_status: { type: string }
         prescription_status: { type: string, nullable: true }
         updated_at: { type: string, format: date-time }
+        queued_at:
+          type: string
+          format: date-time
+          description: When the prescription entered the pharmacy queue.
         finalized_at: { type: string, format: date-time, nullable: true }
+        priority:
+          type: string
+          enum: [routine, urgent, stat]
+          description: Dispense priority — stat maps to emergency in UI.
         medicine_count:
           type: integer
           minimum: 0
@@ -291,7 +467,230 @@ components:
           $ref: "#/components/schemas/PharmacyDispenseStatus"
     PharmacyDispenseStatus:
       type: string
-      enum: [pending, issued, partial_issue]
+      enum: [pending, issued, partial_issue, partially_returned, fully_returned]
+    DispenseReturnReason:
+      type: string
+      enum:
+        - wrong_medicine_dispensed
+        - doctor_discontinued_medication
+        - duplicate_dispensing
+        - excess_quantity_dispensed
+        - patient_refused_medicine
+        - other
+    DispenseReturnVerification:
+      type: object
+      required: [unopened, packaging_intact, expiry_verified]
+      properties:
+        unopened: { type: boolean }
+        packaging_intact: { type: boolean }
+        expiry_verified: { type: boolean }
+    DispenseReturnSearchHit:
+      type: object
+      required:
+        - dispense_id
+        - dispense_number
+        - visit_id
+        - patient_id
+        - dispense_date
+        - dispense_status
+        - total_amount
+      properties:
+        dispense_id: { type: string, format: uuid }
+        dispense_number: { type: string }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+        prescription_id: { type: string, format: uuid, nullable: true }
+        dispense_date: { type: string, format: date-time }
+        dispense_status: { $ref: "#/components/schemas/PharmacyDispenseStatus" }
+        total_amount: { type: string }
+        pharmacist_id: { type: string, format: uuid, nullable: true }
+    DispenseReturnSearchResponse:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseReturnSearchHit" }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+    DispenseReturnEligibleLine:
+      type: object
+      required:
+        - dispense_line_item_id
+        - medicine_display_name
+        - quantity_dispensed
+        - quantity_returned
+        - eligible_return_qty
+        - unit_amount
+        - line_discount
+        - tax_percent
+        - tax_amount
+        - line_total
+      properties:
+        dispense_line_item_id: { type: string, format: uuid }
+        medicine_id: { type: string, format: uuid, nullable: true }
+        medicine_display_name: { type: string }
+        stock_batch_id: { type: string, format: uuid, nullable: true }
+        batch_number: { type: string, nullable: true }
+        expiry_date: { type: string, format: date, nullable: true }
+        quantity_dispensed: { type: string }
+        quantity_returned: { type: string }
+        eligible_return_qty: { type: string }
+        unit_amount: { type: string }
+        line_discount: { type: string }
+        tax_percent: { type: string }
+        tax_amount: { type: string }
+        line_total: { type: string }
+    DispenseReturnEligibilityResponse:
+      type: object
+      required:
+        - dispense_id
+        - dispense_number
+        - visit_id
+        - patient_id
+        - dispense_date
+        - dispense_status
+        - total_amount
+        - lines
+      properties:
+        dispense_id: { type: string, format: uuid }
+        dispense_number: { type: string }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+        prescription_id: { type: string, format: uuid, nullable: true }
+        dispense_date: { type: string, format: date-time }
+        dispense_status: { $ref: "#/components/schemas/PharmacyDispenseStatus" }
+        total_amount: { type: string }
+        inventory_store_id: { type: string, format: uuid, nullable: true }
+        pharmacist_id: { type: string, format: uuid, nullable: true }
+        pharmacist_name: { type: string, nullable: true }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseReturnEligibleLine" }
+    ProcessDispenseReturnLineInput:
+      type: object
+      required: [dispense_line_item_id, return_qty]
+      properties:
+        dispense_line_item_id: { type: string, format: uuid }
+        return_qty: { type: string }
+        stock_batch_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Must match the original dispense line batch when set.
+    ProcessDispenseReturnRequest:
+      type: object
+      required: [dispense_id, return_reason, verification, lines]
+      properties:
+        dispense_id: { type: string, format: uuid }
+        return_reason: { $ref: "#/components/schemas/DispenseReturnReason" }
+        remarks:
+          type: string
+          nullable: true
+          description: Required when return_reason is `other`.
+        verification: { $ref: "#/components/schemas/DispenseReturnVerification" }
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/ProcessDispenseReturnLineInput" }
+    DispenseReturnLineDetail:
+      type: object
+      required:
+        - id
+        - dispense_line_item_id
+        - medicine_display_name
+        - return_qty
+        - unit_amount
+        - line_discount
+        - tax_amount
+        - return_amount
+      properties:
+        id: { type: string, format: uuid }
+        dispense_line_item_id: { type: string, format: uuid }
+        medicine_id: { type: string, format: uuid, nullable: true }
+        medicine_display_name: { type: string }
+        stock_batch_id: { type: string, format: uuid, nullable: true }
+        return_qty: { type: string }
+        unit_amount: { type: string }
+        line_discount: { type: string }
+        tax_amount: { type: string }
+        return_amount: { type: string }
+    DispenseReturnSummary:
+      type: object
+      required:
+        - id
+        - return_number
+        - dispense_id
+        - return_reason
+        - total_return_amount
+        - processed_at
+        - patient_name
+        - uhid
+      properties:
+        id: { type: string, format: uuid }
+        return_number: { type: string }
+        dispense_id: { type: string, format: uuid }
+        dispense_number: { type: string }
+        return_reason: { $ref: "#/components/schemas/DispenseReturnReason" }
+        total_return_amount: { type: string }
+        processed_at: { type: string, format: date-time }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+    DispenseReturnListResponse:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseReturnSummary" }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+    DispenseReturnDetail:
+      type: object
+      required:
+        - id
+        - return_number
+        - dispense_id
+        - dispense_number
+        - visit_id
+        - patient_id
+        - return_reason
+        - verification
+        - total_return_amount
+        - processed_at
+        - processed_by
+        - lines
+      properties:
+        id: { type: string, format: uuid }
+        return_number: { type: string }
+        dispense_id: { type: string, format: uuid }
+        dispense_number: { type: string }
+        visit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid }
+        patient_name: { type: string, nullable: true }
+        uhid: { type: string, nullable: true }
+        formatted_visit_id: { type: string, nullable: true }
+        prescription_id: { type: string, format: uuid, nullable: true }
+        return_reason: { $ref: "#/components/schemas/DispenseReturnReason" }
+        remarks: { type: string, nullable: true }
+        verification: { $ref: "#/components/schemas/DispenseReturnVerification" }
+        total_return_amount: { type: string }
+        processed_at: { type: string, format: date-time }
+        processed_by: { type: string, format: uuid, nullable: true }
+        processed_by_name: { type: string, nullable: true }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/DispenseReturnLineDetail" }
     OpdQueueProjectionUpsertRequest:
       type: object
       required:
@@ -412,12 +811,22 @@ components:
           type: string
           nullable: true
           description: Tax rate as percent (e.g. 12 for 12%); defaults to 0.
+        inventory_item_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Inventory item-master id for FEFO stock deduction when quantity_dispensed > 0.
     SaveDispenseForVisitRequest:
       type: object
       required: [patient_id, lines]
       properties:
         patient_id: { type: string, format: uuid }
         opd_prescription_id: { type: string, format: uuid, nullable: true }
+        inventory_store_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Pharmacy inventory store selected on the counter (required when issuing stock).
         discount:
           type: string
           nullable: true
@@ -427,6 +836,29 @@ components:
           type: array
           minItems: 1
           items: { $ref: "#/components/schemas/SaveDispenseLineInput" }
+    ManualDispenseIssueRequest:
+      type: object
+      required: [inventory_store_id, lines]
+      properties:
+        inventory_store_id: { type: string, format: uuid }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [inventory_item_id, quantity]
+            properties:
+              inventory_item_id: { type: string, format: uuid }
+              quantity:
+                oneOf:
+                  - type: string
+                  - type: number
+    ManualDispenseIssueResponse:
+      type: object
+      required: [inventory_store_id, line_count]
+      properties:
+        inventory_store_id: { type: string, format: uuid }
+        line_count: { type: integer }
     DispenseLineItem:
       type: object
       required:
@@ -449,6 +881,7 @@ components:
         tax_percent: { type: string }
         tax_amount: { type: string }
         line_total: { type: string }
+        inventory_item_id: { type: string, format: uuid, nullable: true }
         created_at: { type: string, format: date-time }
     DispenseForVisitResponse:
       type: object
@@ -494,7 +927,7 @@ components:
         patient_name:
           type: string
           nullable: true
-          description: Denormalized patient display name from pharmacy.opd_queue_projection.
+          description: Denormalized patient display name from pharmacy.queue_projection.
         uhid:
           type: string
           nullable: true

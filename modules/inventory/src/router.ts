@@ -13,6 +13,7 @@ import { registerGrnHandlers } from "./rest-handlers/grn.handlers.js";
 import { registerIndentHandlers } from "./rest-handlers/indents.handlers.js";
 import { registerItemHandlers } from "./rest-handlers/items.handlers.js";
 import { registerStockHandlers } from "./rest-handlers/stock.handlers.js";
+import { registerDispenseStockIssueHandlers } from "./rest-handlers/dispense-stock-issue.handlers.js";
 import { registerTransferHandlers } from "./rest-handlers/transfers.handlers.js";
 import { registerInventoryErrorHandler, registerStoreHandlers } from "./rest-handlers/stores.handlers.js";
 
@@ -45,6 +46,7 @@ async function inventoryRouter(
   });
   registerGrnHandlers(app, { grnRepo, storeRepo, itemRepo, indentRepo });
   registerStockHandlers(app, { stockRepo, storeRepo });
+  registerDispenseStockIssueHandlers(app, { db: options.db, storeRepo });
   registerIndentHandlers(app, {
     indentRepo,
     storeRepo,

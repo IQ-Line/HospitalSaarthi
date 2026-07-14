@@ -33,6 +33,7 @@ import { registerRoleHandlers } from "./rest-handlers/role-handlers.js";
 import { registerUserHandlers } from "./rest-handlers/user-handlers.js";
 import { createDefaultRuntimeCapabilityCatalogPort } from "./services/default-runtime-capability-catalog-port.js";
 import type { UserProvisioningRepository } from "./ports/user-provisioning-repository.js";
+import type { PharmacyStoreAssignmentRepository } from "./ports/pharmacy-store-assignment-repository.js";
 
 type RequestWithOptionalUser = FastifyRequest & { user?: unknown };
 
@@ -67,6 +68,7 @@ function defaultGetUserId(request: FastifyRequest): string {
 export interface UserManagementPluginOptions {
   userRepository: UserRepository;
   userProvisioningRepository: UserProvisioningRepository;
+  pharmacyStoreAssignmentRepository: PharmacyStoreAssignmentRepository;
   capabilityRepository: CapabilityRepository;
   roleRepository: RoleRepository;
   roleCapabilityRepository: RoleCapabilityRepository;
@@ -107,6 +109,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
   const {
     userRepository,
     userProvisioningRepository,
+    pharmacyStoreAssignmentRepository,
     capabilityRepository,
     roleRepository,
     roleCapabilityRepository,
@@ -245,6 +248,7 @@ const userManagementPluginImpl: FastifyPluginAsync<UserManagementPluginOptions> 
       accessTokenIssuer,
     },
     clearMustChangePasswordDeps: { userRepository, eventBus },
+    getPharmacyStoreAccessDeps: { pharmacyStoreAssignmentRepository },
     ...(principalService !== undefined && interactiveSignIn !== undefined
       ? {
           bootstrapInteractiveLoginDeps: {

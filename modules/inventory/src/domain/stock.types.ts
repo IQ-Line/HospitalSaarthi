@@ -45,3 +45,20 @@ export type WiredStockRow = {
   store_id: string;
   batch_count: number;
 };
+
+export type ListExpiringLotsQuery = {
+  store_id: string;
+  within_days?: number;
+  page_size?: number;
+};
+
+export type ExpiringLotRow = {
+  id: string;
+  item_id: string;
+  item_name: string;
+  item_code: string;
+  lot_number: string;
+  expiry_date: string;
+  quantity: number;
+  uom: string;
+};

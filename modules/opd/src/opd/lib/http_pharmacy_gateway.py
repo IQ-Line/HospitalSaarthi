@@ -57,9 +57,16 @@ class HttpPharmacyGateway:
         try:
             with httpx.Client(timeout=5.0) as client:
                 response = client.put(url, json=payload, headers=headers)
+                if response.status_code == 204:
+                    logger.info(
+                        "pharmacy queue projection skipped (visit ineligible) visit=%s medicines=%s",
+                        visit_id,
+                        payload.get("medicine_count"),
+                    )
+                    return
                 if response.status_code not in (200, 204):
                     response.raise_for_status()
-        except httpx.HTTPError as exc:
+        except Exception as exc:
             logger.warning(
                 "pharmacy queue projection upsert failed for visit %s: %s",
                 visit_id,

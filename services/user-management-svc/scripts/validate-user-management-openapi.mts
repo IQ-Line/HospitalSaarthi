@@ -266,6 +266,15 @@ async function main(): Promise<void> {
             throw new Error("USER_PROVISIONING_NOT_IMPLEMENTED");
           },
         },
+        pharmacyStoreAssignmentRepository: {
+          async getForUser() {
+            return { primary_store_id: null, secondary_store_ids: [] };
+          },
+          async replaceForUser() {
+            return { primary_store_id: null, secondary_store_ids: [] };
+          },
+          async clearForUser() {},
+        },
         capabilityRepository: new StubCapabilityRepository(),
         roleRepository: new StubRoleRepository(),
         roleCapabilityRepository: new NoopRoleCapabilityRepository(),

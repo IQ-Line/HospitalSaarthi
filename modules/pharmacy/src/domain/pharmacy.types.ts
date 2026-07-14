@@ -2,22 +2,47 @@ export const PHARMACY_MODULE_KEY = "pharmacy" as const;
 
 export type DispenseFulfillmentStatus = "issued" | "partial_issue";
 
-export type PharmacyDispenseStatus = "pending" | DispenseFulfillmentStatus;
+export type DispenseReturnStatus = "partially_returned" | "fully_returned";
+
+export type PharmacyDispenseStatus =
+  | "pending"
+  | DispenseFulfillmentStatus
+  | DispenseReturnStatus;
+
+export type DispenseReturnReason =
+  | "wrong_medicine_dispensed"
+  | "doctor_discontinued_medication"
+  | "duplicate_dispensing"
+  | "excess_quantity_dispensed"
+  | "patient_refused_medicine"
+  | "other";
+
+export type DispenseReturnVerification = {
+  unopened: boolean;
+  packaging_intact: boolean;
+  expiry_verified: boolean;
+};
+
+export type DispensePriority = "stat" | "urgent" | "routine";
 
 export type DispenseRecord = {
   id: string;
   iq_tenant_id: string;
-  walk_in_order: boolean;
-  walk_in_patient_id: string | null;
-  visit_id: string | null;
-  patient_id: string | null;
+  visit_id: string;
+  patient_id: string;
   opd_prescription_id: string | null;
+  department_id: string | null;
+  branch_id: string | null;
+  inventory_store_id: string | null;
+  priority: DispensePriority;
   subtotal: string;
   discount: string;
   total_amount: string;
   notes: string | null;
-  dispense_status: DispenseFulfillmentStatus;
+  dispense_status: DispenseFulfillmentStatus | DispenseReturnStatus;
+  dispense_draft_json: Record<string, unknown>;
   created_at: Date;
+  updated_at: Date;
   created_by: string | null;
 };
 
@@ -35,17 +60,27 @@ export type WalkInPatientRecord = {
 export type DispenseLineItemRecord = {
   id: string;
   iq_tenant_id: string;
-  dispense_record_id: string;
+  dispense_id: string;
   medicine_id: string | null;
   medicine_display_name: string;
+  opd_prescription_item_id: string | null;
+  opd_prescription_line_no: number | null;
   prescribed_quantity: string | null;
   quantity_dispensed: string;
+  quantity_returned: string;
   unit_amount: string;
   line_discount: string;
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  inventory_item_id: string | null;
+  stock_batch_id: string | null;
+  is_substitution: boolean;
+  substitute_of_line_id: string | null;
+  substitution_reason: string | null;
+  line_remarks: string | null;
   created_at: Date;
+  updated_at: Date;
 };
 
 /** Public API dispense line — excludes internal DB fields. */
@@ -60,6 +95,7 @@ export type DispenseLineItem = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  inventory_item_id: string | null;
 };
 
 /** Public API walk-in patient — excludes tenant id. */
@@ -85,15 +121,21 @@ export type OpdCompletedVisitSummary = {
   medicine_count: number;
 };
 
-export type OpdQueueProjectionRow = {
-  visit_id: string;
+export type PharmacyQueueSourceKind = "opd" | "ipd";
+
+export type QueueProjectionRow = {
+  queue_item_id: string;
   iq_tenant_id: string;
+  source_kind: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -103,17 +145,24 @@ export type OpdQueueProjectionRow = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json: Record<string, unknown>;
   last_synced_at: Date;
 };
 
-export type OpdQueueProjectionUpsertInput = {
-  visit_id: string;
+/** @deprecated Use `QueueProjectionRow`. */
+export type OpdQueueProjectionRow = QueueProjectionRow;
+
+export type QueueProjectionUpsertInput = {
+  source_kind?: PharmacyQueueSourceKind;
+  source_ref_id: string;
+  encounter_id: string;
   patient_id: string;
   prescription_id: string;
   doctor_id: string | null;
   visit_status: string;
   prescription_status: string;
   medicine_count: number;
+  priority?: DispensePriority;
   queued_at: Date;
   patient_name: string | null;
   uhid: string | null;
@@ -123,7 +172,11 @@ export type OpdQueueProjectionUpsertInput = {
   doctor_name: string | null;
   formatted_visit_id: string | null;
   dispense_status: PharmacyDispenseStatus;
+  context_json?: Record<string, unknown>;
 };
+
+/** @deprecated Use `QueueProjectionUpsertInput`. */
+export type OpdQueueProjectionUpsertInput = QueueProjectionUpsertInput;
 
 export type WalkInQueueSummary = {
   record_id: string;
@@ -150,8 +203,10 @@ export type PharmacyQueueItem = {
   visit_status: string;
   prescription_status: string | null;
   updated_at: string;
+  queued_at: string;
   finalized_at: string | null;
   medicine_count: number;
+  priority: DispensePriority;
   patient_name: string | null;
   uhid: string | null;
   phone: string | null;
@@ -199,11 +254,15 @@ export type SaveDispenseLineInput = {
   unit_amount: string;
   line_discount?: string | null;
   tax_percent?: string | null;
+  /** Inventory item-master id used for FEFO stock deduction at the selected store. */
+  inventory_item_id?: string | null;
 };
 
 export type SaveDispenseForVisitInput = {
   patient_id: string;
   opd_prescription_id?: string | null;
+  /** Selected pharmacy inventory store — required when issuing stock-backed lines. */
+  inventory_store_id?: string | null;
   discount?: string | null;
   notes?: string | null;
   lines: SaveDispenseLineInput[];
@@ -255,10 +314,122 @@ export type DispenseForVisitResponse = {
   opd_prescription: OpdPrescriptionSnapshot | null;
   /** Catalog-backed medicines eligible for the dispense billing table. */
   dispensable_medicines: OpdPrescriptionMedicineLine[];
-  /** Denormalized from pharmacy.opd_queue_projection (no live EMPI read). */
+  /** Denormalized from pharmacy.queue_projection (no live EMPI read). */
   patient_name: string | null;
   uhid: string | null;
   age_years: number | null;
   gender: string | null;
   formatted_visit_id: string | null;
+};
+
+export type DispenseReturnSearchHit = {
+  dispense_id: string;
+  dispense_number: string;
+  visit_id: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  phone: string | null;
+  formatted_visit_id: string | null;
+  prescription_id: string | null;
+  dispense_date: string;
+  dispense_status: PharmacyDispenseStatus;
+  total_amount: string;
+  pharmacist_id: string | null;
+};
+
+export type DispenseReturnEligibleLine = {
+  dispense_line_item_id: string;
+  medicine_id: string | null;
+  medicine_display_name: string;
+  stock_batch_id: string | null;
+  batch_number: string | null;
+  expiry_date: string | null;
+  quantity_dispensed: string;
+  quantity_returned: string;
+  eligible_return_qty: string;
+  unit_amount: string;
+  line_discount: string;
+  tax_percent: string;
+  tax_amount: string;
+  line_total: string;
+};
+
+export type DispenseReturnEligibilityResponse = {
+  dispense_id: string;
+  dispense_number: string;
+  visit_id: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  formatted_visit_id: string | null;
+  prescription_id: string | null;
+  dispense_date: string;
+  dispense_status: PharmacyDispenseStatus;
+  total_amount: string;
+  inventory_store_id: string | null;
+  pharmacist_id: string | null;
+  pharmacist_name: string | null;
+  lines: DispenseReturnEligibleLine[];
+};
+
+export type ProcessDispenseReturnLineInput = {
+  dispense_line_item_id: string;
+  return_qty: string;
+  stock_batch_id?: string | null;
+};
+
+export type ProcessDispenseReturnInput = {
+  dispense_id: string;
+  return_reason: DispenseReturnReason;
+  remarks?: string | null;
+  verification: DispenseReturnVerification;
+  lines: ProcessDispenseReturnLineInput[];
+};
+
+export type DispenseReturnLineDetail = {
+  id: string;
+  dispense_line_item_id: string;
+  medicine_id: string | null;
+  medicine_display_name: string;
+  stock_batch_id: string | null;
+  return_qty: string;
+  unit_amount: string;
+  line_discount: string;
+  tax_amount: string;
+  return_amount: string;
+};
+
+export type DispenseReturnSummary = {
+  id: string;
+  return_number: string;
+  dispense_id: string;
+  dispense_number: string;
+  return_reason: DispenseReturnReason;
+  total_return_amount: string;
+  processed_at: string;
+  patient_name: string | null;
+  uhid: string | null;
+  formatted_visit_id: string | null;
+};
+
+export type DispenseReturnDetail = {
+  id: string;
+  return_number: string;
+  dispense_id: string;
+  dispense_number: string;
+  visit_id: string;
+  patient_id: string;
+  patient_name: string | null;
+  uhid: string | null;
+  formatted_visit_id: string | null;
+  prescription_id: string | null;
+  return_reason: DispenseReturnReason;
+  remarks: string | null;
+  verification: DispenseReturnVerification;
+  total_return_amount: string;
+  processed_at: string;
+  processed_by: string | null;
+  processed_by_name: string | null;
+  lines: DispenseReturnLineDetail[];
 };

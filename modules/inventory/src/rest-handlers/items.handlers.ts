@@ -1,9 +1,13 @@
 import type { FastifyInstance } from "fastify";
 import type { DrizzleInventoryItemRepository } from "../data-access/items.repo.js";
 import { createItem, previewItemCode } from "../use-cases/create-item.js";
+import { getItemPricingByFormularyId } from "../use-cases/get-item-pricing-by-formulary.js";
+import { getItemDispensePricingById } from "../use-cases/get-item-dispense-pricing.js";
 import { listItems } from "../use-cases/list-items.js";
+import { updateItemReorderPoint } from "../use-cases/update-item-reorder.js";
 import { createItemBodySchema } from "./create-item.schema.js";
 import { sendItemHandlerError } from "./item-error-response.js";
+import { updateItemReorderBodySchema } from "./update-item-reorder.schema.js";
 
 interface ItemsHandlerDeps {
   itemRepo: DrizzleInventoryItemRepository;
@@ -16,6 +20,10 @@ function parseClassification(
   return undefined;
 }
 
+function parseBooleanQuery(value: string | boolean | undefined): boolean {
+  return value === true || value === "true";
+}
+
 export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDeps): void {
   app.get<{
     Querystring: {
@@ -23,6 +31,8 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
       is_active?: string;
       category_id?: string;
       item_classification?: string;
+      for_dispense?: string;
+      store_id?: string;
       limit?: string;
       offset?: string;
     };
@@ -37,17 +47,75 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
 
     const categoryId = q.category_id?.trim() || undefined;
     const itemClassification = parseClassification(q.item_classification?.trim());
+    const forDispense = parseBooleanQuery(q.for_dispense);
+    const storeId = q.store_id?.trim() || undefined;
 
     const result = await listItems({ itemRepo: deps.itemRepo }, tenantId, {
       search: q.search,
       is_active: isActive,
       category_id: categoryId,
       item_classification: itemClassification,
+      for_dispense: forDispense,
+      store_id: storeId,
       limit,
       offset,
     });
 
     return reply.send(result);
+  });
+
+  app.get<{
+    Params: {
+      tenant_formulary_id: string;
+    };
+  }>("/items/by-formulary/:tenant_formulary_id", async (request, reply) => {
+    const tenantId = request.tenantId;
+    const tenantFormularyId = request.params.tenant_formulary_id?.trim() ?? "";
+    if (!tenantFormularyId) {
+      return reply.code(400).send({
+        message: "tenant_formulary_id is required",
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const data = await getItemPricingByFormularyId(
+      { itemRepo: deps.itemRepo },
+      tenantId,
+      tenantFormularyId,
+    );
+    if (!data) {
+      return reply.code(404).send({
+        message: "No inventory item master row linked to this formulary medicine",
+        code: "NOT_FOUND",
+      });
+    }
+
+    return reply.send({ data });
+  });
+
+  app.get<{
+    Params: {
+      item_id: string;
+    };
+  }>("/items/:item_id/dispense-pricing", async (request, reply) => {
+    const tenantId = request.tenantId;
+    const itemId = request.params.item_id?.trim() ?? "";
+    if (!itemId) {
+      return reply.code(400).send({
+        message: "item_id is required",
+        code: "VALIDATION_ERROR",
+      });
+    }
+
+    const data = await getItemDispensePricingById({ itemRepo: deps.itemRepo }, tenantId, itemId);
+    if (!data) {
+      return reply.code(404).send({
+        message: "Item not found or inactive",
+        code: "NOT_FOUND",
+      });
+    }
+
+    return reply.send({ data });
   });
 
   app.get<{
@@ -119,4 +187,27 @@ export function registerItemHandlers(app: FastifyInstance, deps: ItemsHandlerDep
       return sendItemHandlerError(reply, error);
     }
   });
+
+  app.patch<{ Params: { itemId: string }; Body: Record<string, unknown> }>(
+    "/items/:itemId",
+    async (request, reply) => {
+      const tenantId = request.tenantId;
+      const parsed = updateItemReorderBodySchema.safeParse(request.body);
+      if (!parsed.success) {
+        return sendItemHandlerError(reply, parsed.error);
+      }
+
+      try {
+        const data = await updateItemReorderPoint(
+          { itemRepo: deps.itemRepo },
+          tenantId,
+          request.params.itemId,
+          parsed.data,
+        );
+        return reply.send(data);
+      } catch (error) {
+        return sendItemHandlerError(reply, error);
+      }
+    },
+  );
 }

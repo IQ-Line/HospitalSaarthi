@@ -45,10 +45,12 @@ export function buildCreateUserFormSchema(options: CreateUserAccessOptions) {
       ? z.array(z.string().uuid()).min(1, 'Required')
       : z.array(z.string().uuid()).max(1).default([]),
     role_capability_selection_ids: z.array(z.string().uuid()).default([]),
+    primary_store_id: z.string().default(''),
+    secondary_store_ids: z.array(z.string().uuid()).default([]),
   });
 }
 
-export type CreateUserFormValues = z.infer<ReturnType<typeof buildCreateUserFormSchema>>;
+export type CreateUserFormValues = z.output<ReturnType<typeof buildCreateUserFormSchema>>;
 
 type SharedFormSectionProps = {
   register: UseFormRegister<CreateUserFormValues>;

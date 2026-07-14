@@ -53,6 +53,34 @@ paths:
                 $ref: "#/components/schemas/ErrorMessage"
         "500":
           $ref: "#/components/responses/InternalError"
+  /auth/pharmacy-store-access:
+    get:
+      tags:
+        - Auth
+      summary: Get current user's assigned pharmacy stores
+      description: >
+        Returns inventory store ids assigned to the authenticated user for pharmacy operations
+        (primary and optional secondary stores). Resolve display names via the inventory store
+        catalog; this endpoint returns ids only.
+      parameters:
+        - $ref: "#/components/parameters/IqTenantIdHeader"
+      responses:
+        "200":
+          description: Assigned pharmacy stores for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PharmacyStoreAccess"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /auth/login:
     post:
       tags:
@@ -827,6 +855,8 @@ paths:
         `role_template_ids`. When `role_template_capability_ids` is present, exactly one role id must
         be listed in `role_template_ids`, and only those capabilities (each belonging to that role)
         are granted with source `role_template`; omit the field to copy the full role composition.
+        When pharmacy or dispense module permissions are granted, `pharmacy_store_access` is
+        required and persists store assignments for the new user.
       parameters:
         - $ref: "#/components/parameters/IqTenantIdHeader"
       requestBody:
@@ -897,6 +927,11 @@ paths:
                   items:
                     type: string
                     format: uuid
+                pharmacy_store_access:
+                  description: >
+                    Required when pharmacy or dispense module permissions are included in the
+                    granted capability set. Logical reference to inventory stores (no cross-schema FK).
+                  $ref: "#/components/schemas/PharmacyStoreAccess"
       responses:
         "201":
           description: Platform user and linked login account created for the tenant.
@@ -1605,6 +1640,23 @@ components:
         format: uuid
       description: Platform user id within the current tenant.
   schemas:
+    PharmacyStoreAccess:
+      type: object
+      additionalProperties: false
+      required:
+        - primary_store_id
+      properties:
+        primary_store_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Primary inventory store for dispense and stock operations.
+        secondary_store_ids:
+          type: array
+          description: Optional additional stores the user may access.
+          items:
+            type: string
+            format: uuid
     Capability:
       type: object
       required:

@@ -153,6 +153,20 @@ function resolveSlugFromRoute(route: string | undefined): string | null {
   return segments.length >= 2 ? (segments[segments.length - 1] ?? null) : null;
 }
 
+/** Phase 0 pharmacy UI — show sidebar for all principals until Cerbos/tenant gates are wired. */
+function isPharmacyOpenNav(node: NavigationNode): boolean {
+  return node.id === 'pharmacy' || (node.route?.startsWith('/pharmacy') ?? false);
+}
+
+/** Phase 0 inventory UI — bypasses capability gates until nav is wired via passesCapabilityGate (see nav-capability-access.ts). Tech debt: remove isInventoryOpenNav once inventory Cerbos product slugs are enforced in sidebar. */
+function isInventoryOpenNav(node: NavigationNode): boolean {
+  if (node.id === 'inventory') {
+    return true;
+  }
+  const route = node.route;
+  return route === '/inventory' || (route?.startsWith('/inventory/') ?? false);
+}
+
 export function isNavigationNodeVisible(
   node: NavigationNode,
   ctx: NavFilterContext,
@@ -163,6 +177,9 @@ export function isNavigationNodeVisible(
   }
   if (node.tenantAdminOnly && !ctx.isTenantAdmin && !ctx.isSuperAdmin) {
     return false;
+  }
+  if (isPharmacyOpenNav(node)) {
+    return true;
   }
   if (!passesRoleGate(node, ctx, parent)) {
     return false;

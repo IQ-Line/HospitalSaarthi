@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@pulse/ui/button';
@@ -9,20 +9,22 @@ import { Textarea } from '@pulse/ui/textarea';
 import { useDispenseForVisit, useSaveDispenseForVisit } from '../api/dispense-order';
 import {
   computeDispenseTotals,
-  draftLinesFromPrescription,
-  draftLinesFromSaved,
+  draftLinesFromVisitDispense,
   formatDispenseDecimalInput,
   formatInrAmount,
 } from '../lib/dispense-billing';
-import { dispenseSaveStatusLabel, formatDispensePatientHeader, formatDispenseVisitLabel } from '../lib/pharmacy-queue-display';
+import { createEmptyDispenseLineDraft } from '../lib/dispense-line-draft';
+import { dispenseSaveStatusLabel } from '../lib/pharmacy-queue-display';
 import {
   buildSaveDispenseLinesFromDraft,
   firstDispenseValidationMessage,
   validateDispenseDraft,
   type DispenseLineFieldErrors,
 } from '../lib/validate-dispense-draft';
+import { useSelectedPharmacyStoreId } from '../store';
 import type { DispenseLineDraft } from '../types';
 import { PharmacyDispenseLinesTable } from './pharmacy-dispense-lines-table';
+import { PharmacyDispenseVisitHeader } from './pharmacy-dispense-visit-header';
 import { PharmacyPrescriptionSidebar } from './pharmacy-prescription-sidebar';
 
 type PharmacyDispensePageProps = {
@@ -30,6 +32,8 @@ type PharmacyDispensePageProps = {
 };
 
 export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
+  const navigate = useNavigate();
+  const selectedStoreId = useSelectedPharmacyStoreId();
   const { data, isLoading, isError, error } = useDispenseForVisit(visitId);
   const saveMutation = useSaveDispenseForVisit(visitId);
 
@@ -40,52 +44,11 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   const [notes, setNotes] = useState('');
   const [initialized, setInitialized] = useState(false);
 
-  const visitLabel = useMemo(
-    () => formatDispenseVisitLabel(visitId, data?.formatted_visit_id),
-    [visitId, data?.formatted_visit_id],
-  );
-
-  const patientLabel = useMemo(() => {
-    if (!data?.patient_id) return null;
-    return formatDispensePatientHeader(data);
-  }, [data]);
-
   useEffect(() => {
     if (!data || initialized) return;
 
-    if (data.has_dispense) {
-      setLines(
-        data.lines.length > 0
-          ? draftLinesFromSaved(data.lines)
-          : [
-              {
-                key: 'empty-1',
-                medicine_id: null,
-                medicine_display_name: '',
-                prescribed_quantity: '',
-                quantity_dispensed: '1',
-                unit_amount: '0',
-                line_discount: '0',
-                tax_percent: '0',
-              },
-            ],
-      );
-    } else if (data.dispensable_medicines?.length) {
-      setLines(draftLinesFromPrescription(data.dispensable_medicines));
-    } else {
-      setLines([
-        {
-          key: 'empty-1',
-          medicine_id: null,
-          medicine_display_name: '',
-          prescribed_quantity: '',
-          quantity_dispensed: '1',
-          unit_amount: '0',
-          line_discount: '0',
-          tax_percent: '0',
-        },
-      ]);
-    }
+    const seeded = draftLinesFromVisitDispense(data);
+    setLines(seeded.length > 0 ? seeded : [createEmptyDispenseLineDraft()]);
 
     setDiscount(formatDispenseDecimalInput(data.discount) || '0');
     setNotes(data.notes ?? '');
@@ -93,6 +56,8 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
   }, [data, initialized]);
 
   const totals = useMemo(() => computeDispenseTotals(lines, discount), [lines, discount]);
+  const isFullyDispensed = data?.dispense_status === 'issued';
+  const isReadOnly = isFullyDispensed || saveMutation.isPending;
 
   const handleLinesChange = (nextLines: DispenseLineDraft[]) => {
     setLines(nextLines);
@@ -108,8 +73,13 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
     });
   };
 
-  const handleSave = async () => {
+  const handleIssue = async () => {
     if (!data?.patient_id) return;
+
+    if (!selectedStoreId?.trim()) {
+      toast.error('Select a pharmacy store before issuing medicines.');
+      return;
+    }
 
     const validation = validateDispenseDraft(lines, discount);
     setLineErrors(validation.lineErrors);
@@ -122,19 +92,28 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
     const payloadLines = buildSaveDispenseLinesFromDraft(lines);
 
     try {
-      await saveMutation.mutateAsync({
+      const saved = await saveMutation.mutateAsync({
         patient_id: data.patient_id,
         opd_prescription_id: data.opd_prescription_id ?? data.opd_prescription?.prescription_id ?? null,
+        inventory_store_id: selectedStoreId,
         discount: discount.trim() || '0',
         notes: notes.trim() || null,
         lines: payloadLines,
       });
-      toast.success('Dispense saved.');
+      if (saved.dispense_status === 'issued') {
+        toast.success('Medicines dispensed. This prescription is now closed.');
+      } else {
+        toast.success('Partial issue saved. Complete remaining items when stock is available.');
+      }
       setLineErrors({});
       setDiscountError(undefined);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save dispense.');
+      toast.error(err instanceof Error ? err.message : 'Failed to issue medicines.');
     }
+  };
+
+  const handleCancel = () => {
+    void navigate({ to: '/pharmacy/queue' });
   };
 
   if (isLoading) {
@@ -172,23 +151,28 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
         </Link>
       </div>
 
-      <div className="mb-6 rounded-lg bg-white p-4 shadow-sm">
-        <h1 className="text-xl font-semibold text-foreground">Issue medicines</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Visit {visitLabel} · {patientLabel ?? 'Loading patient…'}
-        </p>
+      <div className="mb-6">
+        <h1 className="mb-4 text-xl font-semibold text-foreground">Prescription dispensing</h1>
+        <PharmacyDispenseVisitHeader visitId={visitId} data={data} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="rounded-lg bg-white p-4 shadow-sm">
+          {isFullyDispensed ? (
+            <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+              This prescription is fully dispensed. The issue form is read-only — use Returns if you need to
+              reverse stock.
+            </div>
+          ) : null}
           <h2 className="mb-4 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
-            Dispense lines
+            Items to issue
           </h2>
           <PharmacyDispenseLinesTable
             lines={lines}
             onChange={handleLinesChange}
-            disabled={saveMutation.isPending}
+            disabled={isReadOnly}
             lineErrors={lineErrors}
+            fullyDispensed={isFullyDispensed}
           />
 
           <div className="mt-6 grid max-w-md gap-3">
@@ -196,7 +180,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
               <span className="text-muted-foreground">Bill discount (₹)</span>
               <Input
                 value={discount}
-                disabled={saveMutation.isPending}
+                disabled={isReadOnly}
                 aria-invalid={Boolean(discountError)}
                 onChange={(event) => {
                   setDiscount(event.target.value);
@@ -209,7 +193,7 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
               <span className="text-muted-foreground">Notes</span>
               <Textarea
                 value={notes}
-                disabled={saveMutation.isPending}
+                disabled={isReadOnly}
                 onChange={(event) => setNotes(event.target.value)}
                 rows={2}
               />
@@ -245,14 +229,26 @@ export function PharmacyDispensePage({ visitId }: PharmacyDispensePageProps) {
             {' · '}
             {dispenseSaveStatusLabel(data.dispense_status)}
           </p>
-          <Button
-            type="button"
-            className="min-w-[160px]"
-            disabled={saveMutation.isPending}
-            onClick={() => void handleSave()}
-          >
-            {saveMutation.isPending ? 'Saving…' : 'Save dispense'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saveMutation.isPending}
+              onClick={handleCancel}
+            >
+              {isFullyDispensed ? 'Back to queue' : 'Cancel'}
+            </Button>
+            {!isFullyDispensed ? (
+              <Button
+                type="button"
+                className="min-w-[140px]"
+                disabled={saveMutation.isPending}
+                onClick={() => void handleIssue()}
+              >
+                {saveMutation.isPending ? 'Issuing…' : 'Issue Items'}
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

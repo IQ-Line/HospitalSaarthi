@@ -1,19 +1,9 @@
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
-import {
-  mockFetchInventoryDashboard,
-  mockFetchInventoryGrnLogs,
-  mockFetchInventoryIndents,
-  mockFetchInventoryIndentByNumber,
-  mockFetchInventoryItems,
-  mockFetchInventoryReconciliation,
-  mockFetchInventoryStock,
-  mockFetchInventoryStockLots,
-  mockFetchInventoryStores,
-  mockFetchInventoryTransfers,
-} from '../mock/operations';
+import { INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS } from '../lib/inventory-dashboard-navigation';
 import type {
   InventoryDashboardData,
+  InventoryDashboardStats,
+  InventoryExpiringLot,
   InventoryGrnListData,
   InventoryGrnListParams,
   InventoryIndentListData,
@@ -22,6 +12,7 @@ import type {
   InventoryIndentRow,
   InventoryIndentStoreOption,
   InventoryItemOption,
+  InventoryLowStockItem,
   InventoryListParams,
   InventoryReconciliationRow,
   InventoryStockListData,
@@ -30,7 +21,7 @@ import type {
   InventoryTransferListData,
   InventoryTransferListParams,
 } from '../types';
-import type { InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcIndentListResponse, InventorySvcIndentRow, InventorySvcIndentStoreOption, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStockBatchesResponse, InventorySvcStockListResponse, InventorySvcStockTransferListResponse, InventorySvcStockTransferRow, InventorySvcStoreRow } from './api-types';
+import type { InventorySvcExpiringLotsResponse, InventorySvcGrnDetail, InventorySvcGrnListResponse, InventorySvcIndentListResponse, InventorySvcIndentRow, InventorySvcIndentStoreOption, InventorySvcItemRow, InventorySvcSingleResponse, InventorySvcStockBatchesResponse, InventorySvcStockListResponse, InventorySvcStockTransferListResponse, InventorySvcStockTransferRow, InventorySvcStoreRow } from './api-types';
 import { inventorySvcGet, inventorySvcGetList } from './inventory-api-client';
 import {
   mapInventorySvcGrnListResponse,
@@ -51,10 +42,9 @@ type QueryResult<T> = Pick<UseQueryResult<T>, 'data' | 'isLoading' | 'error'>;
 type QueryResultWithRefetch<T> = QueryResult<T> &
   Pick<UseQueryResult<T>, 'isError' | 'refetch'>;
 
-const inventoryApiMode = OPERATIONAL_INVENTORY_API_ENABLED ? 'live' : 'mock';
+const inventoryApiMode = 'live' as const;
 
 async function fetchInventoryStores(): Promise<InventoryStore[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStores();
   const response = await inventorySvcGetList<InventorySvcStoreRow>('/stores', {
     is_active: true,
     limit: 200,
@@ -63,7 +53,6 @@ async function fetchInventoryStores(): Promise<InventoryStore[]> {
 }
 
 async function fetchInventoryItems(): Promise<InventoryItemOption[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryItems();
   const response = await inventorySvcGetList<InventorySvcItemRow>('/items', {
     is_active: true,
     limit: 200,
@@ -71,14 +60,87 @@ async function fetchInventoryItems(): Promise<InventoryItemOption[]> {
   return response.data.map(mapInventorySvcItemRow);
 }
 
+async function fetchInventoryDashboardStats(storeId?: string): Promise<InventoryDashboardStats> {
+  if (!storeId) {
+    return { active_items: 0, low_stock: 0, expiring_soon: 0, pending_approvals: 0 };
+  }
+
+  const [itemsRes, stockRes, indentsRes, expiringRes] = await Promise.all([
+    inventorySvcGetList<InventorySvcItemRow>('/items', { is_active: true, limit: 1 }),
+    inventorySvcGet<InventorySvcStockListResponse>('/stock', { store_id: storeId, page_size: 1 }),
+    inventorySvcGet<InventorySvcIndentListResponse>('/indents', {
+      status: 'submitted',
+      page_size: 1,
+    }),
+    inventorySvcGet<InventorySvcExpiringLotsResponse>('/stock/expiring-lots', {
+      store_id: storeId,
+      within_days: INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+      page_size: 1,
+    }),
+  ]);
+
+  return {
+    active_items: itemsRes.total,
+    low_stock: stockRes.summary.critical + stockRes.summary.low,
+    expiring_soon: expiringRes.total,
+    pending_approvals: indentsRes.total,
+  };
+}
+
+async function fetchInventoryExpiringLots(
+  storeId: string,
+  withinDays: number = INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+): Promise<InventoryExpiringLot[]> {
+  const response = await inventorySvcGet<InventorySvcExpiringLotsResponse>('/stock/expiring-lots', {
+    store_id: storeId,
+    within_days: withinDays,
+    page_size: 100,
+  });
+
+  return response.data.map((row) => ({
+    id: row.id,
+    item_name: row.item_name,
+    lot_number: row.lot_number,
+    expiry_date: row.expiry_date,
+    quantity: row.quantity,
+    uom: row.uom,
+  }));
+}
+
+async function fetchInventoryLowStockItems(storeId: string): Promise<InventoryLowStockItem[]> {
+  const [criticalRes, lowRes] = await Promise.all([
+    inventorySvcGet<InventorySvcStockListResponse>('/stock', {
+      store_id: storeId,
+      status: 'critical',
+      page_size: 50,
+    }),
+    inventorySvcGet<InventorySvcStockListResponse>('/stock', {
+      store_id: storeId,
+      status: 'low',
+      page_size: 50,
+    }),
+  ]);
+
+  return [...criticalRes.data, ...lowRes.data].map((row) => ({
+    id: row.item_id,
+    item_name: row.item_name,
+    item_code: row.item_code,
+    quantity: row.quantity,
+    uom: row.uom,
+    reorder_at: row.reorder_at,
+  }));
+}
+
 async function fetchInventoryDashboard(storeId?: string): Promise<InventoryDashboardData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryDashboard();
-  // Dashboard aggregate not yet on inventory-svc.
-  return mockFetchInventoryDashboard();
+  const stats = await fetchInventoryDashboardStats(storeId);
+  return {
+    stats,
+    low_stock_items: [],
+    expiring_lots: [],
+  };
 }
 
 async function fetchInventoryStock(params: InventoryListParams): Promise<InventoryStockListData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStock(params);
   if (!params.store_id) {
     return { data: [], total: 0, summary: { critical: 0, low: 0, normal: 0 } };
   }
@@ -95,7 +157,6 @@ async function fetchInventoryStockLots(
   itemId: string,
   storeId: string,
 ): Promise<InventoryStockLot[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryStockLots(itemId);
   const response = await inventorySvcGet<InventorySvcStockBatchesResponse>(
     `/stock/${encodeURIComponent(itemId)}/batches`,
     { store_id: storeId },
@@ -106,7 +167,6 @@ async function fetchInventoryStockLots(
 async function fetchInventoryIndents(
   params: InventoryIndentListParams,
 ): Promise<InventoryIndentListData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryIndents(params);
   const page = params.page ?? 1;
   const pageSize = params.limit ?? 10;
   const response = await inventorySvcGet<InventorySvcIndentListResponse>('/indents', {
@@ -114,6 +174,7 @@ async function fetchInventoryIndents(
     status: params.status && params.status !== 'all' ? params.status : undefined,
     from_store_id: params.from_store_id,
     to_store_id: params.to_store_id,
+    indent_type: params.indent_type,
     include_lines: true,
     page,
     page_size: pageSize,
@@ -144,9 +205,6 @@ async function fetchInventoryIndentById(indentId: string) {
 
 async function fetchInventoryIndentByNumber(indentNumber: string) {
   const normalized = indentNumber.trim();
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-    return mockFetchInventoryIndentByNumber(normalized);
-  }
 
   const listParams = {
     include_lines: true,
@@ -198,7 +256,6 @@ async function fetchInventoryIndentActiveCheck(params: {
 }
 
 async function fetchInventoryGrnLogs(params: InventoryGrnListParams): Promise<InventoryGrnListData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryGrnLogs(params);
   const response = await inventorySvcGet<InventorySvcGrnListResponse>('/grns', {
     search: params.search,
     grn_type: params.type && params.type !== 'all' ? mapUiGrnTypeToApi(params.type) : undefined,
@@ -222,14 +279,12 @@ async function fetchInventoryGrnById(grnId: string): Promise<InventorySvcGrnDeta
 }
 
 async function fetchInventoryReconciliation(): Promise<InventoryReconciliationRow[]> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryReconciliation();
-  return mockFetchInventoryReconciliation();
+  return [];
 }
 
 async function fetchInventoryTransfers(
   params: InventoryTransferListParams,
 ): Promise<InventoryTransferListData> {
-  if (!OPERATIONAL_INVENTORY_API_ENABLED) return mockFetchInventoryTransfers(params);
   const page = params.page ?? 1;
   const pageSize = params.limit ?? 10;
   const response = await inventorySvcGet<InventorySvcStockTransferListResponse>('/transfers', {
@@ -269,10 +324,48 @@ export function useInventoryItems(): QueryResult<InventoryItemOption[]> {
   return { data: query.data, isLoading: query.isPending, error: query.error };
 }
 
+export function useInventoryDashboardStats(storeId?: string): QueryResult<InventoryDashboardStats> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.dashboardStats(storeId), inventoryApiMode],
+    queryFn: () => fetchInventoryDashboardStats(storeId),
+    enabled: Boolean(storeId),
+    staleTime: 30_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
+export function useInventoryLowStockItems(
+  storeId: string | undefined,
+  enabled: boolean,
+): QueryResult<InventoryLowStockItem[]> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.dashboardLowStock(storeId), inventoryApiMode],
+    queryFn: () => fetchInventoryLowStockItems(storeId!),
+    enabled: enabled && Boolean(storeId),
+    staleTime: 30_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
 export function useInventoryDashboard(storeId?: string): QueryResult<InventoryDashboardData> {
   const query = useQuery({
     queryKey: inventoryQueryKeys.dashboard(storeId),
     queryFn: () => fetchInventoryDashboard(storeId),
+    enabled: Boolean(storeId),
+    staleTime: 30_000,
+  });
+  return { data: query.data, isLoading: query.isPending, error: query.error };
+}
+
+
+export function useInventoryExpiringLots(
+  storeId: string | undefined,
+  withinDays: number = INVENTORY_DASHBOARD_EXPIRY_WINDOW_DAYS,
+): QueryResult<InventoryExpiringLot[]> {
+  const query = useQuery({
+    queryKey: [...inventoryQueryKeys.expiringLots(storeId, withinDays), inventoryApiMode],
+    queryFn: () => fetchInventoryExpiringLots(storeId!, withinDays),
+    enabled: Boolean(storeId),
     staleTime: 30_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
@@ -282,7 +375,7 @@ export function useInventoryStock(params: InventoryListParams = {}): QueryResult
   const query = useQuery({
     queryKey: [...inventoryQueryKeys.stock(params), inventoryApiMode],
     queryFn: () => fetchInventoryStock(params),
-    enabled: !OPERATIONAL_INVENTORY_API_ENABLED || Boolean(params.store_id),
+    enabled: Boolean(params.store_id),
     staleTime: 30_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
@@ -316,7 +409,6 @@ export function useInventoryIndentStores(): QueryResult<InventoryIndentStoreOpti
   const query = useQuery({
     queryKey: [...inventoryQueryKeys.all, 'indent-stores', inventoryApiMode] as const,
     queryFn: fetchInventoryIndentStores,
-    enabled: OPERATIONAL_INVENTORY_API_ENABLED,
     staleTime: 60_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error };
@@ -328,7 +420,7 @@ export function useInventoryIndentDetail(
   const query = useQuery({
     queryKey: [...inventoryQueryKeys.all, 'indent', indentId, inventoryApiMode] as const,
     queryFn: () => fetchInventoryIndentById(indentId!),
-    enabled: Boolean(indentId) && indentId !== 'new' && OPERATIONAL_INVENTORY_API_ENABLED,
+    enabled: Boolean(indentId) && indentId !== 'new',
     staleTime: 15_000,
   });
   return {
@@ -381,10 +473,7 @@ export function useInventoryIndentActiveChecks(
       return {
         queryKey: [...inventoryQueryKeys.indentActiveCheck(params), inventoryApiMode] as const,
         queryFn: () => fetchInventoryIndentActiveCheck(params),
-        enabled:
-          OPERATIONAL_INVENTORY_API_ENABLED &&
-          Boolean(fromStoreId) &&
-          Boolean(line.item_id),
+        enabled: Boolean(fromStoreId) && Boolean(line.item_id),
         staleTime: 15_000,
       };
     }),
@@ -415,7 +504,7 @@ export function useInventoryGrnDetail(grnId: string | undefined): QueryResultWit
   const query = useQuery({
     queryKey: [...inventoryQueryKeys.all, 'grn', grnId] as const,
     queryFn: () => fetchInventoryGrnById(grnId!),
-    enabled: Boolean(grnId) && OPERATIONAL_INVENTORY_API_ENABLED,
+    enabled: Boolean(grnId),
     staleTime: 15_000,
   });
   return { data: query.data, isLoading: query.isPending, error: query.error, isError: query.isError, refetch: query.refetch };
@@ -447,7 +536,7 @@ export function useInventoryTransferDetail(
   const query = useQuery({
     queryKey: [...inventoryQueryKeys.all, 'transfer', transferId, inventoryApiMode] as const,
     queryFn: () => fetchInventoryTransferById(transferId!),
-    enabled: Boolean(transferId) && OPERATIONAL_INVENTORY_API_ENABLED,
+    enabled: Boolean(transferId),
     staleTime: 15_000,
   });
   return {

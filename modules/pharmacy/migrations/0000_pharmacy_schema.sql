@@ -1,85 +1,78 @@
--- Pharmacy module — counter dispense, walk-in orders, OPD queue projection.
+-- Pharmacy module — OPD dispense + unified queue projection (greenfield).
 -- Idempotent boot DDL: never DROP live tables (data must survive service restarts).
+-- Legacy DBs (dispense_records / opd_queue_projection / dispense_record_id) are upgraded by 0001.
+-- Do not CREATE new-named tables alongside legacy ones, and skip indexes that need new columns.
 
 CREATE SCHEMA IF NOT EXISTS pharmacy;
 
-CREATE TABLE IF NOT EXISTS pharmacy.walk_in_patients (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  first_name text NOT NULL,
-  last_name text,
-  phone text,
-  gender text NOT NULL,
-  date_of_birth date,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT walk_in_patients_pkey PRIMARY KEY (iq_tenant_id, id),
-  CONSTRAINT walk_in_patients_first_name_nonempty_chk CHECK (length(trim(first_name)) > 0),
-  CONSTRAINT walk_in_patients_gender_chk CHECK (gender IN ('male', 'female', 'other'))
-);
+-- ─── Dispense header — one row per OPD visit (IPD will add source_kind on dispense later) ─
+-- Skip when legacy dispense_records still exists (0001 renames it to dispense).
 
-CREATE INDEX IF NOT EXISTS ix_pharmacy_walk_in_patients_tenant_created
-  ON pharmacy.walk_in_patients (iq_tenant_id, created_at DESC);
+DO $$
+BEGIN
+  IF to_regclass('pharmacy.dispense') IS NULL
+     AND to_regclass('pharmacy.dispense_records') IS NULL THEN
+    CREATE TABLE pharmacy.dispense (
+      id uuid NOT NULL DEFAULT gen_random_uuid(),
+      iq_tenant_id uuid NOT NULL,
+      visit_id uuid NOT NULL,
+      patient_id uuid NOT NULL,
+      opd_prescription_id uuid,
+      department_id uuid,
+      branch_id uuid,
+      inventory_store_id uuid,
+      priority text NOT NULL DEFAULT 'routine',
+      subtotal numeric(18, 4) NOT NULL DEFAULT 0,
+      discount numeric(18, 4) NOT NULL DEFAULT 0,
+      total_amount numeric(18, 4) NOT NULL DEFAULT 0,
+      notes text,
+      dispense_status text NOT NULL DEFAULT 'issued',
+      dispense_draft_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      created_by uuid,
+      CONSTRAINT dispense_pkey PRIMARY KEY (iq_tenant_id, id),
+      CONSTRAINT dispense_subtotal_nonneg_chk CHECK (subtotal >= 0),
+      CONSTRAINT dispense_discount_nonneg_chk CHECK (discount >= 0),
+      CONSTRAINT dispense_total_nonneg_chk CHECK (total_amount >= 0),
+      CONSTRAINT dispense_dispense_status_check
+        CHECK (dispense_status IN ('issued', 'partial_issue', 'partially_returned', 'fully_returned')),
+      CONSTRAINT dispense_priority_chk CHECK (priority IN ('stat', 'urgent', 'routine')),
+      CONSTRAINT dispense_visit_patient_chk CHECK (visit_id IS NOT NULL AND patient_id IS NOT NULL)
+    );
+  END IF;
+END $$;
 
-CREATE TABLE IF NOT EXISTS pharmacy.dispense_records (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  iq_tenant_id uuid NOT NULL,
-  walk_in_order boolean NOT NULL DEFAULT false,
-  walk_in_patient_id uuid,
-  visit_id uuid,
-  patient_id uuid,
-  opd_prescription_id uuid,
-  subtotal numeric(18, 4) NOT NULL DEFAULT 0,
-  discount numeric(18, 4) NOT NULL DEFAULT 0,
-  total_amount numeric(18, 4) NOT NULL DEFAULT 0,
-  notes text,
-  dispense_status text NOT NULL DEFAULT 'issued',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  created_by uuid,
-  CONSTRAINT dispense_records_pkey PRIMARY KEY (iq_tenant_id, id),
-  CONSTRAINT dispense_records_subtotal_nonneg_chk CHECK (subtotal >= 0),
-  CONSTRAINT dispense_records_discount_nonneg_chk CHECK (discount >= 0),
-  CONSTRAINT dispense_records_total_nonneg_chk CHECK (total_amount >= 0),
-  CONSTRAINT dispense_records_dispense_status_check
-    CHECK (dispense_status IN ('issued', 'partial_issue')),
-  CONSTRAINT dispense_records_walk_in_patient_fk
-    FOREIGN KEY (iq_tenant_id, walk_in_patient_id)
-    REFERENCES pharmacy.walk_in_patients (iq_tenant_id, id)
-    ON DELETE RESTRICT,
-  CONSTRAINT dispense_records_order_kind_chk CHECK (
-    (
-      walk_in_order = true
-      AND walk_in_patient_id IS NOT NULL
-      AND visit_id IS NULL
-      AND patient_id IS NULL
-      AND opd_prescription_id IS NULL
-    )
-    OR (
-      walk_in_order = false
-      AND walk_in_patient_id IS NULL
-      AND visit_id IS NOT NULL
-      AND patient_id IS NOT NULL
-    )
-  )
-);
+DO $$
+BEGIN
+  IF to_regclass('pharmacy.dispense') IS NOT NULL THEN
+    EXECUTE $sql$
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_pharmacy_dispense_tenant_visit
+        ON pharmacy.dispense (iq_tenant_id, visit_id)
+    $sql$;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_tenant_patient
+        ON pharmacy.dispense (iq_tenant_id, patient_id)
+    $sql$;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_tenant_prescription
+        ON pharmacy.dispense (iq_tenant_id, opd_prescription_id)
+        WHERE opd_prescription_id IS NOT NULL
+    $sql$;
+  END IF;
+END $$;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_pharmacy_dispense_records_tenant_visit_opd
-  ON pharmacy.dispense_records (iq_tenant_id, visit_id)
-  WHERE walk_in_order = false AND visit_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_records_tenant_patient
-  ON pharmacy.dispense_records (iq_tenant_id, patient_id)
-  WHERE patient_id IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_records_walk_in_patient
-  ON pharmacy.dispense_records (iq_tenant_id, walk_in_patient_id)
-  WHERE walk_in_patient_id IS NOT NULL;
+-- ─── Dispense lines (IQSandbox pharmacy_dispense_lines parity) ───────────────
+-- IF NOT EXISTS: legacy tables keep dispense_record_id until 0001 renames it.
 
 CREATE TABLE IF NOT EXISTS pharmacy.dispense_line_items (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   iq_tenant_id uuid NOT NULL,
-  dispense_record_id uuid NOT NULL,
+  dispense_id uuid NOT NULL,
   medicine_id uuid,
   medicine_display_name text NOT NULL,
+  opd_prescription_item_id uuid,
+  opd_prescription_line_no integer,
   prescribed_quantity numeric(12, 4),
   quantity_dispensed numeric(12, 4) NOT NULL DEFAULT 0,
   unit_amount numeric(18, 4) NOT NULL DEFAULT 0,
@@ -87,7 +80,13 @@ CREATE TABLE IF NOT EXISTS pharmacy.dispense_line_items (
   tax_percent numeric(8, 4) NOT NULL DEFAULT 0,
   tax_amount numeric(18, 4) NOT NULL DEFAULT 0,
   line_total numeric(18, 4) NOT NULL DEFAULT 0,
+  stock_batch_id uuid,
+  is_substitution boolean NOT NULL DEFAULT false,
+  substitute_of_line_id uuid,
+  substitution_reason text,
+  line_remarks text,
   created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT dispense_line_items_pkey PRIMARY KEY (iq_tenant_id, id),
   CONSTRAINT dispense_line_items_qty_nonneg_chk CHECK (quantity_dispensed >= 0),
   CONSTRAINT dispense_line_items_unit_amount_nonneg_chk CHECK (unit_amount >= 0),
@@ -95,71 +94,153 @@ CREATE TABLE IF NOT EXISTS pharmacy.dispense_line_items (
   CONSTRAINT dispense_line_items_tax_percent_nonneg_chk CHECK (tax_percent >= 0),
   CONSTRAINT dispense_line_items_tax_amount_nonneg_chk CHECK (tax_amount >= 0),
   CONSTRAINT dispense_line_items_line_total_nonneg_chk CHECK (line_total >= 0),
-  CONSTRAINT dispense_line_items_dispense_record_fk
-    FOREIGN KEY (iq_tenant_id, dispense_record_id)
-    REFERENCES pharmacy.dispense_records (iq_tenant_id, id)
+  CONSTRAINT dispense_line_items_dispense_fk
+    FOREIGN KEY (iq_tenant_id, dispense_id)
+    REFERENCES pharmacy.dispense (iq_tenant_id, id)
     ON DELETE CASCADE
+  -- No self-referential substitute FK: Citus rejects ON DELETE SET NULL when the
+  -- FK includes the distribution column (iq_tenant_id).
 );
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_record
-  ON pharmacy.dispense_line_items (iq_tenant_id, dispense_record_id);
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_tenant_medicine
-  ON pharmacy.dispense_line_items (iq_tenant_id, medicine_id)
-  WHERE medicine_id IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS pharmacy.opd_queue_projection (
-  visit_id uuid NOT NULL,
-  iq_tenant_id uuid NOT NULL,
-  patient_id uuid NOT NULL,
-  prescription_id uuid NOT NULL,
-  doctor_id uuid,
-  visit_status text NOT NULL,
-  prescription_status text NOT NULL,
-  medicine_count integer NOT NULL DEFAULT 0,
-  queued_at timestamptz NOT NULL,
-  patient_name text,
-  uhid text,
-  phone text,
-  age_years integer,
-  gender text,
-  doctor_name text,
-  formatted_visit_id text,
-  dispense_status text NOT NULL DEFAULT 'pending',
-  last_synced_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT opd_queue_projection_pkey PRIMARY KEY (iq_tenant_id, visit_id),
-  CONSTRAINT opd_queue_projection_dispense_status_check
-    CHECK (dispense_status IN ('pending', 'issued', 'partial_issue')),
-  CONSTRAINT opd_queue_projection_medicine_count_nonneg_chk CHECK (medicine_count >= 0)
-);
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_opd_queue_projection_tenant_status_queued
-  ON pharmacy.opd_queue_projection (iq_tenant_id, dispense_status, queued_at DESC);
-
-CREATE INDEX IF NOT EXISTS ix_pharmacy_opd_queue_projection_tenant_queued
-  ON pharmacy.opd_queue_projection (iq_tenant_id, queued_at DESC);
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_constraint
-    WHERE conname = 'dispense_line_items_dispense_record_fk'
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'dispense_id'
   ) THEN
-    ALTER TABLE pharmacy.dispense_line_items
-      ADD CONSTRAINT dispense_line_items_dispense_record_fk
-      FOREIGN KEY (iq_tenant_id, dispense_record_id)
-      REFERENCES pharmacy.dispense_records (iq_tenant_id, id)
-      ON DELETE CASCADE;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_dispense
+        ON pharmacy.dispense_line_items (iq_tenant_id, dispense_id)
+    $sql$;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'opd_prescription_item_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_prescription_item
+        ON pharmacy.dispense_line_items (iq_tenant_id, opd_prescription_item_id)
+        WHERE opd_prescription_item_id IS NOT NULL
+    $sql$;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'medicine_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_tenant_medicine
+        ON pharmacy.dispense_line_items (iq_tenant_id, medicine_id)
+        WHERE medicine_id IS NOT NULL
+    $sql$;
+  END IF;
+END $$;
+
+-- ─── Unified pharmacy queue projection (OPD + future IPD) ───────────────────
+-- Producers push denormalized rows; pharmacy lists without cross-schema joins.
+-- Identity: (source_kind, source_ref_id) — Rx id for OPD, med order id for IPD.
+-- Skip when legacy opd_queue_projection still exists (0001 renames / merges it).
+
+DO $$
+BEGIN
+  IF to_regclass('pharmacy.queue_projection') IS NULL
+     AND to_regclass('pharmacy.opd_queue_projection') IS NULL THEN
+    CREATE TABLE pharmacy.queue_projection (
+      queue_item_id uuid NOT NULL DEFAULT gen_random_uuid(),
+      iq_tenant_id uuid NOT NULL,
+      source_kind text NOT NULL DEFAULT 'opd',
+      source_ref_id uuid NOT NULL,
+      encounter_id uuid NOT NULL,
+      patient_id uuid NOT NULL,
+      prescription_id uuid NOT NULL,
+      doctor_id uuid,
+      visit_status text NOT NULL,
+      prescription_status text NOT NULL,
+      medicine_count integer NOT NULL DEFAULT 0,
+      priority text NOT NULL DEFAULT 'routine',
+      queued_at timestamptz NOT NULL,
+      patient_name text,
+      uhid text,
+      phone text,
+      age_years integer,
+      gender text,
+      doctor_name text,
+      formatted_visit_id text,
+      dispense_status text NOT NULL DEFAULT 'pending',
+      context_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+      last_synced_at timestamptz NOT NULL DEFAULT now(),
+      CONSTRAINT queue_projection_pkey PRIMARY KEY (iq_tenant_id, queue_item_id),
+      CONSTRAINT queue_projection_source_kind_chk CHECK (source_kind IN ('opd', 'ipd')),
+      CONSTRAINT queue_projection_priority_chk CHECK (priority IN ('stat', 'urgent', 'routine')),
+      CONSTRAINT queue_projection_dispense_status_check
+        CHECK (dispense_status IN ('pending', 'issued', 'partial_issue', 'partially_returned', 'fully_returned')),
+      CONSTRAINT queue_projection_medicine_count_nonneg_chk CHECK (medicine_count >= 0)
+    );
   END IF;
 END $$;
 
 DO $$
 BEGIN
-  IF current_setting('citus.coordinator_node_count', true) IS NOT NULL THEN
-    PERFORM create_distributed_table('pharmacy.walk_in_patients', 'iq_tenant_id');
-    PERFORM create_distributed_table('pharmacy.dispense_records', 'iq_tenant_id');
-    PERFORM create_distributed_table('pharmacy.dispense_line_items', 'iq_tenant_id');
-    PERFORM create_distributed_table('pharmacy.opd_queue_projection', 'iq_tenant_id');
+  IF to_regclass('pharmacy.queue_projection') IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'pharmacy'
+         AND table_name = 'queue_projection'
+         AND column_name = 'source_ref_id'
+     ) THEN
+    EXECUTE $sql$
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_pharmacy_queue_projection_source
+        ON pharmacy.queue_projection (iq_tenant_id, source_kind, source_ref_id)
+    $sql$;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_queue_projection_encounter
+        ON pharmacy.queue_projection (iq_tenant_id, source_kind, encounter_id)
+    $sql$;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_queue_projection_tenant_kind_status_queued
+        ON pharmacy.queue_projection (iq_tenant_id, source_kind, dispense_status, queued_at DESC)
+    $sql$;
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_queue_projection_tenant_kind_queued
+        ON pharmacy.queue_projection (iq_tenant_id, source_kind, queued_at DESC)
+    $sql$;
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF current_setting('citus.coordinator_node_count', true) IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF to_regclass('pharmacy.dispense') IS NOT NULL THEN
+    BEGIN
+      PERFORM create_distributed_table('pharmacy.dispense', 'iq_tenant_id');
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+
+  IF to_regclass('pharmacy.dispense_line_items') IS NOT NULL THEN
+    BEGIN
+      PERFORM create_distributed_table('pharmacy.dispense_line_items', 'iq_tenant_id');
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+  END IF;
+
+  IF to_regclass('pharmacy.queue_projection') IS NOT NULL THEN
+    BEGIN
+      PERFORM create_distributed_table('pharmacy.queue_projection', 'iq_tenant_id');
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
   END IF;
 END $$;

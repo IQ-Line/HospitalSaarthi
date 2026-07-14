@@ -1,5 +1,5 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -28,15 +28,21 @@ import {
   CreateUserDoctorOpdSection,
   EMPTY_DOCTOR_TARIFF_ROW,
 } from './create-user-doctor-departments';
+import { CreateUserPharmacyStoresSection } from './create-user-pharmacy-stores';
+import {
+  resolveRoleTemplateCapabilityIdsForCreate,
+  validatePharmacyStoreAccess,
+  willGrantPharmacyCapabilities,
+} from '../lib/is-pharmacy-capability-selected';
 
 const EMPTY_ROLE_CAPABILITIES: Capability[] = [];
 
 /** Search params for user profile after create when scoped to a hospital tenant. */
 export function buildUserProfileNavigateSearch(
   tenantScope?: string | null,
-): { tenant: string } | Record<string, never> {
+): { tenant: string | undefined } {
   const trimmed = tenantScope?.trim();
-  return trimmed && trimmed.length > 0 ? { tenant: trimmed } : {};
+  return { tenant: trimmed && trimmed.length > 0 ? trimmed : undefined };
 }
 
 export function buildCreateUserRequestBody(
@@ -47,19 +53,16 @@ export function buildCreateUserRequestBody(
   configuratorOrgId?: string | null,
   /** Primary department name (doctor: first tariff row). */
   primaryDepartmentName?: string | null,
+  /** When pharmacy permissions are selected. */
+  pharmacyStoreAccess?: { primary_store_id: string; secondary_store_ids: string[] } | null,
 ): CreateUserBody {
   const roleIds = assignRoles ? values.role_template_ids : [];
-  let role_template_capability_ids: string[] | undefined;
-
-  if (assignRoles && roleIds.length === 1 && allRoleCapabilityIds.length > 0) {
-    const picked = values.role_capability_selection_ids.filter((id) =>
-      allRoleCapabilityIds.includes(id),
-    );
-    // Always send explicit capability ids when the UI loaded the role catalog — matches what
-    // the admin selected (including default "select all"). Never send [] (backend = grant nothing).
-    role_template_capability_ids =
-      picked.length > 0 ? picked : [...allRoleCapabilityIds];
-  }
+  const role_template_capability_ids = resolveRoleTemplateCapabilityIdsForCreate(
+    values.role_capability_selection_ids,
+    assignRoles,
+    roleIds,
+    allRoleCapabilityIds,
+  );
 
   return {
     full_name: values.full_name,
@@ -67,7 +70,7 @@ export function buildCreateUserRequestBody(
     password: values.password,
     phone: values.phone === '' ? null : values.phone,
     username: values.username === '' ? null : values.username,
-    org_id: values.org_id === '' ? null : values.org_id,
+    org_id: configuratorOrgId == null || configuratorOrgId === '' ? null : configuratorOrgId,
     department:
       primaryDepartmentName !== undefined
         ? primaryDepartmentName
@@ -78,6 +81,14 @@ export function buildCreateUserRequestBody(
     capability_ids: [],
     role_template_ids: roleIds,
     ...(role_template_capability_ids !== undefined ? { role_template_capability_ids } : {}),
+    ...(pharmacyStoreAccess
+      ? {
+          pharmacy_store_access: {
+            primary_store_id: pharmacyStoreAccess.primary_store_id,
+            secondary_store_ids: pharmacyStoreAccess.secondary_store_ids,
+          },
+        }
+      : {}),
   };
 }
 
@@ -151,7 +162,7 @@ export function CreateUserForm({
   });
 
   const form = useForm<CreateUserFormValues>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(formSchema) as Resolver<CreateUserFormValues>,
     defaultValues: {
       full_name: '',
       email: '',
@@ -163,6 +174,8 @@ export function CreateUserForm({
       clearance_tier_required: 0,
       role_template_ids: [],
       role_capability_selection_ids: [],
+      primary_store_id: '',
+      secondary_store_ids: [],
     },
   });
 
@@ -226,6 +239,27 @@ export function CreateUserForm({
     [roleCapabilities],
   );
 
+  const selectedCapabilityIds = useWatch({
+    control: form.control,
+    name: 'role_capability_selection_ids',
+    defaultValue: [],
+  });
+  const pharmacyAccessRequired = willGrantPharmacyCapabilities(
+    roleCapabilities,
+    selectedCapabilityIds ?? [],
+    umRoleAssign,
+    selectedRoleTemplateIds ?? [],
+    allRoleCapabilityIds,
+  );
+
+  useEffect(() => {
+    if (!pharmacyAccessRequired) {
+      form.setValue('primary_store_id', '', { shouldDirty: true, shouldValidate: false });
+      form.setValue('secondary_store_ids', [], { shouldDirty: true, shouldValidate: false });
+      form.clearErrors(['primary_store_id', 'secondary_store_ids']);
+    }
+  }, [pharmacyAccessRequired, form]);
+
   useEffect(() => {
     if (!selectedRoleId) {
       if (form.getValues('role_capability_selection_ids').length > 0) {
@@ -286,6 +320,20 @@ export function CreateUserForm({
         return;
       }
     }
+    const pharmacySelected = willGrantPharmacyCapabilities(
+      roleCapabilities,
+      values.role_capability_selection_ids,
+      umRoleAssign,
+      values.role_template_ids,
+      allRoleCapabilityIds,
+    );
+    if (pharmacySelected) {
+      const storeError = validatePharmacyStoreAccess(values.primary_store_id);
+      if (storeError) {
+        form.setError('primary_store_id', { type: 'custom', message: storeError });
+        return;
+      }
+    }
     const tenantForCreate = fixedTenant
       ? fixedTenant
       : canSelectTargetTenant && targetTenantId.trim()
@@ -305,6 +353,12 @@ export function CreateUserForm({
           allRoleCapabilityIds,
           orgForCreate,
           primaryDeptName,
+          pharmacySelected
+            ? {
+                primary_store_id: values.primary_store_id,
+                secondary_store_ids: values.secondary_store_ids,
+              }
+            : null,
         ),
         targetTenantId: tenantForCreate,
       },
@@ -373,6 +427,13 @@ export function CreateUserForm({
           control={form.control}
           errors={form.formState.errors}
         />
+
+        {pharmacyAccessRequired ? (
+          <CreateUserPharmacyStoresSection
+            control={form.control}
+            errors={form.formState.errors}
+          />
+        ) : null}
 
         <CreateUserWorkplaceSection
           register={form.register}

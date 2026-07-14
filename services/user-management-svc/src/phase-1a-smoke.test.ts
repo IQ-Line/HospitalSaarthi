@@ -23,6 +23,7 @@ import {
 } from "../../../modules/user-management/src/index.js";
 import { createMasterDataModuleCatalogPortStub } from "../../../modules/user-management/src/test-support/master-data-catalog-port-stub.js";
 import { createDepartmentCatalogPortStub } from "../../../modules/user-management/src/test-support/department-catalog-port-stub.js";
+import { NoopPharmacyStoreAssignmentRepository } from "../../../modules/user-management/src/test-support/noop-pharmacy-store-assignment-repository.js";
 import type { CheckResult } from "@hims/ts-sdk-authz";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import fp from "fastify-plugin";
@@ -169,6 +170,7 @@ describe("Phase 1A.12 smoke", () => {
             userRepository,
             userAccessRepository,
           ),
+          pharmacyStoreAssignmentRepository: new NoopPharmacyStoreAssignmentRepository(),
           capabilityRepository,
           roleRepository,
           roleCapabilityRepository,

@@ -52,7 +52,7 @@ env-init: ## Copy every .env.example to .env (skips files that already exist)
 
 .PHONY: dev
 dev: ## Start all services via Nx
-	$(NX) run-many -t serve --parallel=14
+	$(NX) run-many -t serve --parallel=15
 
 .PHONY: dev-pharmacy
 dev-pharmacy: ## Start web + BFF + OPD + pharmacy counter stack

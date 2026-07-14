@@ -13,6 +13,7 @@ const MIGRATION_FILES = [
   "0005_deactivate_noncanonical_capability_actions.sql",
   "0006_user_api_key.sql",
   "0007_username_and_recovery_tier.sql",
+  "0008_pharmacy_store_assignments.sql",
 ] as const;
 
 /**

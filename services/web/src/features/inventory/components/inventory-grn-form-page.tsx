@@ -28,7 +28,6 @@ import {
   useUomMasterLookup,
 } from '@/features/inventory-masters/api/uom-lookup';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import {
   mapIndentToGrnPrefill,
   validateIndentForGrnPrefill,
@@ -307,11 +306,6 @@ export function InventoryGrnFormPage() {
   });
 
   const persistDraft = async (): Promise<string | null> => {
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      if (!runValidation('draft')) return null;
-      toast.success('GRN draft saved (mock). Enable VITE_INVENTORY_API_ENABLED for live APIs.');
-      return null;
-    }
     if (!runValidation('draft')) return null;
 
     try {
@@ -333,8 +327,8 @@ export function InventoryGrnFormPage() {
   const handleSaveDraft = () => {
     void (async () => {
       const id = await persistDraft();
-      if (id || !OPERATIONAL_INVENTORY_API_ENABLED) {
-        if (OPERATIONAL_INVENTORY_API_ENABLED) toast.success('GRN draft saved');
+      if (id) {
+        toast.success('GRN draft saved');
         void navigate({ to: '/inventory/grn-logs' });
       }
     })();
@@ -343,12 +337,6 @@ export function InventoryGrnFormPage() {
   const handleSubmit = () => {
     void (async () => {
       if (!runValidation('submit')) return;
-
-      if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-        toast.success('GRN submitted (mock). Enable VITE_INVENTORY_API_ENABLED for live APIs.');
-        void navigate({ to: '/inventory/grn-logs' });
-        return;
-      }
 
       const id = await persistDraft();
       if (!id) return;
@@ -613,7 +601,7 @@ export function InventoryGrnFormPage() {
             documentPath={shipmentDocumentPath}
             onDocumentPathChange={setShipmentDocumentPath}
             disabled={isReadOnly}
-            apiEnabled={OPERATIONAL_INVENTORY_API_ENABLED}
+            apiEnabled
             ensureDraftSaved={persistDraft}
           />
           <GrnDocumentUploadField
@@ -623,7 +611,7 @@ export function InventoryGrnFormPage() {
             documentPath={voucherDocumentPath}
             onDocumentPathChange={setVoucherDocumentPath}
             disabled={isReadOnly}
-            apiEnabled={OPERATIONAL_INVENTORY_API_ENABLED}
+            apiEnabled
             ensureDraftSaved={persistDraft}
           />
         </div>

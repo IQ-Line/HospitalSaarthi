@@ -16,7 +16,7 @@ export function buildDispenseLineRows(
     });
     return {
       iq_tenant_id: tenantId,
-      dispense_record_id: recordId,
+      dispense_id: recordId,
       medicine_id: line.medicine_id ?? null,
       medicine_display_name: line.medicine_display_name.trim(),
       prescribed_quantity: line.prescribed_quantity ?? null,
@@ -26,6 +26,7 @@ export function buildDispenseLineRows(
       tax_percent: billing.tax_percent,
       tax_amount: billing.tax_amount,
       line_total: billing.line_total,
+      inventory_item_id: line.inventory_item_id?.trim() || null,
     };
   });
 }

@@ -15,6 +15,7 @@ import type { Capability, Role } from "../ports/index.js";
 import { userManagementPlugin } from "../router.js";
 import { createMasterDataModuleCatalogPortStub } from "../test-support/master-data-catalog-port-stub.js";
 import { createDepartmentCatalogPortStub } from "../test-support/department-catalog-port-stub.js";
+import { NoopPharmacyStoreAssignmentRepository } from "../test-support/noop-pharmacy-store-assignment-repository.js";
 
 const apps: Array<ReturnType<typeof Fastify>> = [];
 
@@ -180,6 +181,7 @@ async function createTestApp(entitlement: {
           userRepository,
           userAccessRepository,
         ),
+        pharmacyStoreAssignmentRepository: new NoopPharmacyStoreAssignmentRepository(),
         capabilityRepository,
         roleRepository,
         roleCapabilityRepository,
