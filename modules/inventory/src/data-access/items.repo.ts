@@ -258,6 +258,22 @@ export class DrizzleInventoryItemRepository {
     return row;
   }
 
+  async updateReorderPoint(
+    tenantId: string,
+    itemId: string,
+    reorderPoint: number,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .update(inventoryItems)
+      .set({
+        reorder_point: String(reorderPoint),
+        updated_at: new Date(),
+      })
+      .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .returning();
+    return row;
+  }
+
   private async allocateItemCode(tenantId: string, itemTypeId: string): Promise<string> {
     const [seq] = await this.db
       .insert(inventoryItemCodeSequences)

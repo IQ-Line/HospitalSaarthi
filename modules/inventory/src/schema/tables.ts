@@ -330,6 +330,32 @@ export const inventoryStock = inventorySchema.table(
   ],
 );
 
+export const inventoryStockAdjustments = inventorySchema.table(
+  "stock_adjustments",
+  {
+    id: uuid("id").defaultRandom().notNull(),
+    ...tenantColumn(),
+    stock_id: uuid("stock_id").notNull(),
+    item_id: uuid("item_id").notNull(),
+    inventory_store_id: uuid("inventory_store_id").notNull(),
+    lot_id: uuid("lot_id"),
+    delta: numeric("delta", { precision: 12, scale: 3 }).notNull(),
+    quantity_before: numeric("quantity_before", { precision: 12, scale: 3 }).notNull(),
+    quantity_after: numeric("quantity_after", { precision: 12, scale: 3 }).notNull(),
+    reason: text("reason").notNull(),
+    created_by: uuid("created_by"),
+    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.iq_tenant_id, t.id] }),
+    index("idx_inventory_stock_adjustments_tenant_store_created").on(
+      t.iq_tenant_id,
+      t.inventory_store_id,
+      t.created_at,
+    ),
+  ],
+);
+
 // ─── Indents ─────────────────────────────────────────────────────────────────
 
 export const inventoryIndents = inventorySchema.table(

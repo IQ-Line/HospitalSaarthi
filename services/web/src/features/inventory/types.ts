@@ -168,6 +168,7 @@ export type InventoryIndentListParams = {
   status?: 'all' | InventoryIndentStatus;
   from_store_id?: string;
   to_store_id?: string;
+  indent_type?: InventoryIndentType;
   page?: number;
   limit?: number;
 };

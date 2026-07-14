@@ -19,3 +19,9 @@ export const listExpiringLotsQuerySchema = z.object({
 export const stockBatchesQuerySchema = z.object({
   store_id: z.string().uuid(),
 });
+
+export const adjustStockBodySchema = z.object({
+  stock_id: z.string().uuid(),
+  delta: z.number().finite().refine((value) => value !== 0, "delta must be non-zero"),
+  reason: z.string().trim().min(1).max(500),
+});

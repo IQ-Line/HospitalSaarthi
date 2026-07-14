@@ -15,7 +15,6 @@ import {
 } from '@pulse/ui/select';
 import { Textarea } from '@pulse/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@pulse/ui/toggle-group';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import { validateIndentDraft } from '../lib/indent-draft-validation';
 import { indentStatusBadgeVariant, indentStatusLabel } from '../lib/indent-status';
 import {
@@ -73,6 +72,8 @@ type InventoryIndentDetailPageProps = {
   indentId: string;
   view?: IndentListDirection;
   activeStoreId?: string;
+  variant?: import('../lib/inventory-operational-variant').InventoryOperationalVariant;
+  forcedIndentType?: 'store_transfer' | 'pharmacy_refill' | 'emergency';
 };
 
 function isEditableStatus(status: InventoryIndentStatus | undefined, isNew: boolean) {
@@ -83,6 +84,8 @@ export function InventoryIndentDetailPage({
   indentId,
   view,
   activeStoreId,
+  variant = 'inventory',
+  forcedIndentType,
 }: InventoryIndentDetailPageProps) {
   const navigate = useNavigate();
   const isNew = indentId === 'new';
@@ -104,7 +107,7 @@ export function InventoryIndentDetailPage({
   const [fromStoreId, setFromStoreId] = useState('');
   const [toStoreId, setToStoreId] = useState('');
   const [indentType, setIndentType] = useState<'store_transfer' | 'pharmacy_refill' | 'emergency'>(
-    'store_transfer',
+    forcedIndentType ?? 'store_transfer',
   );
   const [priority, setPriority] = useState<'normal' | 'urgent' | 'stat'>('normal');
   const [remarks, setRemarks] = useState('');
@@ -292,12 +295,6 @@ export function InventoryIndentDetailPage({
     setSubmitAttempted(true);
     if (!draftValidation.isValid) return;
 
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Indent draft saved (mock).');
-      void navigate({ to: '/inventory/indents' });
-      return;
-    }
-
     try {
       const saved = await saveDraft.mutateAsync({
         indentId: isNew ? undefined : indentId,
@@ -317,10 +314,6 @@ export function InventoryIndentDetailPage({
   const handleSubmit = async () => {
     setSubmitAttempted(true);
     if (!draftValidation.isValid) return;
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Indent submitted (mock).');
-      return;
-    }
     try {
       let id = indentId;
       if (isNew || status === 'draft') {
@@ -388,10 +381,6 @@ export function InventoryIndentDetailPage({
       return;
     }
 
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success(partial ? 'Indent partially approved (mock).' : 'Indent approved (mock).');
-      return;
-    }
     try {
       await approveIndent.mutateAsync({
         indentId,
@@ -406,11 +395,6 @@ export function InventoryIndentDetailPage({
   };
 
   const handleCancelDraft = async () => {
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Draft indent cancelled (mock).');
-      void navigate({ to: '/inventory/indents', search: { tab: 'outgoing', storeId: activeStoreId } });
-      return;
-    }
     try {
       await cancelIndent.mutateAsync(indentId);
       toast.success('Draft indent cancelled');
@@ -433,10 +417,6 @@ export function InventoryIndentDetailPage({
 
   const handleInitiateFulfillment = async () => {
     if (!detail) return;
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Fulfillment initiated (mock).');
-      return;
-    }
     try {
       if (detail.route === 'procurement') {
         await fulfillIndent.mutateAsync(indentId);
@@ -453,18 +433,25 @@ export function InventoryIndentDetailPage({
     }
   };
 
-  const listSearch = { tab: listDirection, storeId: activeStoreId };
+  const listPath = variant === 'pharmacy' ? '/pharmacy/replenishment' : '/inventory/indents';
+  const listSearch = variant === 'pharmacy' ? { tab: 'indents' as const } : { tab: listDirection, storeId: activeStoreId };
 
-  const title = isNew ? 'New indent' : (detail?.indent_number ?? 'Indent');
-  const breadcrumbs = [
-    { label: 'Inventory', to: '/inventory/dashboard' },
-    { label: 'Indents', to: '/inventory/indents', search: listSearch },
-    { label: isNew ? 'New' : (detail?.indent_number ?? '…') },
-  ];
+  const title = isNew ? 'Create indent request' : (detail?.indent_number ?? 'Indent');
+  const breadcrumbs =
+    variant === 'pharmacy'
+      ? [
+          { label: 'Replenishment', to: '/pharmacy/replenishment' },
+          { label: isNew ? 'New' : (detail?.indent_number ?? '…') },
+        ]
+      : [
+          { label: 'Inventory', to: '/inventory/dashboard' },
+          { label: 'Indents', to: '/inventory/indents', search: listSearch },
+          { label: isNew ? 'New' : (detail?.indent_number ?? '…') },
+        ];
 
-  if (!isNew && isLoading && OPERATIONAL_INVENTORY_API_ENABLED) {
+  if (!isNew && isLoading) {
     return (
-      <InventoryPageShell title="Indent" breadcrumbs={breadcrumbs}>
+      <InventoryPageShell title="Indent" breadcrumbs={breadcrumbs} variant={variant}>
         <p className="text-sm text-muted-foreground">Loading indent…</p>
       </InventoryPageShell>
     );
@@ -474,13 +461,14 @@ export function InventoryIndentDetailPage({
     <InventoryPageShell
       title={title}
       breadcrumbs={breadcrumbs}
+      variant={variant}
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {!isNew && status ? (
             <Badge variant={indentStatusBadgeVariant(status)}>{indentStatusLabel(status)}</Badge>
           ) : null}
           <Button type="button" variant="ghost" size="sm" className="gap-1.5" asChild>
-            <Link to="/inventory/indents" search={listSearch}>
+            <Link to={listPath} search={listSearch}>
               <ArrowLeft className="size-4" aria-hidden />
               Back
             </Link>
@@ -870,6 +858,7 @@ export function InventoryIndentDetailPage({
                   </div>
                 </>
               )}
+              {!forcedIndentType ? (
               <div className="space-y-2">
                 <Label>Indent type</Label>
                 <Select
@@ -889,6 +878,7 @@ export function InventoryIndentDetailPage({
                   </SelectContent>
                 </Select>
               </div>
+              ) : null}
             </div>
 
             <div className="mt-4 space-y-2">
