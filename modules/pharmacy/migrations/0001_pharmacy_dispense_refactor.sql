@@ -112,18 +112,8 @@ BEGIN
   END IF;
 END $$;
 
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'dispense_line_items_substitute_fk'
-  ) THEN
-    ALTER TABLE pharmacy.dispense_line_items
-      ADD CONSTRAINT dispense_line_items_substitute_fk
-      FOREIGN KEY (iq_tenant_id, substitute_of_line_id)
-      REFERENCES pharmacy.dispense_line_items (iq_tenant_id, id)
-      ON DELETE SET NULL;
-  END IF;
-END $$;
+-- Intentionally no dispense_line_items_substitute_fk: Citus rejects ON DELETE SET NULL
+-- when the FK includes the distribution column (iq_tenant_id).
 
 DROP TABLE IF EXISTS pharmacy.walk_in_patients;
 

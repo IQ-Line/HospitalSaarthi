@@ -4,6 +4,7 @@ import type {
   PharmacyStoreAccessSnapshot,
   PharmacyStoreAssignmentRow,
 } from "../domain/pharmacy-store-access.types.js";
+import type { PharmacyStoreAssignmentRepository } from "../ports/pharmacy-store-assignment-repository.js";
 import { pharmacy_store_assignments } from "../schema/tables.js";
 
 function mapRows(rows: (typeof pharmacy_store_assignments.$inferSelect)[]): PharmacyStoreAccessSnapshot {
@@ -17,7 +18,7 @@ function mapRows(rows: (typeof pharmacy_store_assignments.$inferSelect)[]): Phar
   };
 }
 
-export class DrizzlePharmacyStoreAssignmentRepository {
+export class DrizzlePharmacyStoreAssignmentRepository implements PharmacyStoreAssignmentRepository {
   constructor(private readonly db: DbInstance) {}
 
   async getForUser(tenantId: string, userId: string): Promise<PharmacyStoreAccessSnapshot> {
@@ -92,6 +93,6 @@ export class DrizzlePharmacyStoreAssignmentRepository {
 
 export function createPharmacyStoreAssignmentRepository(
   db: DbInstance,
-): DrizzlePharmacyStoreAssignmentRepository {
+): PharmacyStoreAssignmentRepository {
   return new DrizzlePharmacyStoreAssignmentRepository(db);
 }

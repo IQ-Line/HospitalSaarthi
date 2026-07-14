@@ -88,8 +88,10 @@ type ReturnListQuery = {
   q?: string;
 };
 
-function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
-  const id = request.user?.id ?? request.user?.sub;
+function actorIdFromRequest(request: {
+  user?: { userId?: string; id?: string; sub?: string };
+}): string | null {
+  const id = request.user?.userId ?? request.user?.id ?? request.user?.sub;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
