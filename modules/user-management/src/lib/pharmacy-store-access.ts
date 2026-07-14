@@ -17,17 +17,39 @@ const PHARMACY_RUNTIME_MODULE_SLUGS = new Set([
   PHARMACY_DISPENSE_MODULE_SLUG,
 ]);
 
+/** Store-config is the operational store master used by inventory workflows. */
+const STORE_CONFIG_MODULE_SLUG = "store-config";
+
 function normalizeModuleSlug(raw: string | null | undefined): string {
   return (raw ?? "").trim().toLowerCase().replace(/_/g, "-");
 }
 
-export function capabilityBelongsToPharmacyModule(capability: Pick<Capability, "module" | "source_module_slug" | "capability_key">): boolean {
-  const candidates = [
+function capabilityModuleCandidates(
+  capability: Pick<Capability, "module" | "source_module_slug" | "capability_key">,
+): Array<string | null | undefined> {
+  return [
     capability.source_module_slug,
     capability.module,
     capability.capability_key.split(":")[0],
   ];
-  return candidates.some((value) => PHARMACY_RUNTIME_MODULE_SLUGS.has(normalizeModuleSlug(value)));
+}
+
+/** L1 inventory, L2 ops (stock/indents/…), and L3 masters (inventory-master, categories, …). */
+export function isInventoryStoreScopedModuleSlug(raw: string | null | undefined): boolean {
+  const slug = normalizeModuleSlug(raw);
+  return slug === "inventory" || slug.startsWith("inventory-") || slug === STORE_CONFIG_MODULE_SLUG;
+}
+
+export function capabilityBelongsToPharmacyModule(capability: Pick<Capability, "module" | "source_module_slug" | "capability_key">): boolean {
+  return capabilityModuleCandidates(capability).some((value) =>
+    PHARMACY_RUNTIME_MODULE_SLUGS.has(normalizeModuleSlug(value)),
+  );
+}
+
+export function capabilityBelongsToInventoryModule(capability: Pick<Capability, "module" | "source_module_slug" | "capability_key">): boolean {
+  return capabilityModuleCandidates(capability).some((value) =>
+    isInventoryStoreScopedModuleSlug(value),
+  );
 }
 
 export function selectionIncludesPharmacyModule(
@@ -40,6 +62,29 @@ export function selectionIncludesPharmacyModule(
   const selected = new Set(selectedCapabilityIds);
   return capabilities.some(
     (capability) => selected.has(capability.id) && capabilityBelongsToPharmacyModule(capability),
+  );
+}
+
+export function selectionIncludesInventoryModule(
+  capabilities: Capability[],
+  selectedCapabilityIds: string[],
+): boolean {
+  if (selectedCapabilityIds.length === 0) {
+    return false;
+  }
+  const selected = new Set(selectedCapabilityIds);
+  return capabilities.some(
+    (capability) => selected.has(capability.id) && capabilityBelongsToInventoryModule(capability),
+  );
+}
+
+export function selectionIncludesStoreScopedModule(
+  capabilities: Capability[],
+  selectedCapabilityIds: string[],
+): boolean {
+  return (
+    selectionIncludesPharmacyModule(capabilities, selectedCapabilityIds) ||
+    selectionIncludesInventoryModule(capabilities, selectedCapabilityIds)
   );
 }
 
@@ -85,14 +130,14 @@ export function assertPharmacyStoreAccessMatchesCapabilities(
   selectedCapabilityIds: string[],
   pharmacyStoreAccess: PharmacyStoreAccessInput | null | undefined,
 ): PharmacyStoreAccessSnapshot | null {
-  const pharmacySelected = selectionIncludesPharmacyModule(capabilities, selectedCapabilityIds);
+  const storeScoped = selectionIncludesStoreScopedModule(capabilities, selectedCapabilityIds);
   const normalized = normalizePharmacyStoreAccessInput(pharmacyStoreAccess);
 
-  if (pharmacySelected && normalized == null) {
+  if (storeScoped && normalized == null) {
     throw new ValidationError("pharmacy_store_access_required");
   }
 
-  if (!pharmacySelected && normalized != null) {
+  if (!storeScoped && normalized != null) {
     throw new ValidationError("pharmacy_store_access_not_allowed");
   }
 

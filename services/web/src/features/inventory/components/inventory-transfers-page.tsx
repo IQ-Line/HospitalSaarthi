@@ -1,7 +1,6 @@
-import { useNavigate, Link } from '@tanstack/react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
@@ -36,15 +35,13 @@ import {
 } from '../lib/transfer-status';
 import {
   useInventoryIndentDetail,
-  useInventoryIndentStores,
   useInventoryIndents,
-  useInventoryStores,
   useInventoryTransferDetail,
   useInventoryTransfers,
 } from '../api/queries';
 import type { InventoryIndentRow, InventoryTransferRow } from '../types';
 import type { InventoryOperationalVariant } from '../lib/inventory-operational-variant';
-import { operationalNewTransferPath } from '../lib/inventory-operational-variant';
+import { useOperationalStoreOptions } from '../lib/use-operational-store-options';
 import { InventoryPageShell } from './inventory-page-shell';
 import { InventoryTransferDialog } from './inventory-transfer-dialog';
 import { InventoryTransferReceiveDialog } from './inventory-transfer-receive-dialog';
@@ -86,11 +83,16 @@ export function InventoryTransfersPage({
   presentation = 'operations',
 }: InventoryTransfersPageProps) {
   const navigate = useNavigate();
-  const { data: indentStores = [] } = useInventoryIndentStores();
-  const { data: inventoryStores = [] } = useInventoryStores();
+  const {
+    indentStores,
+    stores: inventoryStores,
+    primaryStoreId,
+  } = useOperationalStoreOptions(variant);
   const stores = indentStores.length > 0 ? indentStores : inventoryStores;
 
-  const [storeId, setStoreId] = useState(storeIdProp ?? routePrefill?.fromStoreId ?? '');
+  const [storeId, setStoreId] = useState(
+    storeIdProp ?? routePrefill?.fromStoreId ?? '',
+  );
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | InventoryTransferRow['status']>('all');
   const [page, setPage] = useState(1);
@@ -103,7 +105,6 @@ export function InventoryTransfersPage({
 
   const direction = directionProp ?? defaultTransferDirection();
   const isCounterPresentation = presentation === 'counter' || variant === 'pharmacy';
-  const newTransferPath = operationalNewTransferPath(variant);
 
   useEffect(() => {
     if (storeIdProp) {
@@ -113,10 +114,14 @@ export function InventoryTransfersPage({
 
   useEffect(() => {
     if (storeIdProp) return;
-    if (!storeId && stores.length > 0) {
-      setStoreId(stores[0]!.id);
+    if (storeId) return;
+    const preferred = primaryStoreId && stores.some((store) => store.id === primaryStoreId)
+      ? primaryStoreId
+      : stores[0]?.id;
+    if (preferred) {
+      setStoreId(preferred);
     }
-  }, [storeId, storeIdProp, stores]);
+  }, [primaryStoreId, storeId, storeIdProp, stores]);
 
   const { data: indentDetail } = useInventoryIndentDetail(routePrefill?.indentId);
   const { data: routeTransferDetail } = useInventoryTransferDetail(routePrefill?.transferId);
@@ -444,16 +449,6 @@ export function InventoryTransfersPage({
       title="Stock transfers"
       breadcrumbLabel="Transfers"
       variant={variant}
-      actions={
-        isCounterPresentation ? (
-          <Button type="button" size="sm" className="gap-1.5" asChild>
-            <Link to={newTransferPath}>
-              <Plus className="size-4" aria-hidden />
-              New transfer
-            </Link>
-          </Button>
-        ) : undefined
-      }
     >
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -650,6 +645,7 @@ export function InventoryTransfersPage({
         transfer={dialogTransfer}
         transferLoading={transferLoading}
         indentPrefill={selectedIndent ?? (routePrefill?.indentId ? indentDetail : null)}
+        variant={variant}
       />
 
       <InventoryTransferReceiveDialog

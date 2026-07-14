@@ -27,8 +27,9 @@ import {
   operationalNewIndentPath,
   PHARMACY_INDENT_DEFAULTS,
 } from '../lib/inventory-operational-variant';
-import { useInventoryIndentStores, useInventoryIndents, useInventoryStores } from '../api/queries';
-import type { InventoryIndentRow, InventoryIndentStoreOption, InventoryIndentType } from '../types';
+import { useOperationalStoreOptions } from '../lib/use-operational-store-options';
+import { useInventoryIndents } from '../api/queries';
+import type { InventoryIndentRow, InventoryIndentType } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 
 function formatIndentDate(iso: string) {
@@ -89,18 +90,8 @@ export function InventoryIndentsPage({
   const resolvedIndentType =
     indentTypeFilter ?? (isPharmacy ? PHARMACY_INDENT_DEFAULTS.indent_type : undefined);
 
-  const { data: liveIndentStores = [], isLoading: storesLoading } = useInventoryIndentStores();
-  const { data: fallbackStores = [] } = useInventoryStores();
-  const indentStores: InventoryIndentStoreOption[] =
-    liveIndentStores.length > 0
-      ? liveIndentStores
-      : fallbackStores.map((store) => ({
-          id: store.id,
-          name: store.name,
-          store_code: store.store_code,
-          indent_authority: true,
-          indent_target_store_id: null,
-        }));
+  const { indentStores, primaryStoreId, isLoading: storesLoading } =
+    useOperationalStoreOptions(variant);
 
   const [storeId, setStoreId] = useState(storeIdProp ?? '');
   const [search, setSearch] = useState('');
@@ -116,10 +107,15 @@ export function InventoryIndentsPage({
       setStoreId(storeIdProp);
       return;
     }
-    if (!storeId && indentStores.length > 0) {
-      setStoreId(indentStores[0]!.id);
+    if (storeId) return;
+    const preferred =
+      primaryStoreId && indentStores.some((store) => store.id === primaryStoreId)
+        ? primaryStoreId
+        : indentStores[0]?.id;
+    if (preferred) {
+      setStoreId(preferred);
     }
-  }, [storeId, storeIdProp, indentStores]);
+  }, [indentStores, primaryStoreId, storeId, storeIdProp]);
 
   useEffect(() => {
     setStatus(initialStatus);
