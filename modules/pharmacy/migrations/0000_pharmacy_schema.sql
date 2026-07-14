@@ -78,11 +78,9 @@ CREATE TABLE IF NOT EXISTS pharmacy.dispense_line_items (
   CONSTRAINT dispense_line_items_dispense_fk
     FOREIGN KEY (iq_tenant_id, dispense_id)
     REFERENCES pharmacy.dispense (iq_tenant_id, id)
-    ON DELETE CASCADE,
-  CONSTRAINT dispense_line_items_substitute_fk
-    FOREIGN KEY (iq_tenant_id, substitute_of_line_id)
-    REFERENCES pharmacy.dispense_line_items (iq_tenant_id, id)
-    ON DELETE SET NULL
+    ON DELETE CASCADE
+  -- No self-referential substitute FK: Citus rejects ON DELETE SET NULL when the
+  -- FK includes the distribution column (iq_tenant_id).
 );
 
 CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_dispense

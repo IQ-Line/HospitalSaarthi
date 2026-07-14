@@ -33,6 +33,7 @@ export type {
   InventoryGatewayPort,
   UserLookupPort,
   DispenseRecordRepo,
+  DispenseReturnRepo,
   QueueProjectionRepo,
   OpdQueueProjectionRepo,
   PharmacyGatewayPorts,
@@ -60,3 +61,12 @@ export {
   DispenseInsufficientStockError,
 } from "./use-cases/save-dispense-for-visit.js";
 export type { SaveDispenseForVisitCommand } from "./use-cases/save-dispense-for-visit.js";
+export { issueManualDispenseStock } from "./use-cases/issue-manual-dispense-stock.js";
+export type {
+  IssueManualDispenseStockInput,
+  ManualDispenseStockLine,
+} from "./use-cases/issue-manual-dispense-stock.js";
+export {
+  createDispenseReturnRepo,
+  DrizzleDispenseReturnRepo,
+} from "./data-access/dispense-return.repo.js";

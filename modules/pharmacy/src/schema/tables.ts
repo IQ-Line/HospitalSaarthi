@@ -87,13 +87,8 @@ export const dispenseLineItems = pharmacySchema.table(
     })
       .onDelete("cascade")
       .onUpdate("no action"),
-    foreignKey({
-      name: "dispense_line_items_substitute_fk",
-      columns: [t.iq_tenant_id, t.substitute_of_line_id],
-      foreignColumns: [t.iq_tenant_id, t.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
+    // No self-referential substitute FK: Citus rejects ON DELETE SET NULL when the
+    // FK includes the distribution column (iq_tenant_id). App clears substitute_of_line_id.
   ],
 );
 

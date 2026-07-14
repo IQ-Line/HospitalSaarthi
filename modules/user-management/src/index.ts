@@ -188,7 +188,17 @@ export {
   userManagementSchema,
   user_clearances,
   users,
+  pharmacy_store_assignments,
 } from "./schema/tables.js";
+export type {
+  PharmacyStoreAccessInput,
+  PharmacyStoreAccessSnapshot,
+  PharmacyStoreAssignmentKind,
+  PharmacyStoreAssignmentRow,
+} from "./domain/pharmacy-store-access.types.js";
+export type { PharmacyStoreAssignmentRepository } from "./ports/pharmacy-store-assignment-repository.js";
+export { getUserPharmacyStoreAccess } from "./use-cases/get-pharmacy-store-access.js";
+export type { GetPharmacyStoreAccessDeps } from "./use-cases/get-pharmacy-store-access.js";
 export {
   USER_MANAGEMENT_EVENT_TYPES,
   USER_MANAGEMENT_EVENT_USER_CREATED,

@@ -7,6 +7,8 @@ export { DrizzleInventoryItemRepository } from "./data-access/items.repo.js";
 export { DrizzleInventoryIndentRepository } from "./data-access/indent.repo.js";
 export { listItems } from "./use-cases/list-items.js";
 export { createItem } from "./use-cases/create-item.js";
+export { adjustStock } from "./use-cases/adjust-stock.js";
+export type { AdjustStockDeps, AdjustStockInput } from "./use-cases/adjust-stock.js";
 export { issueDispenseStock } from "./use-cases/issue-dispense-stock.js";
 export type {
   IssueDispenseStockInput,
