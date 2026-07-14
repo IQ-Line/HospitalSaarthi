@@ -35,6 +35,7 @@ import {
 } from "../use-cases/get-dispense-return.js";
 import {
   DispenseReturnConflictError,
+  DispenseReturnStockRestoreError,
   DispenseReturnValidationError,
   processDispenseReturn,
 } from "../use-cases/process-dispense-return.js";
@@ -489,6 +490,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           {
             dispenseReturnRepo: deps.dispenseReturnRepo,
             queueProjectionRepo: deps.queueProjectionRepo,
+            inventoryGateway: deps.inventoryGateway,
           },
           request.tenantId,
           {
@@ -514,6 +516,13 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
           });
         }
         if (error instanceof DispenseReturnConflictError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseReturnStockRestoreError) {
           return reply.code(409).send({
             statusCode: 409,
             error: "Conflict",

@@ -75,6 +75,7 @@ const queueProjectionRepo: QueueProjectionRepo = {
 
 const inventoryGateway: InventoryGatewayPort = {
   issueDispenseStock: vi.fn(async () => undefined),
+  restoreDispenseStock: vi.fn(async () => undefined),
 };
 
 const projectionDeps = {
@@ -421,6 +422,7 @@ describe("saveDispenseForVisit", () => {
   it("deducts only newly issued qty on partial re-save", async () => {
     const localInventoryGateway: InventoryGatewayPort = {
       issueDispenseStock: vi.fn(async () => undefined),
+      restoreDispenseStock: vi.fn(async () => undefined),
     };
     const opdGateway: OpdGatewayPort = {
       getVisitPrescription: vi.fn(async () => prescription),

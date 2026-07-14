@@ -328,9 +328,10 @@ paths:
       operationId: processDispenseReturn
       summary: Process a medicine return against a dispense transaction
       description: |
-        Idempotent when `Idempotency-Key` header is supplied. Updates cumulative returned
-        quantities on dispense lines and dispense status. Amounts are stored in pharmacy
-        schema only (no billing or inventory integration in v1).
+        Idempotent when `Idempotency-Key` header is supplied. Restores inventory stock by
+        item quantity at the dispense store (lot/batch ignored for now), then updates
+        cumulative returned quantities on dispense lines and dispense status. Amounts are
+        stored in pharmacy schema only (no billing integration in v1).
       tags: [Returns]
       parameters:
         - $ref: "#/components/parameters/TenantIdHeader"

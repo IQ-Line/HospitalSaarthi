@@ -12,6 +12,7 @@ const MIGRATION_FILES = [
   "0003_dispense_return_audit_columns.sql",
   "0004_dispense_inventory_item_id.sql",
   "0005_drop_substitute_fk.sql",
+  "0006_dispense_return_statuses.sql",
 ] as const;
 
 /** Applies `pharmacy` schema DDL (idempotent — safe to run on every dev boot). */
