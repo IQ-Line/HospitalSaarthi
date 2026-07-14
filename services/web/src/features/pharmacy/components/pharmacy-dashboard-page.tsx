@@ -7,7 +7,6 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Alert, AlertDescription, AlertTitle } from '@pulse/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@pulse/ui/card';
 import { Skeleton } from '@pulse/ui/skeleton';
 import { fetchPharmacyDashboardMock } from '../api/pharmacy-ui-mock';
@@ -37,7 +36,6 @@ export function PharmacyDashboardPage() {
 
   const queueCount = data?.open_queue_count ?? 0;
   const lowStock = data?.low_stock_batches ?? 0;
-  const storeName = data?.active_store_name ?? 'Central Medical Store';
 
   return (
     <PharmacyPageShell
@@ -46,15 +44,6 @@ export function PharmacyDashboardPage() {
       breadcrumbLabel="Dashboard"
     >
       <div className="flex flex-col gap-6">
-        <Alert>
-          <AlertTitle>Pharmacy store context</AlertTitle>
-          <AlertDescription>
-            You are working in{' '}
-            <span className="font-medium text-foreground">{storeName}</span>. Use the store
-            switcher in the header to change it when you have access to more than one store.
-          </AlertDescription>
-        </Alert>
-
         <div className="grid gap-4 md:grid-cols-2">
           {isLoading ? (
             <>

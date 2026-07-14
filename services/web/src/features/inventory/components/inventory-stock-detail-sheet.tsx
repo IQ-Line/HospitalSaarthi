@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router';
 import { Eye, ScrollText } from 'lucide-react';
 import { Button } from '@pulse/ui/button';
 import {
@@ -215,13 +214,5 @@ export function InventoryStockDisplayPopoverContent({
         </div>
       </div>
     </div>
-  );
-}
-
-export function InventoryStockIndentLink() {
-  return (
-    <Button type="button" variant="outline" size="sm" asChild>
-      <Link to="/inventory/indents/new">Indent</Link>
-    </Button>
   );
 }

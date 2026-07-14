@@ -12,8 +12,11 @@ import {
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
+  DispenseAlreadyIssuedError,
+  DispenseInsufficientStockError,
   saveDispenseForVisit,
 } from "../use-cases/save-dispense-for-visit.js";
+import { issueManualDispenseStock } from "../use-cases/issue-manual-dispense-stock.js";
 import {
   applyOpdQueueProjectionUpsert,
   mapOpdQueueProjectionRowToWire,
@@ -85,8 +88,10 @@ type ReturnListQuery = {
   q?: string;
 };
 
-function actorIdFromRequest(request: { user?: { id?: string; sub?: string } }): string | null {
-  const id = request.user?.id ?? request.user?.sub;
+function actorIdFromRequest(request: {
+  user?: { userId?: string; id?: string; sub?: string };
+}): string | null {
+  const id = request.user?.userId ?? request.user?.id ?? request.user?.sub;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
 
@@ -220,6 +225,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             opdGateway: deps.opdGateway,
             dispenseRecordRepo: deps.dispenseRecordRepo,
             masterDataGateway: deps.masterDataGateway,
+            inventoryGateway: deps.inventoryGateway,
             userLookup: deps.userLookup,
             queueProjectionRepo: deps.queueProjectionRepo,
           },
@@ -228,6 +234,7 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             visitId: request.params.visitId,
             patient_id: request.body.patient_id,
             opd_prescription_id: request.body.opd_prescription_id,
+            inventory_store_id: request.body.inventory_store_id,
             discount: request.body.discount,
             notes: request.body.notes,
             lines: request.body.lines,
@@ -265,11 +272,71 @@ export function registerPharmacyHandlers(app: FastifyInstance, deps: PharmacyHan
             message: error.message,
           });
         }
+        if (error instanceof DispenseAlreadyIssuedError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseInsufficientStockError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+            code: "INSUFFICIENT_STOCK",
+          });
+        }
         request.log.error({ err: error }, "pharmacy save dispense failed");
         return reply.code(502).send({
           statusCode: 502,
           error: "Bad Gateway",
           message: "Unable to save dispense for visit",
+        });
+      }
+    },
+  );
+
+  app.post<{
+    Body: {
+      inventory_store_id: string;
+      lines: Array<{ inventory_item_id: string; quantity: string | number }>;
+    };
+  }>(
+    "/manual-dispense-issues",
+    { config: { authMode: "protected" } },
+    async (request, reply) => {
+      try {
+        const result = await issueManualDispenseStock(
+          { inventoryGateway: deps.inventoryGateway },
+          request.tenantId,
+          {
+            inventory_store_id: request.body?.inventory_store_id,
+            lines: request.body?.lines ?? [],
+          },
+        );
+        return reply.code(200).send(result);
+      } catch (error) {
+        if (error instanceof DispenseValidationError) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: "Bad Request",
+            message: error.message,
+          });
+        }
+        if (error instanceof DispenseInsufficientStockError) {
+          return reply.code(409).send({
+            statusCode: 409,
+            error: "Conflict",
+            message: error.message,
+            code: "INSUFFICIENT_STOCK",
+          });
+        }
+        request.log.error({ err: error }, "pharmacy manual dispense stock issue failed");
+        return reply.code(502).send({
+          statusCode: 502,
+          error: "Bad Gateway",
+          message: "Unable to deduct inventory stock for manual dispense",
         });
       }
     },

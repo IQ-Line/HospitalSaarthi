@@ -73,6 +73,7 @@ export type DispenseLineItemRecord = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  inventory_item_id: string | null;
   stock_batch_id: string | null;
   is_substitution: boolean;
   substitute_of_line_id: string | null;
@@ -94,6 +95,7 @@ export type DispenseLineItem = {
   tax_percent: string;
   tax_amount: string;
   line_total: string;
+  inventory_item_id: string | null;
 };
 
 /** Public API walk-in patient — excludes tenant id. */
@@ -252,11 +254,15 @@ export type SaveDispenseLineInput = {
   unit_amount: string;
   line_discount?: string | null;
   tax_percent?: string | null;
+  /** Inventory item-master id used for FEFO stock deduction at the selected store. */
+  inventory_item_id?: string | null;
 };
 
 export type SaveDispenseForVisitInput = {
   patient_id: string;
   opd_prescription_id?: string | null;
+  /** Selected pharmacy inventory store — required when issuing stock-backed lines. */
+  inventory_store_id?: string | null;
   discount?: string | null;
   notes?: string | null;
   lines: SaveDispenseLineInput[];

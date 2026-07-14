@@ -110,23 +110,6 @@ export type InventorySvcStockListResponse = {
   };
 };
 
-export type InventorySvcExpiringLotRow = {
-  id: string;
-  item_id: string;
-  item_name: string;
-  item_code: string;
-  lot_number: string;
-  expiry_date: string;
-  quantity: number;
-  uom: string;
-};
-
-export type InventorySvcExpiringLotsResponse = {
-  data: InventorySvcExpiringLotRow[];
-  total: number;
-  within_days: number;
-};
-
 export type InventorySvcStockBatchRow = {
   id: string;
   lot_number: string;
@@ -143,6 +126,23 @@ export type InventorySvcStockBatchesResponse = {
     status: 'critical' | 'low' | 'normal';
     batch_count: number;
   };
+};
+
+export type InventorySvcExpiringLotRow = {
+  id: string;
+  item_id: string;
+  item_name: string;
+  item_code: string;
+  lot_number: string;
+  expiry_date: string;
+  quantity: number;
+  uom: string;
+};
+
+export type InventorySvcExpiringLotsResponse = {
+  data: InventorySvcExpiringLotRow[];
+  total: number;
+  within_days: number;
 };
 
 export type InventorySvcIndentStatus =

@@ -282,4 +282,4 @@ export function createQueueProjectionRepo(db: DbInstance): DrizzleQueueProjectio
 export const createOpdQueueProjectionRepo = createQueueProjectionRepo;
 
 /** @deprecated Use `DrizzleQueueProjectionRepo`. */
-export type DrizzleOpdQueueProjectionRepo = DrizzleQueueProjectionRepo;
+export { DrizzleQueueProjectionRepo as DrizzleOpdQueueProjectionRepo };

@@ -2,6 +2,8 @@
  * Domain data shapes (entities, inputs, auth context) — no behavior, no infrastructure.
  */
 
+import type { PharmacyStoreAccessInput } from "./pharmacy-store-access.types.js";
+
 /** Lifecycle state for platform user rows (LLD MVP). */
 export type UserStatus = "active" | "inactive" | "suspended";
 export type RoleStatus = "active" | "inactive";
@@ -91,6 +93,8 @@ export interface CreateUserInput {
    * When set, `role_template_ids` must contain exactly one id, and each entry must belong to that role.
    */
   role_template_capability_ids?: string[];
+  /** Required when pharmacy module permissions are granted at user creation. */
+  pharmacy_store_access?: PharmacyStoreAccessInput | null;
 }
 
 /** PATCH /users/{id} request body (partial). */

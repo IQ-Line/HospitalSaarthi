@@ -133,6 +133,7 @@ export { DrizzlePrincipalRoleProjectionRepository } from "./data-access/drizzle-
 export { DrizzleRoleRepository } from "./data-access/role-repository.js";
 export { DrizzleUserRepository } from "./data-access/user-repository.js";
 export { DrizzleUserProvisioningRepository } from "./data-access/user-provisioning-repository.js";
+export { createPharmacyStoreAssignmentRepository } from "./data-access/pharmacy-store-assignment.repo.js";
 export { InMemoryUserProvisioningRepository } from "./data-access/in-memory-user-provisioning-repository.js";
 export { InMemoryCapabilityRepository } from "./data-access/in-memory-capability-repository.js";
 export { InMemoryUserAccessRepository } from "./data-access/in-memory-user-access-repository.js";
@@ -187,7 +188,17 @@ export {
   userManagementSchema,
   user_clearances,
   users,
+  pharmacy_store_assignments,
 } from "./schema/tables.js";
+export type {
+  PharmacyStoreAccessInput,
+  PharmacyStoreAccessSnapshot,
+  PharmacyStoreAssignmentKind,
+  PharmacyStoreAssignmentRow,
+} from "./domain/pharmacy-store-access.types.js";
+export type { PharmacyStoreAssignmentRepository } from "./ports/pharmacy-store-assignment-repository.js";
+export { getUserPharmacyStoreAccess } from "./use-cases/get-pharmacy-store-access.js";
+export type { GetPharmacyStoreAccessDeps } from "./use-cases/get-pharmacy-store-access.js";
 export {
   USER_MANAGEMENT_EVENT_TYPES,
   USER_MANAGEMENT_EVENT_USER_CREATED,

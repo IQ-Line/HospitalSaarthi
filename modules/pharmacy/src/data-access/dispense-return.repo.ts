@@ -67,6 +67,7 @@ function mapLine(row: typeof dispenseLineItems.$inferSelect): DispenseLineItemRe
     tax_percent: row.tax_percent,
     tax_amount: row.tax_amount,
     line_total: row.line_total,
+    inventory_item_id: row.inventory_item_id ?? null,
     stock_batch_id: row.stock_batch_id,
     is_substitution: row.is_substitution,
     substitute_of_line_id: row.substitute_of_line_id,

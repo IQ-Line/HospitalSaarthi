@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2, Search } from 'lucide-react';
 import { Input } from '@pulse/ui/input';
 import { useDebouncedValue } from '@/lib/use-debounced-value';
-import { searchDispensePatientsMock } from '../../api/pharmacy-ui-mock';
+import { searchDispensePatients } from '../../api/search-dispense-patients';
 import type { DispensePatientSearchResult } from '../../types/dispense-ui.types';
 
 type DispensePatientSearchProps = {
@@ -37,7 +37,7 @@ export function DispensePatientSearch({
     }
     let cancelled = false;
     setLoading(true);
-    searchDispensePatientsMock(debounced)
+    searchDispensePatients(debounced)
       .then((items) => {
         if (!cancelled) {
           setResults(items);
@@ -46,7 +46,10 @@ export function DispensePatientSearch({
         }
       })
       .catch(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setResults([]);
+          setLoading(false);
+        }
       });
     return () => {
       cancelled = true;

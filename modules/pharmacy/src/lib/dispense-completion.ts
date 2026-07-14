@@ -28,52 +28,28 @@ function isLineQuantityShort(
   return isQuantityShort(dispensed, expected);
 }
 
-function aggregateDispensedByMedicineId(
-  lines: ReadonlyArray<Pick<SaveDispenseLineInput, "medicine_id" | "quantity_dispensed">>,
-): Map<string, number> {
-  const totals = new Map<string, number>();
-  for (const line of lines) {
-    const medicineId = line.medicine_id?.trim();
-    const dispensed = parseQty(line.quantity_dispensed);
-    if (!medicineId || dispensed == null) continue;
-    totals.set(medicineId, (totals.get(medicineId) ?? 0) + dispensed);
-  }
-  return totals;
+/** True when any line's dispensed qty is below its prescribed qty. */
+function hasShortPrescribedQuantity(
+  dispenseLines: readonly SaveDispenseLineInput[],
+): boolean {
+  return dispenseLines.some((line) =>
+    isLineQuantityShort(line.prescribed_quantity, line.quantity_dispensed),
+  );
 }
 
-/** OPD visit dispense: partial when prescribed qty is not met or a dispensable Rx medicine is missing. */
+/**
+ * OPD visit dispense fulfillment — qty only.
+ * Partial when any line's dispensed qty is below its prescribed qty.
+ * Medicine IDs are ignored (issued item may be a substitute).
+ */
 export function computeOpdDispenseFulfillmentStatus(
-  dispensableMedicines: readonly OpdPrescriptionMedicineLine[],
+  _dispensableMedicines: readonly OpdPrescriptionMedicineLine[],
   dispenseLines: readonly SaveDispenseLineInput[],
-  prescriptionMedicineCount = dispensableMedicines.length,
+  _prescriptionMedicineCount = 0,
 ): DispenseFulfillmentStatus {
-  if (prescriptionMedicineCount > 0 && dispensableMedicines.length === 0) {
+  if (hasShortPrescribedQuantity(dispenseLines)) {
     return "partial_issue";
   }
-
-  for (const line of dispenseLines) {
-    if (isLineQuantityShort(line.prescribed_quantity, line.quantity_dispensed)) {
-      return "partial_issue";
-    }
-  }
-
-  const dispensedByMedicineId = aggregateDispensedByMedicineId(dispenseLines);
-
-  for (const medicine of dispensableMedicines) {
-    const medicineId = medicine.medicine_id?.trim();
-    if (!medicineId) continue;
-
-    const dispensed = dispensedByMedicineId.get(medicineId) ?? 0;
-    if (dispensed <= 0) {
-      return "partial_issue";
-    }
-
-    const expectedFromRx = parseQty(medicine.quantity);
-    if (isQuantityShort(dispensed, expectedFromRx)) {
-      return "partial_issue";
-    }
-  }
-
   return "issued";
 }
 
@@ -81,10 +57,8 @@ export function computeOpdDispenseFulfillmentStatus(
 export function computeWalkInDispenseFulfillmentStatus(
   dispenseLines: readonly SaveDispenseLineInput[],
 ): DispenseFulfillmentStatus {
-  for (const line of dispenseLines) {
-    if (isLineQuantityShort(line.prescribed_quantity, line.quantity_dispensed)) {
-      return "partial_issue";
-    }
+  if (hasShortPrescribedQuantity(dispenseLines)) {
+    return "partial_issue";
   }
   return "issued";
 }

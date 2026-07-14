@@ -16,6 +16,8 @@ const baseValues: CreateUserFormValues = {
   clearance_tier_required: 0,
   role_template_ids: ['a107b93a-c083-4a66-9c88-c6706d99a49d'],
   role_capability_selection_ids: ['cap-create-user'],
+  primary_store_id: '',
+  secondary_store_ids: [],
 };
 
 describe('buildCreateUserRequestBody', () => {
@@ -59,6 +61,38 @@ describe('buildCreateUserRequestBody', () => {
     expect(body.role_template_ids).toEqual([]);
     expect(body.role_template_capability_ids).toBeUndefined();
   });
+
+  it('sends explicit capability ids when the role catalog is empty (avoids backend grant-all)', () => {
+    const body = buildCreateUserRequestBody(
+      {
+        ...baseValues,
+        role_capability_selection_ids: [],
+      },
+      true,
+      [],
+    );
+
+    expect(body.role_template_capability_ids).toEqual([]);
+  });
+
+  it('includes pharmacy_store_access when pharmacy permissions are granted', () => {
+    const body = buildCreateUserRequestBody(
+      baseValues,
+      true,
+      ['cap-pharmacy-shell'],
+      null,
+      null,
+      {
+        primary_store_id: '5efaafca-be32-4eff-92a5-10c215427952',
+        secondary_store_ids: [],
+      },
+    );
+
+    expect(body.pharmacy_store_access).toEqual({
+      primary_store_id: '5efaafca-be32-4eff-92a5-10c215427952',
+      secondary_store_ids: [],
+    });
+  });
 });
 
 describe('buildUserProfileNavigateSearch', () => {
@@ -69,7 +103,7 @@ describe('buildUserProfileNavigateSearch', () => {
   });
 
   it('omits tenant for same-tenant creates', () => {
-    expect(buildUserProfileNavigateSearch(undefined)).toEqual({});
-    expect(buildUserProfileNavigateSearch('')).toEqual({});
+    expect(buildUserProfileNavigateSearch(undefined)).toEqual({ tenant: undefined });
+    expect(buildUserProfileNavigateSearch('')).toEqual({ tenant: undefined });
   });
 });

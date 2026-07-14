@@ -1,4 +1,5 @@
 import type { CreateUserInput, User } from "../domain/types.js";
+import type { PharmacyStoreAssignmentRow } from "../domain/pharmacy-store-access.types.js";
 
 export type RoleTemplateGrantPlan = {
   roleId: string;
@@ -12,6 +13,7 @@ export type ProvisionUserWithAccessInput = {
   manualCapabilityIds: string[];
   roleTemplateGrants: RoleTemplateGrantPlan[];
   actorId: string | null;
+  pharmacyStoreAssignments?: PharmacyStoreAssignmentRow[] | null;
 };
 
 /**

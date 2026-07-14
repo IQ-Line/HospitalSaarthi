@@ -99,6 +99,40 @@ export function medicineDisplayLabel(medicine: OpdPrescriptionMedicineLine): str
   return medicine.name.trim();
 }
 
+/** Prescription column label — includes strength when present. */
+export function prescribedItemLabel(medicine: OpdPrescriptionMedicineLine): string {
+  const name = medicine.name.trim();
+  if (!name) return '';
+  const strength = medicine.strength?.trim();
+  return strength ? `${name} ${strength}` : name;
+}
+
+export function computePendingPrescribedQty(
+  prescribedQuantity: string,
+  issuedQuantity: string,
+): number | null {
+  const prescribedTrimmed = prescribedQuantity.trim();
+  if (!prescribedTrimmed) return null;
+  const prescribed = Number(prescribedTrimmed);
+  const issued = Number(issuedQuantity.trim());
+  if (!Number.isFinite(prescribed) || prescribed < 0) return null;
+  if (!Number.isFinite(issued) || issued < 0) return prescribed;
+  return Math.max(0, prescribed - issued);
+}
+
+function findPrescriptionMedicineForLine(
+  line: { medicine_id?: string | null },
+  index: number,
+  prescriptionMedicines: readonly OpdPrescriptionMedicineLine[],
+): OpdPrescriptionMedicineLine | undefined {
+  const medicineId = line.medicine_id?.trim();
+  if (medicineId) {
+    const byId = prescriptionMedicines.find((medicine) => medicine.medicine_id === medicineId);
+    if (byId) return byId;
+  }
+  return prescriptionMedicines[index];
+}
+
 const emptyLineDraftFields = {
   line_discount: '0',
   tax_percent: '0',
@@ -109,10 +143,15 @@ export function draftLinesFromPrescription(
 ): DispenseLineDraft[] {
   return medicines.map((medicine, index) => ({
     key: `rx-${medicine.line_no}-${index}`,
-    medicine_id: medicine.medicine_id,
-    medicine_display_name: medicineDisplayLabel(medicine),
-    prescribed_quantity: medicine.quantity ?? '',
-    quantity_dispensed: medicine.quantity ?? '1',
+    prescription_line_no: medicine.line_no,
+    prescribed_item_name: prescribedItemLabel(medicine),
+    medicine_id: null,
+    inventory_item_id: null,
+    medicine_display_name: '',
+    item_code: '',
+    available_qty: '',
+    prescribed_quantity: formatDispenseDecimalInput(medicine.quantity),
+    quantity_dispensed: '0',
     unit_amount: formatDispenseDecimalInput(medicine.catalog_unit_price) || '0',
     ...emptyLineDraftFields,
   }));
@@ -121,6 +160,7 @@ export function draftLinesFromPrescription(
 export function draftLinesFromSaved(
   lines: Array<{
     medicine_id?: string | null;
+    inventory_item_id?: string | null;
     medicine_display_name: string;
     prescribed_quantity: string | null;
     quantity_dispensed: string;
@@ -128,15 +168,59 @@ export function draftLinesFromSaved(
     line_discount?: string;
     tax_percent?: string;
   }>,
+  prescriptionMedicines: readonly OpdPrescriptionMedicineLine[] = [],
 ): DispenseLineDraft[] {
-  return lines.map((line, index) => ({
-    key: `saved-${index}`,
-    medicine_id: line.medicine_id ?? null,
-    medicine_display_name: line.medicine_display_name,
-    prescribed_quantity: formatDispenseDecimalInput(line.prescribed_quantity),
-    quantity_dispensed: formatDispenseDecimalInput(line.quantity_dispensed),
-    unit_amount: formatDispenseDecimalInput(line.unit_amount),
-    line_discount: formatDispenseDecimalInput(line.line_discount) || '0',
-    tax_percent: formatDispenseDecimalInput(line.tax_percent) || '0',
-  }));
+  return lines.map((line, index) => {
+    const rxMedicine = findPrescriptionMedicineForLine(line, index, prescriptionMedicines);
+    return {
+      key: `saved-${index}`,
+      prescription_line_no: rxMedicine?.line_no ?? null,
+      prescribed_item_name: rxMedicine
+        ? prescribedItemLabel(rxMedicine)
+        : line.medicine_display_name,
+      medicine_id: line.medicine_id ?? null,
+      inventory_item_id: line.inventory_item_id ?? null,
+      medicine_display_name: line.medicine_display_name,
+      item_code: '',
+      available_qty: '',
+      prescribed_quantity: formatDispenseDecimalInput(line.prescribed_quantity),
+      quantity_dispensed: formatDispenseDecimalInput(line.quantity_dispensed),
+      unit_amount: formatDispenseDecimalInput(line.unit_amount),
+      line_discount: formatDispenseDecimalInput(line.line_discount) || '0',
+      tax_percent: formatDispenseDecimalInput(line.tax_percent) || '0',
+    };
+  });
+}
+
+export function draftLinesFromVisitDispense(
+  data: {
+    has_dispense: boolean;
+    lines: Array<{
+      medicine_id?: string | null;
+      inventory_item_id?: string | null;
+      medicine_display_name: string;
+      prescribed_quantity: string | null;
+      quantity_dispensed: string;
+      unit_amount: string;
+      line_discount?: string;
+      tax_percent?: string;
+    }>;
+    dispensable_medicines: OpdPrescriptionMedicineLine[];
+    opd_prescription: { medicines: OpdPrescriptionMedicineLine[] } | null;
+  },
+): DispenseLineDraft[] {
+  const prescriptionMedicines =
+    data.dispensable_medicines.length > 0
+      ? data.dispensable_medicines
+      : (data.opd_prescription?.medicines ?? []);
+
+  if (data.has_dispense && data.lines.length > 0) {
+    return draftLinesFromSaved(data.lines, prescriptionMedicines);
+  }
+
+  if (prescriptionMedicines.length > 0) {
+    return draftLinesFromPrescription(prescriptionMedicines);
+  }
+
+  return [];
 }

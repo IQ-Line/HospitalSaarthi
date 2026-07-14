@@ -1,4 +1,4 @@
-export { createRouter, HttpOpdGateway, HttpMasterDataGateway } from "./router.js";
+export { createRouter, HttpOpdGateway, HttpMasterDataGateway, HttpInventoryGateway } from "./router.js";
 export type { PharmacyRouterOptions } from "./router.js";
 
 export { PHARMACY_MODULE_KEY } from "./domain/pharmacy.types.js";
@@ -30,8 +30,10 @@ export type {
 export type {
   OpdGatewayPort,
   MasterDataGatewayPort,
+  InventoryGatewayPort,
   UserLookupPort,
   DispenseRecordRepo,
+  DispenseReturnRepo,
   QueueProjectionRepo,
   OpdQueueProjectionRepo,
   PharmacyGatewayPorts,
@@ -52,8 +54,19 @@ export { getDispenseForVisit, DispenseVisitNotFoundError } from "./use-cases/get
 export type { GetDispenseForVisitInput } from "./use-cases/get-dispense-for-visit.js";
 export {
   saveDispenseForVisit,
+  DispenseAlreadyIssuedError,
   DispensePatientMismatchError,
   DispensePrescriptionMismatchError,
   DispenseValidationError,
+  DispenseInsufficientStockError,
 } from "./use-cases/save-dispense-for-visit.js";
 export type { SaveDispenseForVisitCommand } from "./use-cases/save-dispense-for-visit.js";
+export { issueManualDispenseStock } from "./use-cases/issue-manual-dispense-stock.js";
+export type {
+  IssueManualDispenseStockInput,
+  ManualDispenseStockLine,
+} from "./use-cases/issue-manual-dispense-stock.js";
+export {
+  createDispenseReturnRepo,
+  DrizzleDispenseReturnRepo,
+} from "./data-access/dispense-return.repo.js";

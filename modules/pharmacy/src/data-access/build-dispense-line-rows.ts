@@ -26,6 +26,7 @@ export function buildDispenseLineRows(
       tax_percent: billing.tax_percent,
       tax_amount: billing.tax_amount,
       line_total: billing.line_total,
+      inventory_item_id: line.inventory_item_id?.trim() || null,
     };
   });
 }

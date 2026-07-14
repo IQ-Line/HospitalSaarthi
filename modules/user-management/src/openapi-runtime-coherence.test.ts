@@ -26,6 +26,7 @@ import type {
 } from "./ports/index.js";
 import { userManagementPlugin } from "./router.js";
 import { NoopUserProvisioningRepository } from "./test-support/noop-user-provisioning-repository.js";
+import { NoopPharmacyStoreAssignmentRepository } from "./test-support/noop-pharmacy-store-assignment-repository.js";
 import { createMasterDataModuleCatalogPortStub } from "./test-support/master-data-catalog-port-stub.js";
 import { createDepartmentCatalogPortStub } from "./test-support/department-catalog-port-stub.js";
 import { publishUserManagementEvent } from "./events/publish-user-management-event.js";
@@ -426,6 +427,7 @@ describe("OpenAPI/runtime coherence", () => {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
           userProvisioningRepository: new NoopUserProvisioningRepository(),
+          pharmacyStoreAssignmentRepository: new NoopPharmacyStoreAssignmentRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -472,6 +474,7 @@ describe("OpenAPI/runtime coherence", () => {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
           userProvisioningRepository: new NoopUserProvisioningRepository(),
+          pharmacyStoreAssignmentRepository: new NoopPharmacyStoreAssignmentRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -539,6 +542,7 @@ describe("OpenAPI/runtime coherence", () => {
           eventBus: noopEventBus,
           userRepository: new StubUserRepository(),
           userProvisioningRepository: new NoopUserProvisioningRepository(),
+          pharmacyStoreAssignmentRepository: new NoopPharmacyStoreAssignmentRepository(),
           capabilityRepository: new StubCapabilityRepository(),
           roleRepository: new StubRoleRepository(),
           roleCapabilityRepository: new NoopRoleCapabilityRepository(),
@@ -562,6 +566,7 @@ describe("OpenAPI/runtime coherence", () => {
         : route.path;
       return [
         "/auth/me",
+        "/auth/pharmacy-store-access",
         "/auth/principal",
         "/capabilities",
         "/capabilities/assignable",

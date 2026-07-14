@@ -2,7 +2,7 @@ import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import type { ExpiringLotRow, StockBatchRow, StockSummaryRow } from "../domain/stock.types.js";
 import type { StockStatus } from "../domain/stock-status.js";
-import { inventoryItems, inventoryLots, inventoryStock } from "../schema/tables.js";
+import { inventoryItems, inventoryLots, inventoryStock, inventoryStockAdjustments } from "../schema/tables.js";
 
 export type StockListFilters = {
   storeId: string;
@@ -187,6 +187,21 @@ export class DrizzleInventoryStockRepository {
     }));
   }
 
+  async isActiveItem(tenantId: string, itemId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: inventoryItems.id })
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.iq_tenant_id, tenantId),
+          eq(inventoryItems.id, itemId),
+          eq(inventoryItems.is_active, true),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+
   async countExpiringLots(
     tenantId: string,
     storeId: string,
@@ -263,23 +278,88 @@ export class DrizzleInventoryStockRepository {
       item_code: row.item_code,
       lot_number: row.lot_number,
       expiry_date: row.expiry_date,
-      uom: row.uom,
       quantity: Number(row.quantity),
+      uom: row.uom,
     }));
   }
 
-  async isActiveItem(tenantId: string, itemId: string): Promise<boolean> {
+  async findStockRow(
+    tenantId: string,
+    stockId: string,
+  ): Promise<typeof inventoryStock.$inferSelect | undefined> {
     const [row] = await this.db
-      .select({ id: inventoryItems.id })
-      .from(inventoryItems)
-      .where(
-        and(
-          eq(inventoryItems.iq_tenant_id, tenantId),
-          eq(inventoryItems.id, itemId),
-          eq(inventoryItems.is_active, true),
-        ),
-      )
+      .select()
+      .from(inventoryStock)
+      .where(and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, stockId)))
       .limit(1);
-    return Boolean(row);
+    return row;
+  }
+
+  async adjustStockQuantity(
+    tenantId: string,
+    input: {
+      stockId: string;
+      delta: number;
+      reason: string;
+      createdBy?: string | null;
+    },
+  ): Promise<{ quantity_after: number; item_id: string; inventory_store_id: string }> {
+    return this.db.transaction(async (tx) => {
+      const [stockRow] = await tx
+        .select()
+        .from(inventoryStock)
+        .where(
+          and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, input.stockId)),
+        )
+        .limit(1);
+
+      if (!stockRow) {
+        throw new Error("STOCK_NOT_FOUND");
+      }
+
+      const before = Number(stockRow.quantity);
+      const after = before + input.delta;
+      if (!Number.isFinite(input.delta) || input.delta === 0) {
+        throw new Error("INVALID_DELTA");
+      }
+      if (after < 0) {
+        throw new Error("NEGATIVE_STOCK");
+      }
+
+      const reason = input.reason.trim();
+      if (!reason) {
+        throw new Error("REASON_REQUIRED");
+      }
+
+      await tx
+        .update(inventoryStock)
+        .set({
+          quantity: String(after),
+          updated_by: input.createdBy ?? null,
+          updated_at: new Date(),
+        })
+        .where(
+          and(eq(inventoryStock.iq_tenant_id, tenantId), eq(inventoryStock.id, input.stockId)),
+        );
+
+      await tx.insert(inventoryStockAdjustments).values({
+        iq_tenant_id: tenantId,
+        stock_id: stockRow.id,
+        item_id: stockRow.item_id,
+        inventory_store_id: stockRow.inventory_store_id,
+        lot_id: stockRow.lot_id,
+        delta: String(input.delta),
+        quantity_before: String(before),
+        quantity_after: String(after),
+        reason,
+        created_by: input.createdBy ?? null,
+      });
+
+      return {
+        quantity_after: after,
+        item_id: stockRow.item_id,
+        inventory_store_id: stockRow.inventory_store_id,
+      };
+    });
   }
 }

@@ -28,6 +28,18 @@ export const pharmacyModuleManifest: ModuleManifest = {
       route: '/pharmacy/queue',
     },
     {
+      id: 'pharmacy-stock',
+      label: 'Stock',
+      icon: 'package',
+      route: '/pharmacy/stock',
+    },
+    {
+      id: 'pharmacy-transfers',
+      label: 'Transfers',
+      icon: 'arrow-left-right',
+      route: '/pharmacy/transfers',
+    },
+    {
       id: 'pharmacy-replenishment',
       label: 'Replenishment',
       icon: 'list-checks',

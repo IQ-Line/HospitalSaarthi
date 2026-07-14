@@ -43,7 +43,7 @@ def test_notify_pharmacy_queue_projection_builds_payload(monkeypatch) -> None:
         doctor_id=doctor_id,
         vitals_schema_version=1,
         status="final",
-        form_data={"medicines": [{"id": "1"}]},
+        form_data={"medicines": [{"id": "1", "medicine": "Paracetamol"}]},
         finalized_at=now,
         created_at=now,
         updated_at=now,
@@ -118,7 +118,7 @@ def test_notify_pharmacy_queue_projection_includes_registration_snapshot(
         doctor_id=doctor_id,
         vitals_schema_version=1,
         status="final",
-        form_data={"medicines": [{"id": "1"}, {"id": "2"}]},
+        form_data={"medicines": [{"medicine": "Tab A"}, {"medicine": "Tab B"}]},
         finalized_at=now,
         created_at=now,
         updated_at=now,
@@ -134,3 +134,49 @@ def test_notify_pharmacy_queue_projection_includes_registration_snapshot(
     assert payload["gender"] == "female"
     assert payload["age_years"] is not None
     assert payload["formatted_visit_id"] == "OP2606090000019"
+
+
+def test_notify_pharmacy_queue_projection_maps_final_rx_to_completed_visit(
+    monkeypatch,
+) -> None:
+    calls: list[tuple[str, str, dict]] = []
+
+    class FakeGateway:
+        def upsert_queue_projection(self, tenant_id, visit_id, payload) -> None:
+            calls.append((str(tenant_id), str(visit_id), payload))
+
+    monkeypatch.setattr(http_pharmacy_gateway, "_gateway", FakeGateway())
+
+    tenant_id = uuid4()
+    visit_id = uuid4()
+    patient_id = uuid4()
+    doctor_id = uuid4()
+    rx_id = uuid4()
+    now = datetime.now(UTC)
+
+    visit = Visit(
+        id=visit_id,
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        status="in_progress",
+        created_at=now,
+        updated_at=now,
+    )
+    rx = Prescription(
+        id=rx_id,
+        tenant_id=tenant_id,
+        visit_id=visit_id,
+        patient_id=patient_id,
+        doctor_id=doctor_id,
+        vitals_schema_version=1,
+        status="final",
+        form_data={"medicines": [{"medicine": "Dolo"}]},
+        finalized_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+    notify_pharmacy_queue_projection(tenant_id, visit, rx)
+
+    assert calls[0][2]["visit_status"] == "completed"
+    assert calls[0][2]["medicine_count"] == 1

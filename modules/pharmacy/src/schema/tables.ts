@@ -69,6 +69,7 @@ export const dispenseLineItems = pharmacySchema.table(
     tax_percent: numeric("tax_percent", { precision: 8, scale: 4 }).notNull().default("0"),
     tax_amount: numeric("tax_amount", { precision: 18, scale: 4 }).notNull().default("0"),
     line_total: numeric("line_total", { precision: 18, scale: 4 }).notNull().default("0"),
+    inventory_item_id: uuid("inventory_item_id"),
     stock_batch_id: uuid("stock_batch_id"),
     is_substitution: boolean("is_substitution").notNull().default(false),
     substitute_of_line_id: uuid("substitute_of_line_id"),
@@ -86,13 +87,8 @@ export const dispenseLineItems = pharmacySchema.table(
     })
       .onDelete("cascade")
       .onUpdate("no action"),
-    foreignKey({
-      name: "dispense_line_items_substitute_fk",
-      columns: [t.iq_tenant_id, t.substitute_of_line_id],
-      foreignColumns: [t.iq_tenant_id, t.id],
-    })
-      .onDelete("set null")
-      .onUpdate("no action"),
+    // No self-referential substitute FK: Citus rejects ON DELETE SET NULL when the
+    // FK includes the distribution column (iq_tenant_id). App clears substitute_of_line_id.
   ],
 );
 

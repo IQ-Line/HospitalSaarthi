@@ -1,3 +1,4 @@
+import { APIError } from "better-auth/api";
 import { eq } from "drizzle-orm";
 import type {
   AuthAccountProvisioner,
@@ -90,6 +91,9 @@ export function createPasswordAuthAccountProvisioner(
       } catch (error) {
         if (isUniqueViolation(error)) {
           throw new AuthEmailConflictError(input.email);
+        }
+        if (error instanceof APIError) {
+          throw new AuthAccountProvisioningError({ cause: error });
         }
         throw error;
       }

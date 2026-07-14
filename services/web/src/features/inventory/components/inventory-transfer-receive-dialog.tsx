@@ -13,7 +13,6 @@ import { Label } from '@pulse/ui/label';
 import { cn } from '@pulse/utils';
 import { useInventoryTransferCancel, useInventoryTransferReceive } from '../api/transfer-mutations';
 import { useInventoryIndentDetail } from '../api/queries';
-import { OPERATIONAL_INVENTORY_API_ENABLED } from '../lib/inventory-api-enabled';
 import { canReceiveTransfer, transferHasUnsettledQty } from '../lib/transfer-workflow';
 import type { InventoryTransferLine, InventoryTransferRow } from '../types';
 
@@ -156,12 +155,6 @@ export function InventoryTransferReceiveDialog({
       rejection_reason: line.rejection_reason.trim() || null,
     }));
 
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Transfer received (mock).');
-      onOpenChange(false);
-      return;
-    }
-
     try {
       await receiveTransfer.mutateAsync({ transferId: transfer.id, lines: payload });
       toast.success('Transfer received — stock updated.');
@@ -175,11 +168,6 @@ export function InventoryTransferReceiveDialog({
     if (!transfer) return;
     if (!cancelReason.trim()) {
       toast.error('Cancellation reason is required.');
-      return;
-    }
-    if (!OPERATIONAL_INVENTORY_API_ENABLED) {
-      toast.success('Transfer cancelled (mock).');
-      onOpenChange(false);
       return;
     }
     try {

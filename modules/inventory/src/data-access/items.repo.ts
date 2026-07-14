@@ -1,18 +1,28 @@
-import { and, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import type { DbInstance } from "@hims/ts-sdk-db";
 import { toIlikeContainsPattern } from "../lib/ilike.js";
 import {
   inventoryItemCodeSequences,
   inventoryItems,
+  inventoryStock,
 } from "../schema/tables.js";
 
 export type InventoryItemRow = typeof inventoryItems.$inferSelect;
+
+/** Item master row optionally enriched with store on-hand qty (when listing with storeId). */
+export type InventoryItemListRow = InventoryItemRow & {
+  available_qty: string | null;
+};
 
 export type ListInventoryItemsInput = {
   search?: string;
   isActive?: boolean;
   categoryId?: string;
   itemClassification?: "inventory" | "medicine";
+  /** When true, only rows linked to a tenant formulary medicine (dispense picker). */
+  linkedToFormulary?: boolean;
+  /** When set, only items with available stock (qty > 0) at this store. */
+  storeId?: string;
   limit: number;
   offset: number;
 };
@@ -55,7 +65,10 @@ export type CreateInventoryItemInput = {
 export class DrizzleInventoryItemRepository {
   constructor(private readonly db: DbInstance) {}
 
-  async list(tenantId: string, input: ListInventoryItemsInput): Promise<{ rows: InventoryItemRow[]; total: number }> {
+  async list(
+    tenantId: string,
+    input: ListInventoryItemsInput,
+  ): Promise<{ rows: InventoryItemListRow[]; total: number }> {
     const filters: SQL[] = [eq(inventoryItems.iq_tenant_id, tenantId)];
 
     if (input.isActive != null) {
@@ -87,16 +100,54 @@ export class DrizzleInventoryItemRepository {
       filters.push(eq(inventoryItems.item_classification, input.itemClassification));
     }
 
+    if (input.linkedToFormulary) {
+      filters.push(isNotNull(inventoryItems.tenant_formulary_id));
+    }
+
+    const storeId = input.storeId?.trim();
+    if (storeId) {
+      filters.push(
+        sql`EXISTS (
+          SELECT 1
+          FROM ${inventoryStock}
+          WHERE ${inventoryStock.iq_tenant_id} = ${tenantId}
+            AND ${inventoryStock.inventory_store_id} = ${storeId}
+            AND ${inventoryStock.item_id} = ${inventoryItems.id}
+            AND ${inventoryStock.quantity}::numeric > 0
+        )`,
+      );
+    }
+
     const where = and(...filters);
 
     const [rows, countRows] = await Promise.all([
-      this.db
-        .select()
-        .from(inventoryItems)
-        .where(where)
-        .orderBy(inventoryItems.name)
-        .limit(input.limit)
-        .offset(input.offset),
+      storeId
+        ? this.db
+            .select({
+              ...getTableColumns(inventoryItems),
+              available_qty: sql<string>`(
+                SELECT COALESCE(SUM(${inventoryStock.quantity}::numeric), 0)::text
+                FROM ${inventoryStock}
+                WHERE ${inventoryStock.iq_tenant_id} = ${tenantId}
+                  AND ${inventoryStock.inventory_store_id} = ${storeId}
+                  AND ${inventoryStock.item_id} = ${inventoryItems.id}
+              )`.as("available_qty"),
+            })
+            .from(inventoryItems)
+            .where(where)
+            .orderBy(inventoryItems.name)
+            .limit(input.limit)
+            .offset(input.offset)
+        : this.db
+            .select({
+              ...getTableColumns(inventoryItems),
+              available_qty: sql<string | null>`NULL`.as("available_qty"),
+            })
+            .from(inventoryItems)
+            .where(where)
+            .orderBy(inventoryItems.name)
+            .limit(input.limit)
+            .offset(input.offset),
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(inventoryItems)
@@ -111,6 +162,23 @@ export class DrizzleInventoryItemRepository {
       .select()
       .from(inventoryItems)
       .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .limit(1);
+    return row;
+  }
+
+  async findByTenantFormularyId(
+    tenantId: string,
+    tenantFormularyId: string,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.iq_tenant_id, tenantId),
+          eq(inventoryItems.tenant_formulary_id, tenantFormularyId),
+        ),
+      )
       .limit(1);
     return row;
   }
@@ -187,6 +255,22 @@ export class DrizzleInventoryItemRepository {
       throw new Error("Failed to create inventory item");
     }
 
+    return row;
+  }
+
+  async updateReorderPoint(
+    tenantId: string,
+    itemId: string,
+    reorderPoint: number,
+  ): Promise<InventoryItemRow | undefined> {
+    const [row] = await this.db
+      .update(inventoryItems)
+      .set({
+        reorder_point: String(reorderPoint),
+        updated_at: new Date(),
+      })
+      .where(and(eq(inventoryItems.iq_tenant_id, tenantId), eq(inventoryItems.id, itemId)))
+      .returning();
     return row;
   }
 

@@ -1,18 +1,24 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Plus, Search } from 'lucide-react';
 import { PageHeaderWithTabs } from '@pulse/patterns/page-header-with-tabs';
 import { Badge } from '@pulse/ui/badge';
 import { Button } from '@pulse/ui/button';
 import { Input } from '@pulse/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@pulse/ui/select';
 import { DataTable } from '@/components/data-table';
 import {
-  fetchIndentRequestsMock,
-  fetchPharmacyLowStockMock,
-} from '../../api/replenishment-ui-mock';
-import { pharmacyQueryKeys } from '../../api/query-keys';
+  usePharmacyReplenishmentIndents,
+  usePharmacyReplenishmentLowStock,
+  usePharmacyReplenishmentStores,
+} from '../../api/replenishment-queries';
 import type {
   IndentRequestStatus,
   PharmacyLowStockRow,
@@ -52,6 +58,8 @@ type PharmacyReplenishmentPageProps = {
 
 export function PharmacyReplenishmentPage({ activeTab }: PharmacyReplenishmentPageProps) {
   const navigate = useNavigate();
+  const { data: stores = [] } = usePharmacyReplenishmentStores();
+  const [storeId, setStoreId] = useState('');
 
   const [lowStockSearch, setLowStockSearch] = useState('');
   const [lowStockPage, setLowStockPage] = useState(1);
@@ -80,16 +88,19 @@ export function PharmacyReplenishmentPage({ activeTab }: PharmacyReplenishmentPa
     [indentSearch, indentStatus, indentPage, indentPageSize],
   );
 
-  const lowStockQuery = useQuery({
-    queryKey: pharmacyQueryKeys.lowStock(lowStockParams),
-    queryFn: () => fetchPharmacyLowStockMock(lowStockParams),
-    placeholderData: (prev) => prev,
+  const lowStockQuery = usePharmacyReplenishmentLowStock({
+    store_id: storeId || stores[0]?.id,
+    q: lowStockParams.q,
+    page: lowStockParams.page,
+    page_size: lowStockParams.page_size,
   });
 
-  const indentsQuery = useQuery({
-    queryKey: pharmacyQueryKeys.indentRequests(indentParams),
-    queryFn: () => fetchIndentRequestsMock(indentParams),
-    placeholderData: (prev) => prev,
+  const indentsQuery = usePharmacyReplenishmentIndents({
+    from_store_id: storeId || stores[0]?.id,
+    q: indentParams.q,
+    status: indentParams.status,
+    page: indentParams.page,
+    page_size: indentParams.page_size,
     enabled: activeTab === 'indents',
   });
 
@@ -168,6 +179,23 @@ export function PharmacyReplenishmentPage({ activeTab }: PharmacyReplenishmentPa
         {activeTab === 'low-stock' ? (
           <>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {stores.length > 0 ? (
+                <Select
+                  value={storeId || stores[0]?.id}
+                  onValueChange={setStoreId}
+                >
+                  <SelectTrigger className="h-9 w-[240px]">
+                    <SelectValue placeholder="Select store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store.id} value={store.id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
               <div className="relative w-full sm:max-w-[260px]">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -183,7 +211,7 @@ export function PharmacyReplenishmentPage({ activeTab }: PharmacyReplenishmentPa
             </div>
             <DataTable
               columns={lowStockColumns}
-              data={lowStockQuery.data?.items ?? []}
+              data={lowStockQuery.data?.data ?? []}
               isLoading={lowStockQuery.isLoading}
               emptyTitle="No low-stock items for this store."
               showColumnMenu
@@ -200,7 +228,7 @@ export function PharmacyReplenishmentPage({ activeTab }: PharmacyReplenishmentPa
           </>
         ) : (
           <ReplenishmentIndentsTable
-            rows={indentsQuery.data?.items ?? []}
+            rows={indentsQuery.data?.data ?? []}
             isLoading={indentsQuery.isLoading}
             statusFilter={indentStatus}
             onStatusFilterChange={(value) => {
