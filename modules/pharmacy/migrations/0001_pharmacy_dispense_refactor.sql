@@ -71,6 +71,28 @@ BEGIN
   END IF;
 END $$;
 
+-- Indexes skipped by 0000 when only legacy dispense_records existed.
+DO $$
+BEGIN
+  IF to_regclass('pharmacy.dispense') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE $sql$
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_pharmacy_dispense_tenant_visit
+      ON pharmacy.dispense (iq_tenant_id, visit_id)
+  $sql$;
+  EXECUTE $sql$
+    CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_tenant_patient
+      ON pharmacy.dispense (iq_tenant_id, patient_id)
+  $sql$;
+  EXECUTE $sql$
+    CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_tenant_prescription
+      ON pharmacy.dispense (iq_tenant_id, opd_prescription_id)
+      WHERE opd_prescription_id IS NOT NULL
+  $sql$;
+END $$;
+
 -- Line-item upgrades (idempotent on both legacy and greenfield)
 ALTER TABLE pharmacy.dispense_line_items
   DROP CONSTRAINT IF EXISTS dispense_line_items_dispense_record_fk;
@@ -109,6 +131,52 @@ BEGIN
       FOREIGN KEY (iq_tenant_id, dispense_id)
       REFERENCES pharmacy.dispense (iq_tenant_id, id)
       ON DELETE CASCADE;
+  END IF;
+END $$;
+
+-- Indexes skipped by 0000 when dispense_id / new columns were not yet present.
+DO $$
+BEGIN
+  IF to_regclass('pharmacy.dispense_line_items') IS NULL THEN
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'dispense_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_dispense
+        ON pharmacy.dispense_line_items (iq_tenant_id, dispense_id)
+    $sql$;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'opd_prescription_item_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_prescription_item
+        ON pharmacy.dispense_line_items (iq_tenant_id, opd_prescription_item_id)
+        WHERE opd_prescription_item_id IS NOT NULL
+    $sql$;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'pharmacy'
+      AND table_name = 'dispense_line_items'
+      AND column_name = 'medicine_id'
+  ) THEN
+    EXECUTE $sql$
+      CREATE INDEX IF NOT EXISTS ix_pharmacy_dispense_line_items_tenant_medicine
+        ON pharmacy.dispense_line_items (iq_tenant_id, medicine_id)
+        WHERE medicine_id IS NOT NULL
+    $sql$;
   END IF;
 END $$;
 
