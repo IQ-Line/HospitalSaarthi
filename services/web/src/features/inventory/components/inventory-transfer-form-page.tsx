@@ -39,6 +39,7 @@ export function InventoryTransferFormPage({ variant = 'inventory' }: InventoryTr
           }
         }}
         transfer={null}
+        variant={variant}
       />
     </InventoryPageShell>
   );

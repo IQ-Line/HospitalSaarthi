@@ -28,13 +28,14 @@ import {
   useInventoryItems,
   useInventoryIndentDetail,
   useInventoryStock,
-  useInventoryStores,
 } from '../api/queries';
 import { EMPTY_TRANSFER_LINE } from '../mock/fixtures';
 import {
   mapIndentToTransferPrefill,
   validateIndentForTransferPrefill,
 } from '../lib/transfer-indent-prefill';
+import type { InventoryOperationalVariant } from '../lib/inventory-operational-variant';
+import { useOperationalStoreOptions } from '../lib/use-operational-store-options';
 import type {
   InventoryIndentRow,
   InventoryTransferLine,
@@ -50,6 +51,7 @@ type InventoryTransferDialogProps = {
   transfer: InventoryTransferRow | null;
   transferLoading?: boolean;
   indentPrefill?: InventoryIndentRow | null;
+  variant?: InventoryOperationalVariant;
 };
 
 function isReadOnly(transfer: InventoryTransferRow | null): boolean {
@@ -66,8 +68,9 @@ export function InventoryTransferDialog({
   transfer,
   transferLoading = false,
   indentPrefill,
+  variant = 'inventory',
 }: InventoryTransferDialogProps) {
-  const { data: stores = [] } = useInventoryStores();
+  const { stores } = useOperationalStoreOptions(variant);
   const { data: items = [] } = useInventoryItems();
   const linkedIndentId = transfer?.inventory_indent_id ?? indentPrefill?.id;
   const { data: linkedIndent } = useInventoryIndentDetail(linkedIndentId ?? undefined);

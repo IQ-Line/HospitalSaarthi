@@ -34,7 +34,8 @@ import {
 } from '../lib/inventory-dashboard-navigation';
 import type { InventoryOperationalVariant } from '../lib/inventory-operational-variant';
 import { useInventoryAdjustStock, useInventoryUpdateItemReorder } from '../api/stock-mutations';
-import { useInventoryExpiringLots, useInventoryStock, useInventoryStores } from '../api/queries';
+import { useInventoryExpiringLots, useInventoryStock } from '../api/queries';
+import { useOperationalStoreOptions } from '../lib/use-operational-store-options';
 import type { InventoryExpiringLot, InventoryStockRow, InventoryStockStatus } from '../types';
 import { InventoryPageShell } from './inventory-page-shell';
 import {
@@ -120,17 +121,22 @@ export function InventoryStockPage({
   const adjustStock = useInventoryAdjustStock();
   const updateReorder = useInventoryUpdateItemReorder();
 
-  const { data: stores = [] } = useInventoryStores();
+  const { stores, primaryStoreId } = useOperationalStoreOptions(variant);
 
   useEffect(() => {
     if (initialStoreId) {
       setStoreId(initialStoreId);
       return;
     }
-    if (!storeId && stores.length > 0) {
-      setStoreId(stores[0]!.id);
+    if (storeId) return;
+    const preferred =
+      primaryStoreId && stores.some((store) => store.id === primaryStoreId)
+        ? primaryStoreId
+        : stores[0]?.id;
+    if (preferred) {
+      setStoreId(preferred);
     }
-  }, [initialStoreId, storeId, stores]);
+  }, [initialStoreId, primaryStoreId, storeId, stores]);
 
   useEffect(() => {
     if (!initialView) return;

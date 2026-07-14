@@ -28,6 +28,17 @@ const DISPENSE_CAPABILITY: Capability = {
   source_module_slug: "dispense",
 };
 
+const INVENTORY_CAPABILITY: Capability = {
+  id: "a845c192-bb6d-5380-c0d9-87d47c65fc17",
+  capability_key: "inventory-stock:stock:read",
+  module: "inventory-stock",
+  feature: "stock",
+  action: "read",
+  display_name: "Inventory stock read",
+  is_active: true,
+  source_module_slug: "inventory-stock",
+};
+
 const STORE_ID = "5efaafca-be32-4eff-92a5-10c215427952";
 
 describe("pharmacy store access validation", () => {
@@ -52,6 +63,56 @@ describe("pharmacy store access validation", () => {
       expect(resolved.body.code).toBe("INVALID_INPUT");
       expect(resolved.body.message).toContain("pharmacy_store_access");
     }
+  });
+
+  it("requires store access when inventory-master capabilities are granted", () => {
+    const inventoryMaster: Capability = {
+      id: "c956d203-cc7e-6491-d1ea-98e58d76fd28",
+      capability_key: "inventory-master:inventory-master:read",
+      module: "inventory-master",
+      feature: "inventory-master",
+      action: "read",
+      display_name: "Inventory master read",
+      is_active: true,
+      source_module_slug: "inventory-master",
+    };
+    expect(() =>
+      assertPharmacyStoreAccessMatchesCapabilities(
+        [inventoryMaster],
+        [inventoryMaster.id],
+        null,
+      ),
+    ).toThrow(ValidationError);
+
+    const normalized = assertPharmacyStoreAccessMatchesCapabilities(
+      [inventoryMaster],
+      [inventoryMaster.id],
+      { primary_store_id: STORE_ID, secondary_store_ids: [] },
+    );
+    expect(normalized).toEqual({
+      primary_store_id: STORE_ID,
+      secondary_store_ids: [],
+    });
+  });
+
+  it("requires store access when inventory capabilities are granted", () => {
+    expect(() =>
+      assertPharmacyStoreAccessMatchesCapabilities(
+        [INVENTORY_CAPABILITY],
+        [INVENTORY_CAPABILITY.id],
+        null,
+      ),
+    ).toThrow(ValidationError);
+
+    const normalized = assertPharmacyStoreAccessMatchesCapabilities(
+      [INVENTORY_CAPABILITY],
+      [INVENTORY_CAPABILITY.id],
+      { primary_store_id: STORE_ID, secondary_store_ids: [] },
+    );
+    expect(normalized).toEqual({
+      primary_store_id: STORE_ID,
+      secondary_store_ids: [],
+    });
   });
 
   it("rejects invalid primary store ids with a mapped client error", () => {

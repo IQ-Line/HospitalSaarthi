@@ -31,10 +31,6 @@ export function operationalTransfersPath(variant: InventoryOperationalVariant): 
   return `${resolveOperationalContext(variant).routePrefix}/transfers`;
 }
 
-export function operationalNewTransferPath(variant: InventoryOperationalVariant): string {
-  return `${resolveOperationalContext(variant).routePrefix}/transfers/new`;
-}
-
 /** List path for indents (inventory) / replenishment (pharmacy). */
 export function operationalIndentsPath(variant: InventoryOperationalVariant): string {
   return variant === 'pharmacy'

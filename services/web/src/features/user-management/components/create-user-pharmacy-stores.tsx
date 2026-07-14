@@ -16,6 +16,9 @@ import { UserManagementSectionCard } from './user-management-section-card';
 type Props = {
   control: Control<CreateUserFormValues>;
   errors: FieldErrors<CreateUserFormValues>;
+  /** When both pharmacy + inventory, keep a neutral title. */
+  sectionTitle?: string;
+  helperText?: string;
 };
 
 function FieldError({ message }: { message?: string }) {
@@ -39,17 +42,22 @@ function FieldLabel({
   );
 }
 
-export function CreateUserPharmacyStoresSection({ control, errors }: Props) {
+export function CreateUserPharmacyStoresSection({
+  control,
+  errors,
+  sectionTitle = 'Store access',
+  helperText = 'Primary store for operational workflows. Required when pharmacy or inventory permissions are selected.',
+}: Props) {
   const storesQuery = useInventoryStores();
   const stores = storesQuery.data ?? [];
   const storesLoading = storesQuery.isLoading;
   const storesError = Boolean(storesQuery.error);
 
   return (
-    <UserManagementSectionCard title="Pharmacy" contentClassName="space-y-4">
+    <UserManagementSectionCard title={sectionTitle} contentClassName="space-y-4">
       <div className="space-y-2">
         <FieldLabel htmlFor="c_primary_store" required>
-          Store access
+          Primary store
         </FieldLabel>
         <Controller
           control={control}
@@ -80,7 +88,7 @@ export function CreateUserPharmacyStoresSection({ control, errors }: Props) {
                             ? 'Unable to load stores'
                             : stores.length === 0
                               ? 'No stores available'
-                              : 'Select stores'
+                              : 'Select primary store'
                       }
                     />
                   </SelectTrigger>
@@ -97,9 +105,7 @@ export function CreateUserPharmacyStoresSection({ control, errors }: Props) {
             />
           )}
         />
-        <p className="text-xs text-muted-foreground">
-          Primary store for dispense and stock. Required when pharmacy permissions are selected.
-        </p>
+        <p className="text-xs text-muted-foreground">{helperText}</p>
         <FieldError message={errors.primary_store_id?.message?.toString()} />
       </div>
 
