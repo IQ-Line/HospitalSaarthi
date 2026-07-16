@@ -8,7 +8,8 @@ export const storeConfigurationModuleManifest: ModuleManifest = {
   routePrefix: '/store-configuration',
   sortOrder: 32,
   requiredModulesAny: ['store-config'],
-  requiredRolesAny: ['tenant-admin'],
+  /** Superadmin: after facility selection; tenant-admin: home facility. */
+  requiredRolesAny: ['super-admin', 'tenant-admin'],
   navigation: [
     {
       id: 'store-configuration',

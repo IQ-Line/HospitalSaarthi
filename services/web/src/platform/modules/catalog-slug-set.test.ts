@@ -4,6 +4,7 @@ import {
   buildEnabledModuleSlugsFromCatalog,
   catalogSlugSetFromIndex,
   catalogSlugsFromTenantModules,
+  enrichAdminInventoryNavCatalogSlugs,
 } from './use-enabled-tenant-modules';
 import { clearModuleRegistryForTests } from './module-registry';
 import { invalidateComposedNavigationCache } from './module-manifest-loader';
@@ -102,5 +103,21 @@ describe('catalog slug resolution for sidebar module gates', () => {
     const enabled = buildEnabledModuleSlugsFromCatalog(catalogSlugSetFromIndex(index));
     expect(enabled.has('inventory')).toBe(true);
     expect(enabled.has('inventory-master')).toBe(false);
+  });
+
+  it('admin enrichment unlocks inventory-master and store-config for facility/tenant-admin gates', () => {
+    const index = indexWith([
+      { id: '1', slug: 'master-data', level: 1, parent_id: null },
+      { id: '2', slug: 'configurator', level: 1, parent_id: null },
+    ]);
+    const l1Only = catalogSlugSetFromIndex(index, { excludeProductModules: true });
+    const enabled = buildEnabledModuleSlugsFromCatalog(enrichAdminInventoryNavCatalogSlugs(l1Only));
+
+    expect(enabled.has('inventory-master')).toBe(true);
+    expect(enabled.has('store-config')).toBe(true);
+    expect(enabled.has('inventory-supply-masters')).toBe(true);
+    expect(enabled.has('store-configuration')).toBe(true);
+    // Operational inventory remains L1-gated — not injected for Onboarding-only admin shells.
+    expect(enabled.has('inventory')).toBe(false);
   });
 });

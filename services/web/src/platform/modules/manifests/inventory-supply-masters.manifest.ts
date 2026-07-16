@@ -8,7 +8,8 @@ export const inventorySupplyMastersModuleManifest: ModuleManifest = {
   routePrefix: '/inventory-supply-masters',
   sortOrder: 31,
   requiredModulesAny: ['inventory-master'],
-  requiredRolesAny: ['tenant-admin', 'admin'],
+  /** Superadmin: after facility selection; tenant-admin/admin: home facility. */
+  requiredRolesAny: ['super-admin', 'tenant-admin', 'admin'],
   navigation: [
     {
       id: 'inventory-supply-masters',

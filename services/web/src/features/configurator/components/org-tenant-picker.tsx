@@ -77,12 +77,12 @@ export function OrgTenantPicker({
     }
   }, [catalogQuery.isPending, organizations, selectedOrgId, onOrganizationChange]);
 
+  // Only pick a default tenant when none is selected. Never displace a controlled
+  // tenantId that is temporarily missing from the org list (e.g. Onboarding detail
+  // switched the active facility while the header picker org is still settling) —
+  // that fight causes "Maximum update depth exceeded".
   useEffect(() => {
-    if (tenantsForOrg.length === 0) {
-      return;
-    }
-    const stillValid = tenantsForOrg.some((t) => t.iq_tenant_id === tenantId);
-    if (stillValid) {
+    if (tenantsForOrg.length === 0 || tenantId.trim() !== '') {
       return;
     }
     const first = tenantsForOrg[0];

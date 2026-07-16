@@ -5,6 +5,7 @@ import {
   authPrincipalQueryKeys,
   authPrincipalQueryOptions,
   isSameAuthPrincipalScope,
+  resolveAuthPrincipalQueryScope,
   type AuthPrincipalQueryScope,
 } from '@/lib/auth-principal-query';
 
@@ -65,11 +66,12 @@ export async function applyAuthorizationFromLogin(
     return;
   }
 
-  const scope: AuthPrincipalQueryScope = {
+  const scope = resolveAuthPrincipalQueryScope({
     userId: auth.userId,
-    tenantId: tenant.tenantId,
+    homeTenantId: tenant.homeTenantId,
+    activeTenantId: tenant.tenantId,
     activeBranch: tenant.activeBranch,
-  };
+  });
 
   await queryClient.invalidateQueries({ queryKey: authPrincipalQueryKeys.all });
   queryClient.setQueryData(authPrincipalQueryKeys.detail(scope), principal);
@@ -105,11 +107,12 @@ export async function refreshAuthorizationContext(
     return;
   }
 
-  const scope: AuthPrincipalQueryScope = {
+  const scope = resolveAuthPrincipalQueryScope({
     userId: auth.userId,
-    tenantId: tenant.tenantId,
+    homeTenantId: tenant.homeTenantId,
+    activeTenantId: tenant.tenantId,
     activeBranch: tenant.activeBranch,
-  };
+  });
 
   const permissions = usePermissionsStore.getState();
   const cachedPrincipal = queryClient.getQueryData<AuthPrincipalResponse>(

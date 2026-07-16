@@ -5,9 +5,11 @@ import {
   INVENTORY_MASTER_TABS,
 } from '@/features/inventory-masters/inventory-masters-nav-model';
 import type { InventoryMasterTabId } from '@/features/inventory-masters/types';
+import { isOperatingAsFacilityTenant } from '@/lib/facility-tenant-scope';
 import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 
 export const INVENTORY_MASTER_CATALOG_PRODUCT_SLUGS = ['inventory-master'] as const;
 export const INVENTORY_MASTER_ROUTE_PREFIX = '/inventory-supply-masters';
@@ -17,12 +19,24 @@ export function assertInventorySupplyMastersTenantAdmin(): void {
   const principalRoles = usePermissionsStore.getState().roles;
   const accessToken = useAuthStore.getState().accessToken;
   const principal = { principalRoles, authRoles, accessToken };
-  if (
-    !resolveTenantAdmin(principal) &&
-    !resolvePlatformSuperAdmin(principal)
-  ) {
-    throw redirect({ to: '/dashboard' });
+  if (resolveTenantAdmin(principal)) {
+    return;
   }
+  if (resolvePlatformSuperAdmin(principal)) {
+    const { homeTenantId, tenantId } = useTenantStore.getState();
+    if (
+      !isOperatingAsFacilityTenant({
+        isPlatformSuperAdmin: true,
+        homeTenantId,
+        activeTenantId: tenantId,
+      })
+    ) {
+      // Tenant-scoped — select a facility from Onboarding first.
+      throw redirect({ to: '/configurator/tenant' });
+    }
+    return;
+  }
+  throw redirect({ to: '/dashboard' });
 }
 
 export function principalGrantsInventoryMasterRouteAccess(
@@ -56,10 +70,25 @@ export function catalogModuleSlugForInventoryMasterTab(tabId: InventoryMasterTab
   return INVENTORY_MASTER_TABS.find((tab) => tab.id === tabId)?.catalogModuleSlug ?? 'inventory-master';
 }
 
-/** Tenant administrators manage inventory masters by role; capability keys gate delegated staff only. */
+/**
+ * Full inventory-masters / store-config admin UX without L3 capability keys.
+ * Tenant-admins always; platform super-admins only while operating as a facility tenant.
+ */
 export function isInventorySupplyMastersTenantAdminPrincipal(): boolean {
   const authRoles = useAuthStore.getState().roles;
   const principalRoles = usePermissionsStore.getState().roles;
   const accessToken = useAuthStore.getState().accessToken;
-  return resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+  const principal = { principalRoles, authRoles, accessToken };
+  if (resolveTenantAdmin(principal)) {
+    return true;
+  }
+  if (!resolvePlatformSuperAdmin(principal)) {
+    return false;
+  }
+  const { homeTenantId, tenantId } = useTenantStore.getState();
+  return isOperatingAsFacilityTenant({
+    isPlatformSuperAdmin: true,
+    homeTenantId,
+    activeTenantId: tenantId,
+  });
 }

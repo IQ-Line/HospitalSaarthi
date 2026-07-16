@@ -1,23 +1,21 @@
-import { resolveTenantAdmin } from '@/lib/platform-admin';
+import { isInventorySupplyMastersTenantAdminPrincipal } from '@/features/inventory-masters/lib/inventory-masters-access';
 import { INVENTORY_MASTER_TABS } from '@/features/inventory-masters/inventory-masters-nav-model';
 import { principalGrantsInventoryMasterTabAccess } from '@/lib/inventory-masters-route-access';
-import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 
-/** Horizontal tabs visible for tenant administrators with catalog access. */
+/** Horizontal tabs — full set for inventory admins; L3-filtered for delegated staff. */
 export function useFilteredInventoryMasterTabs() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
-  const authRoles = useAuthStore((s) => s.roles);
-  const principalRoles = usePermissionsStore((s) => s.roles);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+  // Re-render when active facility changes (superadmin post-Onboarding selection).
+  useTenantStore((s) => s.tenantId);
+  useTenantStore((s) => s.homeTenantId);
 
-  if (!isTenantAdmin) {
-    return [];
+  if (isInventorySupplyMastersTenantAdminPrincipal()) {
+    return [...INVENTORY_MASTER_TABS];
   }
 
-  const accessible = INVENTORY_MASTER_TABS.filter((tab) =>
+  return INVENTORY_MASTER_TABS.filter((tab) =>
     principalGrantsInventoryMasterTabAccess(capabilityKeys, tab.id),
   );
-  return accessible.length > 0 ? accessible : [...INVENTORY_MASTER_TABS];
 }

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 
 import { useTenantModules } from '@/features/configurator/api/tenants';
 import { capabilityKeysGrantProductAccess } from '@/navigation/module-product-access';
+import { isOperatingAsFacilityTenant } from '@/lib/facility-tenant-scope';
 import { resolvePlatformSuperAdmin, resolveTenantAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
@@ -114,11 +115,22 @@ export function buildEnabledModuleSlugsFromCatalog(
   return enabled;
 }
 
-
+/**
+ * Gates Inventory Masters + Store Configuration for admin UX.
+ * Superadmin: only after operating as a selected facility tenant (post-Onboarding selection).
+ * Tenant-admin: top-level facility admin roots for their home tenant.
+ */
+export function enrichAdminInventoryNavCatalogSlugs(catalogSlugs: ReadonlySet<string>): Set<string> {
+  const enriched = new Set(catalogSlugs);
+  addCatalogSlugToSet(enriched, 'inventory-master');
+  addCatalogSlugToSet(enriched, 'store-config');
+  return enriched;
+}
 
 /**
  * Module slugs for navigation tenant gates.
- * - Platform super-admin: all active Master Data catalog L1 modules (not Configurator tenant_modules).
+ * - Platform super-admin on home: L1 catalog only (no tenant-scoped inventory admin shells).
+ * - Platform super-admin on a facility: that facility's tenant_modules + inventory admin shells.
  * - Everyone else: Configurator `tenant_modules` resolved via catalog `module_id` → `slug`.
  */
 /** Nav inputs: one module-catalog query + tenant modules (avoids duplicate global modules fetches). */
@@ -127,6 +139,7 @@ export function useTenantModuleNavContext(): {
   catalogIndex: ModuleCatalogIndex | null;
 } {
   const tenantId = useTenantStore((s) => s.tenantId);
+  const homeTenantId = useTenantStore((s) => s.homeTenantId);
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const principalRoles = usePermissionsStore((s) => s.roles);
   const authRoles = useAuthStore((s) => s.roles);
@@ -141,11 +154,16 @@ export function useTenantModuleNavContext(): {
     authRoles,
     accessToken,
   });
+  const operatingAsFacility = isOperatingAsFacilityTenant({
+    isPlatformSuperAdmin: isSuperAdmin,
+    homeTenantId,
+    activeTenantId: tenantId,
+  });
 
   const { index, isPending: catalogPending, isError: catalogError } = useModuleCatalog();
 
   const tenantModulesQuery = useTenantModules(tenantId ?? '', {
-    enabled: Boolean(tenantId) && !isSuperAdmin,
+    enabled: Boolean(tenantId) && (!isSuperAdmin || operatingAsFacility),
   });
 
   const enabledModuleSlugs = useMemo((): ReadonlySet<string> | null => {
@@ -163,10 +181,28 @@ export function useTenantModuleNavContext(): {
 
     if (isSuperAdmin) {
       const catalogSlugs = catalogSlugSetFromIndex(index, { excludeProductModules: true });
-      if (catalogSlugs.size === 0) {
-        return allRegisteredManifestTenantGateSlugs();
+      if (!operatingAsFacility) {
+        if (catalogSlugs.size === 0) {
+          return allRegisteredManifestTenantGateSlugs();
+        }
+        // Home/platform context — Onboarding only; no tenant-scoped inventory admin shells.
+        return buildEnabledModuleSlugsFromCatalog(catalogSlugs);
       }
-      return buildEnabledModuleSlugsFromCatalog(catalogSlugs);
+
+      if (tenantModulesQuery.isPending) {
+        return null;
+      }
+
+      const tenantCatalogSlugs = tenantModulesQuery.isError
+        ? new Set<string>()
+        : catalogSlugsFromTenantModules(index, tenantModulesQuery.data?.data ?? []);
+      const merged = new Set(catalogSlugs);
+      for (const slug of tenantCatalogSlugs) {
+        addCatalogSlugToSet(merged, slug);
+      }
+      // Superadmin configures inventory masters / store config on the tenant detail
+      // page tabs (not as Onboarding sidebar children).
+      return buildEnabledModuleSlugsFromCatalog(merged);
     }
 
     if (tenantModulesQuery.isPending) {
@@ -183,11 +219,8 @@ export function useTenantModuleNavContext(): {
     );
 
     if (isTenantAdminRole) {
-      const enriched = new Set(tenantCatalogSlugs);
+      const enriched = enrichAdminInventoryNavCatalogSlugs(tenantCatalogSlugs);
       addCatalogSlugToSet(enriched, 'configurator');
-      // Tenant-admin inventory masters / store config — not gated on delegated L3 capability keys.
-      addCatalogSlugToSet(enriched, 'inventory-master');
-      addCatalogSlugToSet(enriched, 'store-config');
       if (capabilityKeysGrantProductAccess(capabilityKeys, ['master-data'], index)) {
         addCatalogSlugToSet(enriched, 'master-data');
         addCatalogSlugToSet(enriched, 'inventory-master');
@@ -207,6 +240,8 @@ export function useTenantModuleNavContext(): {
     return buildEnabledModuleSlugsFromCatalog(tenantCatalogSlugs);
   }, [
     tenantId,
+    homeTenantId,
+    operatingAsFacility,
     capabilityKeys,
     isSuperAdmin,
     isTenantAdminRole,

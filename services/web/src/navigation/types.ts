@@ -25,7 +25,10 @@ export type NavigationNode = {
   catalogModuleSlug?: string;
   /** When true, only platform super-admins see this node. */
   superAdminOnly?: boolean;
-  /** When true, only tenant administrators see this node (hidden from platform super-admins). */
+  /**
+   * When true, only tenant administrators and platform super-admins see this node.
+   * Superadmin: unlocked only while operating as a selected facility tenant.
+   */
   tenantAdminOnly?: boolean;
   children?: NavigationNode[];
 };

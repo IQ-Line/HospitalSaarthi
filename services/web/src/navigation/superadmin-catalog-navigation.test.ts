@@ -4,7 +4,10 @@ import {
   getRegisteredModuleManifests,
   registerBuiltinModuleManifests,
 } from '@/platform/modules';
-import { catalogSlugSetFromIndex } from '@/platform/modules/use-enabled-tenant-modules';
+import {
+  buildEnabledModuleSlugsFromCatalog,
+  catalogSlugSetFromIndex,
+} from '@/platform/modules/use-enabled-tenant-modules';
 import { applyCatalogNavigationLabels } from './apply-catalog-navigation-labels';
 import { DEV_CATALOG_L1_FIXTURE } from './dev-catalog-l1.fixture';
 import { filterNavigationTree } from './filter-navigation-tree';
@@ -76,6 +79,45 @@ describe('super-admin sidebar vs global_master.modules L1 catalog', () => {
     expect(ids).toContain('configurator');
     expect(ids).not.toContain('frontdesk');
     expect(ids).not.toContain('opd');
+  });
+
+  it('keeps inventory masters / store config out of superadmin sidebar (tenant detail tabs)', () => {
+    const manifest = composeNavigationManifest(getRegisteredModuleManifests());
+    const homeOnly = buildEnabledModuleSlugsFromCatalog(
+      catalogSlugSetFromIndex(DEV_CATALOG_L1_FIXTURE, { excludeProductModules: true }),
+    );
+    const homeNav = filterNavigationTree(
+      manifest,
+      buildNavFilterContext(new Set(), homeOnly, {
+        bypassCapabilityGates: true,
+        isSuperAdmin: true,
+        catalogIndex: DEV_CATALOG_L1_FIXTURE,
+      }),
+    );
+    expect(homeNav.map((n) => n.id)).not.toContain('inventory-supply-masters');
+    expect(homeNav.map((n) => n.id)).not.toContain('store-configuration');
+
+    // Even with admin enrichment available (tenant-admin path), superadmin facility
+    // nav from L1+product merge intentionally omits sidebar shells — they live on
+    // Onboarding → tenant detail tabs instead.
+    const facilityEnabled = buildEnabledModuleSlugsFromCatalog(
+      catalogSlugSetFromIndex(DEV_CATALOG_L1_FIXTURE, { excludeProductModules: true }),
+    );
+    const facilityNav = filterNavigationTree(
+      manifest,
+      buildNavFilterContext(new Set(), facilityEnabled, {
+        bypassCapabilityGates: true,
+        isSuperAdmin: true,
+        catalogIndex: DEV_CATALOG_L1_FIXTURE,
+      }),
+    );
+    const rootIds = facilityNav.map((n) => n.id);
+    expect(rootIds).not.toContain('inventory-supply-masters');
+    expect(rootIds).not.toContain('store-configuration');
+    expect(rootIds).toContain('configurator');
+    const onboarding = facilityNav.find((n) => n.id === 'configurator');
+    expect(onboarding?.children?.map((c) => c.id) ?? []).not.toContain('inventory-supply-masters');
+    expect(onboarding?.children?.map((c) => c.id) ?? []).not.toContain('store-configuration');
   });
 
   it('uses Master Data display name Onboarding for configurator slug', () => {
