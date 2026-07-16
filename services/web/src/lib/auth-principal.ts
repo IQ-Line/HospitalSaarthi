@@ -1,5 +1,6 @@
 import type { Principal, Value } from '@cerbos/core';
 import { apiClient } from '@/lib/api-client';
+import { useTenantStore } from '@/stores/tenant.store';
 
 /** Body of `GET /api/user-management/auth/principal` (OpenAPI `Principal`). */
 export type AuthPrincipalResponse = {
@@ -22,7 +23,14 @@ export async function fetchAuthPrincipal(
     options?.bypassEntitlementCache === true
       ? { 'x-bypass-entitlement-cache': 'true' }
       : undefined;
-  return apiClient<AuthPrincipalResponse>(AUTH_PRINCIPAL_PATH, { method: 'GET', headers });
+  // Principal is always home-tenant identity. Active facility (superadmin switcher)
+  // must not rewrite the UM iq_tenant_id header for this route.
+  const homeTenantId = useTenantStore.getState().homeTenantId?.trim() || null;
+  return apiClient<AuthPrincipalResponse>(
+    AUTH_PRINCIPAL_PATH,
+    { method: 'GET', headers },
+    homeTenantId ? { tenantIdOverride: homeTenantId } : undefined,
+  );
 }
 
 /** Maps the user-management auth principal to Cerbos `Principal` (`attributes` → `attr`). */

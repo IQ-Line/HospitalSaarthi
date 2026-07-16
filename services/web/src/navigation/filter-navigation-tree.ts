@@ -191,8 +191,8 @@ export function isNavigationNodeVisible(
   if (!passesTenantModuleGate(gatedNode, ctx.enabledModuleSlugs)) {
     return false;
   }
-  // Tenant-admin catalog screens (inventory masters, store config) are role-gated, not capability-gated.
-  if (node.tenantAdminOnly && ctx.isTenantAdmin) {
+  // Admin catalog screens (inventory masters, store config) are role-gated, not capability-gated.
+  if (node.tenantAdminOnly && (ctx.isTenantAdmin || ctx.isSuperAdmin)) {
     return true;
   }
   if (!ctx.navAccess) {

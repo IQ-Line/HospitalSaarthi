@@ -74,10 +74,15 @@ const tenantSlice: StateCreator<TenantState> = (set, get) => ({
   },
 
   setOrganizationScope: (scope) => {
+    const prev = get();
+    const nextName = scope.organizationName ?? null;
+    if (prev.organizationId === scope.organizationId && prev.organizationName === nextName) {
+      return;
+    }
     set(
       {
         organizationId: scope.organizationId,
-        organizationName: scope.organizationName ?? null,
+        organizationName: nextName,
       },
       false,
       'setOrganizationScope',
@@ -109,15 +114,31 @@ const tenantSlice: StateCreator<TenantState> = (set, get) => ({
   },
 
   switchActiveTenant: (tenant) => {
-    usePermissionsStore.getState().clearPermissions();
+    // Do not clearPermissions here. Superadmin facility switches only change the
+    // working iq_tenant_id; the UM principal stays on homeTenantId. Clearing blanks
+    // the authenticated shell ("Loading capabilities...") until refresh completes,
+    // and a racing/failed refresh can leave isLoaded stuck false permanently.
+    const prev = get();
+    const nextOrganizationId = tenant.organizationId ?? prev.organizationId;
+    const nextOrganizationName = tenant.organizationName ?? prev.organizationName;
+    const nextActiveBranch = prev.activeBranch ?? prev.branches[0]?.id ?? null;
+    if (
+      prev.tenantId === tenant.tenantId &&
+      prev.tenantName === tenant.tenantName &&
+      prev.organizationId === nextOrganizationId &&
+      prev.organizationName === nextOrganizationName &&
+      prev.activeBranch === nextActiveBranch
+    ) {
+      return;
+    }
     set(
-      (state) => ({
+      {
         tenantId: tenant.tenantId,
         tenantName: tenant.tenantName,
-        organizationId: tenant.organizationId ?? state.organizationId,
-        organizationName: tenant.organizationName ?? state.organizationName,
-        activeBranch: state.activeBranch ?? state.branches[0]?.id ?? null,
-      }),
+        organizationId: nextOrganizationId,
+        organizationName: nextOrganizationName,
+        activeBranch: nextActiveBranch,
+      },
       false,
       'switchActiveTenant',
     );

@@ -43,6 +43,9 @@ import { useCatalogModuleCrud } from '@/hooks/use-catalog-module-crud';
 
 interface InventoryMastersTabPageProps {
   tabId: InventoryMasterTabId;
+  /** Onboarding tenant-detail embed: controlled sub-tabs, no page chrome. */
+  embedded?: boolean;
+  onTabChange?: (tabId: InventoryMasterTabId) => void;
 }
 
 type InventoryMasterCrudRow =
@@ -56,7 +59,11 @@ type InventoryMasterCrudRow =
 
 type DeleteTarget = { id: string; label: string };
 
-export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps) {
+export function InventoryMastersTabPage({
+  tabId,
+  embedded = false,
+  onTabChange,
+}: InventoryMastersTabPageProps) {
   const tab = getInventoryMasterTabConfig(tabId);
   const crudEnabled = inventoryMasterApiBasePath(tabId) !== null;
   const { canUpdate, canDelete } = useCatalogModuleCrud(tab.catalogModuleSlug, {
@@ -334,6 +341,8 @@ export function InventoryMastersTabPage({ tabId }: InventoryMastersTabPageProps)
   return (
     <InventoryMastersPageShell
       tabId={tabId}
+      embedded={embedded}
+      onTabChange={onTabChange}
       actions={
         <InventoryMastersHeaderActions
           catalogModuleSlug={tab.catalogModuleSlug}

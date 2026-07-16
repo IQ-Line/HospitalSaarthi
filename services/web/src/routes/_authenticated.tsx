@@ -11,7 +11,7 @@ import {
 import type { RouterContext } from '@/routes/__root';
 import {
   isSameAuthPrincipalScope,
-  type AuthPrincipalQueryScope,
+  resolveAuthPrincipalQueryScope,
 } from '@/lib/auth-principal-query';
 import { queryClient } from '@/lib/query-client';
 import { fetchAuthMe } from '@/lib/auth-me';
@@ -23,6 +23,12 @@ import { useTenantStore } from '@/stores/tenant.store';
 
 const EMPTY_CAPABILITY_RETRY_MAX = 3;
 const EMPTY_CAPABILITY_RETRY_INTERVAL_MS = 3000;
+
+type LayoutWorkScope = {
+  userId: string | null;
+  tenantId: string | null;
+  activeBranch: string | null;
+};
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: async ({ context, location }: { context: RouterContext; location: { pathname: string } }) => {
@@ -59,6 +65,7 @@ export const Route = createFileRoute('/_authenticated')({
 function AuthenticatedLayout() {
   const displayName = useAuthStore((s) => s.displayName);
   const userId = useAuthStore((s) => s.userId);
+  const homeTenantId = useTenantStore((s) => s.homeTenantId);
   const tenantId = useTenantStore((s) => s.tenantId);
   const tenantName = useTenantStore((s) => s.tenantName);
   const activeBranch = useTenantStore((s) => s.activeBranch);
@@ -66,20 +73,29 @@ function AuthenticatedLayout() {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
   const hasEmptyFallback = isLoaded && capabilityKeys.size === 0;
 
-  const lastLayoutScopeRef = useRef<AuthPrincipalQueryScope | null>(null);
+  /** Tracks active working tenant (facility) + branch — not principal home scope. */
+  const lastLayoutWorkScopeRef = useRef<LayoutWorkScope | null>(null);
 
   useEffect(() => {
-    const scope: AuthPrincipalQueryScope = { userId, tenantId, activeBranch };
-    const scopeChanged =
-      lastLayoutScopeRef.current === null ||
-      !isSameAuthPrincipalScope(lastLayoutScopeRef.current, scope);
+    const principalScope = resolveAuthPrincipalQueryScope({
+      userId,
+      homeTenantId,
+      activeTenantId: tenantId,
+      activeBranch,
+    });
+    const workScope: LayoutWorkScope = { userId, tenantId, activeBranch };
+    const workChanged =
+      lastLayoutWorkScopeRef.current === null ||
+      !isSameAuthPrincipalScope(lastLayoutWorkScopeRef.current, workScope);
 
-    if (isAuthorizationHydratedForScope(scope)) {
-      lastLayoutScopeRef.current = scope;
+    const principalReady = isAuthorizationHydratedForScope(principalScope);
+    // Principal ready + same facility/branch → nothing to do. Facility change still
+    // runs refresh so active-tenant module registration can bootstrap.
+    if (principalReady && !workChanged) {
       return;
     }
 
-    if (isLoaded && !scopeChanged) {
+    if (isLoaded && !workChanged) {
       return;
     }
 
@@ -88,17 +104,19 @@ function AuthenticatedLayout() {
     let retryTimer: ReturnType<typeof setInterval> | undefined;
 
     const hydrate = async () => {
+      const hadLoaded = usePermissionsStore.getState().isLoaded;
       try {
         await refreshAuthorizationContext(queryClient);
       } catch {
-        if (!cancelled) {
+        // Never blank an already-hydrated shell on a facility switch race / abort.
+        if (!cancelled && !hadLoaded) {
           usePermissionsStore.getState().clearPermissions();
         }
       }
     };
 
     void hydrate();
-    lastLayoutScopeRef.current = scope;
+    lastLayoutWorkScopeRef.current = workScope;
 
     if (hasEmptyFallback) {
       retryTimer = setInterval(() => {
@@ -119,7 +137,7 @@ function AuthenticatedLayout() {
         clearInterval(retryTimer);
       }
     };
-  }, [userId, tenantId, activeBranch, isLoaded, hasEmptyFallback]);
+  }, [userId, homeTenantId, tenantId, activeBranch, isLoaded, hasEmptyFallback]);
 
   if (!isLoaded) {
     return (
