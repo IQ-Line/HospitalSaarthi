@@ -101,10 +101,11 @@ function mockAuthenticatedSession() {
     accessToken: "jwt-token",
   });
   tenantGetState.mockReturnValue({
-    tenantId: "tenant-a",
-    activeBranch: "main",
-  });
-}
+      homeTenantId: "tenant-a",
+      tenantId: "tenant-a",
+      activeBranch: "main",
+    });
+  }
 
 describe("refreshAuthorizationContext", () => {
   beforeEach(() => {
@@ -304,7 +305,7 @@ describe("refreshAuthorizationContext", () => {
     expect(invalidateModuleRegistration).not.toHaveBeenCalled();
   });
 
-  it("invalidates and refetches principal when auth scope changes", async () => {
+  it("invalidates and refetches principal when home tenant / branch auth scope changes", async () => {
     mockAuthenticatedSession();
     permissionsGetState.mockReturnValue({
       clearPermissions,
@@ -318,6 +319,7 @@ describe("refreshAuthorizationContext", () => {
     hydrateCapabilitiesFromPrincipal.mockClear();
 
     tenantGetState.mockReturnValue({
+      homeTenantId: "tenant-b",
       tenantId: "tenant-b",
       activeBranch: "main",
     });
@@ -339,5 +341,51 @@ describe("refreshAuthorizationContext", () => {
       }),
     );
     expect(hydrateCapabilitiesFromPrincipal).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips principal network when only the active facility tenant changes", async () => {
+    mockAuthenticatedSession();
+    permissionsGetState.mockReturnValue({
+      clearPermissions,
+      isLoaded: false,
+    });
+
+    const queryClient = createQueryClient();
+
+    await refreshAuthorizationContext(queryClient);
+
+    vi.mocked(queryClient.fetchQuery).mockClear();
+    vi.mocked(queryClient.invalidateQueries).mockClear();
+    hydrateCapabilitiesFromPrincipal.mockClear();
+    invalidateModuleRegistration.mockClear();
+
+    permissionsGetState.mockReturnValue({
+      clearPermissions,
+      isLoaded: true,
+    });
+    vi.mocked(queryClient.getQueryData).mockImplementation((key: readonly unknown[]) => {
+      if (isPrincipalQueryKey(key)) {
+        return principal;
+      }
+      return { data: [] };
+    });
+
+    tenantGetState.mockReturnValue({
+      homeTenantId: "tenant-a",
+      tenantId: "facility-b",
+      activeBranch: "main",
+    });
+
+    await refreshAuthorizationContext(queryClient);
+
+    expect(
+      vi
+        .mocked(queryClient.fetchQuery)
+        .mock.calls.some((call) =>
+          isPrincipalQueryKey((call[0] as { queryKey: readonly unknown[] }).queryKey),
+        ),
+    ).toBe(false);
+    expect(hydrateCapabilitiesFromPrincipal).not.toHaveBeenCalled();
+    expect(invalidateModuleRegistration).toHaveBeenCalledWith(queryClient, "facility-b");
   });
 });

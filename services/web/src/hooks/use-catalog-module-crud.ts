@@ -5,9 +5,9 @@ import {
   type CatalogModuleCrudAccess,
   type CatalogModuleCrudAccessOptions,
 } from '@/lib/catalog-module-crud-access';
-import { resolveTenantAdmin } from '@/lib/platform-admin';
-import { useAuthStore } from '@/stores/auth.store';
+import { isInventorySupplyMastersTenantAdminPrincipal } from '@/features/inventory-masters/lib/inventory-masters-access';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 
 /**
  * Per-action UX gates for a Master Data catalog module (`modules.slug` on L2+ rows).
@@ -18,14 +18,13 @@ export function useCatalogModuleCrud(
   options?: CatalogModuleCrudAccessOptions,
 ): CatalogModuleCrudAccess {
   const capabilityKeys = usePermissionsStore((s) => s.capabilityKeys);
-  const authRoles = useAuthStore((s) => s.roles);
-  const principalRoles = usePermissionsStore((s) => s.roles);
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const isTenantAdmin = resolveTenantAdmin({ principalRoles, authRoles, accessToken });
+  const tenantId = useTenantStore((s) => s.tenantId);
+  const homeTenantId = useTenantStore((s) => s.homeTenantId);
+  const isInventoryCatalogAdmin = isInventorySupplyMastersTenantAdminPrincipal();
 
   return useMemo(() => {
     if (
-      isTenantAdmin &&
+      isInventoryCatalogAdmin &&
       (tenantAdminInventoryMasterCrudAccess(catalogModuleSlug) ||
         catalogModuleSlug.trim().toLowerCase() === 'store-config')
     ) {
@@ -42,6 +41,8 @@ export function useCatalogModuleCrud(
     capabilityKeys,
     catalogModuleSlug,
     options?.productModuleSlug,
-    isTenantAdmin,
+    isInventoryCatalogAdmin,
+    tenantId,
+    homeTenantId,
   ]);
 }

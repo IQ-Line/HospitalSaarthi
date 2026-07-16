@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { type ColumnDef } from '@tanstack/react-table';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Calendar,
@@ -32,8 +33,10 @@ import { parseBrandingLogoMetadata } from '@/features/configurator/api/branding-
 import { BrandingLogoImage } from '@/features/configurator/components/branding-logo-image';
 import { CreateBranchWizard } from '@/features/configurator/components/create-branch-wizard';
 import { SequenceConfigurationPanel } from '@/features/configurator/components/sequence-configuration/sequence-configuration-panel';
+import { TenantInventoryMastersPanel } from '@/features/configurator/components/tenant-inventory-masters-panel';
 import { TenantModulesPanel } from '@/features/configurator/components/tenant-modules-panel';
 import { TenantApiKeysPanel } from '@/features/configurator/components/tenant-api-keys-panel';
+import { StoreConfigurationPanel } from '@/features/store-configuration/components/store-configuration-panel';
 import {
   filterCatalogL1Modules,
   isCatalogL1Module,
@@ -46,9 +49,11 @@ import {
   TenantRoleTemplatesPanel,
   TenantUsersPanel,
 } from '@/features/configurator/components/tenant-detail-panels';
+import { refreshAuthorizationContext } from '@/lib/authorization-context';
 import { resolvePlatformSuperAdmin } from '@/lib/platform-admin';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePermissionsStore } from '@/stores/permissions.store';
+import { useTenantStore } from '@/stores/tenant.store';
 import {
   buildDescendantBranchTreeRows,
   type TenantTreeRow,
@@ -70,6 +75,8 @@ const TENANT_DETAIL_TABS = [
   'modules',
   'sequence',
   'api-keys',
+  'inventory-masters',
+  'store-configuration',
 ] as const;
 
 type TenantDetailTab = (typeof TENANT_DETAIL_TABS)[number];
@@ -125,8 +132,19 @@ function TenantOrganizationDetailPage() {
   const { organizationId } = Route.useParams();
   const { tenantId: tenantIdFromSearch, tab: tabFromSearch } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const queryClient = useQueryClient();
   const tab = tabFromSearch ?? 'overview';
   const [addBranchOpen, setAddBranchOpen] = useState(false);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const authRoles = useAuthStore((s) => s.roles);
+  const principalRoles = usePermissionsStore((s) => s.roles);
+  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({
+    principalRoles,
+    authRoles,
+    accessToken,
+  });
+  const activeTenantId = useTenantStore((s) => s.tenantId);
+  const switchActiveTenant = useTenantStore((s) => s.switchActiveTenant);
 
   const setTab = (value: string) => {
     const nextTab = parseTenantDetailTab(value);
@@ -159,6 +177,38 @@ function TenantOrganizationDetailPage() {
     }
     return rootTenant;
   }, [orgTenants, tenantIdFromSearch, rootTenant]);
+
+  const contextTenantId = contextTenant?.iq_tenant_id ?? null;
+  const contextTenantName = contextTenant?.name ?? null;
+  const contextTenantOrgId = contextTenant?.org_id ?? null;
+
+  // Superadmin: opening a facility from Onboarding sets the active working tenant so
+  // tenant-scoped modules (Store Config, Inventory Masters) unlock in the sidebar.
+  useEffect(() => {
+    if (!isPlatformSuperAdmin || !contextTenantId || !contextTenantName) {
+      return;
+    }
+    if (activeTenantId === contextTenantId) {
+      return;
+    }
+    switchActiveTenant({
+      tenantId: contextTenantId,
+      tenantName: contextTenantName,
+      organizationId: contextTenantOrgId,
+      organizationName: org?.name ?? null,
+    });
+    // Modules catalog is active-tenant scoped; principal stays on homeTenantId.
+    void refreshAuthorizationContext(queryClient, { light: true });
+  }, [
+    isPlatformSuperAdmin,
+    contextTenantId,
+    contextTenantName,
+    contextTenantOrgId,
+    activeTenantId,
+    org?.name,
+    switchActiveTenant,
+    queryClient,
+  ]);
 
   const branchTreeRows = useMemo(() => {
     if (!contextTenant) return [];
@@ -308,14 +358,6 @@ function TenantOrganizationDetailPage() {
     [modulesRes?.data],
   );
 
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const authRoles = useAuthStore((s) => s.roles);
-  const principalRoles = usePermissionsStore((s) => s.roles);
-  const isPlatformSuperAdmin = resolvePlatformSuperAdmin({
-    principalRoles,
-    authRoles,
-    accessToken,
-  });
   /** Module on/off toggles are platform-operator only; tenant admins see read-only status. */
   const canEditTenantModules = isPlatformSuperAdmin;
 
@@ -457,6 +499,16 @@ function TenantOrganizationDetailPage() {
             <TabsTrigger value="api-keys" className="shrink-0 text-xs sm:text-sm">
               API keys
             </TabsTrigger>
+            {isPlatformSuperAdmin ? (
+              <>
+                <TabsTrigger value="inventory-masters" className="shrink-0 text-xs sm:text-sm">
+                  Inventory masters
+                </TabsTrigger>
+                <TabsTrigger value="store-configuration" className="shrink-0 text-xs sm:text-sm">
+                  Store config
+                </TabsTrigger>
+              </>
+            ) : null}
             {/* <TabsTrigger value="audit-logs" className="shrink-0 text-xs sm:text-sm">
               Audit logs
             </TabsTrigger> */}
@@ -735,6 +787,17 @@ function TenantOrganizationDetailPage() {
             canManageKeys={isPlatformSuperAdmin}
           />
         </TabsContent>
+
+        {isPlatformSuperAdmin ? (
+          <>
+            <TabsContent value="inventory-masters" className="mt-4">
+              <TenantInventoryMastersPanel />
+            </TabsContent>
+            <TabsContent value="store-configuration" className="mt-4">
+              <StoreConfigurationPanel embedded />
+            </TabsContent>
+          </>
+        ) : null}
 
         <TabsContent value="audit-logs" className="mt-4">
           <TenantTabComingSoon

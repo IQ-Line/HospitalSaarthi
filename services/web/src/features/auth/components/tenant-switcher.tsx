@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Building2 } from 'lucide-react';
 import { useConfiguratorOrgTenantCatalog } from '@/features/configurator/api/catalog';
@@ -19,9 +19,10 @@ export function TenantSwitcher() {
   const isSuperAdmin = isPlatformSuperAdminFromAccessToken(accessToken);
   const catalogQuery = useConfiguratorOrgTenantCatalog(undefined, { enabled: isSuperAdmin });
 
-  const tenants = catalogQuery.data?.tenants ?? [];
+  const tenants = catalogQuery.data?.tenants;
+  const organizations = catalogQuery.data?.organizations;
   const initialOrgId = useMemo(() => {
-    if (!activeTenantId) {
+    if (!activeTenantId || !tenants) {
       return '';
     }
     return tenants.find((t) => t.iq_tenant_id === activeTenantId)?.org_id ?? '';
@@ -35,30 +36,36 @@ export function TenantSwitcher() {
     }
   }, [initialOrgId, organizationId]);
 
+  const handleOrganizationChange = useCallback(
+    (orgId: string) => {
+      setOrganizationId(orgId);
+      const org = organizations?.find((o) => o.id === orgId);
+      setOrganizationScope({
+        organizationId: orgId,
+        organizationName: org?.name ?? null,
+      });
+    },
+    [organizations, setOrganizationScope],
+  );
+
+  const handleTenantChange = useCallback(
+    (tenantId: string, tenantName: string) => {
+      const row = tenants?.find((t) => t.iq_tenant_id === tenantId);
+      const orgId = row?.org_id ?? organizationId;
+      switchActiveTenant({
+        tenantId,
+        tenantName,
+        organizationId: orgId,
+        organizationName: organizations?.find((o) => o.id === orgId)?.name ?? null,
+      });
+      void refreshAuthorizationContext(qc, { light: true });
+    },
+    [tenants, organizations, organizationId, switchActiveTenant, qc],
+  );
+
   if (!isSuperAdmin || !homeTenantId || !activeTenantId) {
     return null;
   }
-
-  const handleOrganizationChange = (orgId: string) => {
-    setOrganizationId(orgId);
-    const org = catalogQuery.data?.organizations.find((o) => o.id === orgId);
-    setOrganizationScope({
-      organizationId: orgId,
-      organizationName: org?.name ?? null,
-    });
-  };
-
-  const handleTenantChange = (tenantId: string, tenantName: string) => {
-    const row = tenants.find((t) => t.iq_tenant_id === tenantId);
-    switchActiveTenant({
-      tenantId,
-      tenantName,
-      organizationId: row?.org_id ?? organizationId,
-      organizationName:
-        catalogQuery.data?.organizations.find((o) => o.id === row?.org_id)?.name ?? null,
-    });
-    void refreshAuthorizationContext(qc);
-  };
 
   return (
     <div className="flex min-w-0 items-center gap-2">
